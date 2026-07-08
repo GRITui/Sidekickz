@@ -1,0 +1,17 @@
+{
+  "name": "Freelanz",
+  "short_name": "Freelanz",
+  "description": "Local-first admin for independent workers: jobs, invoicing, tax, docs, booking.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBFAF7",
+  "theme_color": "#0F766E",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["productivity", "finance", "business"],
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

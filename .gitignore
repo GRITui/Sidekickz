@@ -1,0 +1,24 @@
+# ── Secrets — NEVER commit ─────────────────────────────
+*.env
+.env*
+config.env
+deploy.env
+*.pem
+*.key
+*.token
+.vercel/
+secrets/
+
+# ── OS / editor junk ───────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# ── Logs / deps / build ────────────────────────────────
+*.log
+node_modules/
+dist/
+build/
+.cache/

@@ -1,0 +1,381 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>Freelanz</title>
+<meta name="description" content="Local-first admin for independent workers: jobs, invoicing, tax, docs, booking.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0F766E">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Freelanz">
+<link rel="icon" href="icons/icon.svg">
+<link rel="apple-touch-icon" href="icons/icon.svg">
+<script>document.documentElement.dataset.theme='light';</script><!-- light-only: set before CSS paints to avoid a dark flash on dark-OS -->
+<link rel="stylesheet" href="styles.css?v=0.2.1">
+<!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
+<body data-page="app">
+
+<!-- ══ HOME / DASHBOARD ══ -->
+<section class="screen" id="s-home">
+  <div class="hdr">
+    <div class="hdr-row">
+      <div>
+        <h1 id="home-greeting">Hello</h1>
+        <div class="hdr-sub" data-i18n="tagline">Freelance admin, handled.</div>
+      </div>
+      <button class="avatar" id="home-avatar" onclick="switchScreen('more')" data-i18n-aria="more_title" aria-label="More">F</button>
+    </div>
+  </div>
+
+  <div class="hero" id="hero-card">
+    <div class="hero-label" id="hero-label">Earned this month</div>
+    <div class="hero-amt tnum" id="hero-amt">฿0</div>
+    <div class="hero-stats">
+      <div><div class="hero-stat-label" data-i18n="stat_jobs">Jobs</div><div class="hero-stat-val tnum" id="stat-jobs-val">0</div></div>
+      <div><div class="hero-stat-label" data-i18n="stat_avg">Avg / job</div><div class="hero-stat-val tnum" id="stat-avg-val">฿0</div></div>
+      <div><div class="hero-stat-label" data-i18n="stat_expenses">Expenses</div><div class="hero-stat-val tnum" id="stat-exp-val">฿0</div></div>
+    </div>
+  </div>
+
+  <div class="goal-card" id="goal-card" style="display:none">
+    <div class="goal-row">
+      <span class="goal-label" data-i18n="todays_goal">Today's goal</span>
+      <span class="goal-pct tnum" id="goal-pct">0%</span>
+    </div>
+    <div class="goal-track"><div class="goal-fill" id="goal-fill"></div></div>
+    <div class="goal-sub" id="goal-sub"></div>
+  </div>
+
+  <div class="qa-grid">
+    <button class="qa-btn" onclick="openAddJob()"><span class="qa-ico">➕</span><span data-i18n="new_job">New job</span></button>
+    <button class="qa-btn accent" onclick="newInvoiceStub()"><span class="qa-ico">🧾</span><span data-i18n="new_invoice">New invoice</span></button>
+  </div>
+
+  <div class="content">
+    <div class="section-title" data-i18n="action_queue">Action queue</div>
+    <div id="queue-body"></div>
+  </div>
+</section>
+
+<!-- ══ JOBS ══ -->
+<section class="screen" id="s-jobs">
+  <div class="hdr-plain"><h1 data-i18n="jobs_title">Jobs</h1></div>
+  <div class="content"><div id="jobs-body"></div></div>
+</section>
+
+<!-- ══ INVOICES (placeholder, M2) ══ -->
+<section class="screen" id="s-invoices">
+  <div class="hdr-plain"><h1 data-i18n="invoices_title">Invoices</h1></div>
+  <div class="module-card">
+    <div class="m-ico">🧾</div>
+    <h2 data-i18n="module_soon_h">Coming soon</h2>
+    <p data-i18n="mod_invoices_p">Send branded invoices, track paid / due / overdue, and auto-fill tax. Arrives in M2.</p>
+    <div class="module-pill" data-i18n="pill_m2">Ships in M2</div>
+  </div>
+</section>
+
+<!-- ══ DOCS (placeholder, M2) ══ -->
+<section class="screen" id="s-docs">
+  <div class="hdr-plain"><h1 data-i18n="docs_title">Documents</h1></div>
+  <div class="module-card">
+    <div class="m-ico">📄</div>
+    <h2 data-i18n="module_soon_h">Coming soon</h2>
+    <p data-i18n="mod_docs_p">Store contracts, receipts and portfolio files — all on your device. Arrives in M2.</p>
+    <div class="module-pill" data-i18n="pill_m2">Ships in M2</div>
+  </div>
+</section>
+
+<!-- ══ BOOK (placeholder, M3) ══ -->
+<section class="screen" id="s-book">
+  <div class="hdr-plain"><h1 data-i18n="book_title">Booking</h1></div>
+  <div class="module-card">
+    <div class="m-ico">📅</div>
+    <h2 data-i18n="module_soon_h">Coming soon</h2>
+    <p data-i18n="mod_book_p">Share a booking link and let clients pick a slot. Arrives in M3.</p>
+    <div class="module-pill" data-i18n="pill_m3">Ships in M3</div>
+  </div>
+</section>
+
+<!-- ══ MORE / SETTINGS ══ -->
+<section class="screen" id="s-more">
+  <div class="hdr-plain"><h1 data-i18n="more_title">More</h1></div>
+  <div class="content">
+    <div class="settings-list">
+      <div class="account-row">
+        <div class="account-avatar" id="acct-avatar">F</div>
+        <div><div class="account-name" id="acct-name">—</div><div class="account-sub" id="acct-sub">—</div></div>
+      </div>
+    </div>
+
+    <div class="section-title" data-i18n="work_type">Work type</div>
+    <div class="settings-list">
+      <div class="settings-row">
+        <label class="settings-label" for="set-worktype" data-i18n="whats_your_job">What's your job?</label>
+        <select id="set-worktype" onchange="onSettingsTypeChange(this.value)"></select>
+      </div>
+      <div class="settings-row" id="set-custom-row" style="display:none;flex-direction:column;align-items:stretch;gap:10px">
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <label class="settings-label" for="set-custom-name" data-i18n="custom_name_label">Name it</label>
+          <input class="settings-input" id="set-custom-name" style="max-width:none;text-align:left" data-i18n-ph="custom_name_ph" placeholder="e.g. Yoga instructor" oninput="onCustomEdit()">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <label class="settings-label" for="set-custom-unit" data-i18n="custom_unit_label">One unit is a</label>
+          <input class="settings-input" id="set-custom-unit" style="max-width:none;text-align:left" data-i18n-ph="custom_unit_ph" placeholder="e.g. Class" oninput="onCustomEdit()">
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title" data-i18n="manage">Manage</div>
+    <div class="settings-list">
+      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('customers')">
+        <span class="settings-label" data-i18n="customers_title">Customers</span>
+        <span class="settings-label" style="color:var(--text3)">›</span>
+      </div>
+      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('services')">
+        <span class="settings-label" data-i18n="services_title">Services</span>
+        <span class="settings-label" style="color:var(--text3)">›</span>
+      </div>
+    </div>
+
+    <div class="section-title" data-i18n="preferences">Preferences</div>
+    <div class="settings-list">
+      <div class="settings-row">
+        <label class="settings-label" for="set-currency" data-i18n="currency">Currency</label>
+        <select id="set-currency" onchange="onCurrencyChange(this.value)">
+          <option value="THB">฿ THB</option><option value="USD">$ USD</option>
+          <option value="EUR">€ EUR</option><option value="GBP">£ GBP</option>
+          <option value="SGD">S$ SGD</option><option value="MYR">RM MYR</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <label class="settings-label" for="set-goal" data-i18n="daily_goal">Daily income goal</label>
+        <input class="settings-input tnum" id="set-goal" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalChange(this.value)">
+      </div>
+    </div>
+
+    <div class="section-title" data-i18n="tax_defaults">Tax defaults (for M2)</div>
+    <div class="settings-list">
+      <div class="settings-row">
+        <label class="settings-label" for="set-wht" data-i18n="wht">Withholding tax %</label>
+        <input class="settings-input tnum" id="set-wht" type="number" inputmode="decimal" min="0" max="100" placeholder="3" onchange="onWhtChange(this.value)">
+      </div>
+      <div class="settings-row">
+        <label class="settings-label" for="set-vat" data-i18n="vat">VAT %</label>
+        <input class="settings-input tnum" id="set-vat" type="number" inputmode="decimal" min="0" max="100" placeholder="7" onchange="onVatChange(this.value)">
+      </div>
+    </div>
+
+    <div class="section-title" data-i18n="data">Data</div>
+    <div class="export-btns">
+      <button onclick="exportCSV()" data-i18n="export_csv">Export CSV</button>
+      <button onclick="exportBackup()" data-i18n="backup_json">Backup JSON</button>
+    </div>
+    <div class="export-btns" style="grid-template-columns:1fr">
+      <button onclick="exportCustomersCSV()" data-i18n="export_customers_csv">Export customers CSV</button>
+    </div>
+    <div class="export-btns" style="grid-template-columns:1fr">
+      <button onclick="pickBackupFile()" data-i18n="restore_json">Restore JSON</button>
+    </div>
+    <input type="file" id="backup-file" accept="application/json,.json" style="display:none" onchange="importBackup(this)">
+
+    <div class="settings-list" style="margin-top:16px">
+      <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version">0.2.1</span></div>
+    </div>
+
+    <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
+  </div>
+</section>
+
+<!-- ══ CUSTOMERS ══ -->
+<section class="screen" id="s-customers">
+  <div class="hdr-plain">
+    <div class="hdr-row">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="avatar" onclick="switchScreen('more')" aria-label="Back" style="font-size:22px">‹</button>
+        <h1 data-i18n="customers_title">Customers</h1>
+      </div>
+    </div>
+  </div>
+  <div class="content">
+    <button class="btn-submit" style="margin:0 0 16px;width:100%" onclick="openAddCustomer()" data-i18n="add_customer">Add customer</button>
+    <div id="customers-body"></div>
+  </div>
+</section>
+
+<!-- ══ SERVICES ══ -->
+<section class="screen" id="s-services">
+  <div class="hdr-plain">
+    <div class="hdr-row">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="avatar" onclick="switchScreen('more')" aria-label="Back" style="font-size:22px">‹</button>
+        <h1 data-i18n="services_title">Services</h1>
+      </div>
+    </div>
+  </div>
+  <div class="content">
+    <button class="btn-submit" style="margin:0 0 16px;width:100%" onclick="openAddService()" data-i18n="add_service">Add service</button>
+    <div id="services-body"></div>
+  </div>
+</section>
+
+<!-- ══ BOTTOM NAV ══ -->
+<nav class="nav">
+  <button class="nav-btn" id="nav-home" onclick="switchScreen('home')">
+    <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+    <span data-i18n="nav_home">Home</span>
+  </button>
+  <button class="nav-btn" id="nav-jobs" onclick="switchScreen('jobs')">
+    <svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+    <span data-i18n="nav_jobs">Jobs</span>
+    <span class="nav-badge" id="jobs-badge" style="display:none">0</span>
+  </button>
+  <button class="nav-btn" id="nav-docs" onclick="switchScreen('docs')">
+    <svg viewBox="0 0 24 24"><path d="M13 3H6v18h12V8z"/><path d="M13 3v5h5"/></svg>
+    <span data-i18n="nav_docs">Docs</span>
+  </button>
+  <button class="nav-btn" id="nav-book" onclick="switchScreen('book')">
+    <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
+    <span data-i18n="nav_book">Book</span>
+  </button>
+  <button class="nav-btn" id="nav-more" onclick="switchScreen('more')">
+    <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+    <span data-i18n="nav_more">More</span>
+  </button>
+</nav>
+
+<!-- FAB -->
+<div class="fab-wrap"><button class="fab" id="fab" onclick="openAddJob()" data-i18n-aria="add_job" aria-label="Add job">+</button></div>
+
+<!-- ══ JOB MODAL ══ -->
+<div class="modal-overlay" id="modal-job">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-title" data-i18n="add_job">Add job</div>
+    <input type="hidden" id="j-edit-id">
+
+    <div class="form-section">
+      <div class="field">
+        <label for="j-date" data-i18n="field_date">Date</label>
+        <input type="date" id="j-date" onchange="calcDuration()">
+      </div>
+      <div class="form-row">
+        <div class="field-half"><label for="j-start" data-i18n="field_start">Start time</label><input type="time" id="j-start" onchange="calcDuration()"></div>
+        <div class="field-half"><label for="j-end" data-i18n="field_end">End time</label><input type="time" id="j-end" onchange="calcDuration()"></div>
+      </div>
+      <div class="field">
+        <label><span data-i18n="duration">Duration</span> <span id="j-overnight" style="display:none;color:var(--due);font-weight:700" data-i18n="ends_next_day">ends next day</span></label>
+        <div id="j-dur" style="padding:5px 0 12px;font-size:16px">—</div>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <div class="field">
+        <label for="j-customer" data-i18n="field_customer">Customer</label>
+        <select id="j-customer" onchange="onJobCustomerChange(this.value)"></select>
+      </div>
+      <div class="field">
+        <label for="j-client" data-i18n="field_client">Client</label>
+        <input type="text" id="j-client" data-i18n-ph="field_client_ph" placeholder="e.g. Acme Co.">
+      </div>
+      <div class="field">
+        <label for="j-service" data-i18n="field_service">Service</label>
+        <select id="j-service" onchange="onJobServiceChange(this.value)"></select>
+      </div>
+      <div class="form-row">
+        <div class="field-half"><label for="j-amount" data-i18n="field_amount">Amount</label><input type="number" id="j-amount" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
+        <div class="field-half"><label for="j-tip" data-i18n="field_tip">Tip</label><input type="number" id="j-tip" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
+      </div>
+      <div class="form-row">
+        <div class="field-half"><label for="j-expense" data-i18n="field_expense">Expense</label><input type="number" id="j-expense" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
+        <div class="field-half"><label for="j-count" data-i18n="field_count">Count</label><input type="number" id="j-count" class="tnum" inputmode="numeric" min="0" placeholder="0"></div>
+      </div>
+      <div class="field">
+        <label for="j-notes" data-i18n="field_notes">Notes</label>
+        <textarea id="j-notes" rows="2" data-i18n-ph="field_notes_ph" placeholder="Anything to remember…"></textarea>
+      </div>
+    </div>
+
+    <div class="net-box">
+      <span class="net-box-label" data-i18n="net_take">Net take</span>
+      <span class="net-box-val tnum" id="j-net">฿0</span>
+    </div>
+
+    <button class="btn-submit" onclick="saveJob()" data-i18n="save_job">Save job</button>
+    <button class="btn-danger" id="j-delete" style="display:none" onclick="deleteJob()" data-i18n="delete_job">Delete job</button>
+    <button class="btn-danger" style="border-color:var(--border-mid);color:var(--text3)" onclick="closeJobModal()" data-i18n="cancel">Cancel</button>
+  </div>
+</div>
+
+<!-- ══ CUSTOMER MODAL ══ -->
+<div class="modal-overlay" id="modal-customer">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="cust-modal-title" data-i18n="add_customer">Add customer</div>
+    <input type="hidden" id="c-edit-id">
+    <div class="form-section">
+      <div class="field"><label for="c-name" data-i18n="field_name">Name</label><input type="text" id="c-name"></div>
+      <div class="field"><label for="c-phone" data-i18n="field_phone">Phone</label><input type="tel" id="c-phone"></div>
+      <div class="field"><label for="c-email" data-i18n="field_email">Email</label><input type="email" id="c-email" autocapitalize="none"></div>
+      <div class="field"><label for="c-tags" data-i18n="field_tags">Tags (comma-separated)</label><input type="text" id="c-tags"></div>
+    </div>
+    <div class="form-section">
+      <div class="field"><label for="c-taxid" data-i18n="field_taxid">Tax ID</label><input type="text" id="c-taxid"></div>
+      <div class="field"><label for="c-billing" data-i18n="field_billing">Billing address</label><input type="text" id="c-billing"></div>
+    </div>
+    <div class="form-section" id="cust-intake"></div>
+    <div class="form-section">
+      <div class="field"><label for="c-notes" data-i18n="field_notes">Notes</label><textarea id="c-notes" rows="2"></textarea></div>
+    </div>
+    <button class="btn-submit" onclick="saveCustomer()" data-i18n="save_customer">Save customer</button>
+    <button class="btn-danger" id="c-delete" style="display:none" onclick="deleteCustomer()" data-i18n="delete_customer">Delete customer</button>
+    <button class="btn-danger" style="border-color:var(--border-mid);color:var(--text3)" onclick="closeCustomerModal()" data-i18n="cancel">Cancel</button>
+  </div>
+</div>
+
+<!-- ══ SERVICE MODAL ══ -->
+<div class="modal-overlay" id="modal-service">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="svc-modal-title" data-i18n="add_service">Add service</div>
+    <input type="hidden" id="sv-edit-id">
+    <div class="form-section">
+      <div class="field"><label for="sv-name" data-i18n="field_name">Name</label><input type="text" id="sv-name"></div>
+      <div class="form-row">
+        <div class="field-half"><label for="sv-rate" data-i18n="field_rate">Default rate</label><input type="number" id="sv-rate" class="tnum" inputmode="decimal" min="0" placeholder="0"></div>
+        <div class="field-half"><label for="sv-unit" data-i18n="field_unit">Unit</label><input type="text" id="sv-unit" data-i18n-ph="field_unit_ph" placeholder="e.g. session, hour"></div>
+      </div>
+    </div>
+    <button class="btn-submit" onclick="saveService()" data-i18n="save_service">Save service</button>
+    <button class="btn-danger" id="sv-delete" style="display:none" onclick="deleteService()" data-i18n="delete_service">Delete service</button>
+    <button class="btn-danger" style="border-color:var(--border-mid);color:var(--text3)" onclick="closeServiceModal()" data-i18n="cancel">Cancel</button>
+  </div>
+</div>
+
+<!-- ══ ONBOARDING ══ -->
+<div class="onboarding" id="onboarding">
+  <img class="ob-logo" src="icons/icon.svg" alt="">
+  <h2 data-i18n="onboard_title">What kind of work do you do?</h2>
+  <p data-i18n="onboard_sub">We’ll tailor labels and screens to fit. You can change this anytime in Settings.</p>
+  <div class="form-section" style="margin:0 0 14px">
+    <div class="field">
+      <label for="ob-jobtype" data-i18n="whats_your_job">What's your job?</label>
+      <select id="ob-jobtype" onchange="onOnboardTypeChange(this.value)"></select>
+    </div>
+  </div>
+  <div class="form-section" id="ob-custom" style="display:none;margin:0 0 14px">
+    <div class="field">
+      <label for="ob-custom-name" data-i18n="custom_name_label">Name it</label>
+      <input type="text" id="ob-custom-name" data-i18n-ph="custom_name_ph" placeholder="e.g. Yoga instructor">
+    </div>
+    <div class="field">
+      <label for="ob-custom-unit" data-i18n="custom_unit_label">One unit is a</label>
+      <input type="text" id="ob-custom-unit" data-i18n-ph="custom_unit_ph" placeholder="e.g. Class">
+    </div>
+  </div>
+  <button class="btn-submit" style="margin:0;width:100%" onclick="confirmOnboarding()" data-i18n="continue_btn">Continue</button>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<script src="app.js?v=0.2.1"></script>
