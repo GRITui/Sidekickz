@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.7.1';          // <-> sw.js SW_VERSION 'freelanz-v0.7.1'  (M2.5 merged onto M5 line)
+const APP_VERSION = '0.7.2';          // <-> sw.js SW_VERSION 'freelanz-v0.7.2'  (M2.5 merged onto M5 line)
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -107,10 +107,6 @@ let currentUser = null;
 let authMode = 'login';
 let isGuest = false;
 
-async function sha256hex(str) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
-}
 function randomSalt() {
   const a = new Uint8Array(16);
   crypto.getRandomValues(a);

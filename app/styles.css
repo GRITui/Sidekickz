@@ -1,4 +1,4 @@
-/* Freelanz — styles.css?v=0.7.1  (version-lockstep with app.js APP_VERSION 0.7.1)
+/* Freelanz — styles.css?v=0.7.2  (version-lockstep with app.js APP_VERSION 0.7.2)
    Mobile-first, big tap targets. Local-first PWA, no external assets. */
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
@@ -142,14 +142,6 @@ body.authed .nav{display:flex;}
 .empty p{font-size:15px;font-weight:700;color:var(--text2);}
 .empty span{font-size:13px;display:block;margin-top:6px;color:var(--text3);}
 
-/* Placeholder module card (M2/M3 screens) */
-.module-card{margin:16px;background:var(--card);border:0.5px solid var(--border);border-radius:var(--radius);
-  padding:34px 22px;text-align:center;}
-.module-card .m-ico{font-size:42px;margin-bottom:14px;}
-.module-card h2{font-size:18px;font-weight:800;color:var(--text);margin-bottom:8px;}
-.module-card p{font-size:14px;color:var(--text3);line-height:1.5;}
-.module-pill{display:inline-block;margin-top:14px;padding:6px 14px;border-radius:20px;background:var(--marigold-tint);
-  color:var(--marigold-ink);font-size:12px;font-weight:800;}
 
 /* ── Auth screen (login.html) ───────────────────────────────── */
 .auth{display:none;min-height:100vh;flex-direction:column;background:linear-gradient(160deg,var(--brand) 0%,#0B4F49 100%);}
@@ -249,18 +241,6 @@ select option{background:var(--select-option-bg);color:var(--select-option-fg);}
   padding:14px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;width:100%;margin-bottom:24px;}
 .btn-logout:active{background:color-mix(in srgb,var(--overdue) 10%,transparent);}
 
-/* Segmented / persona picker (chips) */
-.seg{display:flex;background:var(--border);border-radius:11px;padding:3px;gap:2px;}
-.seg button{flex:1;padding:9px;border:none;background:none;border-radius:9px;font-size:13px;font-weight:700;
-  color:var(--text3);cursor:pointer;font-family:inherit;}
-.seg button.on{background:var(--card);color:var(--brand);box-shadow:0 1px 3px rgba(0,0,0,.12);}
-.persona-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.persona-opt{padding:16px 14px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--card);
-  text-align:left;cursor:pointer;font-family:inherit;color:var(--text);transition:all .15s;}
-.persona-opt.sel{border-color:var(--brand);background:var(--brand-tint);}
-.persona-opt .p-ico{font-size:24px;display:block;margin-bottom:8px;}
-.persona-opt .p-name{font-size:15px;font-weight:800;}
-.persona-opt .p-sub{font-size:12px;color:var(--text3);margin-top:2px;}
 
 /* Onboarding overlay */
 .onboarding{display:none;position:fixed;inset:0;z-index:500;background:var(--bg);overflow-y:auto;
@@ -281,14 +261,6 @@ select option{background:var(--select-option-bg);color:var(--select-option-fg);}
 .stage-badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:800;
   background:var(--brand-tint);color:var(--brand);letter-spacing:.2px;}
 .stage-badge.done{background:color-mix(in srgb,var(--paid) 16%,transparent);color:var(--paid);}
-.pl-group{margin:0 0 20px;}
-.pl-head{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:14px;font-weight:800;color:var(--text);}
-.pl-head .pl-ico{font-size:16px;}
-.pl-head .pl-count{margin-left:auto;font-size:12px;font-weight:800;color:var(--text3);
-  background:var(--border);border-radius:10px;min-width:22px;height:20px;display:inline-flex;
-  align-items:center;justify-content:center;padding:0 6px;}
-.pl-empty{font-size:13px;color:var(--text3);padding:12px 14px;border:1px dashed var(--border);
-  border-radius:var(--radius-sm);text-align:center;}
 .pl-action{padding:9px 14px;border:none;border-radius:9px;background:var(--brand);color:#fff;
   font-size:13px;font-weight:800;font-family:inherit;cursor:pointer;}
 .pl-action:active{background:#0B5E57;}
@@ -353,7 +325,7 @@ select option{background:var(--select-option-bg);color:var(--select-option-fg);}
 }
 
 
-/* ── Kanban pipeline board (v0.7.1) ───────────────────── */
+/* ── Kanban pipeline board (v0.7.2) ───────────────────── */
 .kanban{display:flex;gap:12px;overflow-x:auto;padding:2px 2px 10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;}
 .kb-col{flex:0 0 84%;max-width:340px;scroll-snap-align:start;background:var(--bg);border:1px solid var(--border);border-radius:16px;padding:10px;display:flex;flex-direction:column;min-height:110px;}
 .kb-col-head{display:flex;align-items:center;gap:8px;padding:4px 4px 10px;font-size:13px;font-weight:800;color:var(--text);}
