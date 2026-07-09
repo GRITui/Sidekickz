@@ -54,11 +54,16 @@
       const cust = cid ? custById.get(cid) : null;
       const name = (cust && cust.name) || inv.clientName || 'No client';
 
-      if (inv.status !== 'paid' && inv.dueDate && inv.dueDate < today) {
-        const n = daysBetween(inv.dueDate, today);
+      // Either the user marked the invoice 'overdue' directly, or it's still
+      // unpaid past its due date — a blank/cleared dueDate shouldn't hide an
+      // invoice the user has explicitly flagged as overdue.
+      if (inv.status === 'overdue' || (inv.status !== 'paid' && inv.dueDate && inv.dueDate < today)) {
+        const n = inv.dueDate && inv.dueDate < today ? daysBetween(inv.dueDate, today) : 0;
         candidates.push({
           group: 0, sortN: n, icon: '🧾', title: name,
-          reason: `Invoice ${inv.number || ''} is ${n} day${n === 1 ? '' : 's'} overdue`,
+          reason: n > 0
+            ? `Invoice ${inv.number || ''} is ${n} day${n === 1 ? '' : 's'} overdue`
+            : `Invoice ${inv.number || ''} is marked overdue`,
           key: `overdue:${cid}:${inv.id}`,
         });
       } else if (inv.status === 'draft' && inv.issueDate && daysBetween(inv.issueDate, today) >= DRAFT_STALE_DAYS) {
@@ -136,7 +141,13 @@
   async function renderFollowups() {
     const el = document.getElementById('followups-body');
     if (!el) return;
-    queue = await buildQueue();
+    try {
+      queue = await buildQueue();
+    } catch (err) {
+      console.error('renderFollowups', err);
+      el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>Could not load follow-ups.</p></div>`;
+      return;
+    }
 
     if (!queue.length) {
       el.innerHTML = `<div class="empty"><div class="empty-icon">✅</div>

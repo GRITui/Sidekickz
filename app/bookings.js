@@ -85,7 +85,14 @@
     const el = document.getElementById('book-body');
     if (!el) return;
     if (!selectedDate) selectedDate = todayISO();
-    const rows = await loadBookings(selectedDate);
+    let rows;
+    try {
+      rows = await loadBookings(selectedDate);
+    } catch (err) {
+      console.error('renderBookings', err);
+      el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>Could not load bookings.</p></div>`;
+      return;
+    }
 
     const nav = `<div style="display:flex;align-items:center;gap:8px;background:var(--card);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:6px;margin:0 0 14px">
         <button type="button" id="bk-prev" aria-label="Previous day" style="flex:0 0 auto;width:40px;padding:10px 0;border:none;background:var(--brand-tint);color:var(--brand);border-radius:9px;font-size:18px;font-weight:800;font-family:inherit;cursor:pointer">‹</button>
@@ -127,21 +134,24 @@
 
   function buildDayList(rows) {
     // Buffer gaps are computed only between non-cancelled bookings; cancelled
-    // ones still render (de-emphasized) but never contribute to a gap.
+    // ones still render (de-emphasized) but never contribute to a gap. Strips
+    // are keyed by the NEXT booking's id (rendered immediately before it) so a
+    // cancelled row sitting chronologically between two active ones can't
+    // shift the strip onto the wrong pair.
     const active = rows.filter(r => r.status !== 'cancelled');
-    const strips = {}; // prevBookingId -> strip HTML rendered after that row
+    const stripsBefore = {}; // nextBookingId -> strip HTML rendered right before that row
     for (let i = 0; i < active.length - 1; i++) {
       const prev = active[i], next = active[i + 1];
       const gap = toMin(next.startTime) - (toMin(prev.startTime) + n(prev.durationMin));
       const buf = n(prev.travelBufferMin);
       if (buf === 0 && gap >= 0) continue; // nothing worth flagging
-      strips[prev.id] = (gap < buf) ? stripHtml(true, gap, buf) : stripHtml(false, gap, buf);
+      stripsBefore[next.id] = (gap < buf) ? stripHtml(true, gap, buf) : stripHtml(false, gap, buf);
     }
 
     let html = '<div class="list-card">';
     rows.forEach(r => {
+      if (stripsBefore[r.id]) html += stripsBefore[r.id];
       html += rowHtml(r);
-      if (strips[r.id]) html += strips[r.id];
     });
     html += '</div>';
     return html;
@@ -150,7 +160,7 @@
   function stripHtml(warn, gap, buf) {
     if (warn) {
       const msg = gap < 0
-        ? `⚠ Overlaps by ${-gap} min — need ${buf} min buffer`
+        ? (buf === 0 ? `⚠ Overlaps by ${-gap} min` : `⚠ Overlaps by ${-gap} min — need ${buf} min buffer`)
         : `⚠ Only ${gap} min — need ${buf} min`;
       return `<div style="padding:7px 16px;font-size:11px;font-weight:700;color:var(--overdue);background:color-mix(in srgb,var(--overdue) 8%,var(--card));border-bottom:0.5px solid var(--border)">${esc(msg)}</div>`;
     }
@@ -160,7 +170,8 @@
   function rowHtml(r) {
     const dim = (r.status === 'done' || r.status === 'cancelled');
     const start = toMin(r.startTime);
-    const range = fmtMin(start) + '–' + fmtMin(start + n(r.durationMin));
+    const end = start + n(r.durationMin);
+    const range = fmtMin(start) + '–' + fmtMin(end) + (end >= 1440 ? ' (+1d)' : '');
     const cust = customerName(r.customerId);
     const subParts = [];
     if (cust) subParts.push(esc(cust));

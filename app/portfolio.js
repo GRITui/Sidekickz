@@ -137,7 +137,7 @@
     overlay.innerHTML = `
       <div class="modal" role="dialog" aria-modal="true" aria-label="Portfolio item form">
         <div class="modal-handle"></div>
-        <div class="modal-title">${isEdit ? 'Edit item' : 'New item'}</div>
+        <div class="modal-title">${isEdit ? 'Edit portfolio item' : 'New portfolio item'}</div>
         <div class="form-body">
           <div class="field">
             <label for="pf-title">Title</label>
