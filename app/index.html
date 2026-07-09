@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/icon.svg">
 <script>document.documentElement.dataset.theme='light';</script><!-- light-only: set before CSS paints to avoid a dark flash on dark-OS -->
-<link rel="stylesheet" href="styles.css?v=0.3.0">
+<link rel="stylesheet" href="styles.css?v=0.4.0">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -51,6 +51,10 @@
     <button class="qa-btn accent" onclick="newInvoice()"><span class="qa-ico">🧾</span><span data-i18n="new_invoice">New invoice</span></button>
   </div>
 
+  <div style="margin:0 16px 18px">
+    <button class="qa-btn" style="width:100%" onclick="switchScreen('pipeline')"><span class="qa-ico">📊</span><span>Pipeline</span></button>
+  </div>
+
   <div class="content">
     <div class="section-title" data-i18n="action_queue">Action queue</div>
     <div id="queue-body"></div>
@@ -61,6 +65,19 @@
 <section class="screen" id="s-jobs">
   <div class="hdr-plain"><h1 data-i18n="jobs_title">Jobs</h1></div>
   <div class="content"><div id="jobs-body"></div></div>
+</section>
+
+<!-- ══ PIPELINE (M2.5 — engagement board) ══ -->
+<section class="screen" id="s-pipeline">
+  <div class="hdr-plain">
+    <div class="hdr-row">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="avatar" onclick="switchScreen('home')" aria-label="Back" style="font-size:22px">‹</button>
+        <h1>Pipeline</h1>
+      </div>
+    </div>
+  </div>
+  <div class="content"><div id="pipeline-body"></div></div>
 </section>
 
 <!-- ══ INVOICES (M2 — owned by invoices.js) ══ -->
@@ -121,21 +138,29 @@
       </div>
     </div>
 
+    <div class="section-title">Workflow</div>
+    <p style="font-size:12px;color:var(--text3);margin:-4px 0 10px">The stages each engagement moves through, in order. Reorder or toggle Quote to fit how you work.</p>
+    <div class="settings-list" id="workflow-body"></div>
+
     <div class="section-title" data-i18n="manage">Manage</div>
     <div class="settings-list">
-      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('customers')">
+      <div class="settings-row" style="cursor:pointer" tabindex="0" role="button" onclick="switchScreen('pipeline')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchScreen('pipeline')}">
+        <span class="settings-label">Pipeline</span>
+        <span class="settings-label" style="color:var(--text3)">›</span>
+      </div>
+      <div class="settings-row" style="cursor:pointer" tabindex="0" role="button" onclick="switchScreen('customers')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchScreen('customers')}">
         <span class="settings-label" data-i18n="customers_title">Customers</span>
         <span class="settings-label" style="color:var(--text3)">›</span>
       </div>
-      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('services')">
+      <div class="settings-row" style="cursor:pointer" tabindex="0" role="button" onclick="switchScreen('services')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchScreen('services')}">
         <span class="settings-label" data-i18n="services_title">Services</span>
         <span class="settings-label" style="color:var(--text3)">›</span>
       </div>
-      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('invoices')">
+      <div class="settings-row" style="cursor:pointer" tabindex="0" role="button" onclick="switchScreen('invoices')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchScreen('invoices')}">
         <span class="settings-label">Invoices</span>
         <span class="settings-label" style="color:var(--text3)">›</span>
       </div>
-      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('tax')">
+      <div class="settings-row" style="cursor:pointer" tabindex="0" role="button" onclick="switchScreen('tax')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchScreen('tax')}">
         <span class="settings-label">Tax</span>
         <span class="settings-label" style="color:var(--text3)">›</span>
       </div>
@@ -188,7 +213,7 @@
 
     <div class="settings-list" style="margin-top:16px">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version">0.3.0</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version">0.4.0</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
@@ -384,11 +409,18 @@
   <button class="btn-submit" style="margin:0;width:100%" onclick="confirmOnboarding()" data-i18n="continue_btn">Continue</button>
 </div>
 
+<!-- Non-blocking "save this session's client as a customer" banner -->
+<div class="action-banner" id="save-cust-banner" role="status" aria-live="polite">
+  <span id="save-cust-text" class="action-banner-text">Save as a customer?</span>
+  <button type="button" class="action-banner-btn" onclick="acceptSaveCustomerBanner()">Save</button>
+  <button type="button" class="action-banner-dismiss" aria-label="Dismiss" onclick="dismissSaveCustomerBanner()">×</button>
+</div>
+
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.3.0"></script>
+<script src="app.js?v=0.4.0"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.3.0"></script>
-<script src="invoices.js?v=0.3.0"></script>
-<script src="docgen.js?v=0.3.0"></script>
+<script src="tax.js?v=0.4.0"></script>
+<script src="invoices.js?v=0.4.0"></script>
+<script src="docgen.js?v=0.4.0"></script>

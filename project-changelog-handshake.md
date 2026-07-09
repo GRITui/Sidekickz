@@ -13,7 +13,8 @@
 ## Milestones
 - [x] **M1 — Foundation**: PWA shell, auth+guest (PBKDF2), IndexedDB, persona onboarding, i18n `t(key@persona)` relabel layer, theming, dashboard, log-job + settings + CSV/JSON export. **DONE + verified.**
 - [x] **M1.5 — Refinements**: light-mode-only (toggle removed), job-type dropdown + Custom + Personal gym trainer, Customers module (details), Services catalog w/ rates + fee-prefill. **DONE + browser-verified.**
-- [ ] **M2 — Money & docs**: invoicing + PromptPay QR, WHT/VAT tax engine, doc-gen templates. *(fan-out candidate — independent modules; use approved model/effort matrix)*
+- [x] **M2 — Money & docs**: invoicing + PromptPay QR, WHT/VAT tax engine, doc-gen templates. **DONE + browser-verified + pushed (v0.3.0, commit f082abc).** Built via parallel module fan-out (tax.js∥invoices.js∥docgen.js). CAVEAT: PromptPay QR needs a real bank-app scan test before production use.
+- [ ] **M2.5 — Engagement workflow** (NEW, user-requested): (a) create/save a customer profile from a session; (b) session → engagement lifecycle: Quote → Send invoice → Deliver/ship service → Billing/paid; (c) **stage order configurable per business model** (deliver-first / quote+deposit-first / prepaid). Pipeline view + per-job stage + next-action. Ties jobs↔quotes↔invoices↔customers together. *Design pending user approval.*
 - [ ] **M-AI (backend, later)**: Vercel serverless proxy holding the AI Gateway key (env var) for an AI feature — scope TBD. Key must NEVER be client-side. User's pasted key was exposed in chat → rotate before use.
 - [ ] **M3 — Booking & CRM**: day view + travel buffers, follow-up queue, portfolio.
 - [ ] **M4 — Polish**: offline hardening, CSV/JSON export, deploy prep (Hostinger, version lockstep, no-cache discipline).

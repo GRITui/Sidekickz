@@ -143,10 +143,12 @@
   // ══════════════════════════════════════════════════════════════════════
   let lines = [];        // working line items: {description, qty, unitPrice}
   let editing = null;    // full record being edited, or null on create
+  let formFromJobId = null; // pipeline job this form was opened from (for engagement linking)
 
   function openInvoiceForm(fromJobId) {
     editing = null;
     lines = [];
+    formFromJobId = (fromJobId != null) ? fromJobId : null;
 
     // Prefill from a job if requested
     let preClientId = '', preClientName = '';
@@ -184,6 +186,7 @@
 
   function openInvoiceEdit(inv) {
     editing = inv;
+    formFromJobId = null;
     lines = (inv.lineItems && inv.lineItems.length)
       ? inv.lineItems.map(li => ({ description: li.description || '', qty: n(li.qty), unitPrice: n(li.unitPrice) }))
       : [{ description: '', qty: 1, unitPrice: 0 }];
@@ -217,7 +220,8 @@
 
     const custOpts = `<option value="">— Free text —</option>` +
       (typeof customers !== 'undefined' ? customers : []).map(c =>
-        `<option value="${c.id}"${String(c.id) === String(v.clientId) ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
+        `<option value="${c.id}"${String(c.id) === String(v.clientId) ? ' selected' : ''}>${esc(c.name)}</option>`).join('') +
+      `<option value="__new">＋ New customer…</option>`;
 
     const svcOpts = `<option value="">+ Add line from service…</option>` +
       (typeof services !== 'undefined' ? services : []).map(s =>
@@ -311,6 +315,27 @@
 
   function onCustChange(e) {
     const id = e.target.value;
+    // "+ New customer" → hand off to app.js's customer form; on save, add + select it.
+    if (id === '__new') {
+      e.target.value = '';
+      if (typeof window.openCustomerForResult === 'function') {
+        window.openCustomerForResult('', (cust) => {
+          const sel = document.getElementById('inv-cust');
+          if (sel) {
+            const opt = document.createElement('option');
+            opt.value = String(cust.id);
+            opt.textContent = cust.name || 'Unnamed';
+            sel.insertBefore(opt, sel.lastElementChild);   // before the "+ New customer" option
+            sel.value = String(cust.id);
+          }
+          const set = (s, val) => { const el = document.querySelector(s); if (el) el.value = val || ''; };
+          set('#inv-cname', cust.name);
+          set('#inv-ctax', cust.taxId);
+          set('#inv-caddr', cust.billingAddress);
+        });
+      }
+      return;
+    }
     if (!id) return;
     const c = (typeof customers !== 'undefined' ? customers : []).find(x => String(x.id) === String(id));
     if (!c) return;
@@ -460,8 +485,14 @@
         toast('Invoice updated');
       } else {
         base.cuid = cuid();
-        await dbAdd(STORE, base);
+        const newId = await dbAdd(STORE, base);
+        base.id = newId;
         toast('Invoice ' + base.number + ' created');
+        // Engagement linking: let app.js link invoiceId onto the job + advance.
+        if (formFromJobId != null && typeof window.onEngagementInvoiceCreated === 'function') {
+          try { window.onEngagementInvoiceCreated(newId, formFromJobId); } catch (e) { /* non-fatal */ }
+        }
+        formFromJobId = null;
       }
     } catch (err) {
       console.error(err);

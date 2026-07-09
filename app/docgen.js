@@ -242,7 +242,12 @@ function dgViewModalHTML() {
 function openGenerateForm(type, rec) {
   ensureDocgenUI();
   dgCurrentType = type;
-  dgEditId = rec ? rec.id : null;
+  // A prefill-only object (fields, no id — e.g. from the pipeline) is a NEW
+  // document, not an edit. Only a persisted record (with an id) is edit-mode.
+  const isEdit = rec && rec.id != null;
+  dgEditId = isEdit ? rec.id : null;
+  // Clear any stale pipeline linkage; openQuoteForJob re-sets it after this call.
+  window.__pendingQuoteJobId = null;
   dgLastPreviewHtml = '';
   dgClearErrors();
 
@@ -250,7 +255,7 @@ function openGenerateForm(type, rec) {
   wrap.style.display = 'none';
   wrap.innerHTML = '';
 
-  document.getElementById('dg-modal-title').textContent = (rec ? 'Edit ' : 'New ') + DG_TYPE_LABEL[type];
+  document.getElementById('dg-modal-title').textContent = (isEdit ? 'Edit ' : 'New ') + DG_TYPE_LABEL[type];
 
   ['contract', 'nda', 'quote'].forEach(t => {
     const grp = document.getElementById('dg-fields-' + t);
@@ -265,13 +270,13 @@ function openGenerateForm(type, rec) {
 
   const f = (rec && rec.fields) || {};
 
-  dgTitleAuto = !rec;
+  dgTitleAuto = !isEdit;
   populateClientSelect(f.clientId != null ? f.clientId : null);
   document.getElementById('dg-client-name').value = rec ? (rec.clientName || '') : '';
   onDgClientChange();
   if (!f.clientId) document.getElementById('dg-client-name').value = (rec && rec.clientName) || '';
 
-  document.getElementById('dg-title').value = rec ? (rec.title || '') : defaultTitle(type, document.getElementById('dg-client-name').value);
+  document.getElementById('dg-title').value = isEdit ? (rec.title || '') : defaultTitle(type, document.getElementById('dg-client-name').value);
   document.getElementById('dg-issue-date').value = (rec && rec.issueDate) || todayISO();
 
   if (type === 'contract') {
@@ -581,8 +586,15 @@ async function saveDocumentFromForm() {
       toast('Document updated.');
     } else {
       rec.cuid = cuid();
-      await dbAdd('documents', rec);
+      const newId = await dbAdd('documents', rec);
+      rec.id = newId;
       toast('Document saved.');
+      // Engagement linking: a quote saved from the pipeline links quoteDocId onto
+      // the job + advances its stage. Cancelling never reaches this save path.
+      if (rec.type === 'quote' && window.__pendingQuoteJobId != null && typeof window.onEngagementQuoteCreated === 'function') {
+        try { window.onEngagementQuoteCreated(newId, window.__pendingQuoteJobId); } catch (e) { /* non-fatal */ }
+        window.__pendingQuoteJobId = null;
+      }
     }
     closeDgModal();
     renderDocgen();
