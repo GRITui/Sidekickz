@@ -208,7 +208,7 @@ function dgGenerateModalHTML() {
         <div id="dg-q-items-wrap"></div>
       </div>
       <button type="button" class="dg-add-row" id="dg-fields-quote-add" onclick="dgAddLine()">+ Add line item</button>
-      <div class="dg-quote-total-line" id="dg-fields-quote-total-wrap">Subtotal: <span id="dg-q-subtotal">${money(0)}</span></div>
+      <div class="dg-quote-total-line" id="dg-fields-quote-total-wrap">Subtotal: <span id="dg-q-subtotal">${money(0, 2)}</span></div>
       <div class="form-section" id="dg-fields-quote-notes-wrap">
         <div class="field"><label for="dg-q-notes">Notes (optional)</label>
           <textarea id="dg-q-notes" rows="2" placeholder="Anything else the client should know…"></textarea></div>
@@ -388,7 +388,7 @@ window.dgRemoveLine = dgRemoveLine;
 function dgUpdateQuoteTotal() {
   const subtotal = dgQuoteItems.reduce((s, li) => s + (Number(li.qty) || 0) * (Number(li.unitPrice) || 0), 0);
   const el = document.getElementById('dg-q-subtotal');
-  if (el) el.textContent = money(subtotal);
+  if (el) el.textContent = money(subtotal, 2);
   return subtotal;
 }
 window.dgUpdateQuoteTotal = dgUpdateQuoteTotal;
@@ -501,7 +501,7 @@ function buildDocHtml(rec) {
     if (f.billingAddress) body += '<p><b>Billing address:</b> ' + esc(f.billingAddress) + '</p>';
     if (f.taxId) body += '<p><b>Client Tax ID:</b> ' + esc(f.taxId) + '</p>';
     body += '<h3>Deliverables</h3>' + nlToP(f.deliverables);
-    body += '<h3>Fee</h3><p>Total fee: <b>' + money(f.fee || 0) + '</b></p>';
+    body += '<h3>Fee</h3><p>Total fee: <b>' + money(f.fee || 0, 2) + '</b></p>';
     body += '<h3>Term</h3><p>' + (f.startDate ? esc(f.startDate) : '—') + ' to ' + (f.endDate ? esc(f.endDate) : '—') + '</p>';
     if (f.usageRights) body += '<h3>Usage Rights &amp; Licensing</h3>' + nlToP(f.usageRights);
     if (f.healthNotes || f.allergies || f.goals) {
@@ -531,10 +531,10 @@ function buildDocHtml(rec) {
     (f.lineItems || []).forEach(li => {
       const qtyNum = Number(li.qty) || 0;
       const lineTotal = qtyNum * (Number(li.unitPrice) || 0);
-      body += '<tr><td>' + esc(li.description) + '</td><td>' + fmt(qtyNum, qtyNum % 1 !== 0 ? 2 : 0) + '</td><td>' + money(li.unitPrice) + '</td><td>' + money(lineTotal) + '</td></tr>';
+      body += '<tr><td>' + esc(li.description) + '</td><td>' + fmt(qtyNum, qtyNum % 1 !== 0 ? 2 : 0) + '</td><td>' + money(li.unitPrice, 2) + '</td><td>' + money(lineTotal, 2) + '</td></tr>';
     });
     body += '</tbody></table>';
-    body += '<p style="text-align:right;font-weight:800">Subtotal: ' + money(f.subtotal || 0) + '</p>';
+    body += '<p style="text-align:right;font-weight:800">Subtotal: ' + money(f.subtotal || 0, 2) + '</p>';
     if (f.notes) body += '<h3>Notes</h3>' + nlToP(f.notes);
     body += '<p style="margin-top:16px">This quote is valid until <b>' + (f.validUntil ? esc(f.validUntil) : '—') + '</b> and excludes tax unless stated in a formal invoice.</p>';
   }
@@ -589,13 +589,19 @@ async function saveDocumentFromForm() {
       toast('Document updated.');
     } else {
       rec.cuid = cuid();
+      // Persist the originating pipeline jobId ON the quote doc so a later
+      // convert-to-invoice can relink the invoice back to the same engagement
+      // (and advance the pipeline) instead of spawning an unlinked duplicate.
+      const pipelineJobId = (rec.type === 'quote' && window.__pendingQuoteJobId != null)
+        ? window.__pendingQuoteJobId : null;
+      if (pipelineJobId != null) rec.fields = { ...rec.fields, jobId: pipelineJobId };
       const newId = await dbAdd('documents', rec);
       rec.id = newId;
       toast('Document saved.');
       // Engagement linking: a quote saved from the pipeline links quoteDocId onto
       // the job + advances its stage. Cancelling never reaches this save path.
-      if (rec.type === 'quote' && window.__pendingQuoteJobId != null && typeof window.onEngagementQuoteCreated === 'function') {
-        try { window.onEngagementQuoteCreated(newId, window.__pendingQuoteJobId); } catch (e) { /* non-fatal */ }
+      if (pipelineJobId != null && typeof window.onEngagementQuoteCreated === 'function') {
+        try { window.onEngagementQuoteCreated(newId, pipelineJobId); } catch (e) { /* non-fatal */ }
         window.__pendingQuoteJobId = null;
       }
     }
@@ -658,7 +664,11 @@ async function convertQuoteToInvoice() {
   renderDocgen();
   if (typeof openInvoiceForm === 'function') {
     switchScreen('invoices');
-    openInvoiceForm(null, { clientId: rec.clientId, clientName: rec.clientName, lineItems: f.lineItems || [] });
+    // Pass the originating pipeline jobId (stored on the quote) as fromJobId so
+    // the resulting invoice links back via onEngagementInvoiceCreated and the
+    // engagement advances, rather than the pipeline offering "Send invoice" again.
+    const jobId = (f && f.jobId != null) ? f.jobId : null;
+    openInvoiceForm(jobId, { clientId: rec.clientId, clientName: rec.clientName, lineItems: f.lineItems || [] });
   } else {
     toast('Invoicing module not loaded');
   }

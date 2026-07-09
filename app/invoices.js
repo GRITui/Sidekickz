@@ -645,10 +645,18 @@
         Set your PromptPay ID (phone or 13-digit national ID) in <b>More → Settings</b> to show a scannable payment QR.</div>`;
       return;
     }
-    const amount = n(inv.clientPays);
+    // PromptPay QR must encode the NET the freelancer actually receives, not the
+    // gross the client is billed. In Thailand the client withholds WHT and pays
+    // the freelancer the net (youReceive); encoding clientPays would make the
+    // client overpay by the withheld tax. When a deposit is set, the QR should
+    // represent just the deposit portion of that net.
+    const round2 = v => Math.round((Number(v) || 0) * 100) / 100;
+    const baseNet = n(inv.whtPct) > 0 ? n(inv.youReceive) : n(inv.clientPays);
+    const isDeposit = n(inv.depositPct) > 0;
+    const qrAmount = isDeposit ? round2(baseNet * n(inv.depositPct) / 100) : round2(baseNet);
     let payload;
     try {
-      payload = buildPromptPayPayload(target, amount);
+      payload = buildPromptPayPayload(target, qrAmount);
     } catch (e) {
       wrap.innerHTML = `<div style="font-size:12px;color:var(--overdue)">Could not build PromptPay payload.</div>`;
       return;
@@ -659,7 +667,7 @@
         <canvas id="inv-qr-canvas" style="display:block;image-rendering:pixelated"></canvas>
       </div>
       <div style="font-size:12px;color:var(--text3);margin-top:6px">Scan with any Thai banking app · PromptPay</div>
-      <div class="tnum" style="font-size:16px;font-weight:800;color:var(--text);margin-top:2px">${esc(money2(amount))}</div>`;
+      <div class="tnum" style="font-size:16px;font-weight:800;color:var(--text);margin-top:2px">${esc((isDeposit ? 'Deposit ' : 'Amount ') + money2(qrAmount))}</div>`;
 
     try {
       const modules = qrGenerate(payload, ECL_M);

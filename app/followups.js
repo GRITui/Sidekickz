@@ -228,6 +228,8 @@
     });
   }
   window.renderFollowups = renderFollowups;
+  // Exposed so the Home dashboard can surface the top of the live queue.
+  window.buildQueue = buildQueue;
 
   // ══════════════════════════════════════════════════════════════════════
   //  M-AI — optional "Draft message" via the Vercel serverless proxy.

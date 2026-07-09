@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.7.0';          // <-> sw.js SW_VERSION 'freelanz-v0.7.0'  (M2.5 merged onto M5 line)
+const APP_VERSION = '0.7.1';          // <-> sw.js SW_VERSION 'freelanz-v0.7.1'  (M2.5 merged onto M5 line)
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -383,7 +383,7 @@ const I18N = {
     more_title:'More', settings_title:'Settings', account:'Account', local_account:'Local account on this device',
     work_type:'Work type', preferences:'Preferences', currency:'Currency', theme:'Theme',
     theme_auto:'Auto', theme_light:'Light', theme_dark:'Dark',
-    tax_defaults:'Tax defaults (for M2)', wht:'Withholding tax %', vat:'VAT %',
+    tax_defaults:'Tax defaults', wht:'Withholding tax %', vat:'VAT %',
     daily_goal:'Daily income goal', data:'Data', export_csv:'Export CSV', backup_json:'Backup JSON', restore_json:'Restore JSON',
     total_jobs:'Total jobs', app_word:'App', version:'Version', logout:'Log out', exit_guest:'Exit guest mode',
     // placeholder modules
@@ -654,9 +654,14 @@ function renderHome() {
   // the backup reminder, which is real from M1 onward.
   const q = document.getElementById('queue-body');
   if (q) {
+    // The backup reminder is a real, always-available nudge (M1+); the live
+    // follow-up queue (overdue/draft invoices, stale customers) is owned by
+    // followups.js and surfaced here as a top-N preview that links to that
+    // screen. "All caught up" shows only when BOTH are genuinely empty.
+    let backupCard = '';
     if (backupReminderDue()) {
       const last = settings.lastBackupAt ? fmtDate(settings.lastBackupAt.slice(0,10)) : t('backup_never');
-      q.innerHTML = `<div class="list-card">
+      backupCard = `<div class="list-card">
         <div class="list-row" style="cursor:default">
           <div class="list-icon">💾</div>
           <div class="list-main">
@@ -669,10 +674,29 @@ function renderHome() {
           <button type="button" onclick="snoozeBackupReminder()" style="flex:1;padding:10px;border:1px solid var(--border);background:none;color:var(--text3);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('remind_later'))}</button>
         </div>
       </div>`;
-    } else {
-      q.innerHTML = `<div class="empty"><div class="empty-icon">✅</div>
+    }
+    const emptyState = `<div class="empty"><div class="empty-icon">✅</div>
         <p data-i18n="queue_empty">${t('queue_empty')}</p>
         <span data-i18n="queue_empty_sub">${t('queue_empty_sub')}</span></div>`;
+    const paint = (items) => {
+      const live = (items || []).slice(0, 3).map(it => `<div class="list-card" style="margin-bottom:10px">
+        <div class="list-row" tabindex="0" role="button" onclick="switchScreen('followups')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchScreen('followups');}">
+          <div class="list-icon">${it.icon || '🔔'}</div>
+          <div class="list-main">
+            <div class="list-title">${htmlEsc(it.title || '')}</div>
+            <div class="list-sub">${htmlEsc(it.reason || '')}</div>
+          </div>
+          <div class="list-right"><span style="color:var(--text3);font-size:18px">›</span></div>
+        </div>
+      </div>`).join('');
+      q.innerHTML = (live + backupCard) || emptyState;
+    };
+    // Guard: followups.js may not be loaded — still show backup / empty state.
+    if (typeof buildQueue === 'function') {
+      paint([]); // show backup card immediately; live items fill in when ready
+      buildQueue().then(r => paint(r && r.active)).catch(() => paint([]));
+    } else {
+      paint([]);
     }
   }
 }
@@ -718,7 +742,7 @@ function renderJobs() {
     const stageBadge = jobComplete(j)
       ? `<span class="stage-badge done">✓ ${esc(sm.label || '')}</span>`
       : `<span class="stage-badge">${sm.icon || ''} ${esc(sm.label || '')}</span>`;
-    return `<div class="list-row" onclick="openEditJob(${j.id})">
+    return `<div class="list-row" tabindex="0" role="button" onclick="openEditJob(${j.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openEditJob(${j.id});}">
       <div class="list-icon">🧾</div>
       <div class="list-main">
         <div class="list-title">${title}</div>
@@ -1043,7 +1067,7 @@ function renderCustomers() {
   }
   wrap.innerHTML = '<div class="list-card">' + customers.map(c => {
     const sub = c.company || c.phone || c.email || '';
-    return `<div class="list-row" onclick="openEditCustomer(${c.id})">
+    return `<div class="list-row" tabindex="0" role="button" onclick="openEditCustomer(${c.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openEditCustomer(${c.id});}">
       <div class="list-icon">👤</div>
       <div class="list-main">
         <div class="list-title">${htmlEsc(c.name)}</div>
@@ -1171,7 +1195,7 @@ function renderServices() {
     return;
   }
   wrap.innerHTML = '<div class="list-card">' + services.map(s => `
-    <div class="list-row" onclick="openEditService(${s.id})">
+    <div class="list-row" tabindex="0" role="button" onclick="openEditService(${s.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openEditService(${s.id});}">
       <div class="list-icon">🏷️</div>
       <div class="list-main">
         <div class="list-title">${htmlEsc(s.name)}</div>
@@ -1591,6 +1615,72 @@ async function exportBackup() {
   toast(t('exported'));
 }
 function pickBackupFile() { const inp = document.getElementById('backup-file'); if (inp) inp.click(); }
+
+// Foreign-key fields per store → the store whose primary keys they reference.
+// importBackup uses this to rewrite cross-store links after a restore re-keys
+// rows (autoincrement assigns fresh ids). Grepped from the codebase:
+//   jobs → clientId/serviceId/invoiceId/quoteDocId; invoices → clientId;
+//   documents → clientId/invoiceId; bookings → customerId (all → clients/…).
+const BACKUP_FK_FIELDS = {
+  jobs: { clientId: 'clients', serviceId: 'services', invoiceId: 'invoices', quoteDocId: 'documents' },
+  invoices: { clientId: 'clients' },
+  documents: { clientId: 'clients', invoiceId: 'invoices' },
+  bookings: { customerId: 'clients' },
+};
+
+// Add every backup row across every store, stripping the old primary key so the
+// DB assigns a fresh one. Returns { maps, added }: maps[store] is an
+// oldId→newId lookup (keyed by String(oldId)); added[store] holds the persisted
+// rows (each with its new id) so a later pass can rewrite their foreign keys.
+async function remapAddRows(byStore, uid, tolerant) {
+  const maps = {}, added = {};
+  for (const s of BACKUP_STORES) {
+    maps[s] = new Map();
+    added[s] = [];
+    for (const row of byStore[s]) {
+      const { id, ...rest } = row;
+      const obj = { ...rest, uid };
+      let newId;
+      if (tolerant) { try { newId = await dbAdd(s, obj); } catch (e) { continue; } }
+      else { newId = await dbAdd(s, obj); }
+      if (id != null) maps[s].set(String(id), newId);
+      obj.id = newId;
+      added[s].push(obj);
+    }
+  }
+  return { maps, added };
+}
+
+// Second restore pass: rewrite foreign-key fields on freshly-added rows so
+// cross-store links point at the new primary keys, then persist. Also remaps
+// the followups composite decision key (`prefix:clientId:invoiceId`), which
+// embeds a client + invoice id, so a restored dismiss/snooze still matches.
+async function remapForeignKeys({ maps, added }) {
+  for (const [store, fields] of Object.entries(BACKUP_FK_FIELDS)) {
+    for (const rec of added[store] || []) {
+      let changed = false;
+      for (const [field, targetStore] of Object.entries(fields)) {
+        const oldFk = rec[field];
+        if (oldFk == null || oldFk === '') continue;
+        const mapped = maps[targetStore] && maps[targetStore].get(String(oldFk));
+        if (mapped != null) { rec[field] = mapped; changed = true; }
+      }
+      if (changed) await dbPut(store, rec);
+    }
+  }
+  for (const rec of added.followups || []) {
+    if (typeof rec.key !== 'string') continue;
+    const parts = rec.key.split(':');
+    if (parts.length < 3) continue;
+    let changed = false;
+    const c = maps.clients && parts[1] ? maps.clients.get(parts[1]) : null;
+    const i = maps.invoices && parts[2] ? maps.invoices.get(parts[2]) : null;
+    if (c != null) { parts[1] = String(c); changed = true; }
+    if (i != null) { parts[2] = String(i); changed = true; }
+    if (changed) { rec.key = parts.join(':'); await dbPut('followups', rec); }
+  }
+}
+
 async function importBackup(inputEl) {
   const file = inputEl && inputEl.files && inputEl.files[0];
   inputEl.value = '';
@@ -1623,12 +1713,20 @@ async function importBackup(inputEl) {
     // row across every store — matches the original jobs/expenses swap so a
     // failed add always rolls back cleanly (every old id was already gone).
     for (const s of BACKUP_STORES) { for (const row of savedByStore[s]) await dbDel(s, row.id); }
-    for (const s of BACKUP_STORES) { for (const row of byStore[s]) { const {id, ...rest} = row; await dbAdd(s, {...rest, uid}); } }
+    // Re-adding assigns fresh autoincrement primary keys, so cross-store foreign
+    // keys captured in the backup (old ids) must be remapped to the new ids or
+    // every link (invoice↔customer, job↔invoice, job↔service, …) would dangle.
+    // First pass: add rows, recording an oldId→newId map per store.
+    const idMaps = await remapAddRows(byStore, uid);
+    // Second pass: rewrite foreign-key fields on the restored rows and persist.
+    await remapForeignKeys(idMaps);
   } catch (err) {
     // Roll back: restore the pre-import rows so a failed swap doesn't lose data.
-    for (const s of BACKUP_STORES) {
-      for (const row of savedByStore[s]) { const {id, ...rest} = row; await dbAdd(s, {...rest, uid}).catch(()=>{}); }
-    }
+    // The saved rows keep their original ids among themselves, so re-add them
+    // WITHOUT stripping ids where possible; but dbAdd re-keys, so apply the same
+    // remap to keep the rolled-back data internally consistent too.
+    const rbMaps = await remapAddRows(savedByStore, uid, true);
+    await remapForeignKeys(rbMaps).catch(()=>{});
     await reload();
     toast(t('restore_failed'));
     return;
