@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>document.documentElement.dataset.theme='light';</script><!-- light-only: set before CSS paints to avoid a dark flash on dark-OS -->
-<link rel="stylesheet" href="styles.css?v=0.7.3">
+<link rel="stylesheet" href="styles.css?v=0.7.4">
 <!-- data-page drives boot(): 'login' → bootLogin() (redirects to ./ when already signed in) -->
 <body data-page="login">
 
@@ -45,10 +45,11 @@
     </div>
     <button class="auth-btn" id="auth-submit" onclick="submitAuth()" data-i18n="login">Log in</button>
     <button class="auth-btn guest" onclick="loginGuest()" data-i18n="login_guest">Continue as guest</button>
+    <a href="info/" style="display:block;text-align:center;margin-top:14px;color:#0F766E;font-weight:700;font-size:14px;text-decoration:none">New to Freelanz? See how it works &rarr;</a>
     <div class="auth-hint"><span id="auth-hint-text"></span><br><br>Local-first · No cloud · Built with Claude</div>
   </div>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.7.3"></script>
+<script src="app.js?v=0.7.4"></script>
