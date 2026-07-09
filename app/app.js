@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.6.0';          // <-> sw.js SW_VERSION 'freelanz-v0.6.0'  (M2.5 merged onto M5 line)
+const APP_VERSION = '0.7.0';          // <-> sw.js SW_VERSION 'freelanz-v0.7.0'  (M2.5 merged onto M5 line)
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -1252,27 +1252,27 @@ function renderPipeline() {
   const order = getStageOrder();
   const groups = {}; order.forEach(s => groups[s] = []);
   // Group each job under its own stage NAME within the board's current columns.
-  // If the job's stage name isn't a current column (e.g. quote toggled off, or a
-  // persona-specific order), place it under the first column rather than dropping
-  // it or silently marking it complete.
+  // A job whose stage isn't a current column lands under the first column.
   jobs.forEach(j => { let s = jobStage(j); if (!groups[s]) s = order[0]; groups[s].push(j); });
 
-  let h = '';
+  // Kanban board: one column per stage (side-by-side on desktop, swipeable on mobile).
+  let h = '<div class="kanban" role="list" aria-label="Engagement pipeline">';
   order.forEach(stage => {
     const meta = STAGE_META[stage] || {};
     const items = groups[stage] || [];
-    h += `<div class="pl-group">
-      <div class="pl-head"><span class="pl-ico">${meta.icon || ''}</span>
-        <span>${htmlEsc(meta.label || stage)}</span>
-        <span class="pl-count">${items.length}</span></div>`;
-    if (!items.length) {
-      h += `<div class="pl-empty">Nothing at this stage</div>`;
-    } else {
-      h += '<div class="list-card">' + items.map(j => pipelineCard(j, stage)).join('') + '</div>';
-    }
-    h += '</div>';
+    h += `<div class="kb-col" role="listitem" aria-label="${attrEsc(meta.label || stage)}">
+      <div class="kb-col-head"><span class="kb-ico">${meta.icon || ''}</span>
+        <span class="kb-col-title">${htmlEsc(meta.label || stage)}</span>
+        <span class="kb-count">${items.length}</span></div>
+      <div class="kb-col-body">`;
+    h += items.length
+      ? items.map(j => pipelineCard(j, stage)).join('')
+      : '<div class="kb-empty">Nothing here yet</div>';
+    h += '</div></div>';
   });
+  h += '</div>';
   el.innerHTML = h;
+  if (window.__kbMoved != null) setTimeout(() => { window.__kbMoved = null; }, 500);
 }
 window.renderPipeline = renderPipeline;
 
@@ -1282,17 +1282,26 @@ function pipelineCard(j, stage) {
   const who = j.client || t('field_client');
   const svc = j.serviceName || unitWord();
   const amt = money(Number(j.amount) || 0);
+  const order = jobOrder(j);
+  const canBack = complete || order.indexOf(jobStage(j)) > 0;
+  const enter = (window.__kbMoved === j.id) ? ' kb-enter' : '';
   const foot = complete
     ? `<span class="pl-done">✓ ${htmlEsc(meta.done || 'Done')}</span>`
-    : `<button type="button" class="pl-action" onclick="event.stopPropagation();pipelineAction(${j.id})">${htmlEsc(meta.action || 'Advance')}</button>`;
-  return `<div class="list-row" style="align-items:flex-start" onclick="openEditJob(${j.id})">
-    <div class="list-icon">${meta.icon || '🧾'}</div>
-    <div class="list-main">
-      <div class="list-title">${htmlEsc(who)}</div>
-      <div class="list-sub">${htmlEsc(svc)} · ${htmlEsc(amt)}${fmtDate(j.date) ? ' · ' + htmlEsc(fmtDate(j.date)) : ''}</div>
-      <div style="margin-top:8px">${foot}</div>
+    : `<button type="button" class="pl-action" onclick="event.stopPropagation();pipelineAction(${j.id})">${htmlEsc(meta.action || 'Advance')} →</button>`;
+  const back = canBack
+    ? `<button type="button" class="kb-back" aria-label="Move back a stage" title="Move back" onclick="event.stopPropagation();moveJobStageBack(${j.id})">←</button>`
+    : '';
+  // Card is mouse-clickable (opens edit); keyboard users use the explicit buttons
+  // (✎ edit / action / back) to avoid nesting interactive controls inside a control.
+  return `<div class="kb-card${enter}" onclick="openEditJob(${j.id})">
+    <div class="kb-card-top">
+      <div class="kb-card-main">
+        <div class="kb-card-title">${htmlEsc(who)}</div>
+        <div class="kb-card-sub">${htmlEsc(svc)} · ${htmlEsc(amt)}${fmtDate(j.date) ? ' · ' + htmlEsc(fmtDate(j.date)) : ''}</div>
+      </div>
+      <button type="button" class="pl-edit" aria-label="Edit engagement" onclick="event.stopPropagation();openEditJob(${j.id})">✎</button>
     </div>
-    <div class="list-right"><button type="button" class="pl-edit" aria-label="Edit engagement" onclick="event.stopPropagation();openEditJob(${j.id})">✎</button></div>
+    <div class="kb-card-foot">${back}${foot}</div>
   </div>`;
 }
 
@@ -1331,10 +1340,28 @@ async function advanceJobStage(jobId) {
   else if (idx >= order.length - 1) { j.stage = order[idx]; j.complete = true; }
   else { j.stage = order[idx + 1]; j.complete = false; }
   j.updatedAt = nowISO();
+  window.__kbMoved = jobId;
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
 }
+
+// Move a card back one stage (or re-open a completed engagement at its final stage).
+async function moveJobStageBack(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const order = jobOrder(j);
+  const idx = order.indexOf(jobStage(j));
+  if (idx > 0) { j.stage = order[idx - 1]; }            // step back one column
+  else if (!jobComplete(j)) return;                     // already at the first stage, nothing to undo
+  j.complete = false;
+  j.updatedAt = nowISO();
+  window.__kbMoved = jobId;
+  await dbPut('jobs', j);
+  await reload();
+  renderPipeline();
+}
+window.moveJobStageBack = moveJobStageBack;
 
 async function markJobPaid(jobId) {
   const j = jobs.find(x => x.id === jobId);
