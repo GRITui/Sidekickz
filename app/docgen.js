@@ -63,12 +63,14 @@ function dgRowHTML(d) {
   const ico = DG_TYPE_ICON[d.type] || '📄';
   const label = DG_TYPE_LABEL[d.type] || d.type;
   const sub = (d.clientName ? htmlEsc(d.clientName) : 'No client') + ' · ' + htmlEsc(d.issueDate || '');
+  const invoicedChip = (d.type === 'quote' && d.fields && d.fields.convertedToInvoice)
+    ? '<span class="dg-chip" style="background:var(--brand);color:#fff;margin-left:4px">✓ Invoiced</span>' : '';
   return '<div class="list-row" tabindex="0" role="button" onclick="viewDocument(' + d.id + ')"'
     + ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();viewDocument(' + d.id + ');}">'
     + '<div class="list-icon">' + ico + '</div>'
     + '<div class="list-main"><div class="list-title">' + htmlEsc(d.title || label) + '</div>'
     + '<div class="list-sub">' + sub + '</div></div>'
-    + '<div class="list-right"><span class="dg-chip">' + label + '</span></div>'
+    + '<div class="list-right"><span class="dg-chip">' + label + '</span>' + invoicedChip + '</div>'
     + '</div>';
 }
 
@@ -228,6 +230,7 @@ function dgViewModalHTML() {
       <div class="modal-handle"></div>
       <div class="modal-title" id="dg-view-title">Document</div>
       <div id="dg-view-content" style="margin:0 16px 16px"></div>
+      <div id="dg-view-convert"></div>
       <div class="dg-view-actions">
         <button type="button" class="dg-btn-secondary" onclick="editSavedDocument()">Edit</button>
         <button type="button" class="dg-btn-secondary" onclick="printSavedDocument()">Export / Print</button>
@@ -620,8 +623,47 @@ async function viewDocument(id) {
   document.getElementById('dg-view-content').innerHTML = '<div class="dg-preview">' + (rec.content || '') + '</div>';
   document.getElementById('dg-view-modal').dataset.docId = String(rec.id);
   document.getElementById('dg-view-modal').classList.add('open');
+
+  // Quotes only: offer a one-way "Convert to invoice" that pre-fills a new
+  // invoice from the quote's client + line items (owned by invoices.js).
+  // Once converted, marked so the same quote can't spawn duplicate invoices.
+  const convertWrap = document.getElementById('dg-view-convert');
+  if (convertWrap) {
+    const f = rec.fields || {};
+    if (rec.type === 'quote' && f.convertedToInvoice) {
+      convertWrap.innerHTML = '<div style="margin:0 16px 12px;color:var(--brand);font-size:13px;font-weight:700">✓ Converted to invoice</div>';
+    } else if (rec.type === 'quote' && typeof openInvoiceForm === 'function') {
+      convertWrap.innerHTML = '<button type="button" class="btn-submit" style="margin:0 16px 12px;width:calc(100% - 32px)" onclick="convertQuoteToInvoice()">Convert to invoice</button>';
+    } else {
+      convertWrap.innerHTML = '';
+    }
+  }
 }
 window.viewDocument = viewDocument;
+
+async function convertQuoteToInvoice() {
+  const id = currentViewDocId();
+  if (id == null) return;
+  const rec = await dbGet('documents', id);
+  if (!rec || rec.type !== 'quote') return;
+  const f = rec.fields || {};
+  try {
+    rec.fields = { ...f, convertedToInvoice: true };
+    rec.updatedAt = nowISO();
+    await dbPut('documents', rec);
+  } catch (err) {
+    console.error('convertQuoteToInvoice', err);
+  }
+  closeDgViewModal();
+  renderDocgen();
+  if (typeof openInvoiceForm === 'function') {
+    switchScreen('invoices');
+    openInvoiceForm(null, { clientId: rec.clientId, clientName: rec.clientName, lineItems: f.lineItems || [] });
+  } else {
+    toast('Invoicing module not loaded');
+  }
+}
+window.convertQuoteToInvoice = convertQuoteToInvoice;
 
 function closeDgViewModal() {
   const m = document.getElementById('dg-view-modal');

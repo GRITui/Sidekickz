@@ -1,6 +1,7 @@
 # ── Secrets — NEVER commit ─────────────────────────────
 *.env
 .env*
+!.env.example
 config.env
 deploy.env
 *.pem

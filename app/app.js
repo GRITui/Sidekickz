@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.4.0';          // <-> sw.js SW_VERSION 'freelanz-v0.4.0'
+const APP_VERSION = '0.6.0';          // <-> sw.js SW_VERSION 'freelanz-v0.6.0'  (M2.5 merged onto M5 line)
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -14,10 +14,15 @@ const APP_VERSION = '0.4.0';          // <-> sw.js SW_VERSION 'freelanz-v0.4.0'
 // created now (dormant) so M2/M3 features and a future sync layer can land
 // without a schema migration.
 let db;
-// DB_VER bumped 1→2 in M1.5 to add the 'services' store. onupgradeneeded only
-// CREATES missing stores (each guarded by !contains) — it never drops or clears
-// existing stores, so guest jobs / clients / settings survive the upgrade.
-const DB_NAME = 'freelanz-v2', DB_VER = 2;   // v2 == DB_VER; renamed from freelanz-v1 (no prior real users)
+// DB_VER bumped 1→2 in M1.5 ('services'), 2→3 in M3 ('bookings'/'followups'/
+// 'portfolio' — the M2 invoices/documents stores were added under the old v2
+// without a version bump, so onupgradeneeded never re-fired for existing v2
+// databases; this bump fixes that too, since the guarded creates below run
+// for ANY store still missing, not just the three new ones), 3→4 in M5
+// ('research'). onupgradeneeded only CREATES missing stores (each guarded by
+// !contains) — it never drops or clears existing stores, so guest jobs /
+// clients / settings survive the upgrade.
+const DB_NAME = 'freelanz-v2', DB_VER = 4;   // DB_NAME kept as freelanz-v2 (no prior real users; only DB_VER bumps now)
 function openDB() {
   return new Promise((res, rej) => {
     const req = indexedDB.open(DB_NAME, DB_VER);
@@ -33,6 +38,10 @@ function openDB() {
       if (!d.objectStoreNames.contains('services'))  d.createObjectStore('services',  {keyPath:'id', autoIncrement:true}); // M1.5 catalog
       if (!d.objectStoreNames.contains('invoices'))  d.createObjectStore('invoices',  {keyPath:'id', autoIncrement:true});
       if (!d.objectStoreNames.contains('documents')) d.createObjectStore('documents', {keyPath:'id', autoIncrement:true});
+      if (!d.objectStoreNames.contains('bookings'))  d.createObjectStore('bookings',  {keyPath:'id', autoIncrement:true}); // M3 day view
+      if (!d.objectStoreNames.contains('followups')) d.createObjectStore('followups', {keyPath:'id', autoIncrement:true}); // M3 CRM snooze/dismiss state
+      if (!d.objectStoreNames.contains('portfolio')) d.createObjectStore('portfolio', {keyPath:'id', autoIncrement:true}); // M3 showcase
+      if (!d.objectStoreNames.contains('research'))  d.createObjectStore('research',  {keyPath:'id', autoIncrement:true}); // M5 content library
       if (!d.objectStoreNames.contains('settings'))  d.createObjectStore('settings',  {keyPath:'key'});
       if (!d.objectStoreNames.contains('meta'))      d.createObjectStore('meta',      {keyPath:'key'});   // dormant (future sync)
       if (!d.objectStoreNames.contains('outbox'))    d.createObjectStore('outbox',    {keyPath:'key', autoIncrement:true}); // dormant
@@ -392,6 +401,8 @@ const I18N = {
     exported:'Exported', restore_confirm:'Restore this backup? It REPLACES this account’s {n} current jobs + expenses. This cannot be undone.',
     restore_done:'Restored {n} records', restore_bad_file:'Not a valid Freelanz backup file',
     restore_failed:'Restore failed — your existing data was kept.',
+    backup_reminder_title:'Back up your data', backup_reminder_sub:'Everything lives only on this device. Last backup: {date}.',
+    backup_now:'Back up now', remind_later:'Remind me later', backup_snoozed:'Reminder snoozed for 2 weeks', backup_never:'never',
     delete_job_confirm:'Delete this job?', name_saved:'Name saved',
     err_id_min3:'Enter an email or username (3+ characters).', err_pw_min4:'Password must be at least 8 characters.',
     err_pw_mismatch:'Passwords do not match.', err_account_exists:'That account already exists on this device.',
@@ -588,6 +599,40 @@ function monthKey() { const d = new Date(); return `${d.getFullYear()}-${String(
 function jobsThisMonth() { const m = monthKey(); return jobs.filter(j => (j.date||'').startsWith(m)); }
 function jobsToday() { const t0 = todayISO(); return jobs.filter(j => j.date === t0); }
 
+// ─── Backup reminder (data-loss protection) ────────────────────────────
+// Freelanz is local-only storage: clearing browser data or switching
+// devices without ever exporting a backup means total, unrecoverable data
+// loss. Nudge (not nag): only once there's real data worth losing, only
+// after 30 days since the last export (or none ever), and dismissible for
+// another 14 days at a time.
+const BACKUP_REMIND_DAYS = 30;
+const BACKUP_SNOOZE_DAYS = 14;
+function addDaysISO(iso, days) {
+  const d = new Date((iso || todayISO()) + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function daysSinceISO(iso) {
+  const a = new Date((iso || todayISO()).slice(0,10) + 'T12:00:00'), b = new Date(todayISO() + 'T12:00:00');
+  if (isNaN(a)) return Infinity;
+  return Math.round((b - a) / 86400000);
+}
+function backupReminderDue() {
+  // services doesn't count: it's always auto-seeded with starter examples
+  // per persona on onboarding, so it's never a signal of real user activity.
+  const hasData = jobs.length > 0 || customers.length > 0;
+  if (!hasData) return false;
+  const snoozedUntil = settings.backupReminderSnoozedUntil;
+  if (snoozedUntil && snoozedUntil >= todayISO()) return false;
+  if (!settings.lastBackupAt) return true;
+  return daysSinceISO(settings.lastBackupAt) >= BACKUP_REMIND_DAYS;
+}
+async function snoozeBackupReminder() {
+  await saveSetting('backupReminderSnoozedUntil', addDaysISO(todayISO(), BACKUP_SNOOZE_DAYS));
+  renderHome();
+  toast(t('backup_snoozed'));
+}
+
 function renderHome() {
   // greeting
   const greetEl = document.getElementById('home-greeting');
@@ -605,13 +650,30 @@ function renderHome() {
   setTxt('stat-exp-val', money(exp));
 
   renderGoal();
-  // action queue: empty state until there is anything to surface (M1 has no
-  // real queue items yet — invoices/reminders arrive in M2).
+  // action queue: empty state until there is anything to surface, EXCEPT
+  // the backup reminder, which is real from M1 onward.
   const q = document.getElementById('queue-body');
   if (q) {
-    q.innerHTML = `<div class="empty"><div class="empty-icon">✅</div>
-      <p data-i18n="queue_empty">${t('queue_empty')}</p>
-      <span data-i18n="queue_empty_sub">${t('queue_empty_sub')}</span></div>`;
+    if (backupReminderDue()) {
+      const last = settings.lastBackupAt ? fmtDate(settings.lastBackupAt.slice(0,10)) : t('backup_never');
+      q.innerHTML = `<div class="list-card">
+        <div class="list-row" style="cursor:default">
+          <div class="list-icon">💾</div>
+          <div class="list-main">
+            <div class="list-title">${htmlEsc(t('backup_reminder_title'))}</div>
+            <div class="list-sub">${htmlEsc(t('backup_reminder_sub').replace('{date}', last))}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;padding:0 16px 14px">
+          <button type="button" onclick="exportBackup()" style="flex:1;padding:10px;border:none;background:var(--brand);color:#fff;border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('backup_now'))}</button>
+          <button type="button" onclick="snoozeBackupReminder()" style="flex:1;padding:10px;border:1px solid var(--border);background:none;color:var(--text3);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('remind_later'))}</button>
+        </div>
+      </div>`;
+    } else {
+      q.innerHTML = `<div class="empty"><div class="empty-icon">✅</div>
+        <p data-i18n="queue_empty">${t('queue_empty')}</p>
+        <span data-i18n="queue_empty_sub">${t('queue_empty_sub')}</span></div>`;
+    }
   }
 }
 function renderGoal() {
@@ -1460,21 +1522,45 @@ function exportCustomersCSV() {
   a.click();
   toast(t('exported'));
 }
+async function exportInvoicesCSV() {
+  const sym = curSym();
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const rows = (await dbAll('invoices')).filter(r => r.uid === uid);
+  rows.sort((a, b) => String(a.number||'').localeCompare(String(b.number||'')));
+  let csv = `Number,Issue date,Due date,Client,Status,Subtotal (${sym}),VAT (${sym}),WHT (${sym}),Client pays (${sym}),You receive (${sym})\n`;
+  rows.forEach(inv => {
+    csv += `${csvCell(inv.number||'')},${csvCell(inv.issueDate||'')},${csvCell(inv.dueDate||'')},${csvCell(inv.clientName||'')},`
+        +  `${csvCell(inv.status||'')},${Number(inv.subtotal)||0},${Number(inv.vat)||0},${Number(inv.wht)||0},`
+        +  `${Number(inv.clientPays)||0},${Number(inv.youReceive)||0}\n`;
+  });
+  const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `freelanz-invoices-${(currentUser&&currentUser.username)||'guest'}-${todayISO()}.csv`;
+  a.click();
+  toast(t('exported'));
+}
+// All uid-scoped stores a full backup/restore round-trips. Kept in one place
+// so a future new store (like bookings/followups/portfolio were for M3) only
+// needs to be added here, not re-plumbed through export/import separately.
+const BACKUP_STORES = ['jobs', 'expenses', 'clients', 'services', 'invoices', 'documents', 'bookings', 'followups', 'portfolio', 'research'];
+
 async function exportBackup() {
   const uid = isGuest ? 'guest' : currentUser.id;
-  const [allJobs, allExp] = await Promise.all([dbAll('jobs'), dbAll('expenses')]);
+  const allByStore = await Promise.all(BACKUP_STORES.map(s => dbAll(s)));
   const backup = {
     app: 'Freelanz', version: APP_VERSION, exportedAt: nowISO(),
     user: (currentUser && currentUser.username) || 'guest',
     settings: settings, theme: 'light',   // dark mode paused in M1.5; restore never flips theme
-    jobs: allJobs.filter(j => j.uid === uid),
-    expenses: allExp.filter(x => x.uid === uid),
   };
+  BACKUP_STORES.forEach((s, i) => { backup[s] = allByStore[i].filter(r => r.uid === uid); });
   const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `freelanz-backup-${backup.user}-${todayISO()}.json`;
   a.click();
+  await saveSetting('lastBackupAt', nowISO());
+  renderHome();   // clears the backup-reminder queue item immediately, no reload needed
   toast(t('exported'));
 }
 function pickBackupFile() { const inp = document.getElementById('backup-file'); if (inp) inp.click(); }
@@ -1486,28 +1572,36 @@ async function importBackup(inputEl) {
   try { data = JSON.parse(await file.text()); }
   catch(e) { toast(t('restore_bad_file')); return; }
   if (!data || data.app !== 'Freelanz' || !Array.isArray(data.jobs)) { toast(t('restore_bad_file')); return; }
-  const exp = Array.isArray(data.expenses) ? data.expenses : [];
-  // Validate the ENTIRE payload before touching the DB: every job/expense row
-  // must be a plain, non-null object. Reject malformed backups up front so a
-  // bad file (e.g. jobs:[null]) can never delete data mid-import.
+  // Validate the ENTIRE payload before touching the DB: every row in every
+  // store must be a plain, non-null object. Reject malformed backups up front
+  // so a bad file (e.g. jobs:[null]) can never delete data mid-import. A
+  // backup from an older app version simply won't have the newer stores'
+  // keys — Array.isArray(undefined) is false, so those default to [].
   const isPlainObj = o => o != null && typeof o === 'object' && !Array.isArray(o);
-  if (!data.jobs.every(isPlainObj) || !exp.every(isPlainObj)) { toast(t('restore_bad_file')); return; }
-  const n = data.jobs.length + exp.length;
+  const byStore = {};
+  for (const s of BACKUP_STORES) {
+    const rows = Array.isArray(data[s]) ? data[s] : [];
+    if (!rows.every(isPlainObj)) { toast(t('restore_bad_file')); return; }
+    byStore[s] = rows;
+  }
+  const n = BACKUP_STORES.reduce((sum, s) => sum + byStore[s].length, 0);
   if (!confirm(t('restore_confirm').replace('{n}', n))) return;
   const uid = isGuest ? 'guest' : currentUser.id;
-  const [curJobs, curExp] = await Promise.all([dbAll('jobs'), dbAll('expenses')]);
-  // Snapshot this uid's existing rows so we can roll back if the swap fails.
-  const savedJobs = curJobs.filter(j => j.uid === uid);
-  const savedExp  = curExp.filter(x => x.uid === uid);
+  const savedByStore = {};
+  await Promise.all(BACKUP_STORES.map(async s => {
+    savedByStore[s] = (await dbAll(s)).filter(r => r.uid === uid);
+  }));
   try {
-    for (const j of savedJobs) await dbDel('jobs', j.id);
-    for (const x of savedExp) await dbDel('expenses', x.id);
-    for (const j of data.jobs) { const {id, ...rest} = j; await dbAdd('jobs', {...rest, uid}); }
-    for (const x of exp)       { const {id, ...rest} = x; await dbAdd('expenses', {...rest, uid}); }
+    // Delete every existing row across every store first, then add every new
+    // row across every store — matches the original jobs/expenses swap so a
+    // failed add always rolls back cleanly (every old id was already gone).
+    for (const s of BACKUP_STORES) { for (const row of savedByStore[s]) await dbDel(s, row.id); }
+    for (const s of BACKUP_STORES) { for (const row of byStore[s]) { const {id, ...rest} = row; await dbAdd(s, {...rest, uid}); } }
   } catch (err) {
     // Roll back: restore the pre-import rows so a failed swap doesn't lose data.
-    for (const j of savedJobs) { const {id, ...rest} = j; await dbAdd('jobs', {...rest, uid}).catch(()=>{}); }
-    for (const x of savedExp) { const {id, ...rest} = x; await dbAdd('expenses', {...rest, uid}).catch(()=>{}); }
+    for (const s of BACKUP_STORES) {
+      for (const row of savedByStore[s]) { const {id, ...rest} = row; await dbAdd(s, {...rest, uid}).catch(()=>{}); }
+    }
     await reload();
     toast(t('restore_failed'));
     return;
@@ -1548,6 +1642,12 @@ function switchScreen(name) {
   if (name === 'invoices' && typeof renderInvoices === 'function') renderInvoices();
   if (name === 'tax' && typeof renderTax === 'function') renderTax();
   if (name === 'docs' && typeof renderDocgen === 'function') renderDocgen();
+  // M3 modules (bookings.js / followups.js / portfolio.js).
+  if (name === 'book' && typeof renderBookings === 'function') renderBookings();
+  if (name === 'followups' && typeof renderFollowups === 'function') renderFollowups();
+  if (name === 'portfolio' && typeof renderPortfolio === 'function') renderPortfolio();
+  // M5 module (research.js).
+  if (name === 'research' && typeof renderResearch === 'function') renderResearch();
   window.scrollTo(0, 0);
 }
 // Dashboard "New invoice" quick action → open the invoices screen, then its form

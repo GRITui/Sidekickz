@@ -8,7 +8,9 @@
  *
  * Public surface (kept on window):
  *   - renderInvoices()          — fills #invoices-body
- *   - openInvoiceForm(fromJobId?) — create/edit invoice UI
+ *   - openInvoiceForm(fromJobId?, prefillQuote?) — create/edit invoice UI.
+ *     prefillQuote (from docgen.js's Quote → Invoice conversion) is
+ *     {clientId, clientName, lineItems} and takes priority over fromJobId.
  *
  * Everything below is self-contained: EMVCo PromptPay payload builder,
  * CRC16-CCITT-FALSE, and a byte-mode QR encoder (Nayuki-style, reference
@@ -145,14 +147,22 @@
   let editing = null;    // full record being edited, or null on create
   let formFromJobId = null; // pipeline job this form was opened from (for engagement linking)
 
-  function openInvoiceForm(fromJobId) {
+  function openInvoiceForm(fromJobId, prefillQuote) {
     editing = null;
     lines = [];
     formFromJobId = (fromJobId != null) ? fromJobId : null;
 
-    // Prefill from a job if requested
     let preClientId = '', preClientName = '';
-    if (fromJobId != null) {
+    if (prefillQuote) {
+      // Prefill from an accepted Quote document (docgen.js) — every quote
+      // line item carries over as its own invoice line.
+      preClientId = prefillQuote.clientId != null ? prefillQuote.clientId : '';
+      preClientName = prefillQuote.clientName || '';
+      (prefillQuote.lineItems || []).forEach(li => {
+        lines.push({ description: li.description || '', qty: n(li.qty) || 1, unitPrice: n(li.unitPrice) });
+      });
+    } else if (fromJobId != null) {
+      // Prefill from a job if requested
       const j = (typeof jobs !== 'undefined' ? jobs : []).find(x => x.id === fromJobId);
       if (j) {
         preClientName = j.client || '';
