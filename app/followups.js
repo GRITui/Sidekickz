@@ -164,6 +164,9 @@
       return;
     }
 
+    // M-AI is paused: the '✨ Draft' button only appears when the AI backend is
+    // live (set window.FREELANZ_AI = true after deploying the serverless proxy).
+    const aiOn = (typeof window !== 'undefined' && window.FREELANZ_AI === true);
     const activeHtml = !queue.length
       ? `<div class="empty"><div class="empty-icon">✅</div><p>You're all caught up</p></div>`
       : '<div class="list-card">' + queue.map((it, i) => `
@@ -174,7 +177,7 @@
           <div class="list-sub">${esc(it.reason)}</div>
         </div>
         <div class="list-right" style="display:flex;gap:6px">
-          <button type="button" data-fu-draft="${i}" title="Draft a message with AI (needs internet)" style="padding:7px 9px;border:1px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">✨ Draft</button>
+          ${aiOn ? `<button type="button" data-fu-draft="${i}" title="Draft a message with AI" style="padding:7px 9px;border:1px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">✨ Draft</button>` : ''}
           <button type="button" data-fu-snooze="${i}" style="padding:7px 9px;border:1px solid var(--border);background:var(--card);color:var(--text3);border-radius:var(--radius-sm);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Snooze 7d</button>
           <button type="button" data-fu-dismiss="${i}" style="padding:7px 9px;border:1px solid var(--overdue);background:none;color:var(--overdue);border-radius:var(--radius-sm);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Dismiss</button>
         </div>
