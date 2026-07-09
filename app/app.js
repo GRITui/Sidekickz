@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.3.0';          // <-> sw.js SW_VERSION 'freelanz-v0.3.0'
+const APP_VERSION = '0.4.0';          // <-> sw.js SW_VERSION 'freelanz-v0.4.0'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -14,10 +14,14 @@ const APP_VERSION = '0.3.0';          // <-> sw.js SW_VERSION 'freelanz-v0.3.0'
 // created now (dormant) so M2/M3 features and a future sync layer can land
 // without a schema migration.
 let db;
-// DB_VER bumped 1→2 in M1.5 to add the 'services' store. onupgradeneeded only
-// CREATES missing stores (each guarded by !contains) — it never drops or clears
-// existing stores, so guest jobs / clients / settings survive the upgrade.
-const DB_NAME = 'freelanz-v2', DB_VER = 2;   // v2 == DB_VER; renamed from freelanz-v1 (no prior real users)
+// DB_VER bumped 1→2 in M1.5 ('services'), 2→3 in M3 ('bookings'/'followups'/
+// 'portfolio' — the M2 invoices/documents stores were added under the old v2
+// without a version bump, so onupgradeneeded never re-fired for existing v2
+// databases; this bump fixes that too, since the guarded creates below run
+// for ANY store still missing, not just the three new ones). onupgradeneeded
+// only CREATES missing stores (each guarded by !contains) — it never drops or
+// clears existing stores, so guest jobs / clients / settings survive the upgrade.
+const DB_NAME = 'freelanz-v2', DB_VER = 3;   // DB_NAME kept as freelanz-v2 (no prior real users; only DB_VER bumps now)
 function openDB() {
   return new Promise((res, rej) => {
     const req = indexedDB.open(DB_NAME, DB_VER);
@@ -33,6 +37,9 @@ function openDB() {
       if (!d.objectStoreNames.contains('services'))  d.createObjectStore('services',  {keyPath:'id', autoIncrement:true}); // M1.5 catalog
       if (!d.objectStoreNames.contains('invoices'))  d.createObjectStore('invoices',  {keyPath:'id', autoIncrement:true});
       if (!d.objectStoreNames.contains('documents')) d.createObjectStore('documents', {keyPath:'id', autoIncrement:true});
+      if (!d.objectStoreNames.contains('bookings'))  d.createObjectStore('bookings',  {keyPath:'id', autoIncrement:true}); // M3 day view
+      if (!d.objectStoreNames.contains('followups')) d.createObjectStore('followups', {keyPath:'id', autoIncrement:true}); // M3 CRM snooze/dismiss state
+      if (!d.objectStoreNames.contains('portfolio')) d.createObjectStore('portfolio', {keyPath:'id', autoIncrement:true}); // M3 showcase
       if (!d.objectStoreNames.contains('settings'))  d.createObjectStore('settings',  {keyPath:'key'});
       if (!d.objectStoreNames.contains('meta'))      d.createObjectStore('meta',      {keyPath:'key'});   // dormant (future sync)
       if (!d.objectStoreNames.contains('outbox'))    d.createObjectStore('outbox',    {keyPath:'key', autoIncrement:true}); // dormant
@@ -1144,6 +1151,10 @@ function switchScreen(name) {
   if (name === 'invoices' && typeof renderInvoices === 'function') renderInvoices();
   if (name === 'tax' && typeof renderTax === 'function') renderTax();
   if (name === 'docs' && typeof renderDocgen === 'function') renderDocgen();
+  // M3 modules (bookings.js / followups.js / portfolio.js).
+  if (name === 'book' && typeof renderBookings === 'function') renderBookings();
+  if (name === 'followups' && typeof renderFollowups === 'function') renderFollowups();
+  if (name === 'portfolio' && typeof renderPortfolio === 'function') renderPortfolio();
   window.scrollTo(0, 0);
 }
 // Dashboard "New invoice" quick action → open the invoices screen, then its form

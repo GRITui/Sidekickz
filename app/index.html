@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/icon.svg">
 <script>document.documentElement.dataset.theme='light';</script><!-- light-only: set before CSS paints to avoid a dark flash on dark-OS -->
-<link rel="stylesheet" href="styles.css?v=0.3.0">
+<link rel="stylesheet" href="styles.css?v=0.4.0">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -81,15 +81,22 @@
   <div class="content"><div id="docgen-body"></div></div>
 </section>
 
-<!-- ══ BOOK (placeholder, M3) ══ -->
+<!-- ══ BOOK / DAY VIEW (M3 — owned by bookings.js) ══ -->
 <section class="screen" id="s-book">
   <div class="hdr-plain"><h1 data-i18n="book_title">Booking</h1></div>
-  <div class="module-card">
-    <div class="m-ico">📅</div>
-    <h2 data-i18n="module_soon_h">Coming soon</h2>
-    <p data-i18n="mod_book_p">Share a booking link and let clients pick a slot. Arrives in M3.</p>
-    <div class="module-pill" data-i18n="pill_m3">Ships in M3</div>
-  </div>
+  <div class="content"><div id="book-body"></div></div>
+</section>
+
+<!-- ══ FOLLOW-UPS / CRM QUEUE (M3 — owned by followups.js) ══ -->
+<section class="screen" id="s-followups">
+  <div class="hdr-plain"><h1>Follow-ups</h1></div>
+  <div class="content"><div id="followups-body"></div></div>
+</section>
+
+<!-- ══ PORTFOLIO (M3 — owned by portfolio.js) ══ -->
+<section class="screen" id="s-portfolio">
+  <div class="hdr-plain"><h1>Portfolio</h1></div>
+  <div class="content"><div id="portfolio-body"></div></div>
 </section>
 
 <!-- ══ MORE / SETTINGS ══ -->
@@ -137,6 +144,14 @@
       </div>
       <div class="settings-row" style="cursor:pointer" onclick="switchScreen('tax')">
         <span class="settings-label">Tax</span>
+        <span class="settings-label" style="color:var(--text3)">›</span>
+      </div>
+      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('followups')">
+        <span class="settings-label">Follow-ups</span>
+        <span class="settings-label" style="color:var(--text3)">›</span>
+      </div>
+      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('portfolio')">
+        <span class="settings-label">Portfolio</span>
         <span class="settings-label" style="color:var(--text3)">›</span>
       </div>
     </div>
@@ -386,9 +401,14 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.3.0"></script>
+<script src="app.js?v=0.4.0"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.3.0"></script>
-<script src="invoices.js?v=0.3.0"></script>
-<script src="docgen.js?v=0.3.0"></script>
+<script src="tax.js?v=0.4.0"></script>
+<script src="invoices.js?v=0.4.0"></script>
+<script src="docgen.js?v=0.4.0"></script>
+<!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
+     the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
+<script src="bookings.js?v=0.4.0"></script>
+<script src="followups.js?v=0.4.0"></script>
+<script src="portfolio.js?v=0.4.0"></script>
