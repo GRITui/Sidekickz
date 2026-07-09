@@ -1088,7 +1088,7 @@ async function exportInvoicesCSV() {
 // All uid-scoped stores a full backup/restore round-trips. Kept in one place
 // so a future new store (like bookings/followups/portfolio were for M3) only
 // needs to be added here, not re-plumbed through export/import separately.
-const BACKUP_STORES = ['jobs', 'expenses', 'clients', 'services', 'invoices', 'documents', 'bookings', 'followups', 'portfolio'];
+const BACKUP_STORES = ['jobs', 'expenses', 'clients', 'services', 'invoices', 'documents', 'bookings', 'followups', 'portfolio', 'research'];
 
 async function exportBackup() {
   const uid = isGuest ? 'guest' : currentUser.id;
