@@ -197,6 +197,9 @@
       <button onclick="exportCustomersCSV()" data-i18n="export_customers_csv">Export customers CSV</button>
     </div>
     <div class="export-btns" style="grid-template-columns:1fr">
+      <button onclick="exportInvoicesCSV()">Export invoices CSV</button>
+    </div>
+    <div class="export-btns" style="grid-template-columns:1fr">
       <button onclick="pickBackupFile()" data-i18n="restore_json">Restore JSON</button>
     </div>
     <input type="file" id="backup-file" accept="application/json,.json" style="display:none" onchange="importBackup(this)">

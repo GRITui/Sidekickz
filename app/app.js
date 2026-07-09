@@ -1065,16 +1065,38 @@ function exportCustomersCSV() {
   a.click();
   toast(t('exported'));
 }
+async function exportInvoicesCSV() {
+  const sym = curSym();
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const rows = (await dbAll('invoices')).filter(r => r.uid === uid);
+  rows.sort((a, b) => String(a.number||'').localeCompare(String(b.number||'')));
+  let csv = `Number,Issue date,Due date,Client,Status,Subtotal (${sym}),VAT (${sym}),WHT (${sym}),Client pays (${sym}),You receive (${sym})\n`;
+  rows.forEach(inv => {
+    csv += `${csvCell(inv.number||'')},${csvCell(inv.issueDate||'')},${csvCell(inv.dueDate||'')},${csvCell(inv.clientName||'')},`
+        +  `${csvCell(inv.status||'')},${Number(inv.subtotal)||0},${Number(inv.vat)||0},${Number(inv.wht)||0},`
+        +  `${Number(inv.clientPays)||0},${Number(inv.youReceive)||0}\n`;
+  });
+  const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `freelanz-invoices-${(currentUser&&currentUser.username)||'guest'}-${todayISO()}.csv`;
+  a.click();
+  toast(t('exported'));
+}
+// All uid-scoped stores a full backup/restore round-trips. Kept in one place
+// so a future new store (like bookings/followups/portfolio were for M3) only
+// needs to be added here, not re-plumbed through export/import separately.
+const BACKUP_STORES = ['jobs', 'expenses', 'clients', 'services', 'invoices', 'documents', 'bookings', 'followups', 'portfolio'];
+
 async function exportBackup() {
   const uid = isGuest ? 'guest' : currentUser.id;
-  const [allJobs, allExp] = await Promise.all([dbAll('jobs'), dbAll('expenses')]);
+  const allByStore = await Promise.all(BACKUP_STORES.map(s => dbAll(s)));
   const backup = {
     app: 'Freelanz', version: APP_VERSION, exportedAt: nowISO(),
     user: (currentUser && currentUser.username) || 'guest',
     settings: settings, theme: 'light',   // dark mode paused in M1.5; restore never flips theme
-    jobs: allJobs.filter(j => j.uid === uid),
-    expenses: allExp.filter(x => x.uid === uid),
   };
+  BACKUP_STORES.forEach((s, i) => { backup[s] = allByStore[i].filter(r => r.uid === uid); });
   const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1091,28 +1113,36 @@ async function importBackup(inputEl) {
   try { data = JSON.parse(await file.text()); }
   catch(e) { toast(t('restore_bad_file')); return; }
   if (!data || data.app !== 'Freelanz' || !Array.isArray(data.jobs)) { toast(t('restore_bad_file')); return; }
-  const exp = Array.isArray(data.expenses) ? data.expenses : [];
-  // Validate the ENTIRE payload before touching the DB: every job/expense row
-  // must be a plain, non-null object. Reject malformed backups up front so a
-  // bad file (e.g. jobs:[null]) can never delete data mid-import.
+  // Validate the ENTIRE payload before touching the DB: every row in every
+  // store must be a plain, non-null object. Reject malformed backups up front
+  // so a bad file (e.g. jobs:[null]) can never delete data mid-import. A
+  // backup from an older app version simply won't have the newer stores'
+  // keys — Array.isArray(undefined) is false, so those default to [].
   const isPlainObj = o => o != null && typeof o === 'object' && !Array.isArray(o);
-  if (!data.jobs.every(isPlainObj) || !exp.every(isPlainObj)) { toast(t('restore_bad_file')); return; }
-  const n = data.jobs.length + exp.length;
+  const byStore = {};
+  for (const s of BACKUP_STORES) {
+    const rows = Array.isArray(data[s]) ? data[s] : [];
+    if (!rows.every(isPlainObj)) { toast(t('restore_bad_file')); return; }
+    byStore[s] = rows;
+  }
+  const n = BACKUP_STORES.reduce((sum, s) => sum + byStore[s].length, 0);
   if (!confirm(t('restore_confirm').replace('{n}', n))) return;
   const uid = isGuest ? 'guest' : currentUser.id;
-  const [curJobs, curExp] = await Promise.all([dbAll('jobs'), dbAll('expenses')]);
-  // Snapshot this uid's existing rows so we can roll back if the swap fails.
-  const savedJobs = curJobs.filter(j => j.uid === uid);
-  const savedExp  = curExp.filter(x => x.uid === uid);
+  const savedByStore = {};
+  await Promise.all(BACKUP_STORES.map(async s => {
+    savedByStore[s] = (await dbAll(s)).filter(r => r.uid === uid);
+  }));
   try {
-    for (const j of savedJobs) await dbDel('jobs', j.id);
-    for (const x of savedExp) await dbDel('expenses', x.id);
-    for (const j of data.jobs) { const {id, ...rest} = j; await dbAdd('jobs', {...rest, uid}); }
-    for (const x of exp)       { const {id, ...rest} = x; await dbAdd('expenses', {...rest, uid}); }
+    // Delete every existing row across every store first, then add every new
+    // row across every store — matches the original jobs/expenses swap so a
+    // failed add always rolls back cleanly (every old id was already gone).
+    for (const s of BACKUP_STORES) { for (const row of savedByStore[s]) await dbDel(s, row.id); }
+    for (const s of BACKUP_STORES) { for (const row of byStore[s]) { const {id, ...rest} = row; await dbAdd(s, {...rest, uid}); } }
   } catch (err) {
     // Roll back: restore the pre-import rows so a failed swap doesn't lose data.
-    for (const j of savedJobs) { const {id, ...rest} = j; await dbAdd('jobs', {...rest, uid}).catch(()=>{}); }
-    for (const x of savedExp) { const {id, ...rest} = x; await dbAdd('expenses', {...rest, uid}).catch(()=>{}); }
+    for (const s of BACKUP_STORES) {
+      for (const row of savedByStore[s]) { const {id, ...rest} = row; await dbAdd(s, {...rest, uid}).catch(()=>{}); }
+    }
     await reload();
     toast(t('restore_failed'));
     return;
