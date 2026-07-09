@@ -85,9 +85,18 @@
     const el = document.getElementById('book-body');
     if (!el) return;
     if (!selectedDate) selectedDate = todayISO();
-    let rows;
+    let rows, nextDayFirst = null;
     try {
       rows = await loadBookings(selectedDate);
+      // If the last active booking of the day runs past midnight, pull
+      // tomorrow's first active booking too so the buffer/overlap check can
+      // see across the day boundary instead of stopping dead at midnight.
+      const active = rows.filter(r => r.status !== 'cancelled');
+      const last = active[active.length - 1];
+      if (last && toMin(last.startTime) + n(last.durationMin) >= 1440) {
+        const nextRows = await loadBookings(addDays(selectedDate, 1));
+        nextDayFirst = nextRows.filter(r => r.status !== 'cancelled')[0] || null;
+      }
     } catch (err) {
       console.error('renderBookings', err);
       el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>Could not load bookings.</p></div>`;
@@ -112,7 +121,7 @@
            <span>Tap “+ New booking” to schedule work — set a duration and a travel buffer so back-to-back jobs stay realistic.</span>
          </div>`;
     } else {
-      content = buildDayList(rows);
+      content = buildDayList(rows, nextDayFirst);
     }
 
     el.innerHTML = nav + btn + content;
@@ -132,7 +141,7 @@
   }
   window.renderBookings = renderBookings;
 
-  function buildDayList(rows) {
+  function buildDayList(rows, nextDayFirst) {
     // Buffer gaps are computed only between non-cancelled bookings; cancelled
     // ones still render (de-emphasized) but never contribute to a gap. Strips
     // are keyed by the NEXT booking's id (rendered immediately before it) so a
@@ -153,18 +162,33 @@
       if (stripsBefore[r.id]) html += stripsBefore[r.id];
       html += rowHtml(r);
     });
+    // Cross-midnight check: the last active booking here runs past midnight
+    // (guaranteed by the renderBookings caller whenever nextDayFirst is set),
+    // so compare its end against tomorrow's first booking on the same
+    // continuous minutes-since-midnight timeline (+1440).
+    if (nextDayFirst && active.length) {
+      const last = active[active.length - 1];
+      const lastEnd = toMin(last.startTime) + n(last.durationMin);
+      const gap = (toMin(nextDayFirst.startTime) + 1440) - lastEnd;
+      const buf = n(last.travelBufferMin);
+      if (!(buf === 0 && gap >= 0)) {
+        const ref = `tomorrow's "${nextDayFirst.title || 'booking'}"`;
+        html += (gap < buf) ? stripHtml(true, gap, buf, ref) : stripHtml(false, gap, buf, ref);
+      }
+    }
     html += '</div>';
     return html;
   }
 
-  function stripHtml(warn, gap, buf) {
+  function stripHtml(warn, gap, buf, refLabel) {
+    const suffix = refLabel ? ` before ${refLabel}` : '';
     if (warn) {
       const msg = gap < 0
-        ? (buf === 0 ? `⚠ Overlaps by ${-gap} min` : `⚠ Overlaps by ${-gap} min — need ${buf} min buffer`)
-        : `⚠ Only ${gap} min — need ${buf} min`;
+        ? (buf === 0 ? `⚠ Overlaps by ${-gap} min${suffix}` : `⚠ Overlaps by ${-gap} min${suffix} — need ${buf} min buffer`)
+        : `⚠ Only ${gap} min${suffix} — need ${buf} min`;
       return `<div style="padding:7px 16px;font-size:11px;font-weight:700;color:var(--overdue);background:color-mix(in srgb,var(--overdue) 8%,var(--card));border-bottom:0.5px solid var(--border)">${esc(msg)}</div>`;
     }
-    return `<div style="padding:6px 16px;font-size:11px;font-weight:600;color:var(--text3);border-bottom:0.5px solid var(--border)">${esc(gap + ' min free')}</div>`;
+    return `<div style="padding:6px 16px;font-size:11px;font-weight:600;color:var(--text3);border-bottom:0.5px solid var(--border)">${esc(gap + ' min free' + suffix)}</div>`;
   }
 
   function rowHtml(r) {

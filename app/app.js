@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.4.0';          // <-> sw.js SW_VERSION 'freelanz-v0.4.0'
+const APP_VERSION = '0.5.0';          // <-> sw.js SW_VERSION 'freelanz-v0.5.0'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -18,10 +18,11 @@ let db;
 // 'portfolio' — the M2 invoices/documents stores were added under the old v2
 // without a version bump, so onupgradeneeded never re-fired for existing v2
 // databases; this bump fixes that too, since the guarded creates below run
-// for ANY store still missing, not just the three new ones). onupgradeneeded
-// only CREATES missing stores (each guarded by !contains) — it never drops or
-// clears existing stores, so guest jobs / clients / settings survive the upgrade.
-const DB_NAME = 'freelanz-v2', DB_VER = 3;   // DB_NAME kept as freelanz-v2 (no prior real users; only DB_VER bumps now)
+// for ANY store still missing, not just the three new ones), 3→4 in M5
+// ('research'). onupgradeneeded only CREATES missing stores (each guarded by
+// !contains) — it never drops or clears existing stores, so guest jobs /
+// clients / settings survive the upgrade.
+const DB_NAME = 'freelanz-v2', DB_VER = 4;   // DB_NAME kept as freelanz-v2 (no prior real users; only DB_VER bumps now)
 function openDB() {
   return new Promise((res, rej) => {
     const req = indexedDB.open(DB_NAME, DB_VER);
@@ -40,6 +41,7 @@ function openDB() {
       if (!d.objectStoreNames.contains('bookings'))  d.createObjectStore('bookings',  {keyPath:'id', autoIncrement:true}); // M3 day view
       if (!d.objectStoreNames.contains('followups')) d.createObjectStore('followups', {keyPath:'id', autoIncrement:true}); // M3 CRM snooze/dismiss state
       if (!d.objectStoreNames.contains('portfolio')) d.createObjectStore('portfolio', {keyPath:'id', autoIncrement:true}); // M3 showcase
+      if (!d.objectStoreNames.contains('research'))  d.createObjectStore('research',  {keyPath:'id', autoIncrement:true}); // M5 content library
       if (!d.objectStoreNames.contains('settings'))  d.createObjectStore('settings',  {keyPath:'key'});
       if (!d.objectStoreNames.contains('meta'))      d.createObjectStore('meta',      {keyPath:'key'});   // dormant (future sync)
       if (!d.objectStoreNames.contains('outbox'))    d.createObjectStore('outbox',    {keyPath:'key', autoIncrement:true}); // dormant
@@ -1086,7 +1088,7 @@ async function exportInvoicesCSV() {
 // All uid-scoped stores a full backup/restore round-trips. Kept in one place
 // so a future new store (like bookings/followups/portfolio were for M3) only
 // needs to be added here, not re-plumbed through export/import separately.
-const BACKUP_STORES = ['jobs', 'expenses', 'clients', 'services', 'invoices', 'documents', 'bookings', 'followups', 'portfolio'];
+const BACKUP_STORES = ['jobs', 'expenses', 'clients', 'services', 'invoices', 'documents', 'bookings', 'followups', 'portfolio', 'research'];
 
 async function exportBackup() {
   const uid = isGuest ? 'guest' : currentUser.id;
@@ -1185,6 +1187,8 @@ function switchScreen(name) {
   if (name === 'book' && typeof renderBookings === 'function') renderBookings();
   if (name === 'followups' && typeof renderFollowups === 'function') renderFollowups();
   if (name === 'portfolio' && typeof renderPortfolio === 'function') renderPortfolio();
+  // M5 module (research.js).
+  if (name === 'research' && typeof renderResearch === 'function') renderResearch();
   window.scrollTo(0, 0);
 }
 // Dashboard "New invoice" quick action → open the invoices screen, then its form
