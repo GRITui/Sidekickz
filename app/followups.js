@@ -36,7 +36,9 @@
     return Math.round((b - a) / 86400000);
   }
 
-  let queue = [];   // live candidates surviving snooze/dismiss, in render order
+  let queue = [];           // active candidates (not dismissed, not currently snoozed)
+  let dismissedQueue = [];  // dismissed candidates, kept around so Undo can restore them
+  let showDismissed = false;
 
   async function buildQueue() {
     const uid = uidNow();
@@ -95,19 +97,24 @@
       }
     });
 
-    // Apply snooze/dismiss decisions.
+    // Apply snooze/dismiss decisions. Dismissed candidates are split out
+    // (rather than dropped) so the "Show dismissed" panel can list them with
+    // an Undo action — the underlying invoice/customer is never touched by
+    // any of this, only which reminders are currently visible.
     const decisions = new Map();
     (await dbAll(STORE)).filter(r => r.uid === uid).forEach(r => decisions.set(r.key, r));
-    const surviving = candidates.filter(cand => {
+    const active = [], dismissed = [];
+    candidates.forEach(cand => {
       const rec = decisions.get(cand.key);
-      if (!rec) return true;
-      if (rec.dismissed === true) return false;
-      if (rec.snoozedUntil && rec.snoozedUntil >= today) return false;
-      return true;
+      if (rec && rec.dismissed === true) { dismissed.push(cand); return; }
+      if (rec && rec.snoozedUntil && rec.snoozedUntil >= today) return;
+      active.push(cand);
     });
 
-    surviving.sort((a, b) => (a.group - b.group) || (b.sortN - a.sortN));
-    return surviving;
+    const bySort = (a, b) => (a.group - b.group) || (b.sortN - a.sortN);
+    active.sort(bySort);
+    dismissed.sort(bySort);
+    return { active, dismissed };
   }
 
   async function applyDecision(key, patch) {
@@ -137,25 +144,29 @@
     toast('Dismissed');
     renderFollowups();
   }
+  async function undismiss(key) {
+    try { await applyDecision(key, { dismissed: false, snoozedUntil: '' }); }
+    catch (e) { console.error(e); toast('Could not restore'); return; }
+    toast('Restored to follow-ups');
+    renderFollowups();
+  }
 
   async function renderFollowups() {
     const el = document.getElementById('followups-body');
     if (!el) return;
     try {
-      queue = await buildQueue();
+      const built = await buildQueue();
+      queue = built.active;
+      dismissedQueue = built.dismissed;
     } catch (err) {
       console.error('renderFollowups', err);
       el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>Could not load follow-ups.</p></div>`;
       return;
     }
 
-    if (!queue.length) {
-      el.innerHTML = `<div class="empty"><div class="empty-icon">✅</div>
-        <p>You're all caught up</p></div>`;
-      return;
-    }
-
-    el.innerHTML = '<div class="list-card">' + queue.map((it, i) => `
+    const activeHtml = !queue.length
+      ? `<div class="empty"><div class="empty-icon">✅</div><p>You're all caught up</p></div>`
+      : '<div class="list-card">' + queue.map((it, i) => `
       <div class="list-row" style="cursor:default">
         <div class="list-icon">${it.icon}</div>
         <div class="list-main">
@@ -169,6 +180,28 @@
         </div>
       </div>`).join('') + '</div>';
 
+    const dismissedHtml = !dismissedQueue.length ? '' : (showDismissed
+      ? `<div style="margin-top:16px">
+          <button type="button" id="fu-toggle-dismissed" style="background:none;border:none;color:var(--text3);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:8px 2px">Hide dismissed (${dismissedQueue.length})</button>
+          <div class="list-card">${dismissedQueue.map((it, i) => `
+            <div class="list-row" style="cursor:default;opacity:.7">
+              <div class="list-icon">${it.icon}</div>
+              <div class="list-main">
+                <div class="list-title">${esc(it.title)}</div>
+                <div class="list-sub">${esc(it.reason)}</div>
+              </div>
+              <div class="list-right">
+                <button type="button" data-fu-undismiss="${i}" style="padding:7px 9px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:var(--radius-sm);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Undo</button>
+              </div>
+            </div>`).join('')}</div>
+        </div>`
+      : `<div style="margin-top:16px"><button type="button" id="fu-toggle-dismissed" style="background:none;border:none;color:var(--text3);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:8px 2px">Show dismissed (${dismissedQueue.length})</button></div>`);
+
+    el.innerHTML = activeHtml + dismissedHtml;
+
+    const toggleBtn = document.getElementById('fu-toggle-dismissed');
+    if (toggleBtn) toggleBtn.addEventListener('click', () => { showDismissed = !showDismissed; renderFollowups(); });
+
     el.querySelectorAll('[data-fu-snooze]').forEach(btn => {
       btn.addEventListener('click', () => {
         const it = queue[parseInt(btn.getAttribute('data-fu-snooze'), 10)];
@@ -179,6 +212,12 @@
       btn.addEventListener('click', () => {
         const it = queue[parseInt(btn.getAttribute('data-fu-dismiss'), 10)];
         if (it) dismiss(it.key);
+      });
+    });
+    el.querySelectorAll('[data-fu-undismiss]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const it = dismissedQueue[parseInt(btn.getAttribute('data-fu-undismiss'), 10)];
+        if (it) undismiss(it.key);
       });
     });
     el.querySelectorAll('[data-fu-draft]').forEach(btn => {
