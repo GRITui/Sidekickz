@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.2.1';          // <-> sw.js SW_VERSION 'freelanz-v0.2.1'
+const APP_VERSION = '0.3.0';          // <-> sw.js SW_VERSION 'freelanz-v0.3.0'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -455,11 +455,16 @@ async function enterApp() {
   applyUser();
   applyLang();
   // reflect settings into controls
+  // Tax defaults: TH standard WHT 3% / VAT 7% when the user has not set them.
+  // In-memory only (persisted on first change) so M2 tax/invoices can read them.
+  if (settings.wht == null) settings.wht = 3;
+  if (settings.vat == null) settings.vat = 7;
   const set = (id, v) => { const el = document.getElementById(id); if (el != null && v != null) el.value = v; };
   set('set-currency', settings.currency || 'THB');
   set('set-goal', settings.dailyGoal || '');
   set('set-wht', settings.wht != null ? settings.wht : '');
   set('set-vat', settings.vat != null ? settings.vat : '');
+  set('set-promptpay', settings.promptpayId || '');
   renderPersonaControls();
 
   // First-run onboarding: choose a work type before the dashboard.
@@ -1015,6 +1020,7 @@ async function onCurrencyChange(v) { await saveSetting('currency', v); applyLang
 async function onGoalChange(v) { const n = parseFloat(v); await saveSetting('dailyGoal', isNaN(n)?0:n); renderGoal(); }
 async function onWhtChange(v) { const n = parseFloat(v); await saveSetting('wht', isNaN(n)?null:n); }
 async function onVatChange(v) { const n = parseFloat(v); await saveSetting('vat', isNaN(n)?null:n); }
+async function onPromptPayChange(v) { await saveSetting('promptpayId', (v||'').trim()); }
 
 // ─── EXPORT: CSV + JSON backup/restore ────────────────────────────────
 // Neutralize spreadsheet formula injection in free-text cells and always quote.
@@ -1133,9 +1139,19 @@ function switchScreen(name) {
   if (name === 'home') renderHome();
   if (name === 'customers') renderCustomers();
   if (name === 'services') renderServices();
+  // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
+  // module can't crash navigation.
+  if (name === 'invoices' && typeof renderInvoices === 'function') renderInvoices();
+  if (name === 'tax' && typeof renderTax === 'function') renderTax();
+  if (name === 'docs' && typeof renderDocgen === 'function') renderDocgen();
   window.scrollTo(0, 0);
 }
-function newInvoiceStub() { toast(t('coming_m2')); }
+// Dashboard "New invoice" quick action → open the invoices screen, then its form
+// if the invoicing module has loaded.
+function newInvoice() {
+  switchScreen('invoices');
+  if (typeof openInvoiceForm === 'function') openInvoiceForm();
+}
 
 // ─── i18n render pass ─────────────────────────────────────────────────
 function applyLang() {
