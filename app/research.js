@@ -54,6 +54,24 @@
       isPremium: true,
       body: `A short, clear contract protects both you and your client — here are five things worth nailing down before you start work.\n\n1. Scope: exactly what you're delivering, and just as importantly, what you're NOT delivering. Vague scope is the #1 source of "just one more small thing" disputes.\n\n2. Payment terms: your fee, deposit (if any), due date, and what happens if payment is late.\n\n3. Revisions: how many rounds of changes are included before extra work is billed separately.\n\n4. Usage rights: who can use the final work, where, and for how long — especially important for photography, design, and content work.\n\n5. Cancellation: what happens, and who owes what, if either side needs to stop partway through.\n\nFreelanz's Docs screen can generate a starting contract from a customer's details in seconds — use it as a first draft, then adjust the specifics for the job. This is general guidance, not legal advice; for anything high-value or unusual, a quick read from a lawyer is worth it.`,
     },
+    {
+      title: 'Hourly vs. Project-Based: Picking Your Pricing Model',
+      category: 'Pricing',
+      isPremium: false,
+      body: `Hourly billing feels safe — you're paid for every minute — but it punishes you for getting faster, and it makes clients nervous about an open-ended bill. Project-based (flat fee) pricing rewards efficiency and gives the client cost certainty, but only works if you've scoped the job accurately.\n\nA simple rule of thumb: use hourly for open-ended, hard-to-scope work (ongoing consulting, exploratory design), and project-based for anything you've done enough times to estimate confidently (a standard shoot, a defined website build, a fixed set of sessions).\n\nWhichever you pick, put it in writing before you start — Freelanz's Services catalog lets you set a default rate and unit (hour, session, project) per service, so it prefills consistently every time you log a job or raise an invoice instead of being re-negotiated each time.`,
+    },
+    {
+      title: 'How to Handle a Late-Paying Client',
+      category: 'Payments',
+      isPremium: true,
+      body: `Most late payments aren't malicious — they're forgotten. A short, friendly nudge clears the majority of them without any awkwardness.\n\nA workable escalation: (1) a day or two after the due date, a light "just checking this reached you okay" message; (2) at 1-2 weeks, a clearer reminder stating the amount and invoice number; (3) past that, a firmer message referencing the original agreed terms. Keep every message polite and factual — you may need this client again, and a paper trail of calm reminders looks better than an angry one if it ever escalates.\n\nFreelanz's Follow-ups screen already tracks which invoices are overdue and for how long, so you don't have to remember to check — and the "✨ Draft" button (where available) can draft a first pass at that nudge message for you, in either a friendly or firmer tone, so you're not starting from a blank page.`,
+    },
+    {
+      title: 'Building a Simple Portfolio That Wins Work',
+      category: 'Marketing',
+      isPremium: false,
+      body: `A portfolio doesn't need to be big to work — it needs to answer one question fast: "can this person do the kind of job I need?" Ten strong, relevant pieces beat forty mixed ones.\n\nFor each piece, a one-line caption explaining the context (the client's goal, not just what it looks like) does more work than the image alone — it shows you understood the brief, not just that you can execute. Group pieces by the kind of client you want more of, and lead with your strongest, most representative work rather than your most recent.\n\nFreelanz's Portfolio screen keeps this lightweight: add an image, a short description, and tags, then use "Share / Print" to hand a prospective client a clean, focused view instead of a messy folder of files.`,
+    },
   ];
 
   async function seedIfEmpty() {
@@ -73,6 +91,8 @@
     rows.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
     return rows;
   }
+
+  let selectedCategory = 'All';   // module-closure filter state, reset on full reload but not on re-render
 
   // ══════════════════════════════════════════════════════════════════════
   //  LIST SCREEN  →  #research-body
@@ -100,14 +120,31 @@
 
     const addBtn = `<button type="button" id="rs-add-btn" class="btn-submit" style="width:100%;margin:0 0 16px">+ Add article</button>`;
 
+    // Category chips — only worth showing once there's more than one category to filter.
+    const categories = ['All', ...new Set(rows.map(a => a.category || 'General'))];
+    if (!categories.includes(selectedCategory)) selectedCategory = 'All';   // e.g. last article of a category was deleted
+    const chipsHtml = categories.length <= 2 ? '' : `
+      <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:10px;margin-bottom:2px">
+        ${categories.map(c => `
+          <button type="button" data-rs-cat="${aesc(c)}" style="flex:0 0 auto;padding:7px 13px;border-radius:999px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;${
+            c === selectedCategory
+              ? 'border:none;background:var(--brand);color:#fff'
+              : 'border:1px solid var(--border);background:var(--card);color:var(--text2)'
+          }">${esc(c)}</button>`).join('')}
+      </div>`;
+
+    const visibleRows = selectedCategory === 'All' ? rows : rows.filter(a => (a.category || 'General') === selectedCategory);
+
     let listHtml;
     if (!rows.length) {
       listHtml = `<div class="empty"><div class="empty-icon">📚</div>
         <p>No research yet</p>
         <span>Add your own notes, or write-ups worth remembering for next time.</span>
       </div>`;
+    } else if (!visibleRows.length) {
+      listHtml = `<div class="empty"><div class="empty-icon">📚</div><p>No articles in this category</p></div>`;
     } else {
-      listHtml = '<div class="list-card">' + rows.map(a => `
+      listHtml = '<div class="list-card">' + visibleRows.map(a => `
         <div class="list-row" data-rs="${a.id}" tabindex="0" role="button">
           <div class="list-icon">📘</div>
           <div class="list-main">
@@ -120,7 +157,11 @@
         </div>`).join('') + '</div>';
     }
 
-    el.innerHTML = subscribeBanner + addBtn + listHtml;
+    el.innerHTML = subscribeBanner + addBtn + chipsHtml + listHtml;
+
+    el.querySelectorAll('[data-rs-cat]').forEach(btn => {
+      btn.addEventListener('click', () => { selectedCategory = btn.getAttribute('data-rs-cat'); renderResearch(); });
+    });
 
     const subBtn = document.getElementById('rs-subscribe-btn');
     if (subBtn) subBtn.addEventListener('click', () => {
