@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.5.2';          // <-> sw.js SW_VERSION 'freelanz-v0.5.2'
+const APP_VERSION = '0.5.3';          // <-> sw.js SW_VERSION 'freelanz-v0.5.3'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
