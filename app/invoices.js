@@ -88,7 +88,7 @@
 
     if (!rows.length) {
       el.innerHTML = btn +
-        `<div class="empty"><div class="empty-icon">🧾</div>
+        `<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg></div>
            <p>No invoices yet</p>
            <span>Create your first invoice — add line items, snapshot tax, and share a PromptPay QR.</span>
          </div>`;
@@ -109,7 +109,7 @@
     const list = '<div class="list-card">' + rows.map(r => {
       const sub = [esc(r.clientName || 'No client'), esc(fmtInvDate(r.issueDate))].filter(Boolean).join(' · ');
       return `<div class="list-row" data-inv="${r.id}" tabindex="0" role="button">
-        <div class="list-icon">🧾</div>
+        <div class="list-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg></div>
         <div class="list-main">
           <div class="list-title">${esc(r.number || 'Invoice')}</div>
           <div class="list-sub">${sub}</div>

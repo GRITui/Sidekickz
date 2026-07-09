@@ -99,7 +99,7 @@
       }
     } catch (err) {
       console.error('renderBookings', err);
-      el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>Could not load bookings.</p></div>`;
+      el.innerHTML = `<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M10.3 4l-7.5 13A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-3l-7.5-13a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div><p>Could not load bookings.</p></div>`;
       return;
     }
 
@@ -116,7 +116,7 @@
 
     let content;
     if (!rows.length) {
-      content = `<div class="empty"><div class="empty-icon">📅</div>
+      content = `<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg></div>
            <p>No bookings for this day</p>
            <span>Tap “+ New booking” to schedule work — set a duration and a travel buffer so back-to-back jobs stay realistic.</span>
          </div>`;
@@ -184,8 +184,8 @@
     const suffix = refLabel ? ` before ${refLabel}` : '';
     if (warn) {
       const msg = gap < 0
-        ? (buf === 0 ? `⚠ Overlaps by ${-gap} min${suffix}` : `⚠ Overlaps by ${-gap} min${suffix} — need ${buf} min buffer`)
-        : `⚠ Only ${gap} min${suffix} — need ${buf} min`;
+        ? (buf === 0 ? `Overlaps by ${-gap} min${suffix}` : `Overlaps by ${-gap} min${suffix} — need ${buf} min buffer`)
+        : `Only ${gap} min${suffix} — need ${buf} min`;
       return `<div style="padding:7px 16px;font-size:11px;font-weight:700;color:var(--overdue);background:color-mix(in srgb,var(--overdue) 8%,var(--card));border-bottom:0.5px solid var(--border)">${esc(msg)}</div>`;
     }
     return `<div style="padding:6px 16px;font-size:11px;font-weight:600;color:var(--text3);border-bottom:0.5px solid var(--border)">${esc(gap + ' min free' + suffix)}</div>`;
@@ -204,7 +204,7 @@
     if (r.status === 'cancelled') subParts.push('Cancelled');
     const titleStyle = dim ? ' style="text-decoration:line-through"' : '';
     return `<div class="list-row" data-bk="${r.id}" tabindex="0" role="button"${dim ? ' style="opacity:.55"' : ''}>
-        <div class="list-icon">📅</div>
+        <div class="list-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg></div>
         <div class="list-main">
           <div class="list-title"${titleStyle}>${esc(r.title || 'Booking')}</div>
           <div class="list-sub">${subParts.join(' · ')}</div>

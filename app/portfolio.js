@@ -60,7 +60,7 @@
       rows = await loadItems();
     } catch (err) {
       console.error('renderPortfolio', err);
-      el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>Could not load portfolio.</p></div>`;
+      el.innerHTML = `<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M10.3 4l-7.5 13A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-3l-7.5-13a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div><p>Could not load portfolio.</p></div>`;
       return;
     }
 
@@ -68,7 +68,7 @@
 
     if (!rows.length) {
       el.innerHTML = addBtn +
-        `<div class="empty"><div class="empty-icon">🖼️</div>
+        `<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-8 8"/></svg></div>
            <p>No portfolio items yet</p>
            <span>Add your best work to show prospective clients.</span>
          </div>`;
@@ -81,7 +81,7 @@
     const cards = rows.map(r => {
       const thumb = r.imageDataUrl
         ? `<img src="${aesc(r.imageDataUrl)}" alt="" style="width:64px;height:64px;border-radius:var(--radius-sm);object-fit:cover;flex-shrink:0;background:var(--brand-tint)">`
-        : `<div class="list-icon" style="width:64px;height:64px;border-radius:var(--radius-sm);font-size:26px">🖼️</div>`;
+        : `<div class="list-icon" style="width:64px;height:64px;border-radius:var(--radius-sm);font-size:26px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-8 8"/></svg></div>`;
       const snip = snippet(r.description);
       return `<div class="list-row" data-pf="${r.id}" tabindex="0" role="button" style="align-items:flex-start">
         ${thumb}

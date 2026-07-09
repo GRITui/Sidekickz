@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.7.5';          // <-> sw.js SW_VERSION 'freelanz-v0.7.5'  (M2.5 merged onto M5 line)
+const APP_VERSION = '0.7.6';          // <-> sw.js SW_VERSION 'freelanz-v0.7.6'  (M2.5 merged onto M5 line)
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -216,12 +216,12 @@ function attrEsc(s) { return htmlEsc(s).replace(/"/g,'&quot;'); }
 
 // ─── PERSONAS (i18n @workType relabels + onboarding) ──────────────────
 const PERSONAS = [
-  {id:'creative',     icon:'🎨', label:'Creative',     sub:'Design, writing, video'},
-  {id:'tech',         icon:'💻', label:'Tech',         sub:'Dev, IT, data'},
-  {id:'service',      icon:'🎓', label:'Service',      sub:'Coaching, tutoring'},
-  {id:'photographer', icon:'📷', label:'Photographer', sub:'Shoots, events'},
-  {id:'sales',        icon:'🤝', label:'Sales',        sub:'Field sales, agents'},
-  {id:'gym',          icon:'💪', label:'Personal gym trainer', sub:'Sessions, members'},
+  {id:'creative',     icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M12 3a9 9 0 0 0 0 18c1.5 0 2-1 2-2 0-1.5 1-2 2-2h1a4 4 0 0 0 4-4 9 9 0 0 0-9-8z"/><circle cx="7.5" cy="11" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16.5" cy="11" r="1"/></svg>', label:'Creative',     sub:'Design, writing, video'},
+  {id:'tech',         icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><rect x="4" y="5" width="16" height="11" rx="1"/><path d="M2 20h20"/></svg>', label:'Tech',         sub:'Dev, IT, data'},
+  {id:'service',      icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M2 9l10-4 10 4-10 4z"/><path d="M6 11v5c0 1 3 2.5 6 2.5s6-1.5 6-2.5v-5"/></svg>', label:'Service',      sub:'Coaching, tutoring'},
+  {id:'photographer', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L19 6h0a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>', label:'Photographer', sub:'Shoots, events'},
+  {id:'sales',        icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M12 11l-2-2a2 2 0 0 0-3 3l4 4a2 2 0 0 0 3 0"/><path d="M12 13l2 2a2 2 0 0 0 3-3l-4-4a2 2 0 0 0-3 0"/></svg>', label:'Sales',        sub:'Field sales, agents'},
+  {id:'gym',          icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 8v8"/><path d="M3 10v4"/><path d="M18 8v8"/><path d="M21 10v4"/><path d="M6 12h12"/></svg>', label:'Personal gym trainer', sub:'Sessions, members'},
 ];
 const CURRENCY_SYM = {THB:'฿', USD:'$', EUR:'€', GBP:'£', SGD:'S$', MYR:'RM'};
 function curSym() { return CURRENCY_SYM[(settings && settings.currency) || 'THB'] || '฿'; }
@@ -272,10 +272,10 @@ function customLabelForKey(key) {
 // Deposit is NOT a stage (handled inside the invoice's deposit %).
 const STAGES = ['quote', 'service', 'invoice', 'paid'];
 const STAGE_META = {
-  quote:   {label:'Quote',   icon:'💬', action:'Send quote',       done:'Quote sent'},
-  service: {label:'Service', icon:'🛠️', action:'Mark service done', done:'Service done'},
-  invoice: {label:'Invoice', icon:'🧾', action:'Send invoice',      done:'Invoice sent'},
-  paid:    {label:'Paid',    icon:'💰', action:'Mark paid',         done:'Paid'},
+  quote:   {label:'Quote',   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent'},
+  service: {label:'Service', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark service done', done:'Service done'},
+  invoice: {label:'Invoice', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent'},
+  paid:    {label:'Paid',    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid'},
 };
 const CORE_STAGES = ['service', 'invoice', 'paid'];  // always present; only 'quote' is toggleable
 // Business-model presets (an ordered subset/reorder of STAGES).
@@ -349,7 +349,7 @@ const I18N = {
     stat_jobs:'Jobs', stat_avg:'Avg / job', stat_expenses:'Expenses',
     'stat_jobs@creative':'Gigs','stat_jobs@tech':'Projects','stat_jobs@service':'Lessons','stat_jobs@photographer':'Shoots','stat_jobs@sales':'Visits','stat_jobs@gym':'Sessions',
     'stat_avg@sales':'Avg / visit','stat_avg@creative':'Avg / gig','stat_avg@tech':'Avg / project','stat_avg@service':'Avg / lesson','stat_avg@photographer':'Avg / shoot','stat_avg@gym':'Avg / session',
-    todays_goal:"Today's goal", goal_reached:'Goal reached! 🎉', goal_of:'of',
+    todays_goal:"Today's goal", goal_reached:'Goal reached!', goal_of:'of',
     action_queue:'Action queue', queue_empty:'You’re all caught up.', queue_empty_sub:'New tasks will appear here as you add jobs and invoices.',
     quick_actions:'Quick actions', new_job:'New job', new_invoice:'New invoice',
     'new_job@creative':'New gig','new_job@tech':'New project','new_job@service':'New lesson','new_job@photographer':'New shoot','new_job@sales':'New visit','new_job@gym':'New session',
@@ -659,7 +659,7 @@ function renderHome() {
       const last = settings.lastBackupAt ? fmtDate(settings.lastBackupAt.slice(0,10)) : t('backup_never');
       backupCard = `<div class="list-card">
         <div class="list-row" style="cursor:default">
-          <div class="list-icon">💾</div>
+          <div class="list-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg></div>
           <div class="list-main">
             <div class="list-title">${htmlEsc(t('backup_reminder_title'))}</div>
             <div class="list-sub">${htmlEsc(t('backup_reminder_sub').replace('{date}', last))}</div>
@@ -671,13 +671,13 @@ function renderHome() {
         </div>
       </div>`;
     }
-    const emptyState = `<div class="empty"><div class="empty-icon">✅</div>
+    const emptyState = `<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></div>
         <p data-i18n="queue_empty">${t('queue_empty')}</p>
         <span data-i18n="queue_empty_sub">${t('queue_empty_sub')}</span></div>`;
     const paint = (items) => {
       const live = (items || []).slice(0, 3).map(it => `<div class="list-card" style="margin-bottom:10px">
         <div class="list-row" tabindex="0" role="button" onclick="switchScreen('followups')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchScreen('followups');}">
-          <div class="list-icon">${it.icon || '🔔'}</div>
+          <div class="list-icon">${it.icon || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>'}</div>
           <div class="list-main">
             <div class="list-title">${htmlEsc(it.title || '')}</div>
             <div class="list-sub">${htmlEsc(it.reason || '')}</div>
@@ -723,7 +723,7 @@ function renderJobs() {
   const wrap = document.getElementById('jobs-body');
   if (!wrap) return;
   if (!jobs.length) {
-    wrap.innerHTML = `<div class="empty"><div class="empty-icon">🧾</div>
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg></div>
       <p data-i18n="no_jobs">${t('no_jobs')}</p>
       <span data-i18n="no_jobs_sub">${t('no_jobs_sub')}</span></div>`;
     return;
@@ -739,7 +739,7 @@ function renderJobs() {
       ? `<span class="stage-badge done">✓ ${esc(sm.label || '')}</span>`
       : `<span class="stage-badge">${sm.icon || ''} ${esc(sm.label || '')}</span>`;
     return `<div class="list-row" tabindex="0" role="button" onclick="openEditJob(${j.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openEditJob(${j.id});}">
-      <div class="list-icon">🧾</div>
+      <div class="list-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg></div>
       <div class="list-main">
         <div class="list-title">${title}</div>
         <div class="list-sub">${esc(sub)}${hrs>0?' · '+fmtHours(hrs):''}</div>
@@ -1057,14 +1057,14 @@ function renderCustomers() {
   const wrap = document.getElementById('customers-body');
   if (!wrap) return;
   if (!customers.length) {
-    wrap.innerHTML = `<div class="empty"><div class="empty-icon">👤</div>
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></div>
       <p>${htmlEsc(t('no_customers'))}</p><span>${htmlEsc(t('no_customers_sub'))}</span></div>`;
     return;
   }
   wrap.innerHTML = '<div class="list-card">' + customers.map(c => {
     const sub = c.company || c.phone || c.email || '';
     return `<div class="list-row" tabindex="0" role="button" onclick="openEditCustomer(${c.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openEditCustomer(${c.id});}">
-      <div class="list-icon">👤</div>
+      <div class="list-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></div>
       <div class="list-main">
         <div class="list-title">${htmlEsc(c.name)}</div>
         <div class="list-sub">${htmlEsc(sub)}</div>
@@ -1186,13 +1186,13 @@ function renderServices() {
   const wrap = document.getElementById('services-body');
   if (!wrap) return;
   if (!services.length) {
-    wrap.innerHTML = `<div class="empty"><div class="empty-icon">🏷️</div>
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></div>
       <p>${htmlEsc(t('no_services'))}</p><span>${htmlEsc(t('no_services_sub'))}</span></div>`;
     return;
   }
   wrap.innerHTML = '<div class="list-card">' + services.map(s => `
     <div class="list-row" tabindex="0" role="button" onclick="openEditService(${s.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openEditService(${s.id});}">
-      <div class="list-icon">🏷️</div>
+      <div class="list-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></div>
       <div class="list-main">
         <div class="list-title">${htmlEsc(s.name)}</div>
         <div class="list-sub">${htmlEsc(s.unit || '')}</div>

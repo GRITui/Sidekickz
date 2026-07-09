@@ -62,7 +62,7 @@
       if (inv.status === 'overdue' || (inv.status !== 'paid' && inv.dueDate && inv.dueDate < today)) {
         const n = inv.dueDate && inv.dueDate < today ? daysBetween(inv.dueDate, today) : 0;
         candidates.push({
-          group: 0, sortN: n, icon: '🧾', title: name,
+          group: 0, sortN: n, icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', title: name,
           reason: n > 0
             ? `Invoice ${inv.number || ''} is ${n} day${n === 1 ? '' : 's'} overdue`
             : `Invoice ${inv.number || ''} is marked overdue`,
@@ -71,7 +71,7 @@
       } else if (inv.status === 'draft' && inv.issueDate && daysBetween(inv.issueDate, today) >= DRAFT_STALE_DAYS) {
         const n = daysBetween(inv.issueDate, today);
         candidates.push({
-          group: 1, sortN: n, icon: '🧾', title: name,
+          group: 1, sortN: n, icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', title: name,
           reason: `Draft invoice ${inv.number || ''} has been sitting unsent for ${n} day${n === 1 ? '' : 's'}`,
           key: `draft:${cid}:${inv.id}`,
         });
@@ -90,7 +90,7 @@
       const n = daysBetween(last, today);
       if (n > CUSTOMER_STALE_DAYS) {
         candidates.push({
-          group: 2, sortN: n, icon: '👤', title: c.name || 'Customer',
+          group: 2, sortN: n, icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>', title: c.name || 'Customer',
           reason: `No activity with ${c.name || 'this customer'} in ${n} days`,
           key: `stale:${c.id}:`,
         });
@@ -160,15 +160,15 @@
       dismissedQueue = built.dismissed;
     } catch (err) {
       console.error('renderFollowups', err);
-      el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>Could not load follow-ups.</p></div>`;
+      el.innerHTML = `<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M10.3 4l-7.5 13A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-3l-7.5-13a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div><p>Could not load follow-ups.</p></div>`;
       return;
     }
 
-    // M-AI is paused: the '✨ Draft' button only appears when the AI backend is
+    // M-AI is paused: the 'Draft' button only appears when the AI backend is
     // live (set window.FREELANZ_AI = true after deploying the serverless proxy).
     const aiOn = (typeof window !== 'undefined' && window.FREELANZ_AI === true);
     const activeHtml = !queue.length
-      ? `<div class="empty"><div class="empty-icon">✅</div><p>You're all caught up</p></div>`
+      ? `<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></div><p>You're all caught up</p></div>`
       : '<div class="list-card">' + queue.map((it, i) => `
       <div class="list-row" style="cursor:default">
         <div class="list-icon">${it.icon}</div>
@@ -177,7 +177,7 @@
           <div class="list-sub">${esc(it.reason)}</div>
         </div>
         <div class="list-right" style="display:flex;gap:6px">
-          ${aiOn ? `<button type="button" data-fu-draft="${i}" title="Draft a message with AI" style="padding:7px 9px;border:1px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">✨ Draft</button>` : ''}
+          ${aiOn ? `<button type="button" data-fu-draft="${i}" title="Draft a message with AI" style="padding:7px 9px;border:1px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Draft</button>` : ''}
           <button type="button" data-fu-snooze="${i}" style="padding:7px 9px;border:1px solid var(--border);background:var(--card);color:var(--text3);border-radius:var(--radius-sm);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Snooze 7d</button>
           <button type="button" data-fu-dismiss="${i}" style="padding:7px 9px;border:1px solid var(--overdue);background:none;color:var(--overdue);border-radius:var(--radius-sm);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Dismiss</button>
         </div>

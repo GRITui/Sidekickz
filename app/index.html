@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>document.documentElement.dataset.theme='light';</script><!-- light-only: set before CSS paints to avoid a dark flash on dark-OS -->
-<link rel="stylesheet" href="styles.css?v=0.7.5">
+<link rel="stylesheet" href="styles.css?v=0.7.6">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -47,12 +47,12 @@
   </div>
 
   <div class="qa-grid">
-    <button class="qa-btn" onclick="openAddJob()"><span class="qa-ico">➕</span><span data-i18n="new_job">New job</span></button>
-    <button class="qa-btn accent" onclick="newInvoice()"><span class="qa-ico">🧾</span><span data-i18n="new_invoice">New invoice</span></button>
+    <button class="qa-btn" onclick="openAddJob()"><span class="qa-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M12 5v14"/><path d="M5 12h14"/></svg></span><span data-i18n="new_job">New job</span></button>
+    <button class="qa-btn accent" onclick="newInvoice()"><span class="qa-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg></span><span data-i18n="new_invoice">New invoice</span></button>
   </div>
 
   <div style="margin:0 16px 18px">
-    <button class="qa-btn" style="width:100%" onclick="switchScreen('pipeline')"><span class="qa-ico">📊</span><span>Pipeline</span></button>
+    <button class="qa-btn" style="width:100%" onclick="switchScreen('pipeline')"><span class="qa-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M3 21h18"/><path d="M7 21v-7"/><path d="M12 21V6"/><path d="M17 21v-4"/></svg></span><span>Pipeline</span></button>
   </div>
 
   <div class="content">
@@ -241,7 +241,7 @@
 
     <div class="settings-list" style="margin-top:16px">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version">0.7.5</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version">0.7.6</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
@@ -446,17 +446,17 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.7.5"></script>
+<script src="app.js?v=0.7.6"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.7.5"></script>
-<script src="invoices.js?v=0.7.5"></script>
-<script src="docgen.js?v=0.7.5"></script>
+<script src="tax.js?v=0.7.6"></script>
+<script src="invoices.js?v=0.7.6"></script>
+<script src="docgen.js?v=0.7.6"></script>
 <!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
      the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
-<script src="bookings.js?v=0.7.5"></script>
-<script src="followups.js?v=0.7.5"></script>
-<script src="portfolio.js?v=0.7.5"></script>
+<script src="bookings.js?v=0.7.6"></script>
+<script src="followups.js?v=0.7.6"></script>
+<script src="portfolio.js?v=0.7.6"></script>
 <!-- M5: research.js (content library, subscription UI stubbed open — no
      payment verification yet; see project-changelog-handshake.md). -->
-<script src="research.js?v=0.7.5"></script>
+<script src="research.js?v=0.7.6"></script>

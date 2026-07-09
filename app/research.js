@@ -64,7 +64,7 @@
       title: 'How to Handle a Late-Paying Client',
       category: 'Payments',
       isPremium: true,
-      body: `Most late payments aren't malicious — they're forgotten. A short, friendly nudge clears the majority of them without any awkwardness.\n\nA workable escalation: (1) a day or two after the due date, a light "just checking this reached you okay" message; (2) at 1-2 weeks, a clearer reminder stating the amount and invoice number; (3) past that, a firmer message referencing the original agreed terms. Keep every message polite and factual — you may need this client again, and a paper trail of calm reminders looks better than an angry one if it ever escalates.\n\nFreelanz's Follow-ups screen already tracks which invoices are overdue and for how long, so you don't have to remember to check — and the "✨ Draft" button (where available) can draft a first pass at that nudge message for you, in either a friendly or firmer tone, so you're not starting from a blank page.`,
+      body: `Most late payments aren't malicious — they're forgotten. A short, friendly nudge clears the majority of them without any awkwardness.\n\nA workable escalation: (1) a day or two after the due date, a light "just checking this reached you okay" message; (2) at 1-2 weeks, a clearer reminder stating the amount and invoice number; (3) past that, a firmer message referencing the original agreed terms. Keep every message polite and factual — you may need this client again, and a paper trail of calm reminders looks better than an angry one if it ever escalates.\n\nFreelanz's Follow-ups screen already tracks which invoices are overdue and for how long, so you don't have to remember to check — and the "Draft" button (where available) can draft a first pass at that nudge message for you, in either a friendly or firmer tone, so you're not starting from a blank page.`,
     },
     {
       title: 'Building a Simple Portfolio That Wins Work',
@@ -107,13 +107,13 @@
       rows = await loadArticles();
     } catch (err) {
       console.error('renderResearch', err);
-      el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>Could not load research.</p></div>`;
+      el.innerHTML = `<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M10.3 4l-7.5 13A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-3l-7.5-13a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div><p>Could not load research.</p></div>`;
       return;
     }
 
     const subscribeBanner = `
       <div style="background:var(--marigold-tint);border:1px solid var(--marigold);border-radius:var(--radius-sm);padding:14px 16px;margin:0 0 16px">
-        <div style="font-weight:800;color:var(--marigold-ink);font-size:14px;margin-bottom:3px">⭐ Premium research</div>
+        <div style="font-weight:800;color:var(--marigold-ink);font-size:14px;margin-bottom:3px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M12 3l2.6 5.6 6.1.8-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 9.4l6.1-.8z"/></svg> Premium research</div>
         <div style="font-size:12px;color:var(--text2);margin-bottom:10px">In-depth guides marked "Premium" are unlocked for everyone while subscriptions are in preview — no payment needed yet.</div>
         <button type="button" id="rs-subscribe-btn" style="width:100%;padding:11px;border:1.5px solid var(--marigold);background:none;color:var(--marigold-ink);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">Subscribe</button>
       </div>`;
@@ -137,22 +137,22 @@
 
     let listHtml;
     if (!rows.length) {
-      listHtml = `<div class="empty"><div class="empty-icon">📚</div>
+      listHtml = `<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M4 19V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M6 17h13"/></svg></div>
         <p>No research yet</p>
         <span>Add your own notes, or write-ups worth remembering for next time.</span>
       </div>`;
     } else if (!visibleRows.length) {
-      listHtml = `<div class="empty"><div class="empty-icon">📚</div><p>No articles in this category</p></div>`;
+      listHtml = `<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M4 19V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M6 17h13"/></svg></div><p>No articles in this category</p></div>`;
     } else {
       listHtml = '<div class="list-card">' + visibleRows.map(a => `
         <div class="list-row" data-rs="${a.id}" tabindex="0" role="button">
-          <div class="list-icon">📘</div>
+          <div class="list-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M4 19V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M6 17h13"/></svg></div>
           <div class="list-main">
             <div class="list-title">${esc(a.title)}</div>
             <div class="list-sub">${esc(a.category || 'General')}</div>
           </div>
           <div class="list-right">
-            ${a.isPremium ? `<span style="background:var(--marigold-tint);color:var(--marigold-ink);border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800">⭐ Premium</span>` : ''}
+            ${a.isPremium ? `<span style="background:var(--marigold-tint);color:var(--marigold-ink);border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M12 3l2.6 5.6 6.1.8-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 9.4l6.1-.8z"/></svg> Premium</span>` : ''}
           </div>
         </div>`).join('') + '</div>';
     }
@@ -198,7 +198,7 @@
         <div class="modal-handle"></div>
         <div class="modal-title">
           ${esc(a.title)}
-          ${a.isPremium ? `<span style="background:var(--marigold-tint);color:var(--marigold-ink);border-radius:999px;padding:3px 9px;font-size:11px;font-weight:800;margin-left:8px;vertical-align:middle">⭐ Premium</span>` : ''}
+          ${a.isPremium ? `<span style="background:var(--marigold-tint);color:var(--marigold-ink);border-radius:999px;padding:3px 9px;font-size:11px;font-weight:800;margin-left:8px;vertical-align:middle"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M12 3l2.6 5.6 6.1.8-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 9.4l6.1-.8z"/></svg> Premium</span>` : ''}
         </div>
         <div style="padding:2px 16px 4px;color:var(--text3);font-size:12px">${esc(a.category || 'General')}</div>
         <div style="padding:10px 16px 6px;white-space:pre-wrap;font-size:14px;line-height:1.55;color:var(--text)">${esc(a.body || '')}</div>

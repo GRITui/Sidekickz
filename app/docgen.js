@@ -24,7 +24,11 @@ let dgTitleAuto = true;     // true while the title field still tracks the auto 
 let dgLastPreviewHtml = '';
 
 const DG_TYPE_LABEL = { contract: 'Contract', nda: 'NDA', quote: 'Quote' };
-const DG_TYPE_ICON  = { contract: '📄', nda: '🔒', quote: '💬' };
+const DG_TYPE_ICON  = {
+  contract: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg>',
+  nda: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>',
+  quote: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>'
+};
 
 // ─── entry point ────────────────────────────────────────────────────────
 function renderDocgen() {
@@ -38,7 +42,7 @@ function renderDocgen() {
     el.innerHTML = dgListHTML(docs);
   }).catch(err => {
     console.error('renderDocgen', err);
-    el.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><p>Could not load documents.</p></div>';
+    el.innerHTML = '<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M10.3 4l-7.5 13A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-3l-7.5-13a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div><p>Could not load documents.</p></div>';
   });
 }
 window.renderDocgen = renderDocgen;
@@ -46,13 +50,13 @@ window.renderDocgen = renderDocgen;
 function dgListHTML(docs) {
   let h = '<div class="section-title">New document</div>';
   h += '<div class="dg-tpl-grid">'
-    + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'contract\')"><span class="dg-tpl-ico">📄</span><span class="dg-tpl-name">Contract</span></button>'
-    + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'nda\')"><span class="dg-tpl-ico">🔒</span><span class="dg-tpl-name">NDA</span></button>'
-    + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'quote\')"><span class="dg-tpl-ico">💬</span><span class="dg-tpl-name">Quote</span></button>'
+    + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'contract\')"><span class="dg-tpl-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg></span><span class="dg-tpl-name">Contract</span></button>'
+    + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'nda\')"><span class="dg-tpl-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span><span class="dg-tpl-name">NDA</span></button>'
+    + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'quote\')"><span class="dg-tpl-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg></span><span class="dg-tpl-name">Quote</span></button>'
     + '</div>';
   h += '<div class="section-title">Saved documents</div>';
   if (!docs.length) {
-    h += '<div class="empty"><div class="empty-icon">🗂️</div><p>No documents yet</p><span>Generate a contract, NDA, or quote above.</span></div>';
+    h += '<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg></div><p>No documents yet</p><span>Generate a contract, NDA, or quote above.</span></div>';
   } else {
     h += '<div class="list-card">' + docs.map(dgRowHTML).join('') + '</div>';
   }
@@ -60,7 +64,7 @@ function dgListHTML(docs) {
 }
 
 function dgRowHTML(d) {
-  const ico = DG_TYPE_ICON[d.type] || '📄';
+  const ico = DG_TYPE_ICON[d.type] || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg>';
   const label = DG_TYPE_LABEL[d.type] || d.type;
   const sub = (d.clientName ? htmlEsc(d.clientName) : 'No client') + ' · ' + htmlEsc(d.issueDate || '');
   const invoicedChip = (d.type === 'quote' && d.fields && d.fields.convertedToInvoice)
