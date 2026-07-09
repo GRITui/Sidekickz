@@ -1,15 +1,15 @@
 /* Freelanz service worker — local-first PWA app shell.
  *
  * VERSION LOCKSTEP: SW_VERSION tracks APP_VERSION in app.js.
- *   app.js  APP_VERSION = '0.7.4'
- *   sw.js   SW_VERSION   = 'freelanz-v0.7.4'
+ *   app.js  APP_VERSION = '0.7.5'
+ *   sw.js   SW_VERSION   = 'freelanz-v0.7.5'
  * Bump BOTH together on every deploy, and keep the ?v= query on the precached
  * app.js / styles.css in step (they double as cache-busters).
  *
  * No backend, no secrets: this SW only precaches the versioned shell and serves
  * same-origin assets cache-first so the app works fully offline.
  */
-const SW_VERSION = 'freelanz-v0.7.4';
+const SW_VERSION = 'freelanz-v0.7.5';
 const SHELL_CACHE = `freelanz-shell-${SW_VERSION}`;
 
 // BASE is derived from the SW's own location so the app works mounted at any
@@ -21,15 +21,15 @@ const SHELL_ASSETS = [
   BASE + 'index.html',
   BASE + 'login.html',
   BASE + 'info/',
-  BASE + 'app.js?v=0.7.4',
-  BASE + 'tax.js?v=0.7.4',
-  BASE + 'invoices.js?v=0.7.4',
-  BASE + 'docgen.js?v=0.7.4',
-  BASE + 'bookings.js?v=0.7.4',
-  BASE + 'followups.js?v=0.7.4',
-  BASE + 'portfolio.js?v=0.7.4',
-  BASE + 'research.js?v=0.7.4',
-  BASE + 'styles.css?v=0.7.4',
+  BASE + 'app.js?v=0.7.5',
+  BASE + 'tax.js?v=0.7.5',
+  BASE + 'invoices.js?v=0.7.5',
+  BASE + 'docgen.js?v=0.7.5',
+  BASE + 'bookings.js?v=0.7.5',
+  BASE + 'followups.js?v=0.7.5',
+  BASE + 'portfolio.js?v=0.7.5',
+  BASE + 'research.js?v=0.7.5',
+  BASE + 'styles.css?v=0.7.5',
   BASE + 'manifest.json',
   BASE + 'icons/icon.svg',
   BASE + 'icons/icon-192.png',

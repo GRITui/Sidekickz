@@ -70,6 +70,34 @@
   footer a{color:var(--brand);font-weight:700;text-decoration:none;}
   .backlink{display:inline-flex;align-items:center;gap:6px;color:#eafffb;text-decoration:none;font-size:13px;font-weight:600;
     opacity:.85;margin-bottom:20px;}
+
+  /* App tour mockup */
+  .tour{display:grid;grid-template-columns:1fr;gap:28px;align-items:center;}
+  @media(min-width:700px){.tour{grid-template-columns:auto 1fr;}}
+  .phone{width:262px;justify-self:center;border-radius:36px;background:#0b100e;padding:10px;box-shadow:0 34px 60px -28px rgba(4,33,29,.5);}
+  .phone .scr{border-radius:27px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;height:486px;}
+  .m-hdr{background:var(--brand);color:#eafffb;padding:26px 16px 16px;display:flex;justify-content:space-between;align-items:flex-start;}
+  .m-hi{font-size:12px;opacity:.85;} .m-day{font-size:17px;font-weight:750;margin-top:2px;}
+  .m-av{width:28px;height:28px;border-radius:50%;background:var(--marigold);color:#3a2600;display:grid;place-items:center;font-weight:800;font-size:12px;}
+  .m-body{flex:1;padding:14px;display:flex;flex-direction:column;gap:11px;}
+  .m-hero{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;margin-top:-30px;box-shadow:0 12px 26px -18px rgba(0,0,0,.3);}
+  .m-lbl{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700;}
+  .m-amt{font:800 24px/1 var(--mono);letter-spacing:-.02em;margin-top:4px;}
+  .m-qa{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+  .m-btn{background:var(--brand);color:#fff;text-align:center;font-size:12px;font-weight:700;padding:12px 6px;border-radius:11px;}
+  .m-btn.accent{background:var(--marigold);color:#3a2600;}
+  .m-row{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;font-weight:700;color:var(--brand);}
+  .navbar{display:flex;justify-content:space-around;background:#fff;border-top:1px solid var(--border);padding:8px 4px 12px;}
+  .navbar .tab{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9px;font-weight:700;color:var(--muted);}
+  .navbar .tab.on{color:var(--brand);}
+  .navbar svg{width:20px;height:20px;}
+  .navkey{display:flex;flex-direction:column;gap:13px;}
+  .navkey .row{display:flex;gap:12px;align-items:flex-start;font-size:14.5px;color:var(--muted);}
+  .navkey .row b{color:var(--text);font-weight:700;}
+  .navkey .ic{flex:0 0 auto;width:34px;height:34px;border-radius:10px;background:color-mix(in srgb,var(--brand) 10%,transparent);color:var(--brand);display:grid;place-items:center;}
+  .navkey .ic svg{width:19px;height:19px;}
+  .hint{margin-top:20px;background:color-mix(in srgb,var(--marigold) 12%,transparent);border:1px solid color-mix(in srgb,var(--marigold) 30%,transparent);border-radius:12px;padding:13px 15px;font-size:14px;color:var(--text);}
+  .hint b{color:var(--marigold-ink);}
 </style>
 </head>
 <body>
@@ -139,6 +167,38 @@
       <span class="pill">💰 Paid</span>
     </div>
     <p style="color:var(--muted);font-size:14px;margin-top:12px;">The stages reorder to match how <em>you</em> work — a gym trainer collects payment up front; a consultant delivers first and bills after. Set it once in Settings → Work type.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Find your way around</p>
+    <h2>The whole app, one thumb</h2>
+    <div class="tour">
+      <div class="phone"><div class="scr">
+        <div class="m-hdr"><div><div class="m-hi">Good evening</div><div class="m-day">Today</div></div><div class="m-av">M</div></div>
+        <div class="m-body">
+          <div class="m-hero"><div class="m-lbl">Earned this month</div><div class="m-amt">&#3647;48,200</div></div>
+          <div class="m-qa"><div class="m-btn">+ New session</div><div class="m-btn accent">New invoice</div></div>
+          <div class="m-row">&#128202; Pipeline</div>
+        </div>
+        <nav class="navbar">
+          <div class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9h14v-9"/></svg>Home</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7"/></svg>Sessions</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg>Docs</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/></svg>Book</div>
+          <div class="tab"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>More</div>
+        </nav>
+      </div></div>
+      <div class="navkey">
+        <div class="row"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9h14v-9"/></svg></span><div><b>Home</b> — your earnings this month, plus anything that needs you (overdue invoices, follow-ups).</div></div>
+        <div class="row"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7"/></svg></span><div><b>Sessions</b> — every job you've logged. Tap <b>+</b> to add one; the label matches your trade (Shoots, Lessons, Visits&hellip;).</div></div>
+        <div class="row"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></svg></span><div><b>Docs</b> — create contracts, NDAs and quotes from a client's details.</div></div>
+        <div class="row"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/></svg></span><div><b>Book</b> — appointments and scheduling.</div></div>
+        <div class="row"><span class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></span><div><b>More</b> — your hub: <b>Invoices, Tax, Pipeline, Customers, Services</b>, plus settings, export &amp; backup.</div></div>
+      </div>
+    </div>
+    <div class="hint">&#128161; <b>Tip:</b> the money tools &mdash; Invoices, Tax and the Pipeline board &mdash; live under <b>More &rarr; Manage</b>. The Pipeline also has a shortcut right on Home.</div>
   </div>
 </section>
 
