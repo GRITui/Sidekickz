@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.5.1';          // <-> sw.js SW_VERSION 'freelanz-v0.5.1'
+const APP_VERSION = '0.5.2';          // <-> sw.js SW_VERSION 'freelanz-v0.5.2'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -334,6 +334,8 @@ const I18N = {
     exported:'Exported', restore_confirm:'Restore this backup? It REPLACES this account’s {n} current jobs + expenses. This cannot be undone.',
     restore_done:'Restored {n} records', restore_bad_file:'Not a valid Freelanz backup file',
     restore_failed:'Restore failed — your existing data was kept.',
+    backup_reminder_title:'Back up your data', backup_reminder_sub:'Everything lives only on this device. Last backup: {date}.',
+    backup_now:'Back up now', remind_later:'Remind me later', backup_snoozed:'Reminder snoozed for 2 weeks', backup_never:'never',
     delete_job_confirm:'Delete this job?', name_saved:'Name saved',
     err_id_min3:'Enter an email or username (3+ characters).', err_pw_min4:'Password must be at least 8 characters.',
     err_pw_mismatch:'Passwords do not match.', err_account_exists:'That account already exists on this device.',
@@ -528,6 +530,40 @@ function monthKey() { const d = new Date(); return `${d.getFullYear()}-${String(
 function jobsThisMonth() { const m = monthKey(); return jobs.filter(j => (j.date||'').startsWith(m)); }
 function jobsToday() { const t0 = todayISO(); return jobs.filter(j => j.date === t0); }
 
+// ─── Backup reminder (data-loss protection) ────────────────────────────
+// Freelanz is local-only storage: clearing browser data or switching
+// devices without ever exporting a backup means total, unrecoverable data
+// loss. Nudge (not nag): only once there's real data worth losing, only
+// after 30 days since the last export (or none ever), and dismissible for
+// another 14 days at a time.
+const BACKUP_REMIND_DAYS = 30;
+const BACKUP_SNOOZE_DAYS = 14;
+function addDaysISO(iso, days) {
+  const d = new Date((iso || todayISO()) + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function daysSinceISO(iso) {
+  const a = new Date((iso || todayISO()).slice(0,10) + 'T12:00:00'), b = new Date(todayISO() + 'T12:00:00');
+  if (isNaN(a)) return Infinity;
+  return Math.round((b - a) / 86400000);
+}
+function backupReminderDue() {
+  // services doesn't count: it's always auto-seeded with starter examples
+  // per persona on onboarding, so it's never a signal of real user activity.
+  const hasData = jobs.length > 0 || customers.length > 0;
+  if (!hasData) return false;
+  const snoozedUntil = settings.backupReminderSnoozedUntil;
+  if (snoozedUntil && snoozedUntil >= todayISO()) return false;
+  if (!settings.lastBackupAt) return true;
+  return daysSinceISO(settings.lastBackupAt) >= BACKUP_REMIND_DAYS;
+}
+async function snoozeBackupReminder() {
+  await saveSetting('backupReminderSnoozedUntil', addDaysISO(todayISO(), BACKUP_SNOOZE_DAYS));
+  renderHome();
+  toast(t('backup_snoozed'));
+}
+
 function renderHome() {
   // greeting
   const greetEl = document.getElementById('home-greeting');
@@ -545,13 +581,30 @@ function renderHome() {
   setTxt('stat-exp-val', money(exp));
 
   renderGoal();
-  // action queue: empty state until there is anything to surface (M1 has no
-  // real queue items yet — invoices/reminders arrive in M2).
+  // action queue: empty state until there is anything to surface, EXCEPT
+  // the backup reminder, which is real from M1 onward.
   const q = document.getElementById('queue-body');
   if (q) {
-    q.innerHTML = `<div class="empty"><div class="empty-icon">✅</div>
-      <p data-i18n="queue_empty">${t('queue_empty')}</p>
-      <span data-i18n="queue_empty_sub">${t('queue_empty_sub')}</span></div>`;
+    if (backupReminderDue()) {
+      const last = settings.lastBackupAt ? fmtDate(settings.lastBackupAt.slice(0,10)) : t('backup_never');
+      q.innerHTML = `<div class="list-card">
+        <div class="list-row" style="cursor:default">
+          <div class="list-icon">💾</div>
+          <div class="list-main">
+            <div class="list-title">${htmlEsc(t('backup_reminder_title'))}</div>
+            <div class="list-sub">${htmlEsc(t('backup_reminder_sub').replace('{date}', last))}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;padding:0 16px 14px">
+          <button type="button" onclick="exportBackup()" style="flex:1;padding:10px;border:none;background:var(--brand);color:#fff;border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('backup_now'))}</button>
+          <button type="button" onclick="snoozeBackupReminder()" style="flex:1;padding:10px;border:1px solid var(--border);background:none;color:var(--text3);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('remind_later'))}</button>
+        </div>
+      </div>`;
+    } else {
+      q.innerHTML = `<div class="empty"><div class="empty-icon">✅</div>
+        <p data-i18n="queue_empty">${t('queue_empty')}</p>
+        <span data-i18n="queue_empty_sub">${t('queue_empty_sub')}</span></div>`;
+    }
   }
 }
 function renderGoal() {
@@ -1104,6 +1157,8 @@ async function exportBackup() {
   a.href = URL.createObjectURL(blob);
   a.download = `freelanz-backup-${backup.user}-${todayISO()}.json`;
   a.click();
+  await saveSetting('lastBackupAt', nowISO());
+  renderHome();   // clears the backup-reminder queue item immediately, no reload needed
   toast(t('exported'));
 }
 function pickBackupFile() { const inp = document.getElementById('backup-file'); if (inp) inp.click(); }
