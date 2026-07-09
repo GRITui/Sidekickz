@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.3.0';          // <-> sw.js SW_VERSION 'freelanz-v0.3.0'
+const APP_VERSION = '0.4.0';          // <-> sw.js SW_VERSION 'freelanz-v0.4.0'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -14,10 +14,14 @@ const APP_VERSION = '0.3.0';          // <-> sw.js SW_VERSION 'freelanz-v0.3.0'
 // created now (dormant) so M2/M3 features and a future sync layer can land
 // without a schema migration.
 let db;
-// DB_VER bumped 1→2 in M1.5 to add the 'services' store. onupgradeneeded only
-// CREATES missing stores (each guarded by !contains) — it never drops or clears
-// existing stores, so guest jobs / clients / settings survive the upgrade.
-const DB_NAME = 'freelanz-v2', DB_VER = 2;   // v2 == DB_VER; renamed from freelanz-v1 (no prior real users)
+// DB_VER bumped 1→2 in M1.5 ('services'), 2→3 in M3 ('bookings'/'followups'/
+// 'portfolio' — the M2 invoices/documents stores were added under the old v2
+// without a version bump, so onupgradeneeded never re-fired for existing v2
+// databases; this bump fixes that too, since the guarded creates below run
+// for ANY store still missing, not just the three new ones). onupgradeneeded
+// only CREATES missing stores (each guarded by !contains) — it never drops or
+// clears existing stores, so guest jobs / clients / settings survive the upgrade.
+const DB_NAME = 'freelanz-v2', DB_VER = 3;   // DB_NAME kept as freelanz-v2 (no prior real users; only DB_VER bumps now)
 function openDB() {
   return new Promise((res, rej) => {
     const req = indexedDB.open(DB_NAME, DB_VER);
@@ -33,6 +37,9 @@ function openDB() {
       if (!d.objectStoreNames.contains('services'))  d.createObjectStore('services',  {keyPath:'id', autoIncrement:true}); // M1.5 catalog
       if (!d.objectStoreNames.contains('invoices'))  d.createObjectStore('invoices',  {keyPath:'id', autoIncrement:true});
       if (!d.objectStoreNames.contains('documents')) d.createObjectStore('documents', {keyPath:'id', autoIncrement:true});
+      if (!d.objectStoreNames.contains('bookings'))  d.createObjectStore('bookings',  {keyPath:'id', autoIncrement:true}); // M3 day view
+      if (!d.objectStoreNames.contains('followups')) d.createObjectStore('followups', {keyPath:'id', autoIncrement:true}); // M3 CRM snooze/dismiss state
+      if (!d.objectStoreNames.contains('portfolio')) d.createObjectStore('portfolio', {keyPath:'id', autoIncrement:true}); // M3 showcase
       if (!d.objectStoreNames.contains('settings'))  d.createObjectStore('settings',  {keyPath:'key'});
       if (!d.objectStoreNames.contains('meta'))      d.createObjectStore('meta',      {keyPath:'key'});   // dormant (future sync)
       if (!d.objectStoreNames.contains('outbox'))    d.createObjectStore('outbox',    {keyPath:'key', autoIncrement:true}); // dormant
@@ -1058,16 +1065,38 @@ function exportCustomersCSV() {
   a.click();
   toast(t('exported'));
 }
+async function exportInvoicesCSV() {
+  const sym = curSym();
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const rows = (await dbAll('invoices')).filter(r => r.uid === uid);
+  rows.sort((a, b) => String(a.number||'').localeCompare(String(b.number||'')));
+  let csv = `Number,Issue date,Due date,Client,Status,Subtotal (${sym}),VAT (${sym}),WHT (${sym}),Client pays (${sym}),You receive (${sym})\n`;
+  rows.forEach(inv => {
+    csv += `${csvCell(inv.number||'')},${csvCell(inv.issueDate||'')},${csvCell(inv.dueDate||'')},${csvCell(inv.clientName||'')},`
+        +  `${csvCell(inv.status||'')},${Number(inv.subtotal)||0},${Number(inv.vat)||0},${Number(inv.wht)||0},`
+        +  `${Number(inv.clientPays)||0},${Number(inv.youReceive)||0}\n`;
+  });
+  const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `freelanz-invoices-${(currentUser&&currentUser.username)||'guest'}-${todayISO()}.csv`;
+  a.click();
+  toast(t('exported'));
+}
+// All uid-scoped stores a full backup/restore round-trips. Kept in one place
+// so a future new store (like bookings/followups/portfolio were for M3) only
+// needs to be added here, not re-plumbed through export/import separately.
+const BACKUP_STORES = ['jobs', 'expenses', 'clients', 'services', 'invoices', 'documents', 'bookings', 'followups', 'portfolio'];
+
 async function exportBackup() {
   const uid = isGuest ? 'guest' : currentUser.id;
-  const [allJobs, allExp] = await Promise.all([dbAll('jobs'), dbAll('expenses')]);
+  const allByStore = await Promise.all(BACKUP_STORES.map(s => dbAll(s)));
   const backup = {
     app: 'Freelanz', version: APP_VERSION, exportedAt: nowISO(),
     user: (currentUser && currentUser.username) || 'guest',
     settings: settings, theme: 'light',   // dark mode paused in M1.5; restore never flips theme
-    jobs: allJobs.filter(j => j.uid === uid),
-    expenses: allExp.filter(x => x.uid === uid),
   };
+  BACKUP_STORES.forEach((s, i) => { backup[s] = allByStore[i].filter(r => r.uid === uid); });
   const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1084,28 +1113,36 @@ async function importBackup(inputEl) {
   try { data = JSON.parse(await file.text()); }
   catch(e) { toast(t('restore_bad_file')); return; }
   if (!data || data.app !== 'Freelanz' || !Array.isArray(data.jobs)) { toast(t('restore_bad_file')); return; }
-  const exp = Array.isArray(data.expenses) ? data.expenses : [];
-  // Validate the ENTIRE payload before touching the DB: every job/expense row
-  // must be a plain, non-null object. Reject malformed backups up front so a
-  // bad file (e.g. jobs:[null]) can never delete data mid-import.
+  // Validate the ENTIRE payload before touching the DB: every row in every
+  // store must be a plain, non-null object. Reject malformed backups up front
+  // so a bad file (e.g. jobs:[null]) can never delete data mid-import. A
+  // backup from an older app version simply won't have the newer stores'
+  // keys — Array.isArray(undefined) is false, so those default to [].
   const isPlainObj = o => o != null && typeof o === 'object' && !Array.isArray(o);
-  if (!data.jobs.every(isPlainObj) || !exp.every(isPlainObj)) { toast(t('restore_bad_file')); return; }
-  const n = data.jobs.length + exp.length;
+  const byStore = {};
+  for (const s of BACKUP_STORES) {
+    const rows = Array.isArray(data[s]) ? data[s] : [];
+    if (!rows.every(isPlainObj)) { toast(t('restore_bad_file')); return; }
+    byStore[s] = rows;
+  }
+  const n = BACKUP_STORES.reduce((sum, s) => sum + byStore[s].length, 0);
   if (!confirm(t('restore_confirm').replace('{n}', n))) return;
   const uid = isGuest ? 'guest' : currentUser.id;
-  const [curJobs, curExp] = await Promise.all([dbAll('jobs'), dbAll('expenses')]);
-  // Snapshot this uid's existing rows so we can roll back if the swap fails.
-  const savedJobs = curJobs.filter(j => j.uid === uid);
-  const savedExp  = curExp.filter(x => x.uid === uid);
+  const savedByStore = {};
+  await Promise.all(BACKUP_STORES.map(async s => {
+    savedByStore[s] = (await dbAll(s)).filter(r => r.uid === uid);
+  }));
   try {
-    for (const j of savedJobs) await dbDel('jobs', j.id);
-    for (const x of savedExp) await dbDel('expenses', x.id);
-    for (const j of data.jobs) { const {id, ...rest} = j; await dbAdd('jobs', {...rest, uid}); }
-    for (const x of exp)       { const {id, ...rest} = x; await dbAdd('expenses', {...rest, uid}); }
+    // Delete every existing row across every store first, then add every new
+    // row across every store — matches the original jobs/expenses swap so a
+    // failed add always rolls back cleanly (every old id was already gone).
+    for (const s of BACKUP_STORES) { for (const row of savedByStore[s]) await dbDel(s, row.id); }
+    for (const s of BACKUP_STORES) { for (const row of byStore[s]) { const {id, ...rest} = row; await dbAdd(s, {...rest, uid}); } }
   } catch (err) {
     // Roll back: restore the pre-import rows so a failed swap doesn't lose data.
-    for (const j of savedJobs) { const {id, ...rest} = j; await dbAdd('jobs', {...rest, uid}).catch(()=>{}); }
-    for (const x of savedExp) { const {id, ...rest} = x; await dbAdd('expenses', {...rest, uid}).catch(()=>{}); }
+    for (const s of BACKUP_STORES) {
+      for (const row of savedByStore[s]) { const {id, ...rest} = row; await dbAdd(s, {...rest, uid}).catch(()=>{}); }
+    }
     await reload();
     toast(t('restore_failed'));
     return;
@@ -1144,6 +1181,10 @@ function switchScreen(name) {
   if (name === 'invoices' && typeof renderInvoices === 'function') renderInvoices();
   if (name === 'tax' && typeof renderTax === 'function') renderTax();
   if (name === 'docs' && typeof renderDocgen === 'function') renderDocgen();
+  // M3 modules (bookings.js / followups.js / portfolio.js).
+  if (name === 'book' && typeof renderBookings === 'function') renderBookings();
+  if (name === 'followups' && typeof renderFollowups === 'function') renderFollowups();
+  if (name === 'portfolio' && typeof renderPortfolio === 'function') renderPortfolio();
   window.scrollTo(0, 0);
 }
 // Dashboard "New invoice" quick action → open the invoices screen, then its form
