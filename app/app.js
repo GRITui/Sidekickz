@@ -345,8 +345,9 @@ const I18N = {
     no_customers:'No customers yet', no_customers_sub:'Add your first customer to reuse their details.',
     customer_saved:'Customer saved', customer_deleted:'Customer deleted',
     field_name:'Name', field_phone:'Phone', field_email:'Email', field_tags:'Tags (comma-separated)',
-    field_taxid:'Tax ID', field_billing:'Billing address',
+    field_taxid:'Tax ID', field_billing:'Billing address', field_member_no:'Member ID',
     field_health:'Health notes', field_allergies:'Allergies', field_goals:'Goals',
+    assigned_on_save:'(assigned on save)',
     err_name_required:'Please enter a name',
     // Member tags — reusable Member-field autocomplete
     member_tags_title:'Member tags', member_tags_sub:'Saved automatically the first time you log a session for someone new — rename one and every past session updates too.',
@@ -498,6 +499,7 @@ async function reload() {
   jobs.sort((a,b) => (b.date||'').localeCompare(a.date||'') || ((b.id||0)-(a.id||0)));
   expenses = (await dbAll('expenses')).filter(x => x.uid === uid);
   customers = (await dbAll('clients')).filter(c => c.uid === uid);
+  await backfillMemberNumbers();
   customers.sort((a,b) => (a.name||'').localeCompare(b.name||''));
   services = (await dbAll('services')).filter(s => s.uid === uid);
   services.sort((a,b) => (a.name||'').localeCompare(b.name||''));
@@ -1053,6 +1055,32 @@ window.wfMove = wfMove;
 // Gym trainer intake fields shown on every customer form.
 const CUSTOMER_INTAKE = [{id:'healthNotes', key:'field_health'}, {id:'allergies', key:'field_allergies'}, {id:'goals', key:'field_goals'}];
 function intakeFields() { return CUSTOMER_INTAKE; }
+// Stable, permanent per-customer ID (never reassigned, never reused) — unlike
+// the auto-increment DB `id`, this is the human-facing "Member ID" a trainer
+// can reference on paperwork or when talking to the client. Sequential across
+// this uid's whole customer list, never reset (unlike invoice numbers, which
+// reset per year).
+function nextMemberNo() {
+  const prefix = 'M-';
+  let max = 0;
+  customers.forEach(c => {
+    if (typeof c.memberNo === 'string' && c.memberNo.indexOf(prefix) === 0) {
+      const seq = parseInt(c.memberNo.slice(prefix.length), 10);
+      if (isFinite(seq) && seq > max) max = seq;
+    }
+  });
+  return prefix + String(max + 1).padStart(4, '0');
+}
+// One-time backfill for customers saved before this feature existed — assigns
+// each a permanent Member ID in creation order so the whole list is covered
+// immediately, not just customers the trainer happens to re-save later.
+async function backfillMemberNumbers() {
+  const missing = customers.filter(c => !c.memberNo).sort((a,b) => (a.id||0) - (b.id||0));
+  for (const c of missing) {
+    c.memberNo = nextMemberNo();
+    await dbPut('clients', c);
+  }
+}
 function renderCustomers() {
   const wrap = document.getElementById('customers-body');
   if (!wrap) return;
@@ -1062,7 +1090,7 @@ function renderCustomers() {
     return;
   }
   wrap.innerHTML = '<div class="list-card">' + customers.map(c => {
-    const sub = c.company || c.phone || c.email || '';
+    const sub = [c.memberNo, c.company || c.phone || c.email || ''].filter(Boolean).join(' · ');
     return `<div class="list-row" onclick="openEditCustomer(${c.id})">
       <div class="list-icon">👤</div>
       <div class="list-main">
@@ -1086,6 +1114,8 @@ function openAddCustomer() {
   document.getElementById('cust-modal-title').textContent = t('add_customer');
   document.getElementById('c-edit-id').value = '';
   ['c-name','c-phone','c-email','c-tags','c-notes','c-taxid','c-billing'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  const memberNoEl = document.getElementById('c-memberno');
+  if (memberNoEl) memberNoEl.value = t('assigned_on_save');
   renderIntakeFields({});
   document.getElementById('c-delete').style.display = 'none';
   clearFieldErrors();
@@ -1099,6 +1129,7 @@ function openEditCustomer(id) {
   const set = (i,v)=>{ const el=document.getElementById(i); if(el) el.value = (v==null?'':v); };
   set('c-name', c.name); set('c-phone', c.phone); set('c-email', c.email);
   set('c-tags', c.tags); set('c-notes', c.notes); set('c-taxid', c.taxId); set('c-billing', c.billingAddress);
+  set('c-memberno', c.memberNo || t('assigned_on_save'));
   renderIntakeFields(c);
   document.getElementById('c-delete').style.display = 'block';
   clearFieldErrors();
@@ -1125,7 +1156,11 @@ async function saveCustomer() {
   intakeFields().forEach(f => { const el = document.getElementById('ci-'+f.id); obj[f.id] = el ? el.value.trim() : ''; });
   if (prev) {
     obj.id = prev.id; obj.cuid = prev.cuid || cuid();
-  } else { obj.cuid = cuid(); }
+    obj.memberNo = prev.memberNo || nextMemberNo();   // legacy record predating this feature
+  } else {
+    obj.cuid = cuid();
+    obj.memberNo = nextMemberNo();
+  }
   obj.updatedAt = nowISO();
   await dbPut('clients', obj);
   closeCustomerModal();
@@ -1371,9 +1406,9 @@ function exportCSV() {
   toast(t('exported'));
 }
 function exportCustomersCSV() {
-  let csv = 'Name,Phone,Email,Tags,Tax ID,Billing address,Notes\n';
+  let csv = 'Member ID,Name,Phone,Email,Tags,Tax ID,Billing address,Notes\n';
   customers.forEach(c => {
-    csv += `${csvCell(c.name||'')},${csvCell(c.phone||'')},${csvCell(c.email||'')},${csvCell(c.tags||'')},`
+    csv += `${csvCell(c.memberNo||'')},${csvCell(c.name||'')},${csvCell(c.phone||'')},${csvCell(c.email||'')},${csvCell(c.tags||'')},`
         +  `${csvCell(c.taxId||'')},${csvCell(c.billingAddress||'')},${csvCell(c.notes||'')}\n`;
   });
   const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
