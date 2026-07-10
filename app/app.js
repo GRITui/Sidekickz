@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.6.1';          // <-> sw.js SW_VERSION 'freelanz-v0.6.1'
+const APP_VERSION = '0.7.0';          // <-> sw.js SW_VERSION 'freelanz-v0.7.0'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -19,14 +19,14 @@ let db;
 // without a version bump, so onupgradeneeded never re-fired for existing v2
 // databases; this bump fixes that too, since the guarded creates below run
 // for ANY store still missing, not just the three new ones), 3→4 in M5
-// ('research'). onupgradeneeded only CREATES missing stores (each guarded by
-// !contains) — it never drops or clears existing stores, so guest jobs /
-// clients / settings survive the upgrade.
+// ('research'), 4→5 ('memberTags'). onupgradeneeded only CREATES missing
+// stores (each guarded by !contains) — it never drops or clears existing
+// stores, so guest jobs / clients / settings survive the upgrade.
 // DB_NAME/storage keys below are namespaced 'gym' because this app co-hosts
 // with the main Freelanz app on the same GitHub Pages origin (root vs /gym/):
 // IndexedDB/localStorage/sessionStorage are scoped per-ORIGIN, not per-path,
 // so an unprefixed name here would silently share the main app's database.
-const DB_NAME = 'freelanz-gym-v1', DB_VER = 4;
+const DB_NAME = 'freelanz-gym-v1', DB_VER = 5;
 function openDB() {
   return new Promise((res, rej) => {
     const req = indexedDB.open(DB_NAME, DB_VER);
@@ -46,6 +46,7 @@ function openDB() {
       if (!d.objectStoreNames.contains('followups')) d.createObjectStore('followups', {keyPath:'id', autoIncrement:true}); // M3 CRM snooze/dismiss state
       if (!d.objectStoreNames.contains('portfolio')) d.createObjectStore('portfolio', {keyPath:'id', autoIncrement:true}); // M3 showcase
       if (!d.objectStoreNames.contains('research'))  d.createObjectStore('research',  {keyPath:'id', autoIncrement:true}); // M5 content library
+      if (!d.objectStoreNames.contains('memberTags')) d.createObjectStore('memberTags', {keyPath:'id', autoIncrement:true}); // reusable Member-field tags
       if (!d.objectStoreNames.contains('settings'))  d.createObjectStore('settings',  {keyPath:'key'});
       if (!d.objectStoreNames.contains('meta'))      d.createObjectStore('meta',      {keyPath:'key'});   // dormant (future sync)
       if (!d.objectStoreNames.contains('outbox'))    d.createObjectStore('outbox',    {keyPath:'key', autoIncrement:true}); // dormant
@@ -215,7 +216,7 @@ async function restoreSession() {
 }
 
 // ─── STATE ────────────────────────────────────────────────────────────
-let jobs = [], expenses = [], customers = [], services = [], settings = {lang:'en', currency:'THB'};
+let jobs = [], expenses = [], customers = [], services = [], memberTags = [], settings = {lang:'en', currency:'THB'};
 let currentPeriod = 'month';
 
 // HTML/attr escaping (shared by all list/form renderers)
@@ -294,6 +295,13 @@ const I18N = {
     field_taxid:'Tax ID', field_billing:'Billing address',
     field_health:'Health notes', field_allergies:'Allergies', field_goals:'Goals',
     err_name_required:'Please enter a name',
+    // Member tags — reusable Member-field autocomplete
+    member_tags_title:'Member tags', member_tags_sub:'Saved automatically the first time you log a session for someone new — rename one and every past session updates too.',
+    add_member_tag:'Add tag', edit_member_tag:'Edit tag', save_member_tag:'Save tag', delete_member_tag:'Delete tag',
+    delete_member_tag_confirm:'Delete this tag? Past sessions keep their member name, just unlinked from the tag.',
+    no_member_tags:'No member tags yet', no_member_tags_sub:'Tags are created automatically the first time you log a session for someone new.',
+    member_tag_saved:'Tag saved', member_tag_deleted:'Tag deleted',
+    one_session:'1 session', n_sessions:'{n} sessions',
     // M1.5 — services
     services_title:'Services', add_service:'Add service', edit_service:'Edit service', save_service:'Save service',
     delete_service:'Delete service', delete_service_confirm:'Delete this service?',
@@ -440,10 +448,14 @@ async function reload() {
   customers.sort((a,b) => (a.name||'').localeCompare(b.name||''));
   services = (await dbAll('services')).filter(s => s.uid === uid);
   services.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  memberTags = (await dbAll('memberTags')).filter(m => m.uid === uid);
+  memberTags.sort((a,b) => (a.name||'').localeCompare(b.name||''));
   renderHome();
   renderJobs();
   renderCustomers();
   renderServices();
+  renderMemberTags();
+  populateMemberTagsDatalist();
   const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setTxt('set-count', jobs.length);
   const badge = document.getElementById('jobs-badge');
@@ -707,7 +719,11 @@ async function saveJob() {
   const serviceId = svcVal ? parseInt(svcVal) : null;
   const svc = serviceId != null ? services.find(s => s.id === serviceId) : null;
   const serviceName = svc ? svc.name : '';
-  const obj = {uid, date, startTime, endTime, endDate, client, clientId, serviceId, serviceName,
+  // Typing a new Member name saves it as a reusable tag automatically (no
+  // extra step) — matching an existing tag case-insensitively reuses its id
+  // so a later rename in Settings > Member tags propagates to this session too.
+  const memberTagId = await upsertMemberTagIfNeeded(uid, client);
+  const obj = {uid, date, startTime, endTime, endDate, client, clientId, serviceId, serviceName, memberTagId,
     jobType: settings.workType || '',
     amount, tip, expense, count, notes, netAmount: amount + tip - expense};
   const editId = document.getElementById('j-edit-id').value;
@@ -828,6 +844,113 @@ async function deleteCustomer() {
   closeCustomerModal();
   await reload();
   toast(t('customer_deleted'));
+}
+
+// ─── MEMBER TAGS (lightweight, reusable Member-field autocomplete) ─────────
+// A tag is just {uid, name} — far cheaper than a full Customer record (no
+// health/allergies/goals intake). Created automatically the first time a
+// session is saved with a new name; renaming a tag propagates to every past
+// session that used it (that propagation is the whole point of an id-backed
+// tag instead of a plain string). Deleting a tag never touches session data —
+// it only unlinks memberTagId, the session's own client text is untouched.
+async function upsertMemberTagIfNeeded(uid, name) {
+  if (!name) return null;
+  const existing = memberTags.find(m => m.uid === uid && m.name.toLowerCase() === name.toLowerCase());
+  if (existing) return existing.id;
+  const row = {uid, name, cuid: cuid(), createdAt: nowISO(), updatedAt: nowISO()};
+  const id = await dbAdd('memberTags', row);
+  row.id = id;
+  memberTags.push(row);
+  memberTags.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  return id;
+}
+function populateMemberTagsDatalist() {
+  const dl = document.getElementById('j-client-tags');
+  if (!dl) return;
+  dl.innerHTML = memberTags.map(m => `<option value="${attrEsc(m.name)}"></option>`).join('');
+}
+function memberTagSessionCount(id) { return jobs.filter(j => j.memberTagId === id).length; }
+function renderMemberTags() {
+  const wrap = document.getElementById('membertags-body');
+  if (!wrap) return;
+  if (!memberTags.length) {
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon">🏷️</div>
+      <p>${htmlEsc(t('no_member_tags'))}</p><span>${htmlEsc(t('no_member_tags_sub'))}</span></div>`;
+    return;
+  }
+  wrap.innerHTML = '<div class="list-card">' + memberTags.map(m => {
+    const n = memberTagSessionCount(m.id);
+    const sub = n === 1 ? t('one_session') : t('n_sessions').replace('{n}', n);
+    return `<div class="list-row" onclick="openEditMemberTag(${m.id})">
+      <div class="list-icon">🏷️</div>
+      <div class="list-main">
+        <div class="list-title">${htmlEsc(m.name)}</div>
+        <div class="list-sub">${htmlEsc(sub)}</div>
+      </div>
+      <div class="list-right"><span style="color:var(--text3);font-size:18px">›</span></div>
+    </div>`;
+  }).join('') + '</div>';
+}
+function openMemberTagModal() { document.getElementById('modal-membertag').classList.add('open'); }
+function closeMemberTagModal() { document.getElementById('modal-membertag').classList.remove('open'); }
+function openAddMemberTag() {
+  document.getElementById('mt-modal-title').textContent = t('add_member_tag');
+  document.getElementById('mt-edit-id').value = '';
+  document.getElementById('mt-name').value = '';
+  document.getElementById('mt-delete').style.display = 'none';
+  clearFieldErrors();
+  openMemberTagModal();
+}
+function openEditMemberTag(id) {
+  const m = memberTags.find(x => x.id === id);
+  if (!m) return;
+  document.getElementById('mt-modal-title').textContent = t('edit_member_tag');
+  document.getElementById('mt-edit-id').value = String(id);
+  document.getElementById('mt-name').value = m.name || '';
+  document.getElementById('mt-delete').style.display = 'block';
+  clearFieldErrors();
+  openMemberTagModal();
+}
+async function saveMemberTag() {
+  const name = (document.getElementById('mt-name').value || '').trim();
+  clearFieldErrors();
+  if (!name) { markFieldError('mt-name', 'err_name_required'); return; }
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const editId = document.getElementById('mt-edit-id').value;
+  if (editId) {
+    const id = parseInt(editId);
+    const prev = memberTags.find(m => m.id === id);
+    if (!prev) return;
+    const oldName = prev.name;
+    const obj = {...prev, name, updatedAt: nowISO()};
+    await dbPut('memberTags', obj);
+    if (oldName !== name) {
+      // Propagate the rename to every session that used this tag — the
+      // reason a tag has an id instead of just being a plain string.
+      const affected = jobs.filter(j => j.uid === uid && j.memberTagId === id);
+      for (const j of affected) { await dbPut('jobs', {...j, client: name}); }
+    }
+  } else {
+    const dup = memberTags.find(m => m.uid === uid && m.name.toLowerCase() === name.toLowerCase());
+    if (!dup) await dbAdd('memberTags', {uid, name, cuid: cuid(), createdAt: nowISO(), updatedAt: nowISO()});
+  }
+  closeMemberTagModal();
+  await reload();
+  toast(t('member_tag_saved'));
+}
+async function deleteMemberTag() {
+  const editId = document.getElementById('mt-edit-id').value;
+  if (!editId) return;
+  if (!confirm(t('delete_member_tag_confirm'))) return;
+  const id = parseInt(editId);
+  const uid = isGuest ? 'guest' : currentUser.id;
+  // Unlink only — past sessions keep their client text exactly as logged.
+  const affected = jobs.filter(j => j.uid === uid && j.memberTagId === id);
+  for (const j of affected) { await dbPut('jobs', {...j, memberTagId: null}); }
+  await dbDel('memberTags', id);
+  closeMemberTagModal();
+  await reload();
+  toast(t('member_tag_deleted'));
 }
 
 // ─── SERVICES (catalog + default rates) ───────────────────────────────
@@ -985,7 +1108,7 @@ async function exportInvoicesCSV() {
 // All uid-scoped stores a full backup/restore round-trips. Kept in one place
 // so a future new store (like bookings/followups/portfolio were for M3) only
 // needs to be added here, not re-plumbed through export/import separately.
-const BACKUP_STORES = ['jobs', 'expenses', 'clients', 'services', 'invoices', 'documents', 'bookings', 'followups', 'portfolio', 'research'];
+const BACKUP_STORES = ['jobs', 'expenses', 'clients', 'services', 'invoices', 'documents', 'bookings', 'followups', 'portfolio', 'research', 'memberTags'];
 
 async function exportBackup() {
   const uid = isGuest ? 'guest' : currentUser.id;
