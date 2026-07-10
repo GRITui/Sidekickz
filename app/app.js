@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.8.8';          // <-> sw.js SW_VERSION 'freelanz-v0.8.8'
+const APP_VERSION = '0.8.9';          // <-> sw.js SW_VERSION 'freelanz-v0.8.9'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -19,10 +19,11 @@ let db;
 // without a version bump, so onupgradeneeded never re-fired for existing v2
 // databases; this bump fixes that too, since the guarded creates below run
 // for ANY store still missing, not just the three new ones), 3→4 in M5
-// ('research'), 4→5 ('memberTags'), 5→6 ('usageEvents' — local usage
-// analytics). onupgradeneeded only CREATES missing stores (each guarded by
-// !contains) — it never drops or clears existing stores, so guest jobs /
-// clients / settings survive the upgrade.
+// ('research'), 4→5 ('memberTags' — retired; the store creation line was
+// removed once Member Tags merged into the Client system, see saveJob()),
+// 5→6 ('usageEvents' — local usage analytics). onupgradeneeded only CREATES
+// missing stores (each guarded by !contains) — it never drops or clears
+// existing stores, so guest jobs / clients / settings survive the upgrade.
 // DB_NAME/storage keys below are namespaced 'gym' because this app co-hosts
 // with the main Freelanz app on the same GitHub Pages origin (root vs /gym/):
 // IndexedDB/localStorage/sessionStorage are scoped per-ORIGIN, not per-path,
@@ -47,7 +48,6 @@ function openDB() {
       if (!d.objectStoreNames.contains('followups')) d.createObjectStore('followups', {keyPath:'id', autoIncrement:true}); // M3 CRM snooze/dismiss state
       if (!d.objectStoreNames.contains('portfolio')) d.createObjectStore('portfolio', {keyPath:'id', autoIncrement:true}); // M3 showcase
       if (!d.objectStoreNames.contains('research'))  d.createObjectStore('research',  {keyPath:'id', autoIncrement:true}); // M5 content library
-      if (!d.objectStoreNames.contains('memberTags')) d.createObjectStore('memberTags', {keyPath:'id', autoIncrement:true}); // reusable Member-field tags
       if (!d.objectStoreNames.contains('usageEvents')) d.createObjectStore('usageEvents', {keyPath:'id', autoIncrement:true}); // local-only usage analytics (never leaves this device)
       if (!d.objectStoreNames.contains('settings'))  d.createObjectStore('settings',  {keyPath:'key'});
       if (!d.objectStoreNames.contains('meta'))      d.createObjectStore('meta',      {keyPath:'key'});   // dormant (future sync)
@@ -218,7 +218,7 @@ async function restoreSession() {
 }
 
 // ─── STATE ────────────────────────────────────────────────────────────
-let jobs = [], expenses = [], customers = [], services = [], memberTags = [], usageEvents = [], settings = {lang:'en', currency:'THB'};
+let jobs = [], expenses = [], customers = [], services = [], usageEvents = [], settings = {lang:'en', currency:'THB'};
 let currentPeriod = 'month';
 
 // HTML/attr escaping (shared by all list/form renderers)
@@ -308,7 +308,7 @@ const I18N = {
     add_job:'Add session', edit_job:'Edit session', save_job:'Save session', delete_job:'Delete session',
     field_date:'Date',
     field_client:'Member', field_amount:'Fee', field_tip:'Tip', field_expense:'Expense', field_count:'Sessions', field_notes:'Notes',
-    field_client_ph:'e.g. Alex Chan', field_notes_ph:'Anything to remember…',
+    field_notes_ph:'Anything to remember…',
     net_take:'Net take',
     // validation
     err_enter_date:'Please pick a date', err_amount:'Amount must be 0 or more', err_neg:'Values cannot be negative', err_too_big:'That value is too large',
@@ -316,6 +316,8 @@ const I18N = {
     more_title:'More', settings_title:'Settings', account:'Account', local_account:'Local account on this device',
     preferences:'Preferences', currency:'Currency', theme:'Theme',
     theme_auto:'Auto', theme_light:'Light', theme_dark:'Dark',
+    business_info_title:'Business info (optional)', business_info_sub:'Fill these in to have them show up automatically on your quotes, invoices, and receipts — none of them are required.',
+    business_name:'Business name', business_taxid:'Tax ID', business_address:'Address',
     tax_defaults:'Tax defaults (for M2)', wht:'Withholding tax %', vat:'VAT %',
     daily_goal:'Daily income goal', data:'Data', export_csv:'Export CSV', backup_json:'Backup JSON', restore_json:'Restore JSON',
     total_jobs:'Total jobs', app_word:'App', version:'Version', logout:'Log out', exit_guest:'Exit guest mode',
@@ -348,13 +350,7 @@ const I18N = {
     field_health:'Health notes', field_allergies:'Allergies', field_goals:'Goals',
     assigned_on_save:'(assigned on save)',
     err_name_required:'Please enter a name',
-    // Member tags — reusable Member-field autocomplete
-    member_tags_title:'Member tags', member_tags_sub:'Saved automatically the first time you log a session for someone new — rename one and every past session updates too.',
-    add_member_tag:'Add tag', edit_member_tag:'Edit tag', save_member_tag:'Save tag', delete_member_tag:'Delete tag',
-    delete_member_tag_confirm:'Delete this tag? Past sessions keep their member name, just unlinked from the tag.',
-    no_member_tags:'No member tags yet', no_member_tags_sub:'Tags are created automatically the first time you log a session for someone new.',
-    member_tag_saved:'Tag saved', member_tag_deleted:'Tag deleted',
-    one_session:'1 session', n_sessions:'{n} sessions',
+    err_select_client:'Please select a client',
     // M1.5 — services
     services_title:'Services', add_service:'Add service', edit_service:'Edit service', save_service:'Save service',
     delete_service:'Delete service', delete_service_confirm:'Delete this service?',
@@ -458,6 +454,9 @@ async function enterApp() {
   set('set-wht', settings.wht != null ? settings.wht : '');
   set('set-vat', settings.vat != null ? settings.vat : '');
   set('set-promptpay', settings.promptpayId || '');
+  set('set-seller-name', settings.sellerBusinessName || '');
+  set('set-seller-taxid', settings.sellerTaxId || '');
+  set('set-seller-address', settings.sellerAddress || '');
 
   // Personal Gym Trainer edition: single fixed work type, no onboarding picker.
   if (!settings.workType) await saveSetting('workType', 'gym');
@@ -469,6 +468,12 @@ async function enterApp() {
 function displayName() {
   if (isGuest) return t('guest_name');
   return (currentUser && currentUser.firstName) ? currentUser.firstName : (currentUser ? currentUser.username : '');
+}
+// The name printed on documents (quotes/invoices/receipts/contracts/NDAs) as
+// the seller — an optional Settings override, falling back to the casual
+// display name so documents work fine even if it's never filled in.
+function sellerBusinessName() {
+  return (settings.sellerBusinessName || '').trim() || displayName();
 }
 function applyUser() {
   const name = displayName();
@@ -492,14 +497,10 @@ async function reload() {
   customers.sort((a,b) => (a.name||'').localeCompare(b.name||''));
   services = (await dbAll('services')).filter(s => s.uid === uid);
   services.sort((a,b) => (a.name||'').localeCompare(b.name||''));
-  memberTags = (await dbAll('memberTags')).filter(m => m.uid === uid);
-  memberTags.sort((a,b) => (a.name||'').localeCompare(b.name||''));
   usageEvents = (await dbAll('usageEvents')).filter(e => e.uid === uid);
   renderHome();
   renderCustomers();
   renderServices();
-  renderMemberTags();
-  populateMemberTagsDatalist();
   if (typeof renderPipeline === 'function') renderPipeline();
   renderInsights();
   const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
@@ -543,7 +544,7 @@ function applyInsightsVisibility() {
 }
 const SCREEN_LABELS = {
   home:'Home', pipeline:'Pipeline', customers:'Clients', book:'Booking', more:'Settings',
-  membertags:'Member tags', services:'Services', invoices:'Invoices', tax:'Tax', docs:'Documents',
+  services:'Services', invoices:'Invoices', tax:'Tax', docs:'Documents',
   followups:'Follow-ups', portfolio:'Portfolio', research:'Research', insights:'Insights',
 };
 function daysAgoISO(days) { const d = new Date(); d.setDate(d.getDate() - days); return d.toISOString(); }
@@ -772,9 +773,6 @@ function onJobCustomerChange(v) {
     openAddCustomer();
     return;
   }
-  if (!v) return;
-  const c = customers.find(x => x.id === parseInt(v));
-  if (c) document.getElementById('j-client').value = c.name || '';
 }
 function onJobServiceChange(v) {
   if (!v) return;
@@ -785,7 +783,7 @@ function openAddJob() {
   document.getElementById('modal-title').textContent = t('add_job');
   document.getElementById('j-edit-id').value = '';
   document.getElementById('j-date').value = todayISO();
-  ['j-client','j-amount','j-tip','j-expense','j-count','j-notes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  ['j-amount','j-tip','j-expense','j-count','j-notes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   populateJobSelects('', '');
   document.getElementById('j-delete').style.display = 'none';
   clearFieldErrors();
@@ -799,7 +797,7 @@ function openEditJob(id) {
   document.getElementById('j-edit-id').value = String(id);
   const set = (i,v)=>{ const el=document.getElementById(i); if(el) el.value = (v==null?'':v); };
   set('j-date', j.date);
-  set('j-client', j.client); set('j-amount', j.amount); set('j-tip', j.tip);
+  set('j-amount', j.amount); set('j-tip', j.tip);
   set('j-expense', j.expense); set('j-count', j.count); set('j-notes', j.notes);
   populateJobSelects(j.clientId != null ? j.clientId : '', j.serviceId != null ? j.serviceId : '');
   document.getElementById('j-delete').style.display = 'block';
@@ -839,30 +837,29 @@ function markFieldError(inputId, msgKey) {
 async function saveJob() {
   const num = id => parseFloat(document.getElementById(id).value) || 0;
   const date = document.getElementById('j-date').value;
-  const client = (document.getElementById('j-client').value || '').trim();
   const amount = num('j-amount'), tip = num('j-tip'), expense = num('j-expense');
   const count = parseInt(document.getElementById('j-count').value) || 0;
   const notes = (document.getElementById('j-notes').value || '').trim();
   clearFieldErrors();
   if (!date) { markFieldError('j-date', 'err_enter_date'); return; }
+  const custVal = document.getElementById('j-customer').value;
+  if (!custVal || custVal === '__new__') { markFieldError('j-customer', 'err_select_client'); return; }
   if (amount < 0) { markFieldError('j-amount', 'err_neg'); return; }
   for (const [fid, val, max] of [['j-amount',amount,100000000],['j-tip',tip,100000000],['j-expense',expense,100000000],['j-count',count,100000]]) {
     if (val < 0) { markFieldError(fid, 'err_neg'); return; }
     if (val > max) { markFieldError(fid, 'err_too_big'); return; }
   }
   const uid = isGuest ? 'guest' : currentUser.id;
-  // Optional customer + service links (free-text client still works if none picked).
-  const custVal = document.getElementById('j-customer').value;
-  const clientId = (custVal && custVal !== '__new__') ? parseInt(custVal) : null;
+  // The Client dropdown is the only "who" input now (Member Tags merged into
+  // Client) — client is always derived from the selected Customer record.
+  const clientId = parseInt(custVal);
+  const custRec = customers.find(c => c.id === clientId);
+  const client = (custRec && custRec.name) || '';
   const svcVal = document.getElementById('j-service').value;
   const serviceId = svcVal ? parseInt(svcVal) : null;
   const svc = serviceId != null ? services.find(s => s.id === serviceId) : null;
   const serviceName = svc ? svc.name : '';
-  // Typing a new Member name saves it as a reusable tag automatically (no
-  // extra step) — matching an existing tag case-insensitively reuses its id
-  // so a later rename in Settings > Member tags propagates to this session too.
-  const memberTagId = await upsertMemberTagIfNeeded(uid, client);
-  const obj = {uid, date, client, clientId, serviceId, serviceName, memberTagId,
+  const obj = {uid, date, client, clientId, serviceId, serviceName,
     jobType: settings.workType || '',
     amount, tip, expense, count, notes, netAmount: amount + tip - expense};
   const editId = document.getElementById('j-edit-id').value;
@@ -1350,8 +1347,6 @@ async function saveCustomer() {
   if (linkToJob) {
     const linkedId = obj.id != null ? obj.id : newId;
     populateJobSelects(linkedId, document.getElementById('j-service')?.value || '');
-    const clientEl = document.getElementById('j-client');
-    if (clientEl) clientEl.value = name;
   }
 }
 async function deleteCustomer() {
@@ -1362,113 +1357,6 @@ async function deleteCustomer() {
   closeCustomerModal();
   await reload();
   toast(t('customer_deleted'));
-}
-
-// ─── MEMBER TAGS (lightweight, reusable Member-field autocomplete) ─────────
-// A tag is just {uid, name} — far cheaper than a full Customer record (no
-// health/allergies/goals intake). Created automatically the first time a
-// session is saved with a new name; renaming a tag propagates to every past
-// session that used it (that propagation is the whole point of an id-backed
-// tag instead of a plain string). Deleting a tag never touches session data —
-// it only unlinks memberTagId, the session's own client text is untouched.
-async function upsertMemberTagIfNeeded(uid, name) {
-  if (!name) return null;
-  const existing = memberTags.find(m => m.uid === uid && m.name.toLowerCase() === name.toLowerCase());
-  if (existing) return existing.id;
-  const row = {uid, name, cuid: cuid(), createdAt: nowISO(), updatedAt: nowISO()};
-  const id = await dbAdd('memberTags', row);
-  row.id = id;
-  memberTags.push(row);
-  memberTags.sort((a,b) => (a.name||'').localeCompare(b.name||''));
-  return id;
-}
-function populateMemberTagsDatalist() {
-  const dl = document.getElementById('j-client-tags');
-  if (!dl) return;
-  dl.innerHTML = memberTags.map(m => `<option value="${attrEsc(m.name)}"></option>`).join('');
-}
-function memberTagSessionCount(id) { return jobs.filter(j => j.memberTagId === id).length; }
-function renderMemberTags() {
-  const wrap = document.getElementById('membertags-body');
-  if (!wrap) return;
-  if (!memberTags.length) {
-    wrap.innerHTML = `<div class="empty"><div class="empty-icon">🏷️</div>
-      <p>${htmlEsc(t('no_member_tags'))}</p><span>${htmlEsc(t('no_member_tags_sub'))}</span></div>`;
-    return;
-  }
-  wrap.innerHTML = '<div class="list-card">' + memberTags.map(m => {
-    const n = memberTagSessionCount(m.id);
-    const sub = n === 1 ? t('one_session') : t('n_sessions').replace('{n}', n);
-    return `<div class="list-row" onclick="openEditMemberTag(${m.id})">
-      <div class="list-icon">🏷️</div>
-      <div class="list-main">
-        <div class="list-title">${htmlEsc(m.name)}</div>
-        <div class="list-sub">${htmlEsc(sub)}</div>
-      </div>
-      <div class="list-right"><span style="color:var(--text3);font-size:18px">›</span></div>
-    </div>`;
-  }).join('') + '</div>';
-}
-function openMemberTagModal() { document.getElementById('modal-membertag').classList.add('open'); }
-function closeMemberTagModal() { document.getElementById('modal-membertag').classList.remove('open'); }
-function openAddMemberTag() {
-  document.getElementById('mt-modal-title').textContent = t('add_member_tag');
-  document.getElementById('mt-edit-id').value = '';
-  document.getElementById('mt-name').value = '';
-  document.getElementById('mt-delete').style.display = 'none';
-  clearFieldErrors();
-  openMemberTagModal();
-}
-function openEditMemberTag(id) {
-  const m = memberTags.find(x => x.id === id);
-  if (!m) return;
-  document.getElementById('mt-modal-title').textContent = t('edit_member_tag');
-  document.getElementById('mt-edit-id').value = String(id);
-  document.getElementById('mt-name').value = m.name || '';
-  document.getElementById('mt-delete').style.display = 'block';
-  clearFieldErrors();
-  openMemberTagModal();
-}
-async function saveMemberTag() {
-  const name = (document.getElementById('mt-name').value || '').trim();
-  clearFieldErrors();
-  if (!name) { markFieldError('mt-name', 'err_name_required'); return; }
-  const uid = isGuest ? 'guest' : currentUser.id;
-  const editId = document.getElementById('mt-edit-id').value;
-  if (editId) {
-    const id = parseInt(editId);
-    const prev = memberTags.find(m => m.id === id);
-    if (!prev) return;
-    const oldName = prev.name;
-    const obj = {...prev, name, updatedAt: nowISO()};
-    await dbPut('memberTags', obj);
-    if (oldName !== name) {
-      // Propagate the rename to every session that used this tag — the
-      // reason a tag has an id instead of just being a plain string.
-      const affected = jobs.filter(j => j.uid === uid && j.memberTagId === id);
-      for (const j of affected) { await dbPut('jobs', {...j, client: name}); }
-    }
-  } else {
-    const dup = memberTags.find(m => m.uid === uid && m.name.toLowerCase() === name.toLowerCase());
-    if (!dup) await dbAdd('memberTags', {uid, name, cuid: cuid(), createdAt: nowISO(), updatedAt: nowISO()});
-  }
-  closeMemberTagModal();
-  await reload();
-  toast(t('member_tag_saved'));
-}
-async function deleteMemberTag() {
-  const editId = document.getElementById('mt-edit-id').value;
-  if (!editId) return;
-  if (!confirm(t('delete_member_tag_confirm'))) return;
-  const id = parseInt(editId);
-  const uid = isGuest ? 'guest' : currentUser.id;
-  // Unlink only — past sessions keep their client text exactly as logged.
-  const affected = jobs.filter(j => j.uid === uid && j.memberTagId === id);
-  for (const j of affected) { await dbPut('jobs', {...j, memberTagId: null}); }
-  await dbDel('memberTags', id);
-  closeMemberTagModal();
-  await reload();
-  toast(t('member_tag_deleted'));
 }
 
 // ─── SERVICES (catalog + default rates) ───────────────────────────────
@@ -1568,6 +1456,9 @@ async function onGoalChange(v) { const n = parseFloat(v); await saveSetting('dai
 async function onWhtChange(v) { const n = parseFloat(v); await saveSetting('wht', isNaN(n)?null:n); }
 async function onVatChange(v) { const n = parseFloat(v); await saveSetting('vat', isNaN(n)?null:n); }
 async function onPromptPayChange(v) { await saveSetting('promptpayId', (v||'').trim()); }
+async function onSellerBusinessNameChange(v) { await saveSetting('sellerBusinessName', (v||'').trim()); }
+async function onSellerTaxIdChange(v) { await saveSetting('sellerTaxId', (v||'').trim()); }
+async function onSellerAddressChange(v) { await saveSetting('sellerAddress', (v||'').trim()); }
 
 // ─── EXPORT: CSV + JSON backup/restore ────────────────────────────────
 // Neutralize spreadsheet formula injection in free-text cells and always quote.
@@ -1626,7 +1517,7 @@ async function exportInvoicesCSV() {
 // All uid-scoped stores a full backup/restore round-trips. Kept in one place
 // so a future new store (like bookings/followups/portfolio were for M3) only
 // needs to be added here, not re-plumbed through export/import separately.
-const BACKUP_STORES = ['jobs', 'expenses', 'clients', 'services', 'invoices', 'documents', 'bookings', 'followups', 'portfolio', 'research', 'memberTags'];
+const BACKUP_STORES = ['jobs', 'expenses', 'clients', 'services', 'invoices', 'documents', 'bookings', 'followups', 'portfolio', 'research'];
 
 async function exportBackup() {
   const uid = isGuest ? 'guest' : currentUser.id;

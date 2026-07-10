@@ -519,7 +519,28 @@ function nlToP(s) {
 }
 
 function freelancerName() {
-  return (currentUser && (currentUser.firstName || currentUser.username)) || 'Freelancer';
+  return (typeof sellerBusinessName === 'function')
+    ? sellerBusinessName()
+    : ((currentUser && (currentUser.firstName || currentUser.username)) || 'Freelancer');
+}
+// Seller line shown at the top of every document: name always (falls back to
+// the account's display name), tax ID/address only when filled in under
+// Settings > Business info — never required.
+function sellerInfoLine(fname) {
+  const bits = [fname];
+  if (typeof settings !== 'undefined' && settings) {
+    if (settings.sellerAddress) bits.push(esc(settings.sellerAddress));
+    if (settings.sellerTaxId) bits.push('Tax ID: ' + esc(settings.sellerTaxId));
+  }
+  return '<p class="dg-meta">' + bits.join(' · ') + '</p>';
+}
+// Optional client billing address/tax ID, snapshotted from the customer
+// profile onto the document's fields when a customer was selected.
+function clientInfoLine(f) {
+  const bits = [];
+  if (f.billingAddress) bits.push(esc(f.billingAddress));
+  if (f.taxId) bits.push('Tax ID: ' + esc(f.taxId));
+  return bits.length ? '<p class="dg-meta">' + bits.join(' · ') + '</p>' : '';
 }
 
 function signatureBlock(fname, cname) {
@@ -533,7 +554,7 @@ function buildDocHtml(rec) {
   const f = rec.fields || {};
   const fname = esc(freelancerName());
   const cname = esc(rec.clientName || 'Client');
-  let body = '<div class="dg-doc"><h1>' + esc(rec.title) + '</h1>';
+  let body = '<div class="dg-doc"><h1>' + esc(rec.title) + '</h1>' + sellerInfoLine(fname);
 
   if (rec.type === 'contract') {
     body += '<p class="dg-meta">Issue date: ' + esc(rec.issueDate) + '</p>';
@@ -568,6 +589,7 @@ function buildDocHtml(rec) {
   } else if (rec.type === 'quote') {
     body += '<p class="dg-meta">' + (rec.number ? 'Quote #' + esc(rec.number) + ' · ' : '') + 'Issue date: ' + esc(rec.issueDate) + (f.validUntil ? ' · Valid until: ' + esc(f.validUntil) : '') + '</p>';
     body += '<p><b>Prepared for:</b> ' + cname + (f.company ? ' (' + esc(f.company) + ')' : '') + '</p>';
+    body += clientInfoLine(f);
     body += '<table><thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead><tbody>';
     (f.lineItems || []).forEach(li => {
       const qtyNum = Number(li.qty) || 0;
@@ -581,6 +603,7 @@ function buildDocHtml(rec) {
   } else if (rec.type === 'receipt') {
     body += '<p class="dg-meta">' + (rec.number ? 'Receipt #' + esc(rec.number) + ' · ' : '') + 'Payment date: ' + esc(f.paymentDate || rec.issueDate) + '</p>';
     body += '<p><b>Received from:</b> ' + cname + (f.company ? ' (' + esc(f.company) + ')' : '') + '</p>';
+    body += clientInfoLine(f);
     body += '<h3>Amount received</h3><p><b>' + money(f.amount || 0) + '</b></p>';
     body += '<h3>Payment method</h3><p>' + (f.method ? esc(f.method) : '—') + '</p>';
     if (f.reference) body += '<h3>Reference</h3><p>' + esc(f.reference) + '</p>';
