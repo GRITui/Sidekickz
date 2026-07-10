@@ -75,6 +75,15 @@ body.authed .nav{display:flex;}
 /* ── Content ────────────────────────────────────────────────── */
 .content{padding:16px;}
 .section-title{font-size:14px;font-weight:800;color:var(--text);margin:4px 0 10px;letter-spacing:-.2px;}
+/* Collapsible Settings sections (native <details>/<summary> — no JS needed).
+   Default open, visually identical to a plain section-title; only the
+   chevron + cursor signal it's collapsible. */
+details.settings-section{margin-bottom:2px;}
+summary.section-title{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;user-select:none;}
+summary.section-title::-webkit-details-marker{display:none;}
+summary.section-title::after{content:'';width:7px;height:7px;flex-shrink:0;border-right:2px solid var(--text3);border-bottom:2px solid var(--text3);
+  transform:rotate(45deg);margin-left:8px;transition:transform .15s;}
+details.settings-section:not([open]) summary.section-title::after{transform:rotate(-45deg);}
 
 /* Hero card — overlaps the header band via negative top margin */
 .hero{background:var(--card);margin:-30px 16px 16px;border-radius:var(--radius);padding:20px;
