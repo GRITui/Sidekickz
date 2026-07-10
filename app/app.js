@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.8.3';          // <-> sw.js SW_VERSION 'freelanz-v0.8.3'
+const APP_VERSION = '0.8.5';          // <-> sw.js SW_VERSION 'freelanz-v0.8.5'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -19,14 +19,15 @@ let db;
 // without a version bump, so onupgradeneeded never re-fired for existing v2
 // databases; this bump fixes that too, since the guarded creates below run
 // for ANY store still missing, not just the three new ones), 3→4 in M5
-// ('research'), 4→5 ('memberTags'). onupgradeneeded only CREATES missing
-// stores (each guarded by !contains) — it never drops or clears existing
-// stores, so guest jobs / clients / settings survive the upgrade.
+// ('research'), 4→5 ('memberTags'), 5→6 ('usageEvents' — local usage
+// analytics). onupgradeneeded only CREATES missing stores (each guarded by
+// !contains) — it never drops or clears existing stores, so guest jobs /
+// clients / settings survive the upgrade.
 // DB_NAME/storage keys below are namespaced 'gym' because this app co-hosts
 // with the main Freelanz app on the same GitHub Pages origin (root vs /gym/):
 // IndexedDB/localStorage/sessionStorage are scoped per-ORIGIN, not per-path,
 // so an unprefixed name here would silently share the main app's database.
-const DB_NAME = 'freelanz-gym-v1', DB_VER = 5;
+const DB_NAME = 'freelanz-gym-v1', DB_VER = 6;
 function openDB() {
   return new Promise((res, rej) => {
     const req = indexedDB.open(DB_NAME, DB_VER);
@@ -47,6 +48,7 @@ function openDB() {
       if (!d.objectStoreNames.contains('portfolio')) d.createObjectStore('portfolio', {keyPath:'id', autoIncrement:true}); // M3 showcase
       if (!d.objectStoreNames.contains('research'))  d.createObjectStore('research',  {keyPath:'id', autoIncrement:true}); // M5 content library
       if (!d.objectStoreNames.contains('memberTags')) d.createObjectStore('memberTags', {keyPath:'id', autoIncrement:true}); // reusable Member-field tags
+      if (!d.objectStoreNames.contains('usageEvents')) d.createObjectStore('usageEvents', {keyPath:'id', autoIncrement:true}); // local-only usage analytics (never leaves this device)
       if (!d.objectStoreNames.contains('settings'))  d.createObjectStore('settings',  {keyPath:'key'});
       if (!d.objectStoreNames.contains('meta'))      d.createObjectStore('meta',      {keyPath:'key'});   // dormant (future sync)
       if (!d.objectStoreNames.contains('outbox'))    d.createObjectStore('outbox',    {keyPath:'key', autoIncrement:true}); // dormant
@@ -216,7 +218,7 @@ async function restoreSession() {
 }
 
 // ─── STATE ────────────────────────────────────────────────────────────
-let jobs = [], expenses = [], customers = [], services = [], memberTags = [], settings = {lang:'en', currency:'THB'};
+let jobs = [], expenses = [], customers = [], services = [], memberTags = [], usageEvents = [], settings = {lang:'en', currency:'THB'};
 let currentPeriod = 'month';
 
 // HTML/attr escaping (shared by all list/form renderers)
@@ -303,10 +305,10 @@ const I18N = {
     coming_m2:'Invoices ship in M2',
     // job form
     add_job:'Add session', edit_job:'Edit session', save_job:'Save session', delete_job:'Delete session',
-    field_date:'Date', field_start:'Start time', field_end:'End time',
+    field_date:'Date',
     field_client:'Member', field_amount:'Fee', field_tip:'Tip', field_expense:'Expense', field_count:'Sessions', field_notes:'Notes',
     field_client_ph:'e.g. Alex Chan', field_notes_ph:'Anything to remember…',
-    net_take:'Net take', ends_next_day:'ends next day', duration:'Duration',
+    net_take:'Net take',
     // validation
     err_enter_date:'Please pick a date', err_amount:'Amount must be 0 or more', err_neg:'Values cannot be negative', err_too_big:'That value is too large',
     // settings
@@ -335,11 +337,11 @@ const I18N = {
     err_id_min3:'Enter an email or username (3+ characters).', err_pw_min4:'Password must be at least 8 characters.',
     err_pw_mismatch:'Passwords do not match.', err_account_exists:'That account already exists on this device.',
     err_no_account:'No account with that email on this device.', err_incorrect_pw:'Incorrect password.',
-    // M1.5 — customers
-    manage:'Manage', customers_title:'Customers', add_customer:'Add customer', edit_customer:'Edit customer',
-    save_customer:'Save customer', delete_customer:'Delete customer', delete_customer_confirm:'Delete this customer?',
-    no_customers:'No customers yet', no_customers_sub:'Add your first customer to reuse their details.',
-    customer_saved:'Customer saved', customer_deleted:'Customer deleted',
+    // M1.5 — customers (displayed as "client" throughout — the gym-trainer term)
+    manage:'Manage', customers_title:'Clients', add_customer:'Add client', edit_customer:'Edit client',
+    save_customer:'Save client', delete_customer:'Delete client', delete_customer_confirm:'Delete this client?',
+    no_customers:'No clients yet', no_customers_sub:'Add your first client to reuse their details.',
+    customer_saved:'Client saved', customer_deleted:'Client deleted',
     field_name:'Name', field_phone:'Phone', field_email:'Email', field_tags:'Tags (comma-separated)',
     field_taxid:'Tax ID', field_billing:'Billing address', field_member_no:'Member ID',
     field_health:'Health notes', field_allergies:'Allergies', field_goals:'Goals',
@@ -359,8 +361,16 @@ const I18N = {
     service_saved:'Service saved', service_deleted:'Service deleted',
     field_rate:'Default rate', field_unit:'Unit', field_unit_ph:'e.g. session, hour, project',
     // M1.5 — job form links
-    field_customer:'Customer', field_service:'Service', none_option:'— None —',
-    export_customers_csv:'Export customers CSV',
+    field_customer:'Client', field_service:'Service', none_option:'— None —',
+    add_new_client_option:'+ Add a new client…',
+    export_customers_csv:'Export clients CSV',
+    nav_customers:'Clients',
+    // Usage insights (local-only analytics)
+    insights_title:'Insights', no_insights:'No activity yet', no_insights_sub:'Insights build up as you use the app — nothing is sent anywhere, this stays on your device.',
+    insights_sessions_logged:'Sessions logged', insights_clients_added:'Clients added', insights_active_days_30:'Active days (30d)',
+    insights_feature_usage:'Feature usage', insights_pipeline_activity:'Pipeline activity', insights_no_pipeline_activity:'No pipeline activity yet',
+    insights_stage_done:'Completed', insights_clear:'Clear usage data', insights_clear_confirm:'Clear all local usage data? This cannot be undone.',
+    insights_cleared:'Usage data cleared',
   }
 };
 function curLang() { return (settings && settings.lang) || localStorage.getItem('gym_ui_lang') || 'en'; }
@@ -377,24 +387,6 @@ function greetingPeriod() {
 function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-function isoOf(d) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-// Duration in hours from a job's start/end (crosses midnight when end <= start).
-function sessionHours(s) {
-  if (!s.startTime || !s.endTime) return 0;
-  const sd = s.date, ed = s.endDate || s.date;
-  const start = new Date(`${sd}T${s.startTime}:00`);
-  let end = new Date(`${ed}T${s.endTime}:00`);
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
-  if (end <= start) end = new Date(end.getTime() + 86400000);
-  return (end - start) / 3600000;
-}
-function fmtHours(h) { const hh = Math.floor(h), mm = Math.round((h - hh) * 60); return `${hh}h ${mm}m`; }
-function inferEndDate(sd, st, en) {
-  if (sd && st && en && en <= st) { const nd = new Date(sd + 'T00:00:00'); nd.setDate(nd.getDate() + 1); return isoOf(nd); }
-  return sd;
 }
 function fmt(n, dec=0) { return Number(n||0).toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec}); }
 function money(n, dec=0) { return curSym() + fmt(n, dec); }
@@ -501,14 +493,98 @@ async function reload() {
   services.sort((a,b) => (a.name||'').localeCompare(b.name||''));
   memberTags = (await dbAll('memberTags')).filter(m => m.uid === uid);
   memberTags.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  usageEvents = (await dbAll('usageEvents')).filter(e => e.uid === uid);
   renderHome();
   renderCustomers();
   renderServices();
   renderMemberTags();
   populateMemberTagsDatalist();
   if (typeof renderPipeline === 'function') renderPipeline();
+  renderInsights();
   const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setTxt('set-count', jobs.length);
+}
+// ─── USAGE INSIGHTS (local-only — never leaves this device) ───────────
+// A lightweight event log so the trainer using this app can see which
+// features they actually reach for, to guide what's worth building next.
+// No network calls, no third-party analytics — this is purely a local
+// mirror the user can inspect (and clear) themselves in Settings > Insights.
+function logEvent(name) {
+  if (!db) return;
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const row = {uid, name, ts: nowISO()};
+  dbAdd('usageEvents', row).then(id => { row.id = id; usageEvents.push(row); }).catch(()=>{});
+}
+const SCREEN_LABELS = {
+  home:'Home', pipeline:'Pipeline', customers:'Clients', book:'Booking', more:'Settings',
+  membertags:'Member tags', services:'Services', invoices:'Invoices', tax:'Tax', docs:'Documents',
+  followups:'Follow-ups', portfolio:'Portfolio', research:'Research', insights:'Insights',
+};
+function daysAgoISO(days) { const d = new Date(); d.setDate(d.getDate() - days); return d.toISOString(); }
+function renderInsights() {
+  const wrap = document.getElementById('insights-body');
+  if (!wrap) return;
+  if (!usageEvents.length) {
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon">📊</div>
+      <p>${htmlEsc(t('no_insights'))}</p><span>${htmlEsc(t('no_insights_sub'))}</span></div>`;
+    return;
+  }
+  const since30 = daysAgoISO(30);
+  const last30 = usageEvents.filter(e => e.ts >= since30);
+  const sessionsLogged = usageEvents.filter(e => e.name === 'session_logged').length;
+  const clientsAdded = usageEvents.filter(e => e.name === 'client_added').length;
+  const activeDays30 = new Set(last30.map(e => e.ts.slice(0,10))).size;
+
+  const screenCounts = {};
+  usageEvents.forEach(e => {
+    if (e.name.startsWith('screen_view:')) {
+      const s = e.name.slice('screen_view:'.length);
+      screenCounts[s] = (screenCounts[s]||0) + 1;
+    }
+  });
+  const topScreens = Object.entries(screenCounts).sort((a,b) => b[1]-a[1]);
+
+  const stageCounts = {};
+  usageEvents.forEach(e => {
+    if (e.name.startsWith('pipeline_stage:')) {
+      const s = e.name.slice('pipeline_stage:'.length);
+      stageCounts[s] = (stageCounts[s]||0) + 1;
+    }
+  });
+  const stageOrderForDisplay = (typeof getStageOrder === 'function') ? getStageOrder().concat('done') : Object.keys(stageCounts);
+  const stageRows = stageOrderForDisplay.filter(s => stageCounts[s]).map(s => {
+    const label = s === 'done' ? t('insights_stage_done') : ((STAGE_META[s] && STAGE_META[s].label) || s);
+    return {label, count: stageCounts[s]};
+  });
+
+  wrap.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">${htmlEsc(t('insights_sessions_logged'))}</div><div class="stat-val tnum">${sessionsLogged}</div></div>
+      <div class="stat-card"><div class="stat-label">${htmlEsc(t('insights_clients_added'))}</div><div class="stat-val tnum">${clientsAdded}</div></div>
+      <div class="stat-card"><div class="stat-label">${htmlEsc(t('insights_active_days_30'))}</div><div class="stat-val tnum">${activeDays30}</div></div>
+    </div>
+    <div class="section-title">${htmlEsc(t('insights_feature_usage'))}</div>
+    <div class="list-card">${topScreens.length ? topScreens.map(([s,n]) => `
+      <div class="list-row" style="cursor:default">
+        <div class="list-main"><div class="list-title">${htmlEsc(SCREEN_LABELS[s] || s)}</div></div>
+        <div class="list-right"><span class="list-amt">${n}</span></div>
+      </div>`).join('') : `<div class="list-row" style="cursor:default"><div class="list-main"><div class="list-sub">${htmlEsc(t('no_insights_sub'))}</div></div></div>`}</div>
+    <div class="section-title">${htmlEsc(t('insights_pipeline_activity'))}</div>
+    <div class="list-card">${stageRows.length ? stageRows.map(r => `
+      <div class="list-row" style="cursor:default">
+        <div class="list-main"><div class="list-title">${htmlEsc(r.label)}</div></div>
+        <div class="list-right"><span class="list-amt">${r.count}</span></div>
+      </div>`).join('') : `<div class="list-row" style="cursor:default"><div class="list-main"><div class="list-sub">${htmlEsc(t('insights_no_pipeline_activity'))}</div></div></div>`}</div>
+    <button type="button" class="btn-danger" style="width:100%;margin-top:6px" onclick="clearUsageEvents()">${htmlEsc(t('insights_clear'))}</button>
+  `;
+}
+async function clearUsageEvents() {
+  if (!confirm(t('insights_clear_confirm'))) return;
+  const uid = isGuest ? 'guest' : currentUser.id;
+  for (const e of usageEvents) { await dbDel('usageEvents', e.id); }
+  usageEvents = usageEvents.filter(e => e.uid !== uid);
+  renderInsights();
+  toast(t('insights_cleared'));
 }
 
 // ─── DASHBOARD (Home) ─────────────────────────────────────────────────
@@ -645,7 +721,8 @@ function populateJobSelects(selCustomerId, selServiceId) {
   const cs = document.getElementById('j-customer');
   if (cs) {
     cs.innerHTML = `<option value="">${htmlEsc(t('none_option'))}</option>` +
-      customers.map(c => `<option value="${c.id}">${htmlEsc(c.name)}</option>`).join('');
+      customers.map(c => `<option value="${c.id}">${htmlEsc(c.name)}</option>`).join('') +
+      `<option value="__new__">${htmlEsc(t('add_new_client_option'))}</option>`;
     cs.value = selCustomerId != null ? String(selCustomerId) : '';
   }
   const ss = document.getElementById('j-service');
@@ -655,7 +732,17 @@ function populateJobSelects(selCustomerId, selServiceId) {
     ss.value = selServiceId != null ? String(selServiceId) : '';
   }
 }
+// Picking "+ Add a new client" opens the Customer modal stacked on top of the
+// job form (never closed underneath); saveCustomer() links the new record back
+// into this form once it's created — see __pendingJobCustomerLink below.
 function onJobCustomerChange(v) {
+  const cs = document.getElementById('j-customer');
+  if (v === '__new__') {
+    if (cs) cs.value = '';
+    window.__pendingJobCustomerLink = true;
+    openAddCustomer();
+    return;
+  }
   if (!v) return;
   const c = customers.find(x => x.id === parseInt(v));
   if (c) document.getElementById('j-client').value = c.name || '';
@@ -669,11 +756,11 @@ function openAddJob() {
   document.getElementById('modal-title').textContent = t('add_job');
   document.getElementById('j-edit-id').value = '';
   document.getElementById('j-date').value = todayISO();
-  ['j-start','j-end','j-client','j-amount','j-tip','j-expense','j-count','j-notes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  ['j-client','j-amount','j-tip','j-expense','j-count','j-notes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   populateJobSelects('', '');
   document.getElementById('j-delete').style.display = 'none';
   clearFieldErrors();
-  calcNet(); calcDuration();
+  calcNet();
   openJobModal();
 }
 function openEditJob(id) {
@@ -682,13 +769,13 @@ function openEditJob(id) {
   document.getElementById('modal-title').textContent = t('edit_job');
   document.getElementById('j-edit-id').value = String(id);
   const set = (i,v)=>{ const el=document.getElementById(i); if(el) el.value = (v==null?'':v); };
-  set('j-date', j.date); set('j-start', j.startTime); set('j-end', j.endTime);
+  set('j-date', j.date);
   set('j-client', j.client); set('j-amount', j.amount); set('j-tip', j.tip);
   set('j-expense', j.expense); set('j-count', j.count); set('j-notes', j.notes);
   populateJobSelects(j.clientId != null ? j.clientId : '', j.serviceId != null ? j.serviceId : '');
   document.getElementById('j-delete').style.display = 'block';
   clearFieldErrors();
-  calcNet(); calcDuration();
+  calcNet();
   openJobModal();
 }
 function openJobModal() { document.getElementById('modal-job').classList.add('open'); }
@@ -698,19 +785,6 @@ function calcNet() {
   const num = id => parseFloat(document.getElementById(id).value) || 0;
   const net = num('j-amount') + num('j-tip') - num('j-expense');
   document.getElementById('j-net').textContent = money(net, 0);
-}
-function calcDuration() {
-  const sd = document.getElementById('j-date').value;
-  const st = document.getElementById('j-start').value;
-  const en = document.getElementById('j-end').value;
-  const durEl = document.getElementById('j-dur');
-  const ovn = document.getElementById('j-overnight');
-  if (!(sd && st && en)) { if (durEl) durEl.textContent = '—'; if (ovn) ovn.style.display='none'; return; }
-  const overnight = en <= st;
-  const ed = inferEndDate(sd, st, en);
-  if (ovn) ovn.style.display = overnight ? 'inline' : 'none';
-  const h = sessionHours({date: sd, startTime: st, endDate: ed, endTime: en});
-  if (durEl) durEl.textContent = h > 0 ? fmtHours(h) : '—';
 }
 function clearFieldErrors() {
   document.querySelectorAll('.field-invalid').forEach(el => el.classList.remove('field-invalid'));
@@ -736,8 +810,6 @@ function markFieldError(inputId, msgKey) {
 async function saveJob() {
   const num = id => parseFloat(document.getElementById(id).value) || 0;
   const date = document.getElementById('j-date').value;
-  const startTime = document.getElementById('j-start').value || '';
-  const endTime = document.getElementById('j-end').value || '';
   const client = (document.getElementById('j-client').value || '').trim();
   const amount = num('j-amount'), tip = num('j-tip'), expense = num('j-expense');
   const count = parseInt(document.getElementById('j-count').value) || 0;
@@ -750,10 +822,9 @@ async function saveJob() {
     if (val > max) { markFieldError(fid, 'err_too_big'); return; }
   }
   const uid = isGuest ? 'guest' : currentUser.id;
-  const endDate = inferEndDate(date, startTime, endTime);
   // Optional customer + service links (free-text client still works if none picked).
   const custVal = document.getElementById('j-customer').value;
-  const clientId = custVal ? parseInt(custVal) : null;
+  const clientId = (custVal && custVal !== '__new__') ? parseInt(custVal) : null;
   const svcVal = document.getElementById('j-service').value;
   const serviceId = svcVal ? parseInt(svcVal) : null;
   const svc = serviceId != null ? services.find(s => s.id === serviceId) : null;
@@ -762,7 +833,7 @@ async function saveJob() {
   // extra step) — matching an existing tag case-insensitively reuses its id
   // so a later rename in Settings > Member tags propagates to this session too.
   const memberTagId = await upsertMemberTagIfNeeded(uid, client);
-  const obj = {uid, date, startTime, endTime, endDate, client, clientId, serviceId, serviceName, memberTagId,
+  const obj = {uid, date, client, clientId, serviceId, serviceName, memberTagId,
     jobType: settings.workType || '',
     amount, tip, expense, count, notes, netAmount: amount + tip - expense};
   const editId = document.getElementById('j-edit-id').value;
@@ -789,8 +860,10 @@ async function saveJob() {
     obj.quoteDocId = null;
   }
   obj.updatedAt = nowISO();
+  const isNew = !editId;
   const key = await dbPut('jobs', obj);
   if (obj.id == null) obj.id = key;
+  if (isNew) logEvent('session_logged');
   closeJobModal();
   await reload();
   toast(t('job_saved'));
@@ -897,6 +970,7 @@ async function advanceJobStage(jobId) {
   else if (idx >= order.length - 1) { j.stage = order[idx]; j.complete = true; }
   else { j.stage = order[idx + 1]; j.complete = false; }
   j.updatedAt = nowISO();
+  logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
   await reload();
@@ -934,6 +1008,7 @@ async function markJobPaid(jobId) {
   if (idx >= order.length - 1) { j.complete = true; }
   else { j.stage = order[idx + 1]; j.complete = false; }
   j.updatedAt = nowISO();
+  logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
@@ -969,6 +1044,7 @@ window.onEngagementInvoiceCreated = async function (invoiceId, jobId) {
   if (idx >= 0 && idx < order.length - 1) { j.stage = order[idx + 1]; j.complete = false; }
   else if (idx >= order.length - 1) { j.complete = true; }
   j.updatedAt = nowISO();
+  logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
@@ -986,6 +1062,7 @@ window.onEngagementQuoteCreated = async function (docId, jobId) {
   if (idx >= 0 && idx < order.length - 1) { j.stage = order[idx + 1]; j.complete = false; }
   else if (idx >= order.length - 1) { j.complete = true; }
   j.updatedAt = nowISO();
+  logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
@@ -1087,7 +1164,10 @@ function renderIntakeFields(c) {
       <input type="text" id="ci-${f.id}" value="${attrEsc(c[f.id] || '')}"></div>`).join('');
 }
 function openCustomerModal() { document.getElementById('modal-customer').classList.add('open'); }
-function closeCustomerModal() { document.getElementById('modal-customer').classList.remove('open'); }
+// Always resets the pending job->customer link flag: cancelling (or clicking
+// outside) the "add a new client" flow started from the session form must not
+// leave a stale flag that could mis-link some unrelated later save.
+function closeCustomerModal() { window.__pendingJobCustomerLink = false; document.getElementById('modal-customer').classList.remove('open'); }
 function openAddCustomer() {
   document.getElementById('cust-modal-title').textContent = t('add_customer');
   document.getElementById('c-edit-id').value = '';
@@ -1140,10 +1220,18 @@ async function saveCustomer() {
     obj.memberNo = nextMemberNo();
   }
   obj.updatedAt = nowISO();
-  await dbPut('clients', obj);
+  const linkToJob = !!window.__pendingJobCustomerLink && !prev;
+  const newId = await dbPut('clients', obj);
+  if (!prev) logEvent('client_added');
   closeCustomerModal();
   await reload();
   toast(t('customer_saved'));
+  if (linkToJob) {
+    const linkedId = obj.id != null ? obj.id : newId;
+    populateJobSelects(linkedId, document.getElementById('j-service')?.value || '');
+    const clientEl = document.getElementById('j-client');
+    if (clientEl) clientEl.value = name;
+  }
 }
 async function deleteCustomer() {
   const editId = document.getElementById('c-edit-id').value;
@@ -1433,6 +1521,7 @@ async function exportBackup() {
   a.href = URL.createObjectURL(blob);
   a.download = `freelanz-gym-backup-${backup.user}-${todayISO()}.json`;
   a.click();
+  logEvent('backup_exported');
   await saveSetting('lastBackupAt', nowISO());
   renderHome();   // clears the backup-reminder queue item immediately, no reload needed
   toast(t('exported'));
@@ -1497,6 +1586,7 @@ async function importBackup(inputEl) {
 
 // ─── NAV / SCREENS ────────────────────────────────────────────────────
 function switchScreen(name) {
+  logEvent('screen_view:' + name);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => { b.classList.remove('active'); b.removeAttribute('aria-current'); });
   document.getElementById('s-'+name)?.classList.add('active');
@@ -1509,6 +1599,7 @@ function switchScreen(name) {
   if (name === 'services') renderServices();
   if (name === 'pipeline' && typeof renderPipeline === 'function') renderPipeline();
   if (name === 'more' && typeof renderWorkflowControls === 'function') renderWorkflowControls();
+  if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.
   if (name === 'invoices' && typeof renderInvoices === 'function') renderInvoices();
