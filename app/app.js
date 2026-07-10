@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.8.2';          // <-> sw.js SW_VERSION 'freelanz-v0.8.2'
+const APP_VERSION = '0.8.3';          // <-> sw.js SW_VERSION 'freelanz-v0.8.3'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -293,18 +293,14 @@ const I18N = {
     auth_hint:'Create an account to save your work on this device.<br>Everything stays local — no cloud, no tracking.<br>Guest mode is temporary.',
     tagline:'Freelance admin, handled.',
     // nav
-    nav_home:'Home', nav_jobs:'Sessions', nav_docs:'Docs', nav_pipeline:'Pipeline', nav_book:'Book', nav_more:'More',
-    pipeline_title:'Pipeline', workflow_title:'Workflow',
+    nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Pipeline', nav_book:'Book', nav_more:'More',
+    pipeline_title:'Pipeline', workflow_title:'Workflow', pipeline_glance_title:'Pipeline at a glance',
     // dashboard
     earned_this_month:'Earned this month', net_after_expenses:'net after expenses',
     stat_jobs:'Sessions', stat_avg:'Avg / session', stat_expenses:'Expenses',
     todays_goal:"Today's goal", goal_reached:'Goal reached! 🎉', goal_of:'of',
     action_queue:'Action queue', queue_empty:'You’re all caught up.', queue_empty_sub:'New tasks will appear here as you add sessions and invoices.',
-    quick_actions:'Quick actions', new_job:'New session', new_invoice:'New invoice',
     coming_m2:'Invoices ship in M2',
-    // jobs list
-    jobs_title:'Sessions',
-    no_jobs:'No sessions yet', no_jobs_sub:'Tap + to log your first session.',
     // job form
     add_job:'Add session', edit_job:'Edit session', save_job:'Save session', delete_job:'Delete session',
     field_date:'Date', field_start:'Start time', field_end:'End time',
@@ -506,7 +502,6 @@ async function reload() {
   memberTags = (await dbAll('memberTags')).filter(m => m.uid === uid);
   memberTags.sort((a,b) => (a.name||'').localeCompare(b.name||''));
   renderHome();
-  renderJobs();
   renderCustomers();
   renderServices();
   renderMemberTags();
@@ -514,11 +509,6 @@ async function reload() {
   if (typeof renderPipeline === 'function') renderPipeline();
   const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setTxt('set-count', jobs.length);
-  const badge = document.getElementById('jobs-badge');
-  if (badge) {
-    if (jobs.length > 0) { badge.textContent = jobs.length; badge.style.display = 'flex'; }
-    else badge.style.display = 'none';
-  }
 }
 
 // ─── DASHBOARD (Home) ─────────────────────────────────────────────────
@@ -577,6 +567,7 @@ function renderHome() {
   setTxt('stat-exp-val', money(exp));
 
   renderGoal();
+  renderPipelineGlance();
   // action queue: empty state until there is anything to surface, EXCEPT
   // the backup reminder, which is real from M1 onward.
   const q = document.getElementById('queue-body');
@@ -603,6 +594,27 @@ function renderHome() {
     }
   }
 }
+function renderPipelineGlance() {
+  const wrap = document.getElementById('pipeline-glance');
+  if (!wrap) return;
+  const order = (typeof getStageOrder === 'function') ? getStageOrder() : [];
+  const counts = {};
+  order.forEach(s => counts[s] = 0);
+  jobs.forEach(j => {
+    if (typeof jobComplete === 'function' && jobComplete(j)) return;
+    const s = (typeof jobStage === 'function') ? jobStage(j) : null;
+    if (counts[s] != null) counts[s]++;
+  });
+  wrap.innerHTML = order.map(stage => {
+    const meta = STAGE_META[stage] || {};
+    const n = counts[stage] || 0;
+    return `<button type="button" class="pg-pill" onclick="switchScreen('pipeline')">
+      <span class="pg-ico">${meta.icon || ''}</span>
+      <span class="pg-label">${htmlEsc(meta.label || stage)}</span>
+      <span class="pg-count">${n}</span>
+    </button>`;
+  }).join('');
+}
 function renderGoal() {
   const card = document.getElementById('goal-card');
   const goal = Number(settings.dailyGoal) || 0;
@@ -626,40 +638,6 @@ function fmtDate(iso) {
   const d = new Date(iso + 'T12:00:00');
   return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
 }
-function renderJobs() {
-  const wrap = document.getElementById('jobs-body');
-  if (!wrap) return;
-  if (!jobs.length) {
-    wrap.innerHTML = `<div class="empty"><div class="empty-icon">🧾</div>
-      <p data-i18n="no_jobs">${t('no_jobs')}</p>
-      <span data-i18n="no_jobs_sub">${t('no_jobs_sub')}</span></div>`;
-    return;
-  }
-  const esc = htmlEsc;
-  wrap.innerHTML = '<div class="list-card">' + jobs.map(j => {
-    // Title = service name → localized unit word (e.g. "Session"); subtitle = client · date.
-    const title = j.serviceName ? esc(j.serviceName) : esc(unitWord());
-    const sub = [j.client, fmtDate(j.date)].filter(Boolean).join(' · ');
-    const hrs = sessionHours(j);
-    const st = jobStage(j), sm = STAGE_META[st] || {};
-    const stageBadge = jobComplete(j)
-      ? `<span class="stage-badge done">✓ ${esc(sm.label || '')}</span>`
-      : `<span class="stage-badge">${sm.icon || ''} ${esc(sm.label || '')}</span>`;
-    return `<div class="list-row" onclick="openEditJob(${j.id})">
-      <div class="list-icon">🧾</div>
-      <div class="list-main">
-        <div class="list-title">${title}</div>
-        <div class="list-sub">${esc(sub)}${hrs>0?' · '+fmtHours(hrs):''}</div>
-        <div style="margin-top:4px">${stageBadge}</div>
-      </div>
-      <div class="list-right">
-        <div class="list-amt tnum pos">${money(netOf(j))}</div>
-        ${(j.count>0)?`<div class="list-amt-sub tnum">${j.count} ${esc(t('field_count').toLowerCase())}</div>`:''}
-      </div>
-    </div>`;
-  }).join('') + '</div>';
-}
-
 // ─── JOB FORM (modal) ─────────────────────────────────────────────────
 // Populate the job form's customer + service dropdowns (per-uid lists) and set
 // the current selection.
@@ -1525,7 +1503,7 @@ function switchScreen(name) {
   const navBtn = document.getElementById('nav-'+name);
   if (navBtn) { navBtn.classList.add('active'); navBtn.setAttribute('aria-current','page'); }
   const fab = document.getElementById('fab');
-  if (fab) fab.style.display = (name === 'home' || name === 'jobs' || name === 'pipeline') ? 'flex' : 'none';
+  if (fab) fab.style.display = (name === 'home' || name === 'pipeline') ? 'flex' : 'none';
   if (name === 'home') renderHome();
   if (name === 'customers') renderCustomers();
   if (name === 'services') renderServices();
@@ -1544,13 +1522,6 @@ function switchScreen(name) {
   if (name === 'research' && typeof renderResearch === 'function') renderResearch();
   window.scrollTo(0, 0);
 }
-// Dashboard "New invoice" quick action → open the invoices screen, then its form
-// if the invoicing module has loaded.
-function newInvoice() {
-  switchScreen('invoices');
-  if (typeof openInvoiceForm === 'function') openInvoiceForm();
-}
-
 // ─── i18n render pass ─────────────────────────────────────────────────
 function applyLang() {
   const lang = curLang();
@@ -1562,7 +1533,7 @@ function applyLang() {
   if (hintEl) hintEl.innerHTML = t('auth_hint');
   const submitBtn = document.getElementById('auth-submit');
   if (submitBtn) submitBtn.textContent = authMode === 'register' ? t('create_account') : t('login');
-  try { if (currentUser) { renderHome(); renderJobs(); applyUser(); } } catch(e) {}
+  try { if (currentUser) { renderHome(); applyUser(); } } catch(e) {}
 }
 
 // ─── UTILS ────────────────────────────────────────────────────────────
