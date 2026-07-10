@@ -449,7 +449,11 @@
       vat: tax.vat, wht: tax.wht, clientPays: tax.clientPays, youReceive: tax.youReceive,
       depositPct,
       status: document.getElementById('inv-status').value || 'draft',
-      promptpayId: (typeof settings !== 'undefined' && settings && settings.promptpayId) ? settings.promptpayId : '',
+      // Snapshot the whole payment-channels list at issue time (JSON
+      // round-trip = deep copy) so a later Settings change never rewrites
+      // what a client already saw on an issued invoice.
+      paymentChannels: (typeof settings !== 'undefined' && settings && Array.isArray(settings.paymentChannels))
+        ? JSON.parse(JSON.stringify(settings.paymentChannels)) : [],
       notes: document.getElementById('inv-notes').value.trim(),
       updatedAt: nowISO(),
     };
@@ -458,7 +462,7 @@
       if (isEdit) {
         base.id = editing.id;
         base.cuid = editing.cuid || cuid();
-        if (editing.promptpayId) base.promptpayId = editing.promptpayId; // preserve issue-time snapshot
+        if (editing.paymentChannels) base.paymentChannels = editing.paymentChannels; // preserve issue-time snapshot
         await dbPut(STORE, base);
         toast('Invoice updated');
       } else {
@@ -578,8 +582,8 @@
     document.body.appendChild(overlay);
     overlay.classList.add('open');
 
-    // PromptPay QR
-    renderPromptPayInto(document.getElementById('inv-qr-wrap'), inv);
+    // Payment channels (PromptPay QR + any bank/cash/other reference text)
+    renderPaymentChannelsInto(document.getElementById('inv-qr-wrap'), inv);
 
     overlay.querySelector('#inv-d-edit').addEventListener('click', () => { closeModal('inv-detail-modal'); openInvoiceEdit(inv); });
     overlay.querySelector('#inv-d-print').addEventListener('click', () => printInvoice(inv));
@@ -600,43 +604,64 @@
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  //  PromptPay: EMVCo payload + QR render
+  //  Payment channels: PromptPay EMVCo payload + QR render, plus plain
+  //  reference text for bank/cash/other channels (app.js owns the settings
+  //  CRUD for the saved channel list — PAYMENT_CHANNEL_TYPES/renderPaymentChannels()).
   // ══════════════════════════════════════════════════════════════════════
-  function renderPromptPayInto(wrap, inv) {
+  // Prefer the invoice's own issue-time snapshot; fall back to live settings
+  // for invoices saved before this feature existed, and further fall back to
+  // a synthesized single channel from the older single-field promptpayId.
+  function invoicePaymentChannels(inv) {
+    if (Array.isArray(inv.paymentChannels) && inv.paymentChannels.length) return inv.paymentChannels;
+    if (inv.promptpayId) return [{ id: 'legacy', type: 'promptpay', label: 'PromptPay', detail: inv.promptpayId }];
+    if (typeof settings !== 'undefined' && settings && Array.isArray(settings.paymentChannels)) return settings.paymentChannels;
+    return [];
+  }
+  function channelTypeLabel(type) {
+    return (typeof PAYMENT_CHANNEL_TYPES !== 'undefined' && PAYMENT_CHANNEL_TYPES[type]) ? PAYMENT_CHANNEL_TYPES[type].label : type;
+  }
+
+  function renderPaymentChannelsInto(wrap, inv) {
     if (!wrap) return;
-    const rawId = (typeof settings !== 'undefined' && settings && settings.promptpayId)
-      ? settings.promptpayId
-      : (inv.promptpayId || '');
-    const target = normalizePromptPay(rawId);
-    if (!target) {
+    const chans = invoicePaymentChannels(inv);
+    if (!chans.length) {
       wrap.innerHTML = `<div style="background:var(--marigold-tint);border-radius:var(--radius-sm);padding:14px;font-size:13px;color:var(--marigold-ink)">
-        Set your PromptPay ID (phone or 13-digit national ID) in <b>More → Settings</b> to show a scannable payment QR.</div>`;
+        Add a payment channel (PromptPay, bank transfer, etc.) in <b>More → Settings</b> to show clients how to pay.</div>`;
       return;
     }
     const amount = n(inv.clientPays);
-    let payload;
-    try {
-      payload = buildPromptPayPayload(target, amount);
-    } catch (e) {
-      wrap.innerHTML = `<div style="font-size:12px;color:var(--overdue)">Could not build PromptPay payload.</div>`;
-      return;
-    }
+    wrap.innerHTML = chans.map((c, i) => {
+      const gap = i < chans.length - 1 ? '10px' : '0';
+      if (c.type === 'promptpay') {
+        if (!normalizePromptPay(c.detail)) return '';
+        return `<div style="margin-bottom:${gap}">
+            <div style="display:inline-block;background:#fff;padding:14px;border-radius:14px;border:1px solid var(--border)">
+              <canvas id="inv-qr-canvas-${i}" style="display:block;image-rendering:pixelated"></canvas>
+            </div>
+            <div style="font-size:12px;color:var(--text3);margin-top:6px">Scan with any Thai banking app · ${esc(c.label || 'PromptPay')}</div>
+            <div class="tnum" style="font-size:16px;font-weight:800;color:var(--text);margin-top:2px">${esc(money2(amount))}</div>
+          </div>`;
+      }
+      return `<div style="text-align:left;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:${gap}">
+          <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.3px">${esc(c.label || channelTypeLabel(c.type))}</div>
+          ${c.detail ? `<div style="font-size:14px;color:var(--text);white-space:pre-wrap;margin-top:4px">${esc(c.detail)}</div>` : ''}
+        </div>`;
+    }).join('');
 
-    wrap.innerHTML = `
-      <div style="display:inline-block;background:#fff;padding:14px;border-radius:14px;border:1px solid var(--border)">
-        <canvas id="inv-qr-canvas" style="display:block;image-rendering:pixelated"></canvas>
-      </div>
-      <div style="font-size:12px;color:var(--text3);margin-top:6px">Scan with any Thai banking app · PromptPay</div>
-      <div class="tnum" style="font-size:16px;font-weight:800;color:var(--text);margin-top:2px">${esc(money2(amount))}</div>`;
-
-    try {
-      const modules = qrGenerate(payload, ECL_M);
-      drawQr(document.getElementById('inv-qr-canvas'), modules, 6, 4);
-    } catch (e) {
-      console.error('QR render failed', e);
-      const c = document.getElementById('inv-qr-canvas');
-      if (c) c.replaceWith(Object.assign(document.createElement('div'), { textContent: 'QR unavailable', style: 'font-size:12px;color:var(--overdue)' }));
-    }
+    chans.forEach((c, i) => {
+      if (c.type !== 'promptpay') return;
+      const target = normalizePromptPay(c.detail);
+      if (!target) return;
+      try {
+        const payload = buildPromptPayPayload(target, amount);
+        const modules = qrGenerate(payload, ECL_M);
+        drawQr(document.getElementById('inv-qr-canvas-' + i), modules, 6, 4);
+      } catch (e) {
+        console.error('QR render failed', e);
+        const el = document.getElementById('inv-qr-canvas-' + i);
+        if (el) el.replaceWith(Object.assign(document.createElement('div'), { textContent: 'QR unavailable', style: 'font-size:12px;color:var(--overdue)' }));
+      }
+    });
   }
 
   // Normalize a PromptPay proxy id → {tag, value}.
@@ -1052,6 +1077,41 @@
     }
   }
 
+  // The live detail view can draw straight onto a visible <canvas>; the print
+  // root is a detached/hidden DOM tree until window.print() fires, so the
+  // PromptPay QR is rendered onto an offscreen canvas first and embedded as a
+  // data-URI <img> instead — the only way to guarantee it survives into print.
+  function paymentChannelsPrintHtml(inv) {
+    const chans = invoicePaymentChannels(inv);
+    if (!chans.length) return '';
+    const amount = n(inv.clientPays);
+    const blocks = chans.map(c => {
+      if (c.type === 'promptpay') {
+        const target = normalizePromptPay(c.detail);
+        if (!target) return '';
+        let dataUrl = '';
+        try {
+          const payload = buildPromptPayPayload(target, amount);
+          const modules = qrGenerate(payload, ECL_M);
+          const canvas = document.createElement('canvas');
+          drawQr(canvas, modules, 6, 4);
+          dataUrl = canvas.toDataURL('image/png');
+        } catch (e) { console.error('print QR failed', e); return ''; }
+        if (!dataUrl) return '';
+        return `<div class="pi-pay-block">
+            <img src="${dataUrl}" style="width:120px;height:120px;display:block">
+            <div class="pi-muted" style="margin-top:4px">Scan with any Thai banking app · ${esc(c.label || 'PromptPay')}</div>
+          </div>`;
+      }
+      return `<div class="pi-pay-block">
+          <div style="font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.3px;color:#555">${esc(c.label || channelTypeLabel(c.type))}</div>
+          ${c.detail ? `<div style="white-space:pre-wrap;font-size:13px;margin-top:4px">${esc(c.detail)}</div>` : ''}
+        </div>`;
+    }).filter(Boolean).join('');
+    if (!blocks) return '';
+    return `<div class="pi-pay"><div class="pi-pay-title">Payment</div><div class="pi-pay-grid">${blocks}</div></div>`;
+  }
+
   // ══════════════════════════════════════════════════════════════════════
   //  PRINT / PDF  (print-optimized DOM + window.print(); scoped print CSS)
   // ══════════════════════════════════════════════════════════════════════
@@ -1106,6 +1166,10 @@
       #inv-print-root .pi-tot .grand{ font-weight:800; font-size:16px; border-top:2px solid #111; margin-top:4px; padding-top:6px; }
       #inv-print-root .pi-status{ display:inline-block; padding:3px 10px; border:1px solid #111; border-radius:6px; font-size:12px; text-transform:uppercase; }
       #inv-print-root .pi-notes{ margin-top:20px; font-size:12px; color:#555; }
+      #inv-print-root .pi-pay{ margin-top:18px; }
+      #inv-print-root .pi-pay-title{ font-weight:700; font-size:13px; margin-bottom:8px; }
+      #inv-print-root .pi-pay-grid{ display:flex; flex-wrap:wrap; gap:14px; }
+      #inv-print-root .pi-pay-block{ border:1px solid #ddd; border-radius:8px; padding:10px 12px; }
     `;
     document.head.appendChild(style);
 
@@ -1143,6 +1207,7 @@
           <div class="r"><span>You receive</span><span>${esc(money2(inv.youReceive))}</span></div>
           ${n(inv.depositPct) > 0 ? `<div class="r"><span>Deposit (${esc(fmt(n(inv.depositPct), 0))}%)</span><span>${esc(money2(deposit))}</span></div>` : ''}
         </div>
+        ${paymentChannelsPrintHtml(inv)}
         ${inv.notes ? `<div class="pi-notes">${esc(inv.notes)}</div>` : ''}
       </div>`;
     document.body.appendChild(root);

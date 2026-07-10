@@ -195,11 +195,14 @@
           <label class="settings-label" for="set-goal" data-i18n="daily_goal">Daily income goal</label>
           <input class="settings-input tnum" id="set-goal" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalChange(this.value)">
         </div>
-        <div class="settings-row">
-          <label class="settings-label" for="set-promptpay">PromptPay ID</label>
-          <input class="settings-input" id="set-promptpay" type="text" inputmode="tel" placeholder="Phone or Tax ID" onchange="onPromptPayChange(this.value)">
-        </div>
       </div>
+    </details>
+
+    <details class="settings-section" open>
+      <summary class="section-title">Payment channels</summary>
+      <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px">Add PromptPay, bank transfer, cash, or another method so clients know how to pay you. PromptPay shows a scannable QR on invoices; the rest show as reference text.</p>
+      <div id="payment-channels-list" style="margin:0 16px 10px"></div>
+      <button class="btn-submit" style="margin:0 16px 20px;width:calc(100% - 32px)" onclick="openAddPaymentChannel()">+ Add payment channel</button>
     </details>
 
     <details class="settings-section" open>
