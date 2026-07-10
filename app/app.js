@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.8.1';          // <-> sw.js SW_VERSION 'freelanz-v0.8.1'
+const APP_VERSION = '0.8.2';          // <-> sw.js SW_VERSION 'freelanz-v0.8.2'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -230,27 +230,30 @@ function curSym() { return CURRENCY_SYM[(settings && settings.currency) || 'THB'
 function unitWord() { return 'Session'; }
 
 // ─── ENGAGEMENT PIPELINE ────────────────────────────────────────────────
-// A session IS an engagement moving through ordered stages. Canonical stages:
-//   quote   → send a quote for a session/package (optional/toggleable)
-//   service → deliver the session itself (core)
-//   invoice → send the invoice (core)
-//   paid    → payment received (core)
-// This edition is single-persona (gym trainer), so unlike the general Freelanz
-// app there's no per-persona preset picker — just ONE default order, prepaid
-// (invoice → paid → service, i.e. charge before training someone), which the
-// user can still reorder/toggle-quote in Settings ▸ Workflow.
-const STAGES = ['quote', 'service', 'invoice', 'paid'];
+// A session IS an engagement moving through a fixed 6-stage lifecycle:
+//   pitch    → initial outreach to a prospective client
+//   quote    → send a price quote for a session/package
+//   invoice  → send the invoice
+//   paid     → payment received
+//   delivery → deliver the session(s) themselves
+//   extend   → offer a renewal/extension once delivered
+// All six are mandatory and always present (no optional/toggleable stage,
+// unlike the general Freelanz app's per-persona presets) — this fixed order
+// IS the business process for this edition. Still reorderable in Settings ▸
+// Workflow for personal preference, guarded so Paid can't precede Invoice.
+const STAGES = ['pitch', 'quote', 'invoice', 'paid', 'delivery', 'extend'];
 const STAGE_META = {
-  quote:   {label:'Quote',   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent'},
-  service: {label:'Session', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark session done', done:'Session done'},
-  invoice: {label:'Invoice', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent'},
-  paid:    {label:'Paid',    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid'},
+  pitch:    {label:'Pitch',    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'Log pitch',       done:'Pitched'},
+  quote:    {label:'Quote',    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent'},
+  invoice:  {label:'Invoice',  icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent'},
+  paid:     {label:'Paid',     icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid'},
+  delivery: {label:'Delivery', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark delivered',  done:'Delivered'},
+  extend:   {label:'Extend',   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'Mark extended',    done:'Extended'},
 };
-const CORE_STAGES = ['service', 'invoice', 'paid'];  // always present; only 'quote' is toggleable
-const DEFAULT_STAGE_ORDER = ['invoice', 'paid', 'service'];  // prepaid: charge, collect, then train
+const DEFAULT_STAGE_ORDER = STAGES.slice();
 function getStageOrder() {
   const s = settings && settings.stageOrder;
-  if (Array.isArray(s) && s.length && s.every(x => STAGES.includes(x)) && new Set(s).size === s.length && CORE_STAGES.every(c => s.includes(c))) {
+  if (Array.isArray(s) && s.length === STAGES.length && s.every(x => STAGES.includes(x)) && new Set(s).size === s.length) {
     return s.slice();
   }
   return DEFAULT_STAGE_ORDER.slice();
@@ -900,7 +903,7 @@ function pipelineAction(jobId) {
   } else if (stage === 'paid') {
     markJobPaid(jobId);
   } else {
-    advanceJobStage(jobId);   // 'service' (and any custom-first stage): just advance
+    advanceJobStage(jobId);   // 'pitch', 'delivery', 'extend': just advance, no linked record
   }
 }
 window.pipelineAction = pipelineAction;
@@ -1008,29 +1011,25 @@ window.onEngagementQuoteCreated = async function (docId, jobId) {
   renderPipeline();
 };
 
-// ─── WORKFLOW SETTINGS (reorder + quote toggle) ────────────────────────
-// Single-persona edition: no business-model preset picker (there's only ever
-// one persona), just manual reorder + an optional Quote stage.
+// ─── WORKFLOW SETTINGS (reorder only) ───────────────────────────────────
+// All 6 stages are mandatory and always present, so this is just a reorder
+// list — no add/remove toggle (there's no optional stage anymore).
 function renderWorkflowControls() {
   const wrap = document.getElementById('workflow-body');
   if (!wrap) return;
   const order = getStageOrder();
   const rows = order.map((stage, i) => {
     const meta = STAGE_META[stage] || {};
-    const isQuote = stage === 'quote';
     return `<div class="wf-row">
       <span class="wf-ico">${meta.icon || ''}</span>
       <span class="wf-name">${htmlEsc(meta.label || stage)}</span>
       <span class="wf-btns">
         <button type="button" class="wf-move" aria-label="Move ${htmlEsc(meta.label || stage)} up" ${i === 0 ? 'disabled' : ''} onclick="wfMove(${i},-1)">↑</button>
         <button type="button" class="wf-move" aria-label="Move ${htmlEsc(meta.label || stage)} down" ${i === order.length - 1 ? 'disabled' : ''} onclick="wfMove(${i},1)">↓</button>
-        ${isQuote ? `<button type="button" class="wf-move wf-rm" aria-label="Remove Quote stage" onclick="wfToggleQuote()">×</button>` : ''}
       </span>
     </div>`;
   }).join('');
-  const quoteOff = !order.includes('quote');
-  wrap.innerHTML = `<div class="wf-list">${rows}</div>` +
-    (quoteOff ? `<button type="button" class="wf-add" onclick="wfToggleQuote()">＋ Add Quote stage</button>` : '');
+  wrap.innerHTML = `<div class="wf-list">${rows}</div>`;
 }
 window.renderWorkflowControls = renderWorkflowControls;
 
@@ -1039,7 +1038,7 @@ async function wfMove(i, delta) {
   const j = i + delta;
   if (j < 0 || j >= order.length) return;
   const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
-  // 'paid' must never precede 'invoice' (both are core stages, always present).
+  // 'paid' must never precede 'invoice'.
   if (order.indexOf('paid') < order.indexOf('invoice')) {
     toast('Payment must come after the invoice');
     return;   // revert: order is a local copy, nothing saved
@@ -1049,16 +1048,6 @@ async function wfMove(i, delta) {
   renderPipeline();
 }
 window.wfMove = wfMove;
-
-async function wfToggleQuote() {
-  let order = getStageOrder();
-  if (order.includes('quote')) order = order.filter(s => s !== 'quote');
-  else order = ['quote', ...order];   // add quote at the front by default
-  await saveSetting('stageOrder', order);
-  renderWorkflowControls();
-  renderPipeline();
-}
-window.wfToggleQuote = wfToggleQuote;
 
 // ─── CUSTOMERS (records only — history/stats are BACKLOG) ──────────────
 // Gym trainer intake fields shown on every customer form.
