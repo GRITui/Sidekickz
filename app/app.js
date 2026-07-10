@@ -244,13 +244,17 @@ function unitWord() { return 'Session'; }
 // IS the business process for this edition. Still reorderable in Settings ▸
 // Workflow for personal preference, guarded so Paid can't precede Invoice.
 const STAGES = ['pitch', 'quote', 'invoice', 'paid', 'delivery', 'extend'];
+// dot: a distinct per-stage color used by the Booking calendar's activity
+// legend (bookings.js) to show which stage(s) a day's engagements are in —
+// chosen to read clearly at a few px each, separate from the semantically-
+// loaded --paid/--due/--overdue vars used elsewhere for invoice status.
 const STAGE_META = {
-  pitch:    {label:'Pitch',    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'Log pitch',       done:'Pitched'},
-  quote:    {label:'Quote',    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent', skippable:true},
-  invoice:  {label:'Invoice',  icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent', skippable:true},
-  paid:     {label:'Paid',     icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid'},
-  delivery: {label:'Delivery', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark delivered',  done:'Delivered'},
-  extend:   {label:'Extend',   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'Mark extended',    done:'Extended'},
+  pitch:    {label:'Pitch',    dot:'#64748B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'Log pitch',       done:'Pitched'},
+  quote:    {label:'Quote',    dot:'#8B5CF6', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent', skippable:true},
+  invoice:  {label:'Invoice',  dot:'#F59E0B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent', skippable:true},
+  paid:     {label:'Paid',     dot:'#2F9E5B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid'},
+  delivery: {label:'Delivery', dot:'#0F766E', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark delivered',  done:'Delivered'},
+  extend:   {label:'Extend',   dot:'#0EA5E9', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'Mark extended',    done:'Extended'},
 };
 const DEFAULT_STAGE_ORDER = STAGES.slice();
 function getStageOrder() {
@@ -453,12 +457,21 @@ async function enterApp() {
   set('set-goal', settings.dailyGoal || '');
   set('set-wht', settings.wht != null ? settings.wht : '');
   set('set-vat', settings.vat != null ? settings.vat : '');
-  set('set-promptpay', settings.promptpayId || '');
   set('set-seller-name', settings.sellerBusinessName || '');
   set('set-seller-taxid', settings.sellerTaxId || '');
   set('set-seller-address', settings.sellerAddress || '');
   const notifCheckbox = document.getElementById('set-notifications');
   if (notifCheckbox) notifCheckbox.checked = !!(settings.notificationsEnabled && typeof Notification !== 'undefined' && Notification.permission === 'granted');
+
+  // One-time migration: the old single "PromptPay ID" field becomes the
+  // first entry in the new payment-channels list, if it was ever set.
+  if (!Array.isArray(settings.paymentChannels)) {
+    const migrated = settings.promptpayId
+      ? [{ id: cuid(), type: 'promptpay', label: 'PromptPay', detail: settings.promptpayId }]
+      : [];
+    await saveSetting('paymentChannels', migrated);
+  }
+  renderPaymentChannels();
 
   // Personal Gym Trainer edition: single fixed work type, no onboarding picker.
   if (!settings.workType) await saveSetting('workType', 'gym');
@@ -1609,7 +1622,127 @@ async function onCurrencyChange(v) { await saveSetting('currency', v); applyLang
 async function onGoalChange(v) { const n = parseFloat(v); await saveSetting('dailyGoal', isNaN(n)?0:n); renderGoal(); }
 async function onWhtChange(v) { const n = parseFloat(v); await saveSetting('wht', isNaN(n)?null:n); }
 async function onVatChange(v) { const n = parseFloat(v); await saveSetting('vat', isNaN(n)?null:n); }
-async function onPromptPayChange(v) { await saveSetting('promptpayId', (v||'').trim()); }
+// ─── PAYMENT CHANNELS (Settings) ──────────────────────────────────────
+// Generalizes the old single "PromptPay ID" field into a saved list of
+// payment methods — only 'promptpay' ever renders a scannable QR
+// (invoices.js); the rest are shown to clients as plain reference text.
+// Legacy single-field installs are migrated once in enterApp().
+const PAYMENT_CHANNEL_TYPES = {
+  promptpay: { label: 'PromptPay', detailLabel: 'PromptPay ID', ph: 'Phone or 13-digit national ID' },
+  bank:      { label: 'Bank transfer', detailLabel: 'Account details', ph: 'Bank name, account number, account name' },
+  cash:      { label: 'Cash', detailLabel: 'Note (optional)', ph: 'e.g. Pay in cash at the session' },
+  other:     { label: 'Other', detailLabel: 'Instructions', ph: 'Payment instructions' },
+};
+const PAYMENT_CHANNEL_ICONS = {
+  promptpay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M15 15h2.5v2.5H15zM19.5 15V19M15 19.5h2M19.5 19.5h1.5"/></svg>',
+  bank:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em"><path d="M3 10l9-7 9 7"/><path d="M4 10v10M20 10v10M9 10v10M15 10v10"/><path d="M2 20h20"/></svg>',
+  cash:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 9h.01M18 15h.01"/></svg>',
+  other:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em"><path d="M20.6 13.4L11 3.8A2 2 0 0 0 9.5 3H4a1 1 0 0 0-1 1v5.5c0 .5.2 1 .6 1.4l9.6 9.6a2 2 0 0 0 2.8 0l4.4-4.4a2 2 0 0 0 .2-2.7z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>',
+};
+let editingPaymentChannelId = null;
+
+function paymentChannels() { return Array.isArray(settings.paymentChannels) ? settings.paymentChannels : []; }
+
+function renderPaymentChannels() {
+  const wrap = document.getElementById('payment-channels-list');
+  if (!wrap) return;
+  const chans = paymentChannels();
+  if (!chans.length) {
+    wrap.innerHTML = `<div class="empty" style="padding:20px 12px">
+        <p style="font-size:13px;font-weight:700">No payment channels yet</p>
+        <span style="font-size:12px">Add PromptPay, bank transfer, cash, or another method so clients know how to pay you.</span>
+      </div>`;
+    return;
+  }
+  wrap.innerHTML = '<div class="list-card">' + chans.map(c => {
+    const meta = PAYMENT_CHANNEL_TYPES[c.type] || PAYMENT_CHANNEL_TYPES.other;
+    return `<div class="list-row" onclick="openEditPaymentChannel('${c.id}')">
+        <div class="list-icon">${PAYMENT_CHANNEL_ICONS[c.type] || PAYMENT_CHANNEL_ICONS.other}</div>
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(c.label || meta.label)}</div>
+          <div class="list-sub">${htmlEsc(c.detail || '—')}</div>
+        </div>
+      </div>`;
+  }).join('') + '</div>';
+}
+
+function openAddPaymentChannel() {
+  editingPaymentChannelId = null;
+  buildPaymentChannelModal({ type: 'promptpay', label: '', detail: '' }, false);
+}
+function openEditPaymentChannel(id) {
+  const c = paymentChannels().find(x => x.id === id);
+  if (!c) return;
+  editingPaymentChannelId = id;
+  buildPaymentChannelModal(c, true);
+}
+function buildPaymentChannelModal(v, isEdit) {
+  closePaymentChannelModal();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'modal-paychannel';
+  const typeOpts = Object.keys(PAYMENT_CHANNEL_TYPES).map(k =>
+    `<option value="${k}"${k === v.type ? ' selected' : ''}>${htmlEsc(PAYMENT_CHANNEL_TYPES[k].label)}</option>`).join('');
+  const meta = PAYMENT_CHANNEL_TYPES[v.type] || PAYMENT_CHANNEL_TYPES.promptpay;
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal-handle"></div>
+      <div class="modal-title">${isEdit ? 'Edit payment channel' : 'Add payment channel'}</div>
+      <div class="form-section">
+        <div class="field"><label for="pc-type">Type</label>
+          <select id="pc-type" onchange="onPaymentChannelTypeChange(this.value)">${typeOpts}</select>
+        </div>
+        <div class="field"><label for="pc-label">Label</label>
+          <input type="text" id="pc-label" value="${attrEsc(v.label || '')}" placeholder="${attrEsc(meta.label)}"></div>
+        <div class="field"><label for="pc-detail" id="pc-detail-label">${htmlEsc(meta.detailLabel)}</label>
+          <input type="text" id="pc-detail" value="${attrEsc(v.detail || '')}" placeholder="${attrEsc(meta.ph)}"></div>
+      </div>
+      <button class="btn-submit" onclick="savePaymentChannel()">Save channel</button>
+      ${isEdit ? `<button class="btn-danger" onclick="deletePaymentChannel()">Delete channel</button>` : ''}
+      <button class="btn-danger" style="border-color:var(--border-mid);color:var(--text3)" onclick="closePaymentChannelModal()">Cancel</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.classList.add('open');
+}
+function onPaymentChannelTypeChange(type) {
+  const meta = PAYMENT_CHANNEL_TYPES[type] || PAYMENT_CHANNEL_TYPES.other;
+  const labelInput = document.getElementById('pc-label');
+  const detailInput = document.getElementById('pc-detail');
+  const detailLabelEl = document.getElementById('pc-detail-label');
+  if (labelInput) labelInput.placeholder = meta.label;
+  if (detailInput) detailInput.placeholder = meta.ph;
+  if (detailLabelEl) detailLabelEl.textContent = meta.detailLabel;
+}
+async function savePaymentChannel() {
+  const type = document.getElementById('pc-type').value;
+  const meta = PAYMENT_CHANNEL_TYPES[type] || PAYMENT_CHANNEL_TYPES.other;
+  const label = document.getElementById('pc-label').value.trim() || meta.label;
+  const detail = document.getElementById('pc-detail').value.trim();
+  const chans = paymentChannels().slice();
+  if (editingPaymentChannelId) {
+    const idx = chans.findIndex(c => c.id === editingPaymentChannelId);
+    if (idx >= 0) chans[idx] = { ...chans[idx], type, label, detail };
+  } else {
+    chans.push({ id: cuid(), type, label, detail });
+  }
+  await saveSetting('paymentChannels', chans);
+  closePaymentChannelModal();
+  renderPaymentChannels();
+  toast('Payment channel saved');
+}
+async function deletePaymentChannel() {
+  if (!editingPaymentChannelId) return;
+  const chans = paymentChannels().filter(c => c.id !== editingPaymentChannelId);
+  await saveSetting('paymentChannels', chans);
+  closePaymentChannelModal();
+  renderPaymentChannels();
+  toast('Payment channel deleted');
+}
+function closePaymentChannelModal() {
+  const el = document.getElementById('modal-paychannel');
+  if (el) el.remove();
+}
+
 async function onSellerBusinessNameChange(v) { await saveSetting('sellerBusinessName', (v||'').trim()); }
 async function onSellerTaxIdChange(v) { await saveSetting('sellerTaxId', (v||'').trim()); }
 async function onSellerAddressChange(v) { await saveSetting('sellerAddress', (v||'').trim()); }
