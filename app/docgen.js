@@ -246,6 +246,8 @@ function openGenerateForm(type, rec) {
   ensureDocgenUI();
   dgCurrentType = type;
   dgEditId = rec ? rec.id : null;
+  // Clear any stale pipeline linkage; openQuoteForJob (app.js) re-sets it after this call.
+  window.__pendingQuoteJobId = null;
   dgLastPreviewHtml = '';
   dgClearErrors();
 
@@ -583,8 +585,17 @@ async function saveDocumentFromForm() {
       toast('Document updated.');
     } else {
       rec.cuid = cuid();
-      await dbAdd('documents', rec);
+      const newId = await dbAdd('documents', rec);
+      rec.id = newId;
       toast('Document saved.');
+      // Engagement linking: a quote saved from the pipeline links back to its
+      // session and advances the stage. Any other save leaves __pendingQuoteJobId unset.
+      const pipelineJobId = (rec.type === 'quote' && window.__pendingQuoteJobId != null)
+        ? window.__pendingQuoteJobId : null;
+      if (pipelineJobId != null && typeof window.onEngagementQuoteCreated === 'function') {
+        try { window.onEngagementQuoteCreated(newId, pipelineJobId); } catch (e) { /* non-fatal */ }
+      }
+      window.__pendingQuoteJobId = null;
     }
     closeDgModal();
     renderDocgen();
