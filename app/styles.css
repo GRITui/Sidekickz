@@ -97,16 +97,18 @@ body.authed .nav{display:flex;}
 .goal-fill.reached{background:var(--paid);}
 .goal-sub{margin-top:8px;font-size:12px;color:var(--text3);}
 
-/* Pipeline at a glance (home) */
-.pg-row{display:flex;gap:8px;overflow-x:auto;margin:0 16px 18px;padding-bottom:2px;-webkit-overflow-scrolling:touch;}
-.pg-pill{display:flex;align-items:center;gap:7px;flex-shrink:0;padding:10px 13px;border-radius:999px;
+/* Pipeline at a glance (home) — a fixed grid, never a scroller: every stage is
+   visible at once (no horizontal swipe to discover a hidden column). */
+.pg-row{display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin:0 16px 18px;}
+.pg-pill{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;padding:9px 10px;border-radius:11px;
   border:0.5px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;
-  font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  font-size:12.5px;font-weight:700;cursor:pointer;}
 .pg-pill:active{background:var(--bg);}
-.pg-ico{width:16px;height:16px;display:flex;align-items:center;justify-content:center;color:var(--brand);flex-shrink:0;}
-.pg-label{color:var(--text2);}
-.pg-count{background:var(--brand-tint);color:var(--brand);border-radius:999px;min-width:20px;height:20px;
-  padding:0 6px;display:flex;align-items:center;justify-content:center;font-size:12px;}
+.pg-pill-main{display:flex;align-items:center;gap:5px;min-width:0;overflow:hidden;}
+.pg-ico{width:15px;height:15px;display:flex;align-items:center;justify-content:center;color:var(--brand);flex-shrink:0;}
+.pg-label{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pg-count{background:var(--brand-tint);color:var(--brand);border-radius:999px;min-width:18px;height:18px;flex-shrink:0;
+  padding:0 5px;display:flex;align-items:center;justify-content:center;font-size:11px;}
 
 /* Stat grid */
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 16px 18px;}
@@ -161,13 +163,26 @@ body.authed .nav{display:flex;}
   background:none;color:var(--brand);font-weight:700;font-size:13px;font-family:inherit;cursor:pointer;}
 .wf-add:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
 
-/* Pipeline Kanban board */
-.kanban{display:flex;gap:12px;overflow-x:auto;padding:2px 2px 10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;}
-.kb-col{flex:0 0 84%;max-width:340px;scroll-snap-align:start;background:var(--bg);border:1px solid var(--border);border-radius:16px;padding:10px;display:flex;flex-direction:column;min-height:110px;}
-.kb-col-head{display:flex;align-items:center;gap:8px;padding:4px 4px 10px;font-size:13px;font-weight:800;color:var(--text);}
-.kb-col-head .kb-ico{font-size:15px;}
-.kb-col-head .kb-count{margin-left:auto;font-size:11px;font-weight:800;color:var(--text3);background:var(--border);border-radius:10px;min-width:20px;height:19px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;}
-.kb-col-body{display:flex;flex-direction:column;gap:9px;flex:1;}
+/* Pipeline: a left-hand stage rail + a single-column list for just the active
+   stage. A 6-column horizontal-scroll board reads as "too long" on mobile —
+   this shows all 6 stages at a glance in the rail, but only ever renders one
+   stage's cards at a time (tap a rail item to switch), so there's nothing to
+   horizontally swipe through. */
+.pl-layout{display:flex;gap:10px;align-items:flex-start;}
+.pl-rail{flex:0 0 74px;display:flex;flex-direction:column;gap:6px;}
+.pl-rail-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 3px;border-radius:12px;
+  border:1px solid var(--border);background:var(--card);color:var(--text3);cursor:pointer;font-family:inherit;width:100%;}
+.pl-rail-item.active{background:var(--brand-tint);border-color:var(--brand);color:var(--brand);}
+.pl-rail-ico{width:17px;height:17px;display:flex;align-items:center;justify-content:center;}
+.pl-rail-label{font-size:9.5px;font-weight:800;text-align:center;line-height:1.15;}
+.pl-rail-count{font-size:10px;font-weight:800;background:var(--border);color:var(--text3);border-radius:8px;min-width:16px;height:15px;
+  display:inline-flex;align-items:center;justify-content:center;padding:0 4px;}
+.pl-rail-item.active .pl-rail-count{background:var(--brand);color:#fff;}
+.pl-main{flex:1;min-width:0;}
+.pl-main-head{display:flex;align-items:center;gap:8px;padding:6px 2px 12px;font-size:15px;font-weight:800;color:var(--text);}
+.pl-main-head .pl-rail-ico{width:18px;height:18px;color:var(--brand);}
+.pl-main-head .kb-count{margin-left:auto;font-size:11px;font-weight:800;color:var(--text3);background:var(--border);border-radius:10px;min-width:20px;height:19px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;}
+.pl-main-body{display:flex;flex-direction:column;gap:9px;}
 .kb-empty{font-size:12px;color:var(--text3);padding:16px 10px;border:1px dashed var(--border);border-radius:12px;text-align:center;}
 .kb-card{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:11px 12px;cursor:pointer;box-shadow:0 1px 2px rgba(16,24,40,.05);transition:box-shadow .15s,transform .12s;}
 .kb-card:hover{box-shadow:0 4px 12px rgba(16,24,40,.10);}
@@ -190,8 +205,6 @@ body.authed .nav{display:flex;}
 @media (prefers-reduced-motion:reduce){.kb-card.kb-enter{animation:none;}}
 @media (min-width:900px){
   #s-pipeline .content{max-width:1000px;}
-  .kanban{overflow-x:visible;scroll-snap-type:none;}
-  .kb-col{flex:1 1 0;max-width:none;}
 }
 
 /* Chips */

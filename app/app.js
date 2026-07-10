@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.8.7';          // <-> sw.js SW_VERSION 'freelanz-v0.8.7'
+const APP_VERSION = '0.8.8';          // <-> sw.js SW_VERSION 'freelanz-v0.8.8'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -711,9 +711,11 @@ function renderPipelineGlance() {
   wrap.innerHTML = order.map(stage => {
     const meta = STAGE_META[stage] || {};
     const n = counts[stage] || 0;
-    return `<button type="button" class="pg-pill" onclick="switchScreen('pipeline')">
-      <span class="pg-ico">${meta.icon || ''}</span>
-      <span class="pg-label">${htmlEsc(meta.label || stage)}</span>
+    return `<button type="button" class="pg-pill" onclick="openPipelineAt('${stage}')">
+      <span class="pg-pill-main">
+        <span class="pg-ico">${meta.icon || ''}</span>
+        <span class="pg-label">${htmlEsc(meta.label || stage)}</span>
+      </span>
       <span class="pg-count">${n}</span>
     </button>`;
   }).join('');
@@ -906,31 +908,61 @@ async function deleteJob() {
 }
 
 // ─── PIPELINE BOARD (primary engagement view) ──────────────────────────
+// A left-hand rail lists all 6 stages (icon + label + count); the main area
+// renders only the currently-selected ("active") stage's cards — never all
+// six at once — so there's no horizontal board to scroll through.
+let _pipelineActiveStage = null;
+function selectPipelineStage(stage) {
+  _pipelineActiveStage = stage;
+  renderPipeline();
+}
+window.selectPipelineStage = selectPipelineStage;
+// Jump straight into Pipeline pre-focused on a given stage (used by Home's
+// Pipeline-at-a-glance pills).
+function openPipelineAt(stage) {
+  _pipelineActiveStage = stage;
+  switchScreen('pipeline');
+}
+window.openPipelineAt = openPipelineAt;
 function renderPipeline() {
   const el = document.getElementById('pipeline-body');
   if (!el) return;
   const order = getStageOrder();
   const groups = {}; order.forEach(s => groups[s] = []);
-  // Group each session under its own stage NAME within the board's current
-  // columns. A session whose stage isn't a current column lands under the first.
+  // Group each session under its own stage NAME. A session whose stage isn't
+  // a current stage (e.g. after a Settings reorder) lands under the first.
   jobs.forEach(j => { let s = jobStage(j); if (!groups[s]) s = order[0]; groups[s].push(j); });
 
-  let h = '<div class="kanban" role="list" aria-label="Engagement pipeline">';
-  order.forEach(stage => {
+  if (!_pipelineActiveStage || !order.includes(_pipelineActiveStage)) _pipelineActiveStage = order[0];
+  const activeStage = _pipelineActiveStage;
+  const activeMeta = STAGE_META[activeStage] || {};
+  const activeItems = groups[activeStage] || [];
+
+  const rail = order.map(stage => {
     const meta = STAGE_META[stage] || {};
-    const items = groups[stage] || [];
-    h += `<div class="kb-col" role="listitem" aria-label="${attrEsc(meta.label || stage)}">
-      <div class="kb-col-head"><span class="kb-ico">${meta.icon || ''}</span>
-        <span class="kb-col-title">${htmlEsc(meta.label || stage)}</span>
-        <span class="kb-count">${items.length}</span></div>
-      <div class="kb-col-body">`;
-    h += items.length
-      ? items.map(j => pipelineCard(j, stage)).join('')
-      : '<div class="kb-empty">Nothing here yet</div>';
-    h += '</div></div>';
-  });
-  h += '</div>';
-  el.innerHTML = h;
+    const isActive = stage === activeStage;
+    return `<button type="button" class="pl-rail-item${isActive ? ' active' : ''}" onclick="selectPipelineStage('${stage}')" aria-current="${isActive ? 'true' : 'false'}">
+      <span class="pl-rail-ico">${meta.icon || ''}</span>
+      <span class="pl-rail-label">${htmlEsc(meta.label || stage)}</span>
+      <span class="pl-rail-count">${(groups[stage] || []).length}</span>
+    </button>`;
+  }).join('');
+
+  const list = activeItems.length
+    ? activeItems.map(j => pipelineCard(j, activeStage)).join('')
+    : '<div class="kb-empty">Nothing here yet</div>';
+
+  el.innerHTML = `<div class="pl-layout">
+    <div class="pl-rail" role="tablist" aria-label="Pipeline stages">${rail}</div>
+    <div class="pl-main">
+      <div class="pl-main-head">
+        <span class="pl-rail-ico">${activeMeta.icon || ''}</span>
+        <span>${htmlEsc(activeMeta.label || activeStage)}</span>
+        <span class="kb-count">${activeItems.length}</span>
+      </div>
+      <div class="pl-main-body">${list}</div>
+    </div>
+  </div>`;
   if (window.__kbMoved != null) setTimeout(() => { window.__kbMoved = null; }, 500);
 }
 window.renderPipeline = renderPipeline;
@@ -1005,6 +1037,7 @@ async function advanceJobStage(jobId) {
   else { j.stage = order[idx + 1]; j.complete = false; }
   j.updatedAt = nowISO();
   logEvent('pipeline_stage:' + (j.complete ? (j.outcome || 'done') : j.stage));
+  _pipelineActiveStage = j.stage;   // rail follows the card to wherever it just landed
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
   await reload();
@@ -1034,6 +1067,7 @@ async function finishJobStage(jobId) {
   j.outcome = 'finished';
   j.updatedAt = nowISO();
   logEvent('pipeline_stage:finished');
+  _pipelineActiveStage = j.stage;
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
   await reload();
@@ -1052,6 +1086,7 @@ async function moveJobStageBack(jobId) {
   j.complete = false;
   j.outcome = null;   // stepping back out of a completed engagement clears its extended/finished outcome
   j.updatedAt = nowISO();
+  _pipelineActiveStage = j.stage;   // rail follows the card back
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
   await reload();
@@ -1074,6 +1109,7 @@ async function markJobPaid(jobId) {
   else { j.stage = order[idx + 1]; j.complete = false; }
   j.updatedAt = nowISO();
   logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
+  _pipelineActiveStage = j.stage;
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
@@ -1110,6 +1146,7 @@ window.onEngagementInvoiceCreated = async function (invoiceId, jobId) {
   else if (idx >= order.length - 1) { j.complete = true; }
   j.updatedAt = nowISO();
   logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
+  _pipelineActiveStage = j.stage;
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
@@ -1128,6 +1165,7 @@ window.onEngagementQuoteCreated = async function (docId, jobId) {
   else if (idx >= order.length - 1) { j.complete = true; }
   j.updatedAt = nowISO();
   logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
+  _pipelineActiveStage = j.stage;
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
@@ -1190,6 +1228,24 @@ function nextMemberNo() {
     }
   });
   return prefix + String(max + 1).padStart(4, '0');
+}
+// Shared year-scoped running document number (e.g. "INV-2026-0001",
+// "QUO-2026-0001", "REC-2026-0001") — one implementation reused by every
+// referable document type (invoices.js's own invoice numbering, and
+// docgen.js's quote/receipt numbering) so they all behave identically and
+// reset together each calendar year. `rows` should already be filtered to
+// just the document type being numbered (so each type gets its own sequence).
+function nextDocNumber(rows, prefix) {
+  const year = todayISO().slice(0, 4);
+  const p = `${prefix}-${year}-`;
+  let max = 0;
+  rows.forEach(r => {
+    if (typeof r.number === 'string' && r.number.indexOf(p) === 0) {
+      const seq = parseInt(r.number.slice(p.length), 10);
+      if (isFinite(seq) && seq > max) max = seq;
+    }
+  });
+  return p + String(max + 1).padStart(4, '0');
 }
 // One-time backfill for customers saved before this feature existed — assigns
 // each a permanent Member ID in creation order so the whole list is covered

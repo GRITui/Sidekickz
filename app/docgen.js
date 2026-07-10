@@ -17,14 +17,18 @@
 'use strict';
 
 // ─── module state ──────────────────────────────────────────────────────
-let dgCurrentType = null;   // 'contract' | 'nda' | 'quote'
+let dgCurrentType = null;   // 'contract' | 'nda' | 'quote' | 'receipt'
 let dgEditId = null;        // documents row id being edited, or null = create
 let dgQuoteItems = [];      // [{description, qty, unitPrice}] while editing a quote
 let dgTitleAuto = true;     // true while the title field still tracks the auto default
 let dgLastPreviewHtml = '';
 
-const DG_TYPE_LABEL = { contract: 'Contract', nda: 'NDA', quote: 'Quote' };
-const DG_TYPE_ICON  = { contract: '📄', nda: '🔒', quote: '💬' };
+const DG_TYPE_LABEL = { contract: 'Contract', nda: 'NDA', quote: 'Quote', receipt: 'Receipt' };
+const DG_TYPE_ICON  = { contract: '📄', nda: '🔒', quote: '💬', receipt: '🧾' };
+// Referable running numbers (shared nextDocNumber() from app.js, same scheme
+// as invoices.js's own "INV-2026-0001" numbers) — contract/nda don't get one,
+// they aren't the kind of document a client would need to "reference" later.
+const DG_NUMBER_PREFIX = { quote: 'QUO', receipt: 'REC' };
 
 // ─── entry point ────────────────────────────────────────────────────────
 function renderDocgen() {
@@ -49,10 +53,11 @@ function dgListHTML(docs) {
     + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'contract\')"><span class="dg-tpl-ico">📄</span><span class="dg-tpl-name">Contract</span></button>'
     + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'nda\')"><span class="dg-tpl-ico">🔒</span><span class="dg-tpl-name">NDA</span></button>'
     + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'quote\')"><span class="dg-tpl-ico">💬</span><span class="dg-tpl-name">Quote</span></button>'
+    + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'receipt\')"><span class="dg-tpl-ico">🧾</span><span class="dg-tpl-name">Receipt</span></button>'
     + '</div>';
   h += '<div class="section-title">Saved documents</div>';
   if (!docs.length) {
-    h += '<div class="empty"><div class="empty-icon">🗂️</div><p>No documents yet</p><span>Generate a contract, NDA, or quote above.</span></div>';
+    h += '<div class="empty"><div class="empty-icon">🗂️</div><p>No documents yet</p><span>Generate a contract, NDA, quote, or receipt above.</span></div>';
   } else {
     h += '<div class="list-card">' + docs.map(dgRowHTML).join('') + '</div>';
   }
@@ -62,7 +67,8 @@ function dgListHTML(docs) {
 function dgRowHTML(d) {
   const ico = DG_TYPE_ICON[d.type] || '📄';
   const label = DG_TYPE_LABEL[d.type] || d.type;
-  const sub = (d.clientName ? htmlEsc(d.clientName) : 'No client') + ' · ' + htmlEsc(d.issueDate || '');
+  const sub = (d.number ? htmlEsc(d.number) + ' · ' : '')
+    + (d.clientName ? htmlEsc(d.clientName) : 'No client') + ' · ' + htmlEsc(d.issueDate || '');
   const invoicedChip = (d.type === 'quote' && d.fields && d.fields.convertedToInvoice)
     ? '<span class="dg-chip" style="background:var(--brand);color:#fff;margin-left:4px">✓ Invoiced</span>' : '';
   return '<div class="list-row" tabindex="0" role="button" onclick="viewDocument(' + d.id + ')"'
@@ -81,7 +87,7 @@ function ensureDocgenUI() {
   const st = document.createElement('style');
   st.id = 'dg-style';
   st.textContent = `
-    .dg-tpl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 0 20px;}
+    .dg-tpl-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:0 0 20px;}
     .dg-tpl-btn{display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 10px;
       border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--card);
       cursor:pointer;font-family:inherit;}
@@ -151,6 +157,11 @@ function dgGenerateModalHTML() {
       <div class="modal-handle"></div>
       <div class="modal-title" id="dg-modal-title">New document</div>
 
+      <div class="form-section" id="dg-number-row" style="display:none">
+        <div class="field"><label for="dg-number">Reference no.</label>
+          <input type="text" id="dg-number" readonly disabled style="color:var(--text3)"></div>
+      </div>
+
       <div class="form-section">
         <div class="field">
           <label for="dg-client">Customer</label>
@@ -214,6 +225,21 @@ function dgGenerateModalHTML() {
           <textarea id="dg-q-notes" rows="2" placeholder="Anything else the client should know…"></textarea></div>
       </div>
 
+      <div class="form-section" id="dg-fields-receipt">
+        <div class="form-header">Receipt details</div>
+        <div class="form-row">
+          <div class="field-half"><label for="dg-r-amount">Amount received</label>
+            <input type="number" id="dg-r-amount" class="tnum" min="0" step="any" inputmode="decimal" placeholder="0"></div>
+          <div class="field-half"><label for="dg-r-date">Payment date</label><input type="date" id="dg-r-date"></div>
+        </div>
+        <div class="field"><label for="dg-r-method">Payment method</label>
+          <input type="text" id="dg-r-method" placeholder="e.g. Cash, bank transfer, PromptPay"></div>
+        <div class="field"><label for="dg-r-ref">Reference (optional)</label>
+          <input type="text" id="dg-r-ref" placeholder="e.g. the invoice number this pays off"></div>
+        <div class="field"><label for="dg-r-notes">Notes (optional)</label>
+          <textarea id="dg-r-notes" rows="2" placeholder="Anything else to include…"></textarea></div>
+      </div>
+
       <div class="dg-preview-wrap" id="dg-preview-wrap" style="display:none"></div>
 
       <button type="button" class="dg-btn-secondary" style="margin:0 16px 10px;width:calc(100% - 32px)" onclick="previewCurrentForm()">Preview document</button>
@@ -257,7 +283,7 @@ function openGenerateForm(type, rec) {
 
   document.getElementById('dg-modal-title').textContent = (rec ? 'Edit ' : 'New ') + DG_TYPE_LABEL[type];
 
-  ['contract', 'nda', 'quote'].forEach(t => {
+  ['contract', 'nda', 'quote', 'receipt'].forEach(t => {
     const grp = document.getElementById('dg-fields-' + t);
     if (grp) grp.style.display = (t === type) ? '' : 'none';
   });
@@ -267,6 +293,11 @@ function openGenerateForm(type, rec) {
   if (addBtn) addBtn.style.display = (type === 'quote') ? '' : 'none';
   if (totalWrap) totalWrap.style.display = (type === 'quote') ? '' : 'none';
   if (notesWrap) notesWrap.style.display = (type === 'quote') ? '' : 'none';
+
+  // Reference number: read-only, only shown for the types that get one.
+  const numberRow = document.getElementById('dg-number-row');
+  if (numberRow) numberRow.style.display = DG_NUMBER_PREFIX[type] ? '' : 'none';
+  setVal('dg-number', DG_NUMBER_PREFIX[type] ? ((rec && rec.number) || 'assigned on save') : '');
 
   const f = (rec && rec.fields) || {};
 
@@ -298,6 +329,12 @@ function openGenerateForm(type, rec) {
       ? f.lineItems.map(li => ({ description: li.description || '', qty: li.qty != null ? li.qty : 1, unitPrice: li.unitPrice != null ? li.unitPrice : 0 }))
       : [{ description: '', qty: 1, unitPrice: 0 }];
     renderQuoteRows();
+  } else if (type === 'receipt') {
+    setVal('dg-r-amount', f.amount != null ? f.amount : '');
+    setVal('dg-r-date', f.paymentDate || todayISO());
+    setVal('dg-r-method', f.method || '');
+    setVal('dg-r-ref', f.reference || '');
+    setVal('dg-r-notes', f.notes || '');
   }
 
   document.getElementById('dg-modal').classList.add('open');
@@ -458,6 +495,14 @@ function buildDocFromForm() {
     if (!lineItems.length) { toast('Add at least one line item with a description and quantity.'); ok = false; }
     const subtotal = lineItems.reduce((s, li) => s + li.qty * li.unitPrice, 0);
     Object.assign(fields, { validUntil, notes, lineItems, subtotal });
+  } else if (dgCurrentType === 'receipt') {
+    const amount = parseFloat(document.getElementById('dg-r-amount').value) || 0;
+    const paymentDate = document.getElementById('dg-r-date').value || todayISO();
+    const method = (document.getElementById('dg-r-method').value || '').trim();
+    const reference = (document.getElementById('dg-r-ref').value || '').trim();
+    const notes = (document.getElementById('dg-r-notes').value || '').trim();
+    if (amount <= 0) { dgMarkError('dg-r-amount', 'Enter the amount received.'); ok = false; }
+    Object.assign(fields, { amount, paymentDate, method, reference, notes });
   }
 
   if (!ok) return null;
@@ -521,7 +566,7 @@ function buildDocHtml(rec) {
     body += '<h3>5. Notes</h3>' + nlToP(f.notes);
     body += signatureBlock(fname, cname);
   } else if (rec.type === 'quote') {
-    body += '<p class="dg-meta">Issue date: ' + esc(rec.issueDate) + (f.validUntil ? ' · Valid until: ' + esc(f.validUntil) : '') + '</p>';
+    body += '<p class="dg-meta">' + (rec.number ? 'Quote #' + esc(rec.number) + ' · ' : '') + 'Issue date: ' + esc(rec.issueDate) + (f.validUntil ? ' · Valid until: ' + esc(f.validUntil) : '') + '</p>';
     body += '<p><b>Prepared for:</b> ' + cname + (f.company ? ' (' + esc(f.company) + ')' : '') + '</p>';
     body += '<table><thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead><tbody>';
     (f.lineItems || []).forEach(li => {
@@ -533,6 +578,14 @@ function buildDocHtml(rec) {
     body += '<p style="text-align:right;font-weight:800">Subtotal: ' + money(f.subtotal || 0) + '</p>';
     if (f.notes) body += '<h3>Notes</h3>' + nlToP(f.notes);
     body += '<p style="margin-top:16px">This quote is valid until <b>' + (f.validUntil ? esc(f.validUntil) : '—') + '</b> and excludes tax unless stated in a formal invoice.</p>';
+  } else if (rec.type === 'receipt') {
+    body += '<p class="dg-meta">' + (rec.number ? 'Receipt #' + esc(rec.number) + ' · ' : '') + 'Payment date: ' + esc(f.paymentDate || rec.issueDate) + '</p>';
+    body += '<p><b>Received from:</b> ' + cname + (f.company ? ' (' + esc(f.company) + ')' : '') + '</p>';
+    body += '<h3>Amount received</h3><p><b>' + money(f.amount || 0) + '</b></p>';
+    body += '<h3>Payment method</h3><p>' + (f.method ? esc(f.method) : '—') + '</p>';
+    if (f.reference) body += '<h3>Reference</h3><p>' + esc(f.reference) + '</p>';
+    if (f.notes) body += '<h3>Notes</h3>' + nlToP(f.notes);
+    body += '<p style="margin-top:16px">This receipt confirms payment has been received in full for the amount stated above.</p>';
   }
 
   body += '</div>';
@@ -563,6 +616,23 @@ async function saveDocumentFromForm() {
   const draft = buildDocFromForm();
   if (!draft) { toast('Please fix the highlighted fields.'); return; }
   const uid = isGuest ? 'guest' : currentUser.id;
+
+  // Reference number: assigned once at creation, immutable on edit — same
+  // rule invoices.js follows for its own "INV-2026-0001" numbers. Only the
+  // types in DG_NUMBER_PREFIX get one (contract/nda don't).
+  let number = null;
+  const prefix = DG_NUMBER_PREFIX[draft.type];
+  if (prefix) {
+    if (dgEditId) {
+      const existing = await dbGet('documents', dgEditId);
+      number = (existing && existing.number) || null;
+    } else {
+      const sameType = (await dbAll('documents')).filter(d => d.uid === uid && d.type === draft.type);
+      number = nextDocNumber(sameType, prefix);
+    }
+  }
+  draft.number = number;   // baked into the rendered content snapshot below
+
   const content = buildDocHtml(draft);
   const rec = {
     uid,
@@ -573,6 +643,7 @@ async function saveDocumentFromForm() {
     invoiceId: null,
     fields: draft.fields,
     content,
+    number,
     issueDate: draft.issueDate,
     updatedAt: nowISO(),
   };
@@ -617,7 +688,7 @@ async function viewDocument(id) {
   ensureDocgenUI();
   const rec = await dbGet('documents', id);
   if (!rec) { toast('Document not found.'); return; }
-  document.getElementById('dg-view-title').textContent = rec.title || DG_TYPE_LABEL[rec.type] || 'Document';
+  document.getElementById('dg-view-title').textContent = (rec.number ? rec.number + ' — ' : '') + (rec.title || DG_TYPE_LABEL[rec.type] || 'Document');
   document.getElementById('dg-view-content').innerHTML = '<div class="dg-preview">' + (rec.content || '') + '</div>';
   document.getElementById('dg-view-modal').dataset.docId = String(rec.id);
   document.getElementById('dg-view-modal').classList.add('open');
