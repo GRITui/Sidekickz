@@ -135,6 +135,8 @@
       </div>
     </div>
 
+    <div id="backup-reminder-body"></div>
+
     <details class="settings-section" open>
       <summary class="section-title" data-i18n="manage">Manage</summary>
       <div class="settings-list">
@@ -195,7 +197,12 @@
           <label class="settings-label" for="set-goal" data-i18n="daily_goal">Daily income goal</label>
           <input class="settings-input tnum" id="set-goal" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalChange(this.value)">
         </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-notifications">Notifications</label>
+          <input type="checkbox" id="set-notifications" style="width:20px;height:20px" onchange="onNotificationsToggle(this.checked)">
+        </div>
       </div>
+      <p style="font-size:12px;color:var(--text3);margin:-4px 16px 4px">Overdue invoices, bookings starting soon, and stuck engagements — only while this app is open or recently open in the background.</p>
     </details>
 
     <details class="settings-section" open>
@@ -317,6 +324,7 @@
   <button class="nav-btn" id="nav-more" onclick="switchScreen('more')">
     <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
     <span data-i18n="nav_more">More</span>
+    <span class="nav-badge" id="more-nav-badge" style="display:none"></span>
   </button>
 </nav>
 

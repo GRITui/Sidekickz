@@ -100,3 +100,17 @@ self.addEventListener('fetch', (e) => {
 self.addEventListener('message', (e) => {
   if (e.data === 'SKIP_WAITING') self.skipWaiting();
 });
+
+// Tapping an app-triggered OS notification (app.js's showOsNotification())
+// focuses an already-open tab if there is one, otherwise opens a new one —
+// standard PWA notification-click behavior.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil((async () => {
+    const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of clientsList) {
+      if (c.url.startsWith(BASE) && 'focus' in c) return c.focus();
+    }
+    return self.clients.openWindow(BASE);
+  })());
+});
