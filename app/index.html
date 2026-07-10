@@ -135,112 +135,126 @@
       </div>
     </div>
 
-    <div class="section-title" data-i18n="manage">Manage</div>
-    <div class="settings-list">
-      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('services')">
-        <span class="settings-label" data-i18n="services_title">Services</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
+    <details class="settings-section" open>
+      <summary class="section-title" data-i18n="manage">Manage</summary>
+      <div class="settings-list">
+        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('services')">
+          <span class="settings-label" data-i18n="services_title">Services</span>
+          <span class="settings-label" style="color:var(--text3)">›</span>
+        </div>
+        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('invoices')">
+          <span class="settings-label">Invoices</span>
+          <span class="settings-label" style="color:var(--text3)">›</span>
+        </div>
+        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('docs')">
+          <span class="settings-label">Docs</span>
+          <span class="settings-label" style="color:var(--text3)">›</span>
+        </div>
+        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('tax')">
+          <span class="settings-label">Tax</span>
+          <span class="settings-label" style="color:var(--text3)">›</span>
+        </div>
+        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('followups')">
+          <span class="settings-label">Follow-ups</span>
+          <span class="settings-label" style="color:var(--text3)">›</span>
+        </div>
+        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('portfolio')">
+          <span class="settings-label">Portfolio</span>
+          <span class="settings-label" style="color:var(--text3)">›</span>
+        </div>
+        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('research')">
+          <span class="settings-label">Research</span>
+          <span class="settings-label" style="color:var(--text3)">›</span>
+        </div>
+        <div class="settings-row" id="insights-row" style="cursor:pointer;display:none" onclick="switchScreen('insights')">
+          <span class="settings-label" data-i18n="insights_title">Insights</span>
+          <span class="settings-label" style="color:var(--text3)">›</span>
+        </div>
       </div>
-      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('invoices')">
-        <span class="settings-label">Invoices</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
-      </div>
-      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('docs')">
-        <span class="settings-label">Docs</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
-      </div>
-      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('tax')">
-        <span class="settings-label">Tax</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
-      </div>
-      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('followups')">
-        <span class="settings-label">Follow-ups</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
-      </div>
-      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('portfolio')">
-        <span class="settings-label">Portfolio</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
-      </div>
-      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('research')">
-        <span class="settings-label">Research</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
-      </div>
-      <div class="settings-row" id="insights-row" style="cursor:pointer;display:none" onclick="switchScreen('insights')">
-        <span class="settings-label" data-i18n="insights_title">Insights</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
-      </div>
-    </div>
+    </details>
 
-    <div class="section-title" data-i18n="workflow_title">Workflow</div>
-    <div class="settings-list">
-      <div id="workflow-body"></div>
-    </div>
+    <details class="settings-section" open>
+      <summary class="section-title" data-i18n="workflow_title">Workflow</summary>
+      <div class="settings-list">
+        <div id="workflow-body"></div>
+      </div>
+    </details>
 
-    <div class="section-title" data-i18n="preferences">Preferences</div>
-    <div class="settings-list">
-      <div class="settings-row">
-        <label class="settings-label" for="set-currency" data-i18n="currency">Currency</label>
-        <select id="set-currency" onchange="onCurrencyChange(this.value)">
-          <option value="THB">฿ THB</option><option value="USD">$ USD</option>
-          <option value="EUR">€ EUR</option><option value="GBP">£ GBP</option>
-          <option value="SGD">S$ SGD</option><option value="MYR">RM MYR</option>
-        </select>
+    <details class="settings-section" open>
+      <summary class="section-title" data-i18n="preferences">Preferences</summary>
+      <div class="settings-list">
+        <div class="settings-row">
+          <label class="settings-label" for="set-currency" data-i18n="currency">Currency</label>
+          <select id="set-currency" onchange="onCurrencyChange(this.value)">
+            <option value="THB">฿ THB</option><option value="USD">$ USD</option>
+            <option value="EUR">€ EUR</option><option value="GBP">£ GBP</option>
+            <option value="SGD">S$ SGD</option><option value="MYR">RM MYR</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-goal" data-i18n="daily_goal">Daily income goal</label>
+          <input class="settings-input tnum" id="set-goal" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalChange(this.value)">
+        </div>
       </div>
-      <div class="settings-row">
-        <label class="settings-label" for="set-goal" data-i18n="daily_goal">Daily income goal</label>
-        <input class="settings-input tnum" id="set-goal" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalChange(this.value)">
-      </div>
-    </div>
+    </details>
 
-    <div class="section-title">Payment channels</div>
-    <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px">Add PromptPay, bank transfer, cash, or another method so clients know how to pay you. PromptPay shows a scannable QR on invoices; the rest show as reference text.</p>
-    <div id="payment-channels-list" style="margin:0 16px 10px"></div>
-    <button class="btn-submit" style="margin:0 16px 20px;width:calc(100% - 32px)" onclick="openAddPaymentChannel()">+ Add payment channel</button>
+    <details class="settings-section" open>
+      <summary class="section-title">Payment channels</summary>
+      <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px">Add PromptPay, bank transfer, cash, or another method so clients know how to pay you. PromptPay shows a scannable QR on invoices; the rest show as reference text.</p>
+      <div id="payment-channels-list" style="margin:0 16px 10px"></div>
+      <button class="btn-submit" style="margin:0 16px 20px;width:calc(100% - 32px)" onclick="openAddPaymentChannel()">+ Add payment channel</button>
+    </details>
 
-    <div class="section-title" data-i18n="business_info_title">Business info (optional)</div>
-    <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px" data-i18n="business_info_sub">Fill these in to have them show up automatically on your quotes, invoices, and receipts — none of them are required.</p>
-    <div class="settings-list">
-      <div class="settings-row">
-        <label class="settings-label" for="set-seller-name" data-i18n="business_name">Business name</label>
-        <input class="settings-input" id="set-seller-name" type="text" placeholder="Defaults to your account name" onchange="onSellerBusinessNameChange(this.value)">
+    <details class="settings-section" open>
+      <summary class="section-title" data-i18n="business_info_title">Business info (optional)</summary>
+      <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px" data-i18n="business_info_sub">Fill these in to have them show up automatically on your quotes, invoices, and receipts — none of them are required.</p>
+      <div class="settings-list">
+        <div class="settings-row">
+          <label class="settings-label" for="set-seller-name" data-i18n="business_name">Business name</label>
+          <input class="settings-input" id="set-seller-name" type="text" placeholder="Defaults to your account name" onchange="onSellerBusinessNameChange(this.value)">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-seller-taxid" data-i18n="business_taxid">Tax ID</label>
+          <input class="settings-input" id="set-seller-taxid" type="text" onchange="onSellerTaxIdChange(this.value)">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-seller-address" data-i18n="business_address">Address</label>
+          <input class="settings-input" id="set-seller-address" type="text" onchange="onSellerAddressChange(this.value)">
+        </div>
       </div>
-      <div class="settings-row">
-        <label class="settings-label" for="set-seller-taxid" data-i18n="business_taxid">Tax ID</label>
-        <input class="settings-input" id="set-seller-taxid" type="text" onchange="onSellerTaxIdChange(this.value)">
-      </div>
-      <div class="settings-row">
-        <label class="settings-label" for="set-seller-address" data-i18n="business_address">Address</label>
-        <input class="settings-input" id="set-seller-address" type="text" onchange="onSellerAddressChange(this.value)">
-      </div>
-    </div>
+    </details>
 
-    <div class="section-title" data-i18n="tax_defaults">Tax defaults (for M2)</div>
-    <div class="settings-list">
-      <div class="settings-row">
-        <label class="settings-label" for="set-wht" data-i18n="wht">Withholding tax %</label>
-        <input class="settings-input tnum" id="set-wht" type="number" inputmode="decimal" min="0" max="100" placeholder="3" onchange="onWhtChange(this.value)">
+    <details class="settings-section" open>
+      <summary class="section-title" data-i18n="tax_defaults">Tax defaults (for M2)</summary>
+      <div class="settings-list">
+        <div class="settings-row">
+          <label class="settings-label" for="set-wht" data-i18n="wht">Withholding tax %</label>
+          <input class="settings-input tnum" id="set-wht" type="number" inputmode="decimal" min="0" max="100" placeholder="3" onchange="onWhtChange(this.value)">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-vat" data-i18n="vat">VAT %</label>
+          <input class="settings-input tnum" id="set-vat" type="number" inputmode="decimal" min="0" max="100" placeholder="7" onchange="onVatChange(this.value)">
+        </div>
       </div>
-      <div class="settings-row">
-        <label class="settings-label" for="set-vat" data-i18n="vat">VAT %</label>
-        <input class="settings-input tnum" id="set-vat" type="number" inputmode="decimal" min="0" max="100" placeholder="7" onchange="onVatChange(this.value)">
-      </div>
-    </div>
+    </details>
 
-    <div class="section-title" data-i18n="data">Data</div>
-    <div class="export-btns">
-      <button onclick="exportCSV()" data-i18n="export_csv">Export CSV</button>
-      <button onclick="exportBackup()" data-i18n="backup_json">Backup JSON</button>
-    </div>
-    <div class="export-btns" style="grid-template-columns:1fr">
-      <button onclick="exportCustomersCSV()" data-i18n="export_customers_csv">Export clients CSV</button>
-    </div>
-    <div class="export-btns" style="grid-template-columns:1fr">
-      <button onclick="exportInvoicesCSV()">Export invoices CSV</button>
-    </div>
-    <div class="export-btns" style="grid-template-columns:1fr">
-      <button onclick="pickBackupFile()" data-i18n="restore_json">Restore JSON</button>
-    </div>
-    <input type="file" id="backup-file" accept="application/json,.json" style="display:none" onchange="importBackup(this)">
+    <details class="settings-section" open>
+      <summary class="section-title" data-i18n="data">Data</summary>
+      <div class="export-btns">
+        <button onclick="exportCSV()" data-i18n="export_csv">Export CSV</button>
+        <button onclick="exportBackup()" data-i18n="backup_json">Backup JSON</button>
+      </div>
+      <div class="export-btns" style="grid-template-columns:1fr">
+        <button onclick="exportCustomersCSV()" data-i18n="export_customers_csv">Export clients CSV</button>
+      </div>
+      <div class="export-btns" style="grid-template-columns:1fr">
+        <button onclick="exportInvoicesCSV()">Export invoices CSV</button>
+      </div>
+      <div class="export-btns" style="grid-template-columns:1fr">
+        <button onclick="pickBackupFile()" data-i18n="restore_json">Restore JSON</button>
+      </div>
+      <input type="file" id="backup-file" accept="application/json,.json" style="display:none" onchange="importBackup(this)">
+    </details>
 
     <div class="settings-list" style="margin-top:16px">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
