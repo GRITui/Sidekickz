@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.8.9';          // <-> sw.js SW_VERSION 'freelanz-v0.8.9'
+const APP_VERSION = '0.9.0';          // <-> sw.js SW_VERSION 'freelanz-v0.9.0'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -457,12 +457,21 @@ async function enterApp() {
   set('set-seller-name', settings.sellerBusinessName || '');
   set('set-seller-taxid', settings.sellerTaxId || '');
   set('set-seller-address', settings.sellerAddress || '');
+  const notifCheckbox = document.getElementById('set-notifications');
+  if (notifCheckbox) notifCheckbox.checked = !!(settings.notificationsEnabled && typeof Notification !== 'undefined' && Notification.permission === 'granted');
 
   // Personal Gym Trainer edition: single fixed work type, no onboarding picker.
   if (!settings.workType) await saveSetting('workType', 'gym');
   document.body.setAttribute('data-work-type', 'gym');
   await seedServicesIfEmpty();
   switchScreen('home');
+
+  // App-triggered OS notifications: only fire while this tab stays open (no
+  // backend to check conditions while fully closed — see the comment above
+  // computeNotificationConditions()). reload() (already called above) fires
+  // the first check; this just re-checks every minute after that, mainly for
+  // the time-sensitive "booking starting soon" condition.
+  setInterval(checkAndFireNotifications, 60000);
 }
 
 function displayName() {
@@ -505,6 +514,7 @@ async function reload() {
   renderInsights();
   const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setTxt('set-count', jobs.length);
+  checkAndFireNotifications();
 }
 // ─── USAGE INSIGHTS (local-only — never leaves this device) ───────────
 // A lightweight event log so the app owner can see which features get reached
@@ -654,7 +664,94 @@ async function snoozeBackupReminder() {
   toast(t('backup_snoozed'));
 }
 
-function renderHome() {
+// ─── Notifications (in-app Action Queue + OS-level, app-triggered) ─────
+// App-triggered, not server-triggered: everything here only fires while
+// this tab is open (or freshly backgrounded) — there's no backend, so
+// nothing can wake the app up to check conditions while it's fully
+// closed. A real server-triggered version (synced data + a scheduled job,
+// so e.g. an overdue invoice notifies you even days after you last opened
+// the app) is a deliberate next milestone, not attempted here.
+const NOTIFY_STALE_DAYS = 3;         // engagement sitting in one stage this long -> nudge
+const NOTIFY_BOOKING_LEAD_MIN = 60;  // booking starting within this many minutes -> nudge
+function hhmmToMin(hhmm) {
+  if (!hhmm) return 0;
+  const p = String(hhmm).split(':');
+  return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
+}
+// Single source of truth for "what needs attention right now" — used by
+// both the in-app Action Queue (renderHome) and the OS-notification check
+// (checkAndFireNotifications), so the two can never disagree.
+async function computeNotificationConditions() {
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const todayStr = todayISO();
+  const [allInvoices, allBookings] = await Promise.all([dbAll('invoices'), dbAll('bookings')]);
+
+  const overdueInvoices = allInvoices.filter(i => i.uid === uid && i.status !== 'paid' && i.dueDate && i.dueDate < todayStr);
+
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  const upcomingBookings = allBookings
+    .filter(b => b.uid === uid && b.status === 'scheduled' && b.date === todayStr)
+    .filter(b => { const start = hhmmToMin(b.startTime); return start >= nowMin && start - nowMin <= NOTIFY_BOOKING_LEAD_MIN; });
+
+  const staleJobs = jobs.filter(j => !jobComplete(j) && daysSinceISO((j.updatedAt || '').slice(0, 10)) >= NOTIFY_STALE_DAYS);
+
+  return { overdueInvoices, upcomingBookings, staleJobs };
+}
+function notifyConditionKey(kind, id, extra) {
+  return kind + ':' + id + (extra ? ':' + extra : '');
+}
+async function showOsNotification(title, body, tag) {
+  try {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    if (!navigator.serviceWorker) return;
+    const reg = await navigator.serviceWorker.ready;
+    await reg.showNotification(title, { body, tag, icon: 'icons/icon.svg' });
+  } catch (e) { console.error('showNotification failed', e); }
+}
+// Fires an OS notification for each condition that's newly true since the
+// last check, and — just as importantly — forgets conditions that have
+// since resolved (invoice paid, booking passed, stage advanced), so the
+// SAME kind of event can notify again the next time it happens.
+async function checkAndFireNotifications() {
+  if (!settings.notificationsEnabled) return;
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+  let cond;
+  try { cond = await computeNotificationConditions(); } catch (e) { console.error(e); return; }
+  const notified = settings.notifiedIds || {};
+  const nextNotified = {};
+  const toFire = [];
+
+  cond.overdueInvoices.forEach(i => {
+    const k = notifyConditionKey('inv', i.id);
+    nextNotified[k] = true;
+    if (!notified[k]) toFire.push({ title: 'Invoice overdue', body: `${i.number || 'Invoice'} · ${i.clientName || 'Client'} — ${money(i.clientPays)}`, tag: k });
+  });
+  cond.upcomingBookings.forEach(b => {
+    const k = notifyConditionKey('bk', b.id);
+    nextNotified[k] = true;
+    if (!notified[k]) toFire.push({ title: 'Upcoming booking', body: `${b.title || 'Booking'} at ${b.startTime}`, tag: k });
+  });
+  cond.staleJobs.forEach(j => {
+    const st = (typeof jobStage === 'function') ? jobStage(j) : '';
+    const k = notifyConditionKey('job', j.id, st);
+    nextNotified[k] = true;
+    if (!notified[k]) toFire.push({ title: 'Engagement needs attention', body: `${j.client || 'Client'} has been in ${(STAGE_META[st] || {}).label || st} for a few days`, tag: k });
+  });
+
+  for (const n of toFire) await showOsNotification(n.title, n.body, n.tag);
+  if (JSON.stringify(nextNotified) !== JSON.stringify(notified)) await saveSetting('notifiedIds', nextNotified);
+}
+async function onNotificationsToggle(checked) {
+  if (checked) {
+    if (typeof Notification === 'undefined') { toast('Notifications are not supported on this device'); document.getElementById('set-notifications').checked = false; return; }
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { toast('Notification permission was not granted'); document.getElementById('set-notifications').checked = false; return; }
+  }
+  await saveSetting('notificationsEnabled', checked);
+  if (checked) checkAndFireNotifications();
+}
+
+async function renderHome() {
   // greeting
   const greetEl = document.getElementById('home-greeting');
   if (greetEl) greetEl.textContent = `${t('greeting_' + greetingPeriod())}, ${displayName()}`;
@@ -672,31 +769,69 @@ function renderHome() {
 
   renderGoal();
   renderPipelineGlance();
-  // action queue: empty state until there is anything to surface, EXCEPT
-  // the backup reminder, which is real from M1 onward.
+  // Action queue: a list of independent nudges, not a single mutually-
+  // exclusive slot — the backup reminder, overdue invoices, imminent
+  // bookings, and stale pipeline engagements can all be true at once.
+  // computeNotificationConditions() is the same function the OS-notification
+  // checker uses, so the two can never show different things.
   const q = document.getElementById('queue-body');
-  if (q) {
-    if (backupReminderDue()) {
-      const last = settings.lastBackupAt ? fmtDate(settings.lastBackupAt.slice(0,10)) : t('backup_never');
-      q.innerHTML = `<div class="list-card">
-        <div class="list-row" style="cursor:default">
-          <div class="list-icon">💾</div>
+  if (!q) return;
+  const rows = [];
+  if (backupReminderDue()) {
+    const last = settings.lastBackupAt ? fmtDate(settings.lastBackupAt.slice(0,10)) : t('backup_never');
+    rows.push(`<div class="list-row" style="cursor:default">
+        <div class="list-icon">💾</div>
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(t('backup_reminder_title'))}</div>
+          <div class="list-sub">${htmlEsc(t('backup_reminder_sub').replace('{date}', last))}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;padding:0 16px 14px">
+        <button type="button" onclick="exportBackup()" style="flex:1;padding:10px;border:none;background:var(--brand);color:#fff;border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('backup_now'))}</button>
+        <button type="button" onclick="snoozeBackupReminder()" style="flex:1;padding:10px;border:1px solid var(--border);background:none;color:var(--text3);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('remind_later'))}</button>
+      </div>`);
+  }
+  try {
+    const { overdueInvoices, upcomingBookings, staleJobs } = await computeNotificationConditions();
+    if (overdueInvoices.length) {
+      rows.push(`<div class="list-row" onclick="switchScreen('invoices')">
+          <div class="list-icon">⚠️</div>
           <div class="list-main">
-            <div class="list-title">${htmlEsc(t('backup_reminder_title'))}</div>
-            <div class="list-sub">${htmlEsc(t('backup_reminder_sub').replace('{date}', last))}</div>
+            <div class="list-title">${overdueInvoices.length} invoice${overdueInvoices.length > 1 ? 's' : ''} overdue</div>
+            <div class="list-sub">${htmlEsc(overdueInvoices.map(i => i.number).join(', '))}</div>
           </div>
-        </div>
-        <div style="display:flex;gap:8px;padding:0 16px 14px">
-          <button type="button" onclick="exportBackup()" style="flex:1;padding:10px;border:none;background:var(--brand);color:#fff;border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('backup_now'))}</button>
-          <button type="button" onclick="snoozeBackupReminder()" style="flex:1;padding:10px;border:1px solid var(--border);background:none;color:var(--text3);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('remind_later'))}</button>
-        </div>
-      </div>`;
-    } else {
-      q.innerHTML = `<div class="empty"><div class="empty-icon">✅</div>
+          <div class="list-right"><span style="color:var(--text3)">›</span></div>
+        </div>`);
+    }
+    if (upcomingBookings.length) {
+      upcomingBookings.forEach(b => {
+        rows.push(`<div class="list-row" onclick="switchScreen('book')">
+            <div class="list-icon">⏰</div>
+            <div class="list-main">
+              <div class="list-title">${htmlEsc(b.title || 'Booking')} at ${htmlEsc(b.startTime)}</div>
+              <div class="list-sub">Starting soon</div>
+            </div>
+            <div class="list-right"><span style="color:var(--text3)">›</span></div>
+          </div>`);
+      });
+    }
+    if (staleJobs.length) {
+      rows.push(`<div class="list-row" onclick="switchScreen('pipeline')">
+          <div class="list-icon">📌</div>
+          <div class="list-main">
+            <div class="list-title">${staleJobs.length} engagement${staleJobs.length > 1 ? 's need' : ' needs'} attention</div>
+            <div class="list-sub">No movement for ${NOTIFY_STALE_DAYS}+ days</div>
+          </div>
+          <div class="list-right"><span style="color:var(--text3)">›</span></div>
+        </div>`);
+    }
+  } catch (e) { console.error('renderHome notifications', e); }
+
+  q.innerHTML = rows.length
+    ? '<div class="list-card">' + rows.join('') + '</div>'
+    : `<div class="empty"><div class="empty-icon">✅</div>
         <p data-i18n="queue_empty">${t('queue_empty')}</p>
         <span data-i18n="queue_empty_sub">${t('queue_empty_sub')}</span></div>`;
-    }
-  }
 }
 function renderPipelineGlance() {
   const wrap = document.getElementById('pipeline-glance');
