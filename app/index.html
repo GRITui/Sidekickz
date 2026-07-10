@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>document.documentElement.dataset.theme='light';</script><!-- light-only: set before CSS paints to avoid a dark flash on dark-OS -->
-<link rel="stylesheet" href="styles.css?v=0.6.1">
+<link rel="stylesheet" href="styles.css?v=0.7.0">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -122,6 +122,10 @@
         <span class="settings-label" data-i18n="customers_title">Customers</span>
         <span class="settings-label" style="color:var(--text3)">›</span>
       </div>
+      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('membertags')">
+        <span class="settings-label" data-i18n="member_tags_title">Member tags</span>
+        <span class="settings-label" style="color:var(--text3)">›</span>
+      </div>
       <div class="settings-row" style="cursor:pointer" onclick="switchScreen('services')">
         <span class="settings-label" data-i18n="services_title">Services</span>
         <span class="settings-label" style="color:var(--text3)">›</span>
@@ -198,7 +202,7 @@
 
     <div class="settings-list" style="margin-top:16px">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version">0.6.1</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version">0.7.0</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
@@ -218,6 +222,23 @@
   <div class="content">
     <button class="btn-submit" style="margin:0 0 16px;width:100%" onclick="openAddCustomer()" data-i18n="add_customer">Add customer</button>
     <div id="customers-body"></div>
+  </div>
+</section>
+
+<!-- ══ MEMBER TAGS ══ -->
+<section class="screen" id="s-membertags">
+  <div class="hdr-plain">
+    <div class="hdr-row">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="avatar" onclick="switchScreen('more')" aria-label="Back" style="font-size:22px">‹</button>
+        <h1 data-i18n="member_tags_title">Member tags</h1>
+      </div>
+    </div>
+  </div>
+  <div class="content">
+    <p style="font-size:13px;color:var(--text3);margin:0 0 14px" data-i18n="member_tags_sub">Saved automatically the first time you log a session for someone new — rename one and every past session updates too.</p>
+    <button class="btn-submit" style="margin:0 0 16px;width:100%" onclick="openAddMemberTag()" data-i18n="add_member_tag">Add tag</button>
+    <div id="membertags-body"></div>
   </div>
 </section>
 
@@ -294,7 +315,8 @@
       </div>
       <div class="field">
         <label for="j-client" data-i18n="field_client">Member</label>
-        <input type="text" id="j-client" data-i18n-ph="field_client_ph" placeholder="e.g. Alex Chan">
+        <input type="text" id="j-client" list="j-client-tags" data-i18n-ph="field_client_ph" placeholder="e.g. Alex Chan">
+        <datalist id="j-client-tags"></datalist>
       </div>
       <div class="field">
         <label for="j-service" data-i18n="field_service">Service</label>
@@ -351,6 +373,21 @@
   </div>
 </div>
 
+<!-- ══ MEMBER TAG MODAL ══ -->
+<div class="modal-overlay" id="modal-membertag">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="mt-modal-title" data-i18n="add_member_tag">Add tag</div>
+    <input type="hidden" id="mt-edit-id">
+    <div class="form-section">
+      <div class="field"><label for="mt-name" data-i18n="field_name">Name</label><input type="text" id="mt-name" data-i18n-ph="field_client_ph" placeholder="e.g. Alex Chan"></div>
+    </div>
+    <button class="btn-submit" onclick="saveMemberTag()" data-i18n="save_member_tag">Save tag</button>
+    <button class="btn-danger" id="mt-delete" style="display:none" onclick="deleteMemberTag()" data-i18n="delete_member_tag">Delete tag</button>
+    <button class="btn-danger" style="border-color:var(--border-mid);color:var(--text3)" onclick="closeMemberTagModal()" data-i18n="cancel">Cancel</button>
+  </div>
+</div>
+
 <!-- ══ SERVICE MODAL ══ -->
 <div class="modal-overlay" id="modal-service">
   <div class="modal" role="dialog" aria-modal="true">
@@ -372,17 +409,17 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.6.1"></script>
+<script src="app.js?v=0.7.0"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.6.1"></script>
-<script src="invoices.js?v=0.6.1"></script>
-<script src="docgen.js?v=0.6.1"></script>
+<script src="tax.js?v=0.7.0"></script>
+<script src="invoices.js?v=0.7.0"></script>
+<script src="docgen.js?v=0.7.0"></script>
 <!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
      the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
-<script src="bookings.js?v=0.6.1"></script>
-<script src="followups.js?v=0.6.1"></script>
-<script src="portfolio.js?v=0.6.1"></script>
+<script src="bookings.js?v=0.7.0"></script>
+<script src="followups.js?v=0.7.0"></script>
+<script src="portfolio.js?v=0.7.0"></script>
 <!-- M5: research.js (content library, subscription UI stubbed open — no
      payment verification yet; see project-changelog-handshake.md). -->
-<script src="research.js?v=0.6.1"></script>
+<script src="research.js?v=0.7.0"></script>
