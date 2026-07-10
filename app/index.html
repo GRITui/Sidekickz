@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>document.documentElement.dataset.theme='light';</script><!-- light-only: set before CSS paints to avoid a dark flash on dark-OS -->
-<link rel="stylesheet" href="styles.css?v=0.5.3">
+<link rel="stylesheet" href="styles.css?v=0.6.0">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -31,8 +31,8 @@
     <div class="hero-label" id="hero-label">Earned this month</div>
     <div class="hero-amt tnum" id="hero-amt">฿0</div>
     <div class="hero-stats">
-      <div><div class="hero-stat-label" data-i18n="stat_jobs">Jobs</div><div class="hero-stat-val tnum" id="stat-jobs-val">0</div></div>
-      <div><div class="hero-stat-label" data-i18n="stat_avg">Avg / job</div><div class="hero-stat-val tnum" id="stat-avg-val">฿0</div></div>
+      <div><div class="hero-stat-label" data-i18n="stat_jobs">Sessions</div><div class="hero-stat-val tnum" id="stat-jobs-val">0</div></div>
+      <div><div class="hero-stat-label" data-i18n="stat_avg">Avg / session</div><div class="hero-stat-val tnum" id="stat-avg-val">฿0</div></div>
       <div><div class="hero-stat-label" data-i18n="stat_expenses">Expenses</div><div class="hero-stat-val tnum" id="stat-exp-val">฿0</div></div>
     </div>
   </div>
@@ -47,7 +47,7 @@
   </div>
 
   <div class="qa-grid">
-    <button class="qa-btn" onclick="openAddJob()"><span class="qa-ico">➕</span><span data-i18n="new_job">New job</span></button>
+    <button class="qa-btn" onclick="openAddJob()"><span class="qa-ico">➕</span><span data-i18n="new_job">New session</span></button>
     <button class="qa-btn accent" onclick="newInvoice()"><span class="qa-ico">🧾</span><span data-i18n="new_invoice">New invoice</span></button>
   </div>
 
@@ -59,7 +59,7 @@
 
 <!-- ══ JOBS ══ -->
 <section class="screen" id="s-jobs">
-  <div class="hdr-plain"><h1 data-i18n="jobs_title">Jobs</h1></div>
+  <div class="hdr-plain"><h1 data-i18n="jobs_title">Sessions</h1></div>
   <div class="content"><div id="jobs-body"></div></div>
 </section>
 
@@ -113,24 +113,6 @@
       <div class="account-row">
         <div class="account-avatar" id="acct-avatar">F</div>
         <div><div class="account-name" id="acct-name">—</div><div class="account-sub" id="acct-sub">—</div></div>
-      </div>
-    </div>
-
-    <div class="section-title" data-i18n="work_type">Work type</div>
-    <div class="settings-list">
-      <div class="settings-row">
-        <label class="settings-label" for="set-worktype" data-i18n="whats_your_job">What's your job?</label>
-        <select id="set-worktype" onchange="onSettingsTypeChange(this.value)"></select>
-      </div>
-      <div class="settings-row" id="set-custom-row" style="display:none;flex-direction:column;align-items:stretch;gap:10px">
-        <div style="display:flex;flex-direction:column;gap:5px">
-          <label class="settings-label" for="set-custom-name" data-i18n="custom_name_label">Name it</label>
-          <input class="settings-input" id="set-custom-name" style="max-width:none;text-align:left" data-i18n-ph="custom_name_ph" placeholder="e.g. Yoga instructor" oninput="onCustomEdit()">
-        </div>
-        <div style="display:flex;flex-direction:column;gap:5px">
-          <label class="settings-label" for="set-custom-unit" data-i18n="custom_unit_label">One unit is a</label>
-          <input class="settings-input" id="set-custom-unit" style="max-width:none;text-align:left" data-i18n-ph="custom_unit_ph" placeholder="e.g. Class" oninput="onCustomEdit()">
-        </div>
       </div>
     </div>
 
@@ -216,7 +198,7 @@
 
     <div class="settings-list" style="margin-top:16px">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version">0.5.3</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version">0.6.0</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
@@ -263,7 +245,7 @@
   </button>
   <button class="nav-btn" id="nav-jobs" onclick="switchScreen('jobs')">
     <svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
-    <span data-i18n="nav_jobs">Jobs</span>
+    <span data-i18n="nav_jobs">Sessions</span>
     <span class="nav-badge" id="jobs-badge" style="display:none">0</span>
   </button>
   <button class="nav-btn" id="nav-docs" onclick="switchScreen('docs')">
@@ -287,7 +269,7 @@
 <div class="modal-overlay" id="modal-job">
   <div class="modal" role="dialog" aria-modal="true">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="modal-title" data-i18n="add_job">Add job</div>
+    <div class="modal-title" id="modal-title" data-i18n="add_job">Add session</div>
     <input type="hidden" id="j-edit-id">
 
     <div class="form-section">
@@ -311,20 +293,20 @@
         <select id="j-customer" onchange="onJobCustomerChange(this.value)"></select>
       </div>
       <div class="field">
-        <label for="j-client" data-i18n="field_client">Client</label>
-        <input type="text" id="j-client" data-i18n-ph="field_client_ph" placeholder="e.g. Acme Co.">
+        <label for="j-client" data-i18n="field_client">Member</label>
+        <input type="text" id="j-client" data-i18n-ph="field_client_ph" placeholder="e.g. Alex Chan">
       </div>
       <div class="field">
         <label for="j-service" data-i18n="field_service">Service</label>
         <select id="j-service" onchange="onJobServiceChange(this.value)"></select>
       </div>
       <div class="form-row">
-        <div class="field-half"><label for="j-amount" data-i18n="field_amount">Amount</label><input type="number" id="j-amount" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
+        <div class="field-half"><label for="j-amount" data-i18n="field_amount">Fee</label><input type="number" id="j-amount" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
         <div class="field-half"><label for="j-tip" data-i18n="field_tip">Tip</label><input type="number" id="j-tip" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
       </div>
       <div class="form-row">
         <div class="field-half"><label for="j-expense" data-i18n="field_expense">Expense</label><input type="number" id="j-expense" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
-        <div class="field-half"><label for="j-count" data-i18n="field_count">Count</label><input type="number" id="j-count" class="tnum" inputmode="numeric" min="0" placeholder="0"></div>
+        <div class="field-half"><label for="j-count" data-i18n="field_count">Sessions</label><input type="number" id="j-count" class="tnum" inputmode="numeric" min="0" placeholder="0"></div>
       </div>
       <div class="field">
         <label for="j-notes" data-i18n="field_notes">Notes</label>
@@ -337,8 +319,8 @@
       <span class="net-box-val tnum" id="j-net">฿0</span>
     </div>
 
-    <button class="btn-submit" onclick="saveJob()" data-i18n="save_job">Save job</button>
-    <button class="btn-danger" id="j-delete" style="display:none" onclick="deleteJob()" data-i18n="delete_job">Delete job</button>
+    <button class="btn-submit" onclick="saveJob()" data-i18n="save_job">Save session</button>
+    <button class="btn-danger" id="j-delete" style="display:none" onclick="deleteJob()" data-i18n="delete_job">Delete session</button>
     <button class="btn-danger" style="border-color:var(--border-mid);color:var(--text3)" onclick="closeJobModal()" data-i18n="cancel">Cancel</button>
   </div>
 </div>
@@ -388,43 +370,19 @@
   </div>
 </div>
 
-<!-- ══ ONBOARDING ══ -->
-<div class="onboarding" id="onboarding">
-  <img class="ob-logo" src="icons/icon.svg" alt="">
-  <h2 data-i18n="onboard_title">What kind of work do you do?</h2>
-  <p data-i18n="onboard_sub">We’ll tailor labels and screens to fit. You can change this anytime in Settings.</p>
-  <div class="form-section" style="margin:0 0 14px">
-    <div class="field">
-      <label for="ob-jobtype" data-i18n="whats_your_job">What's your job?</label>
-      <select id="ob-jobtype" onchange="onOnboardTypeChange(this.value)"></select>
-    </div>
-  </div>
-  <div class="form-section" id="ob-custom" style="display:none;margin:0 0 14px">
-    <div class="field">
-      <label for="ob-custom-name" data-i18n="custom_name_label">Name it</label>
-      <input type="text" id="ob-custom-name" data-i18n-ph="custom_name_ph" placeholder="e.g. Yoga instructor">
-    </div>
-    <div class="field">
-      <label for="ob-custom-unit" data-i18n="custom_unit_label">One unit is a</label>
-      <input type="text" id="ob-custom-unit" data-i18n-ph="custom_unit_ph" placeholder="e.g. Class">
-    </div>
-  </div>
-  <button class="btn-submit" style="margin:0;width:100%" onclick="confirmOnboarding()" data-i18n="continue_btn">Continue</button>
-</div>
-
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.5.3"></script>
+<script src="app.js?v=0.6.0"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.5.3"></script>
-<script src="invoices.js?v=0.5.3"></script>
-<script src="docgen.js?v=0.5.3"></script>
+<script src="tax.js?v=0.6.0"></script>
+<script src="invoices.js?v=0.6.0"></script>
+<script src="docgen.js?v=0.6.0"></script>
 <!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
      the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
-<script src="bookings.js?v=0.5.3"></script>
-<script src="followups.js?v=0.5.3"></script>
-<script src="portfolio.js?v=0.5.3"></script>
+<script src="bookings.js?v=0.6.0"></script>
+<script src="followups.js?v=0.6.0"></script>
+<script src="portfolio.js?v=0.6.0"></script>
 <!-- M5: research.js (content library, subscription UI stubbed open — no
      payment verification yet; see project-changelog-handshake.md). -->
-<script src="research.js?v=0.5.3"></script>
+<script src="research.js?v=0.6.0"></script>

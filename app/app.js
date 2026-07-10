@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.5.3';          // <-> sw.js SW_VERSION 'freelanz-v0.5.3'
+const APP_VERSION = '0.6.0';          // <-> sw.js SW_VERSION 'freelanz-v0.6.0'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -218,54 +218,11 @@ let currentPeriod = 'month';
 function htmlEsc(s) { return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function attrEsc(s) { return htmlEsc(s).replace(/"/g,'&quot;'); }
 
-// ─── PERSONAS (i18n @workType relabels + onboarding) ──────────────────
-const PERSONAS = [
-  {id:'creative',     icon:'🎨', label:'Creative',     sub:'Design, writing, video'},
-  {id:'tech',         icon:'💻', label:'Tech',         sub:'Dev, IT, data'},
-  {id:'service',      icon:'🎓', label:'Service',      sub:'Coaching, tutoring'},
-  {id:'photographer', icon:'📷', label:'Photographer', sub:'Shoots, events'},
-  {id:'sales',        icon:'🤝', label:'Sales',        sub:'Field sales, agents'},
-  {id:'gym',          icon:'💪', label:'Personal gym trainer', sub:'Sessions, members'},
-];
 const CURRENCY_SYM = {THB:'฿', USD:'$', EUR:'€', GBP:'£', SGD:'S$', MYR:'RM'};
 function curSym() { return CURRENCY_SYM[(settings && settings.currency) || 'THB'] || '฿'; }
 
-// Singular unit word per persona (used for jobs-list row titles + custom relabels).
-const UNIT_WORD = {creative:'Gig', tech:'Project', service:'Lesson', photographer:'Shoot', sales:'Visit', gym:'Session'};
-function titleCase(w) { return w ? w.charAt(0).toUpperCase() + w.slice(1) : w; }
-function pluralize(w) {
-  if (!w) return w;
-  if (/(ch|sh|[sxz])$/i.test(w)) return w + 'es';
-  if (/[^aeiou]y$/i.test(w)) return w.slice(0,-1) + 'ies';
-  return w + 's';
-}
-// Custom work-type: derive singular/plural + title/lower forms from settings.customUnit.
-function customUnitForms() {
-  const raw = ((settings && settings.customUnit) || 'job').trim() || 'job';
-  const singular = raw, plural = pluralize(raw);
-  return {singular, plural, titleS: titleCase(singular), titlePl: titleCase(plural)};
-}
-// Singular unit word for the CURRENT work type (jobs-list row title fallback).
-function unitWord() {
-  if (settings && settings.workType === 'custom') return customUnitForms().titleS;
-  return UNIT_WORD[settings && settings.workType] || 'Job';
-}
-// For workType==='custom', substitute the custom unit word into the core relabel
-// keys. Returns null for any key not in the relabel set (falls through to base).
-function customLabelForKey(key) {
-  const f = customUnitForms();
-  switch (key) {
-    case 'nav_jobs': case 'jobs_title': case 'stat_jobs': return f.titlePl;
-    case 'stat_avg': return 'Avg / ' + f.singular.toLowerCase();
-    case 'new_job':  return 'New '  + f.singular.toLowerCase();
-    case 'add_job':  return 'Add '  + f.singular.toLowerCase();
-    case 'edit_job': return 'Edit ' + f.singular.toLowerCase();
-    case 'save_job': return 'Save ' + f.singular.toLowerCase();
-    case 'delete_job': return 'Delete ' + f.singular.toLowerCase();
-    case 'no_jobs':  return 'No ' + f.plural.toLowerCase() + ' yet';
-    default: return null;
-  }
-}
+// Freelanz — Personal Gym Trainer edition: single work type, no persona picker.
+function unitWord() { return 'Session'; }
 
 // ─── I18N ─────────────────────────────────────────────────────────────
 // t(key) resolves a persona-scoped `key@<workType>` variant first, then the
@@ -279,42 +236,28 @@ const I18N = {
     auth_hint:'Create an account to save your work on this device.<br>Everything stays local — no cloud, no tracking.<br>Guest mode is temporary.',
     tagline:'Freelance admin, handled.',
     // nav
-    nav_home:'Home', nav_jobs:'Jobs', nav_docs:'Docs', nav_book:'Book', nav_more:'More',
-    'nav_jobs@creative':'Gigs', 'nav_jobs@tech':'Projects', 'nav_jobs@service':'Lessons', 'nav_jobs@photographer':'Shoots', 'nav_jobs@sales':'Visits', 'nav_jobs@gym':'Sessions',
+    nav_home:'Home', nav_jobs:'Sessions', nav_docs:'Docs', nav_book:'Book', nav_more:'More',
     // dashboard
     earned_this_month:'Earned this month', net_after_expenses:'net after expenses',
-    stat_jobs:'Jobs', stat_avg:'Avg / job', stat_expenses:'Expenses',
-    'stat_jobs@creative':'Gigs','stat_jobs@tech':'Projects','stat_jobs@service':'Lessons','stat_jobs@photographer':'Shoots','stat_jobs@sales':'Visits','stat_jobs@gym':'Sessions',
-    'stat_avg@sales':'Avg / visit','stat_avg@creative':'Avg / gig','stat_avg@tech':'Avg / project','stat_avg@service':'Avg / lesson','stat_avg@photographer':'Avg / shoot','stat_avg@gym':'Avg / session',
+    stat_jobs:'Sessions', stat_avg:'Avg / session', stat_expenses:'Expenses',
     todays_goal:"Today's goal", goal_reached:'Goal reached! 🎉', goal_of:'of',
-    action_queue:'Action queue', queue_empty:'You’re all caught up.', queue_empty_sub:'New tasks will appear here as you add jobs and invoices.',
-    quick_actions:'Quick actions', new_job:'New job', new_invoice:'New invoice',
-    'new_job@creative':'New gig','new_job@tech':'New project','new_job@service':'New lesson','new_job@photographer':'New shoot','new_job@sales':'New visit','new_job@gym':'New session',
+    action_queue:'Action queue', queue_empty:'You’re all caught up.', queue_empty_sub:'New tasks will appear here as you add sessions and invoices.',
+    quick_actions:'Quick actions', new_job:'New session', new_invoice:'New invoice',
     coming_m2:'Invoices ship in M2',
     // jobs list
-    jobs_title:'Jobs',
-    'jobs_title@creative':'Gigs','jobs_title@tech':'Projects','jobs_title@service':'Lessons','jobs_title@photographer':'Shoots','jobs_title@sales':'Visits','jobs_title@gym':'Sessions',
-    no_jobs:'No jobs yet', no_jobs_sub:'Tap + to log your first job.',
-    'no_jobs@creative':'No gigs yet','no_jobs@tech':'No projects yet','no_jobs@service':'No lessons yet','no_jobs@photographer':'No shoots yet','no_jobs@sales':'No visits yet','no_jobs@gym':'No sessions yet',
-    'no_jobs_sub@creative':'Tap + to log your first gig.','no_jobs_sub@tech':'Tap + to log your first project.','no_jobs_sub@service':'Tap + to log your first lesson.','no_jobs_sub@photographer':'Tap + to log your first shoot.','no_jobs_sub@sales':'Tap + to log your first visit.','no_jobs_sub@gym':'Tap + to log your first session.',
+    jobs_title:'Sessions',
+    no_jobs:'No sessions yet', no_jobs_sub:'Tap + to log your first session.',
     // job form
-    add_job:'Add job', edit_job:'Edit job', save_job:'Save job', delete_job:'Delete job',
-    'add_job@creative':'Add gig','add_job@tech':'Add project','add_job@service':'Add lesson','add_job@photographer':'Add shoot','add_job@sales':'Add visit','add_job@gym':'Add session',
-    'edit_job@creative':'Edit gig','edit_job@tech':'Edit project','edit_job@service':'Edit lesson','edit_job@photographer':'Edit shoot','edit_job@sales':'Edit visit','edit_job@gym':'Edit session',
-    'save_job@creative':'Save gig','save_job@tech':'Save project','save_job@service':'Save lesson','save_job@photographer':'Save shoot','save_job@sales':'Save visit','save_job@gym':'Save session',
-    'delete_job@creative':'Delete gig','delete_job@tech':'Delete project','delete_job@service':'Delete lesson','delete_job@photographer':'Delete shoot','delete_job@sales':'Delete visit','delete_job@gym':'Delete session',
+    add_job:'Add session', edit_job:'Edit session', save_job:'Save session', delete_job:'Delete session',
     field_date:'Date', field_start:'Start time', field_end:'End time',
-    field_client:'Client', field_amount:'Amount', field_tip:'Tip', field_expense:'Expense', field_count:'Count', field_notes:'Notes',
-    'field_client@service':'Student','field_client@sales':'Customer','field_client@gym':'Member',
-    'field_amount@creative':'Fee','field_amount@tech':'Fee','field_amount@service':'Fee','field_amount@photographer':'Fee','field_amount@sales':'Earnings','field_amount@gym':'Fee',
-    'field_count@creative':'Items','field_count@tech':'Tasks','field_count@service':'Sessions','field_count@photographer':'Photos','field_count@sales':'Calls','field_count@gym':'Sessions',
-    field_client_ph:'e.g. Acme Co.', field_notes_ph:'Anything to remember…',
+    field_client:'Member', field_amount:'Fee', field_tip:'Tip', field_expense:'Expense', field_count:'Sessions', field_notes:'Notes',
+    field_client_ph:'e.g. Alex Chan', field_notes_ph:'Anything to remember…',
     net_take:'Net take', ends_next_day:'ends next day', duration:'Duration',
     // validation
     err_enter_date:'Please pick a date', err_amount:'Amount must be 0 or more', err_neg:'Values cannot be negative', err_too_big:'That value is too large',
     // settings
     more_title:'More', settings_title:'Settings', account:'Account', local_account:'Local account on this device',
-    work_type:'Work type', preferences:'Preferences', currency:'Currency', theme:'Theme',
+    preferences:'Preferences', currency:'Currency', theme:'Theme',
     theme_auto:'Auto', theme_light:'Light', theme_dark:'Dark',
     tax_defaults:'Tax defaults (for M2)', wht:'Withholding tax %', vat:'VAT %',
     daily_goal:'Daily income goal', data:'Data', export_csv:'Export CSV', backup_json:'Backup JSON', restore_json:'Restore JSON',
@@ -325,8 +268,6 @@ const I18N = {
     mod_docs_p:'Store contracts, receipts and portfolio files — all on your device. Arrives in M2.',
     mod_book_p:'Share a booking link and let clients pick a slot. Arrives in M3.',
     pill_m2:'Ships in M2', pill_m3:'Ships in M3',
-    // onboarding
-    onboard_title:'What kind of work do you do?', onboard_sub:'We’ll tailor labels and screens to fit. You can change this anytime in Settings.',
     // misc
     welcome:'Welcome', welcome_back:'Welcome back', guest_name:'Guest', logged_out:'Logged out',
     greeting_morning:'Good morning', greeting_afternoon:'Good afternoon', greeting_evening:'Good evening',
@@ -340,19 +281,14 @@ const I18N = {
     err_id_min3:'Enter an email or username (3+ characters).', err_pw_min4:'Password must be at least 8 characters.',
     err_pw_mismatch:'Passwords do not match.', err_account_exists:'That account already exists on this device.',
     err_no_account:'No account with that email on this device.', err_incorrect_pw:'Incorrect password.',
-    // M1.5 — job type dropdown + custom
-    whats_your_job:"What's your job?", choose_placeholder:'Choose…', custom_option:'Custom…',
-    custom_name_label:'Name it', custom_name_ph:'e.g. Yoga instructor',
-    custom_unit_label:'One unit is a', custom_unit_ph:'e.g. Class',
-    custom_needs_both:'Enter both a name and a unit', continue_btn:'Continue',
     // M1.5 — customers
     manage:'Manage', customers_title:'Customers', add_customer:'Add customer', edit_customer:'Edit customer',
     save_customer:'Save customer', delete_customer:'Delete customer', delete_customer_confirm:'Delete this customer?',
     no_customers:'No customers yet', no_customers_sub:'Add your first customer to reuse their details.',
     customer_saved:'Customer saved', customer_deleted:'Customer deleted',
     field_name:'Name', field_phone:'Phone', field_email:'Email', field_tags:'Tags (comma-separated)',
-    field_taxid:'Tax ID', field_billing:'Billing address', field_company:'Company',
-    field_health:'Health notes', field_allergies:'Allergies', field_goals:'Goals', field_usage:'Usage rights',
+    field_taxid:'Tax ID', field_billing:'Billing address',
+    field_health:'Health notes', field_allergies:'Allergies', field_goals:'Goals',
     err_name_required:'Please enter a name',
     // M1.5 — services
     services_title:'Services', add_service:'Add service', edit_service:'Edit service', save_service:'Save service',
@@ -368,15 +304,6 @@ const I18N = {
 function curLang() { return (settings && settings.lang) || localStorage.getItem('ui_lang') || 'en'; }
 function t(key) {
   const l = curLang();
-  const wt = settings && settings.workType;
-  if (wt === 'custom') {
-    const c = customLabelForKey(key);
-    if (c != null) return c;
-  } else if (wt) {
-    const sk = key + '@' + wt;
-    const scoped = (I18N[l] && I18N[l][sk]) ?? I18N.en[sk];
-    if (scoped != null) return scoped;
-  }
   return (I18N[l] && I18N[l][key]) ?? I18N.en[key] ?? key;
 }
 function greetingPeriod() {
@@ -476,15 +403,12 @@ async function enterApp() {
   set('set-wht', settings.wht != null ? settings.wht : '');
   set('set-vat', settings.vat != null ? settings.vat : '');
   set('set-promptpay', settings.promptpayId || '');
-  renderPersonaControls();
 
-  // First-run onboarding: choose a work type before the dashboard.
-  if (!settings.workType) { openOnboarding(); }
-  else {
-    document.body.setAttribute('data-work-type', settings.workType);
-    await seedServicesIfEmpty();
-    switchScreen('home');
-  }
+  // Personal Gym Trainer edition: single fixed work type, no onboarding picker.
+  if (!settings.workType) await saveSetting('workType', 'gym');
+  document.body.setAttribute('data-work-type', 'gym');
+  await seedServicesIfEmpty();
+  switchScreen('home');
 }
 
 function displayName() {
@@ -809,83 +733,10 @@ async function deleteJob() {
   toast(t('job_deleted'));
 }
 
-// ─── ONBOARDING / WORK TYPE (dropdown + Custom) ───────────────────────
-// <option> list shared by the onboarding + settings dropdowns.
-function personaOptionsHTML() {
-  return PERSONAS.map(p => `<option value="${p.id}">${p.icon} ${p.label}</option>`).join('') +
-    `<option value="custom">${htmlEsc(t('custom_option'))}</option>`;
-}
-function openOnboarding() {
-  const sel = document.getElementById('ob-jobtype');
-  if (sel) {
-    sel.innerHTML = `<option value="" disabled selected>${htmlEsc(t('choose_placeholder'))}</option>` + personaOptionsHTML();
-    sel.value = '';
-  }
-  const custom = document.getElementById('ob-custom');
-  if (custom) custom.style.display = 'none';
-  ['ob-custom-name','ob-custom-unit'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
-  document.getElementById('onboarding').classList.add('open');
-}
-function onOnboardTypeChange(v) {
-  const custom = document.getElementById('ob-custom');
-  if (custom) custom.style.display = v === 'custom' ? 'block' : 'none';
-}
-async function confirmOnboarding() {
-  const v = document.getElementById('ob-jobtype').value;
-  if (!v) { toast(t('choose_placeholder')); return; }
-  if (v === 'custom') {
-    const name = (document.getElementById('ob-custom-name').value || '').trim();
-    const unit = (document.getElementById('ob-custom-unit').value || '').trim();
-    if (!name || !unit) { toast(t('custom_needs_both')); return; }
-    await saveSetting('customLabel', name);
-    await saveSetting('customUnit', unit);
-  }
-  await saveSetting('workType', v);
-  document.body.setAttribute('data-work-type', v);
-  document.getElementById('onboarding').classList.remove('open');
-  await seedServicesIfEmpty();
-  renderPersonaControls();
-  applyLang();
-  switchScreen('home');
-}
-// Settings work-type dropdown + custom inputs (mirrors onboarding).
-function renderPersonaControls() {
-  const sel = document.getElementById('set-worktype');
-  if (sel) { sel.innerHTML = personaOptionsHTML(); sel.value = settings.workType || ''; }
-  const row = document.getElementById('set-custom-row');
-  if (row) row.style.display = settings.workType === 'custom' ? 'flex' : 'none';
-  if (settings.workType === 'custom') {
-    const n = document.getElementById('set-custom-name'), u = document.getElementById('set-custom-unit');
-    if (n) n.value = settings.customLabel || '';
-    if (u) u.value = settings.customUnit || '';
-  }
-}
-async function onSettingsTypeChange(v) {
-  await saveSetting('workType', v);
-  document.body.setAttribute('data-work-type', v);
-  const row = document.getElementById('set-custom-row');
-  if (row) row.style.display = v === 'custom' ? 'flex' : 'none';
-  await seedServicesIfEmpty();
-  renderPersonaControls();
-  applyLang();
-  toast(t('saved'));
-}
-async function onCustomEdit() {
-  const name = (document.getElementById('set-custom-name').value || '').trim();
-  const unit = (document.getElementById('set-custom-unit').value || '').trim();
-  await saveSetting('customLabel', name);
-  await saveSetting('customUnit', unit);
-  applyLang();
-}
-
 // ─── CUSTOMERS (records only — history/stats are BACKLOG) ──────────────
-// Persona intake fields shown per work type (field-schema-per-workType).
-const CUSTOMER_INTAKE = {
-  gym:          [{id:'healthNotes', key:'field_health'}, {id:'allergies', key:'field_allergies'}, {id:'goals', key:'field_goals'}],
-  photographer: [{id:'usageRights', key:'field_usage'}],
-  _default:     [{id:'company', key:'field_company'}],
-};
-function intakeFields() { return CUSTOMER_INTAKE[settings.workType] || CUSTOMER_INTAKE._default; }
+// Gym trainer intake fields shown on every customer form.
+const CUSTOMER_INTAKE = [{id:'healthNotes', key:'field_health'}, {id:'allergies', key:'field_allergies'}, {id:'goals', key:'field_goals'}];
+function intakeFields() { return CUSTOMER_INTAKE; }
 function renderCustomers() {
   const wrap = document.getElementById('customers-body');
   if (!wrap) return;
@@ -976,26 +827,15 @@ async function deleteCustomer() {
 }
 
 // ─── SERVICES (catalog + default rates) ───────────────────────────────
-// Example services seeded once per work type (editable/deletable). Numbers are
-// currency-agnostic. Custom work types are not auto-seeded.
-const SEED_SERVICES = {
-  gym:          [['1-on-1 session',800,'session'],['Group class',400,'session'],['Nutrition plan',2000,'plan']],
-  photographer: [['Portrait shoot',3500,'shoot'],['Event coverage',8000,'event'],['Product shoot',2500,'shoot']],
-  creative:     [['Logo design',5000,'project'],['Social video',3000,'video'],['Copywriting',1500,'piece']],
-  tech:         [['Website build',30000,'project'],['Bug fix',1500,'fix'],['Consulting hour',1200,'hour']],
-  service:      [['1-hour lesson',600,'hour'],['Package of 10',5000,'package']],
-  sales:        [['Consultation',1000,'visit'],['Policy review',800,'review']],
-};
+// Example gym services seeded once (editable/deletable). Numbers are currency-agnostic.
+const SEED_SERVICES = [['1-on-1 session',800,'session'],['Group class',400,'session'],['Nutrition plan',2000,'plan']];
 async function seedServicesIfEmpty() {
-  const wt = settings.workType;
-  if (!wt || wt === 'custom') return;
-  const flag = 'servicesSeeded_' + wt;
-  if (settings[flag]) return;                       // already seeded this type
+  const flag = 'servicesSeeded_gym';
+  if (settings[flag]) return;                       // already seeded
   const uid = isGuest ? 'guest' : currentUser.id;
   const existing = (await dbAll('services')).filter(s => s.uid === uid);
   if (existing.length) { await saveSetting(flag, true); return; }   // never overwrite user data
-  const seeds = SEED_SERVICES[wt];
-  if (seeds) for (const [name, rate, unit] of seeds) {
+  for (const [name, rate, unit] of SEED_SERVICES) {
     await dbAdd('services', {uid, name, rate, unit, cuid: cuid(), updatedAt: nowISO()});
   }
   await saveSetting(flag, true);
@@ -1210,13 +1050,11 @@ async function importBackup(inputEl) {
   // theme/language.
   if (data.settings && typeof data.settings === 'object') {
     for (const key of Object.keys(data.settings)) {
-      if (key === 'lang') continue;
+      if (key === 'lang' || key === 'workType') continue;
       await saveSetting(key, data.settings[key]);
     }
-    if (data.settings.workType) document.body.setAttribute('data-work-type', data.settings.workType);
   }
   await reload();
-  renderPersonaControls();
   applyLang();
   toast(t('restore_done').replace('{n}', n));
 }

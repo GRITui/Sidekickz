@@ -343,8 +343,7 @@ function onDgClientChange() {
 }
 window.onDgClientChange = onDgClientChange;
 
-// Persona-aware, cheap defaults: photographer usage rights + gym waiver data
-// are pulled straight from the selected customer's intake fields.
+// Prefill the contract's usage-rights field from the customer's saved value, if any.
 function applyPersonaDefaultsForContract() {
   const sel = document.getElementById('dg-client');
   const c = sel.value ? customers.find(x => String(x.id) === sel.value) : null;
