@@ -1056,8 +1056,15 @@
   //  PRINT / PDF  (print-optimized DOM + window.print(); scoped print CSS)
   // ══════════════════════════════════════════════════════════════════════
   function printInvoice(inv) {
-    const uidUser = (typeof currentUser !== 'undefined' && currentUser) ? currentUser : { firstName: '', username: '' };
-    const fromName = esc(uidUser.firstName || uidUser.username || 'Freelanz');
+    const fromName = esc((typeof sellerBusinessName === 'function') ? sellerBusinessName() : 'Freelanz');
+    // Optional seller tax ID/address — shown only when filled in under
+    // Settings > Business info, mirroring how client tax ID/address below
+    // only show when the client profile has them.
+    const sellerBits = [];
+    if (typeof settings !== 'undefined' && settings) {
+      if (settings.sellerAddress) sellerBits.push(esc(settings.sellerAddress));
+      if (settings.sellerTaxId) sellerBits.push('Tax ID: ' + esc(settings.sellerTaxId));
+    }
 
     const rows = (inv.lineItems || []).map(li => {
       const amt = n(li.qty) * n(li.unitPrice);
@@ -1114,6 +1121,7 @@
           </div>
           <div style="text-align:right">
             <div style="font-weight:800;font-size:16px">${fromName}</div>
+            ${sellerBits.map(b => `<div class="pi-muted">${b}</div>`).join('')}
             <div class="pi-status">${esc(inv.status || 'draft')}</div>
           </div>
         </div>
