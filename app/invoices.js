@@ -145,10 +145,12 @@
   // ══════════════════════════════════════════════════════════════════════
   let lines = [];        // working line items: {description, qty, unitPrice}
   let editing = null;    // full record being edited, or null on create
+  let formFromJobId = null; // pipeline session this form was opened from (for engagement linking)
 
   function openInvoiceForm(fromJobId, prefillQuote) {
     editing = null;
     lines = [];
+    formFromJobId = (fromJobId != null) ? fromJobId : null;
 
     let preClientId = '', preClientName = '';
     if (prefillQuote) {
@@ -194,6 +196,7 @@
 
   function openInvoiceEdit(inv) {
     editing = inv;
+    formFromJobId = null;
     lines = (inv.lineItems && inv.lineItems.length)
       ? inv.lineItems.map(li => ({ description: li.description || '', qty: n(li.qty), unitPrice: n(li.unitPrice) }))
       : [{ description: '', qty: 1, unitPrice: 0 }];
@@ -470,8 +473,14 @@
         toast('Invoice updated');
       } else {
         base.cuid = cuid();
-        await dbAdd(STORE, base);
+        const newId = await dbAdd(STORE, base);
+        base.id = newId;
         toast('Invoice ' + base.number + ' created');
+        // Engagement linking: let app.js link invoiceId onto the session + advance.
+        if (formFromJobId != null && typeof window.onEngagementInvoiceCreated === 'function') {
+          try { window.onEngagementInvoiceCreated(newId, formFromJobId); } catch (e) { /* non-fatal */ }
+        }
+        formFromJobId = null;
       }
     } catch (err) {
       console.error(err);

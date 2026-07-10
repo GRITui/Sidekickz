@@ -130,6 +130,66 @@ body.authed .nav{display:flex;}
 .list-amt.pos{color:var(--paid);}
 .list-amt-sub{font-size:11px;color:var(--text3);margin-top:2px;}
 
+/* Engagement stage badge (jobs list) + pipeline action buttons */
+.stage-badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:800;
+  background:var(--brand-tint);color:var(--brand);letter-spacing:.2px;}
+.stage-badge.done{background:color-mix(in srgb,var(--paid) 16%,transparent);color:var(--paid);}
+.pl-action{padding:9px 14px;border:none;border-radius:9px;background:var(--brand);color:#fff;
+  font-size:13px;font-weight:800;font-family:inherit;cursor:pointer;}
+.pl-action:active{background:#0B5E57;}
+.pl-action:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
+.pl-done{display:inline-block;padding:7px 12px;border-radius:9px;font-size:13px;font-weight:800;
+  background:color-mix(in srgb,var(--paid) 14%,transparent);color:var(--paid);}
+.pl-edit{border:none;background:none;color:var(--text3);font-size:18px;cursor:pointer;padding:4px 6px;line-height:1;}
+.pl-edit:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:6px;}
+
+/* Workflow settings (stage reorder + quote toggle) */
+.wf-list{display:flex;flex-direction:column;}
+.wf-row{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:0.5px solid var(--border);}
+.wf-row:last-child{border-bottom:none;}
+.wf-ico{font-size:16px;}
+.wf-name{font-size:15px;font-weight:700;color:var(--text);flex:1;}
+.wf-btns{display:flex;gap:6px;}
+.wf-move{width:34px;height:34px;border:1px solid var(--border);background:var(--card);color:var(--text2);
+  border-radius:9px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit;}
+.wf-move:disabled{opacity:.35;cursor:default;}
+.wf-move:not(:disabled):active{background:var(--brand-tint);}
+.wf-move:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
+.wf-move.wf-rm{color:var(--overdue);border-color:color-mix(in srgb,var(--overdue) 40%,var(--border));}
+.wf-add{margin:0 0 16px;width:100%;padding:12px;border:1.5px dashed var(--border);border-radius:var(--radius-sm);
+  background:none;color:var(--brand);font-weight:700;font-size:13px;font-family:inherit;cursor:pointer;}
+.wf-add:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
+
+/* Pipeline Kanban board */
+.kanban{display:flex;gap:12px;overflow-x:auto;padding:2px 2px 10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;}
+.kb-col{flex:0 0 84%;max-width:340px;scroll-snap-align:start;background:var(--bg);border:1px solid var(--border);border-radius:16px;padding:10px;display:flex;flex-direction:column;min-height:110px;}
+.kb-col-head{display:flex;align-items:center;gap:8px;padding:4px 4px 10px;font-size:13px;font-weight:800;color:var(--text);}
+.kb-col-head .kb-ico{font-size:15px;}
+.kb-col-head .kb-count{margin-left:auto;font-size:11px;font-weight:800;color:var(--text3);background:var(--border);border-radius:10px;min-width:20px;height:19px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;}
+.kb-col-body{display:flex;flex-direction:column;gap:9px;flex:1;}
+.kb-empty{font-size:12px;color:var(--text3);padding:16px 10px;border:1px dashed var(--border);border-radius:12px;text-align:center;}
+.kb-card{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:11px 12px;cursor:pointer;box-shadow:0 1px 2px rgba(16,24,40,.05);transition:box-shadow .15s,transform .12s;}
+.kb-card:hover{box-shadow:0 4px 12px rgba(16,24,40,.10);}
+.kb-card:active{transform:scale(.995);}
+.kb-card-top{display:flex;align-items:flex-start;gap:8px;}
+.kb-card-main{flex:1;min-width:0;}
+.kb-card-title{font-size:14px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.kb-card-sub{font-size:11.5px;color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.kb-card-foot{display:flex;align-items:center;gap:8px;margin-top:10px;}
+.kb-card-foot .pl-action{flex:1;text-align:center;padding:8px 10px;}
+.kb-back{flex:0 0 auto;width:34px;height:34px;border:1px solid var(--border);background:var(--bg);border-radius:9px;color:var(--text3);font-size:15px;font-weight:800;cursor:pointer;line-height:1;}
+.kb-back:hover{border-color:var(--brand);color:var(--brand);}
+.kb-back:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
+
+@keyframes kb-enter{from{opacity:0;transform:translateX(-16px);}to{opacity:1;transform:none;}}
+.kb-card.kb-enter{animation:kb-enter .32s ease both;}
+@media (prefers-reduced-motion:reduce){.kb-card.kb-enter{animation:none;}}
+@media (min-width:900px){
+  #s-pipeline .content{max-width:1000px;}
+  .kanban{overflow-x:visible;scroll-snap-type:none;}
+  .kb-col{flex:1 1 0;max-width:none;}
+}
+
 /* Chips */
 .chip{display:inline-block;padding:3px 9px;border-radius:9px;font-size:11px;font-weight:700;}
 .chip-paid{background:color-mix(in srgb,var(--paid) 16%,transparent);color:var(--paid);}

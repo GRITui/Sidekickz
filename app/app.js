@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.7.0';          // <-> sw.js SW_VERSION 'freelanz-v0.7.0'
+const APP_VERSION = '0.8.0';          // <-> sw.js SW_VERSION 'freelanz-v0.8.0'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -229,6 +229,55 @@ function curSym() { return CURRENCY_SYM[(settings && settings.currency) || 'THB'
 // Freelanz — Personal Gym Trainer edition: single work type, no persona picker.
 function unitWord() { return 'Session'; }
 
+// ─── ENGAGEMENT PIPELINE ────────────────────────────────────────────────
+// A session IS an engagement moving through ordered stages. Canonical stages:
+//   quote   → send a quote for a session/package (optional/toggleable)
+//   service → deliver the session itself (core)
+//   invoice → send the invoice (core)
+//   paid    → payment received (core)
+// This edition is single-persona (gym trainer), so unlike the general Freelanz
+// app there's no per-persona preset picker — just ONE default order, prepaid
+// (invoice → paid → service, i.e. charge before training someone), which the
+// user can still reorder/toggle-quote in Settings ▸ Workflow.
+const STAGES = ['quote', 'service', 'invoice', 'paid'];
+const STAGE_META = {
+  quote:   {label:'Quote',   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent'},
+  service: {label:'Session', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark session done', done:'Session done'},
+  invoice: {label:'Invoice', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent'},
+  paid:    {label:'Paid',    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid'},
+};
+const CORE_STAGES = ['service', 'invoice', 'paid'];  // always present; only 'quote' is toggleable
+const DEFAULT_STAGE_ORDER = ['invoice', 'paid', 'service'];  // prepaid: charge, collect, then train
+function getStageOrder() {
+  const s = settings && settings.stageOrder;
+  if (Array.isArray(s) && s.length && s.every(x => STAGES.includes(x)) && new Set(s).size === s.length && CORE_STAGES.every(c => s.includes(c))) {
+    return s.slice();
+  }
+  return DEFAULT_STAGE_ORDER.slice();
+}
+// The stage order snapshotted onto a session at creation, so a later reorder
+// in Settings never remaps an already-in-flight engagement out from under it.
+function jobOrder(j) {
+  const o = j && j.stageOrder;
+  if (Array.isArray(o) && o.length && o.every(x => STAGES.includes(x)) && new Set(o).size === o.length) return o.slice();
+  return getStageOrder();
+}
+// Current stage of a session within its own order. Legacy sessions (no stage)
+// or ones whose stored stage was toggled out of the order fall back sensibly.
+function jobStage(j) {
+  const order = jobOrder(j);
+  if (j.stage && order.includes(j.stage)) return j.stage;
+  if (j.stage && !order.includes(j.stage)) return order[0];   // stage removed from order → restart at first
+  return order[order.length - 1];                              // legacy (no stage) → final stage
+}
+// Legacy sessions (logged before this feature existed, no stage recorded) are
+// treated as completed engagements (Done) — they represent already-earned work.
+function jobComplete(j) {
+  if (j.complete) return true;
+  if (j.stage == null) return true;
+  return false;
+}
+
 // ─── I18N ─────────────────────────────────────────────────────────────
 // t(key) resolves a persona-scoped `key@<workType>` variant first, then the
 // base key, then the English fallback, then the raw key. Base (no workType) =
@@ -241,7 +290,8 @@ const I18N = {
     auth_hint:'Create an account to save your work on this device.<br>Everything stays local — no cloud, no tracking.<br>Guest mode is temporary.',
     tagline:'Freelance admin, handled.',
     // nav
-    nav_home:'Home', nav_jobs:'Sessions', nav_docs:'Docs', nav_book:'Book', nav_more:'More',
+    nav_home:'Home', nav_jobs:'Sessions', nav_docs:'Docs', nav_pipeline:'Pipeline', nav_book:'Book', nav_more:'More',
+    pipeline_title:'Pipeline', workflow_title:'Workflow',
     // dashboard
     earned_this_month:'Earned this month', net_after_expenses:'net after expenses',
     stat_jobs:'Sessions', stat_avg:'Avg / session', stat_expenses:'Expenses',
@@ -456,6 +506,7 @@ async function reload() {
   renderServices();
   renderMemberTags();
   populateMemberTagsDatalist();
+  if (typeof renderPipeline === 'function') renderPipeline();
   const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setTxt('set-count', jobs.length);
   const badge = document.getElementById('jobs-badge');
@@ -585,11 +636,16 @@ function renderJobs() {
     const title = j.serviceName ? esc(j.serviceName) : esc(unitWord());
     const sub = [j.client, fmtDate(j.date)].filter(Boolean).join(' · ');
     const hrs = sessionHours(j);
+    const st = jobStage(j), sm = STAGE_META[st] || {};
+    const stageBadge = jobComplete(j)
+      ? `<span class="stage-badge done">✓ ${esc(sm.label || '')}</span>`
+      : `<span class="stage-badge">${sm.icon || ''} ${esc(sm.label || '')}</span>`;
     return `<div class="list-row" onclick="openEditJob(${j.id})">
       <div class="list-icon">🧾</div>
       <div class="list-main">
         <div class="list-title">${title}</div>
         <div class="list-sub">${esc(sub)}${hrs>0?' · '+fmtHours(hrs):''}</div>
+        <div style="margin-top:4px">${stageBadge}</div>
       </div>
       <div class="list-right">
         <div class="list-amt tnum pos">${money(netOf(j))}</div>
@@ -733,8 +789,21 @@ async function saveJob() {
     if (!prev) return;
     obj.id = id; obj.cuid = prev.cuid || cuid();
     obj.jobType = prev.jobType || settings.workType || '';   // preserve the job's original work type on edit
+    // Preserve the engagement's own stage progress on edit — editing details
+    // (fee, notes, date) shouldn't reset or advance where it is in the pipeline.
+    obj.stageOrder = prev.stageOrder != null ? prev.stageOrder : getStageOrder().slice();
+    obj.stage = prev.stage != null ? prev.stage : obj.stageOrder[0];
+    obj.complete = prev.complete || false;
+    obj.invoiceId = prev.invoiceId != null ? prev.invoiceId : null;
+    obj.quoteDocId = prev.quoteDocId != null ? prev.quoteDocId : null;
   } else {
     obj.cuid = cuid();
+    // New engagements snapshot the active stage order and start at its first stage.
+    obj.stageOrder = getStageOrder().slice();
+    obj.stage = obj.stageOrder[0];
+    obj.complete = false;
+    obj.invoiceId = null;
+    obj.quoteDocId = null;
   }
   obj.updatedAt = nowISO();
   const key = await dbPut('jobs', obj);
@@ -752,6 +821,244 @@ async function deleteJob() {
   await reload();
   toast(t('job_deleted'));
 }
+
+// ─── PIPELINE BOARD (primary engagement view) ──────────────────────────
+function renderPipeline() {
+  const el = document.getElementById('pipeline-body');
+  if (!el) return;
+  const order = getStageOrder();
+  const groups = {}; order.forEach(s => groups[s] = []);
+  // Group each session under its own stage NAME within the board's current
+  // columns. A session whose stage isn't a current column lands under the first.
+  jobs.forEach(j => { let s = jobStage(j); if (!groups[s]) s = order[0]; groups[s].push(j); });
+
+  let h = '<div class="kanban" role="list" aria-label="Engagement pipeline">';
+  order.forEach(stage => {
+    const meta = STAGE_META[stage] || {};
+    const items = groups[stage] || [];
+    h += `<div class="kb-col" role="listitem" aria-label="${attrEsc(meta.label || stage)}">
+      <div class="kb-col-head"><span class="kb-ico">${meta.icon || ''}</span>
+        <span class="kb-col-title">${htmlEsc(meta.label || stage)}</span>
+        <span class="kb-count">${items.length}</span></div>
+      <div class="kb-col-body">`;
+    h += items.length
+      ? items.map(j => pipelineCard(j, stage)).join('')
+      : '<div class="kb-empty">Nothing here yet</div>';
+    h += '</div></div>';
+  });
+  h += '</div>';
+  el.innerHTML = h;
+  if (window.__kbMoved != null) setTimeout(() => { window.__kbMoved = null; }, 500);
+}
+window.renderPipeline = renderPipeline;
+
+function pipelineCard(j, stage) {
+  const meta = STAGE_META[stage] || {};
+  const complete = jobComplete(j);
+  const who = j.client || t('field_client');
+  const svc = j.serviceName || unitWord();
+  const amt = money(Number(j.amount) || 0);
+  const order = jobOrder(j);
+  const canBack = complete || order.indexOf(jobStage(j)) > 0;
+  const enter = (window.__kbMoved === j.id) ? ' kb-enter' : '';
+  const foot = complete
+    ? `<span class="pl-done">✓ ${htmlEsc(meta.done || 'Done')}</span>`
+    : `<button type="button" class="pl-action" onclick="event.stopPropagation();pipelineAction(${j.id})">${htmlEsc(meta.action || 'Advance')} →</button>`;
+  const back = canBack
+    ? `<button type="button" class="kb-back" aria-label="Move back a stage" title="Move back" onclick="event.stopPropagation();moveJobStageBack(${j.id})">←</button>`
+    : '';
+  return `<div class="kb-card${enter}" onclick="openEditJob(${j.id})">
+    <div class="kb-card-top">
+      <div class="kb-card-main">
+        <div class="kb-card-title">${htmlEsc(who)}</div>
+        <div class="kb-card-sub">${htmlEsc(svc)} · ${htmlEsc(amt)}${fmtDate(j.date) ? ' · ' + htmlEsc(fmtDate(j.date)) : ''}</div>
+      </div>
+      <button type="button" class="pl-edit" aria-label="Edit engagement" onclick="event.stopPropagation();openEditJob(${j.id})">✎</button>
+    </div>
+    <div class="kb-card-foot">${back}${foot}</div>
+  </div>`;
+}
+
+// The single next-action per stage: complete the current stage and advance
+// (following settings.stageOrder, NOT a hardcoded order).
+function pipelineAction(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const stage = jobStage(j);
+  if (stage === 'quote') {
+    // docgen.js fires window.onEngagementQuoteCreated(docId, jobId) on save,
+    // which links quoteDocId and advances. If cancelled, stage stays put.
+    openQuoteForJob(j);
+  } else if (stage === 'invoice') {
+    if (typeof openInvoiceForm === 'function') {
+      // invoices.js fires window.onEngagementInvoiceCreated(id, jobId) on create,
+      // which links invoiceId and advances. If cancelled, stage stays put.
+      openInvoiceForm(jobId);
+    } else {
+      advanceJobStage(jobId);
+    }
+  } else if (stage === 'paid') {
+    markJobPaid(jobId);
+  } else {
+    advanceJobStage(jobId);   // 'service' (and any custom-first stage): just advance
+  }
+}
+window.pipelineAction = pipelineAction;
+
+async function advanceJobStage(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const order = jobOrder(j);
+  const idx = order.indexOf(jobStage(j));
+  if (idx < 0) { j.stage = order[0]; j.complete = false; }
+  else if (idx >= order.length - 1) { j.stage = order[idx]; j.complete = true; }
+  else { j.stage = order[idx + 1]; j.complete = false; }
+  j.updatedAt = nowISO();
+  window.__kbMoved = jobId;
+  await dbPut('jobs', j);
+  await reload();
+  renderPipeline();
+}
+
+// Move a card back one stage (or re-open a completed engagement at its final stage).
+async function moveJobStageBack(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const order = jobOrder(j);
+  const idx = order.indexOf(jobStage(j));
+  if (idx > 0) { j.stage = order[idx - 1]; }            // step back one column
+  else if (!jobComplete(j)) return;                     // already at the first stage, nothing to undo
+  j.complete = false;
+  j.updatedAt = nowISO();
+  window.__kbMoved = jobId;
+  await dbPut('jobs', j);
+  await reload();
+  renderPipeline();
+}
+window.moveJobStageBack = moveJobStageBack;
+
+async function markJobPaid(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  if (j.invoiceId != null) {
+    try {
+      const inv = await dbGet('invoices', j.invoiceId);
+      if (inv) { inv.status = 'paid'; inv.updatedAt = nowISO(); await dbPut('invoices', inv); }
+    } catch (e) { /* non-fatal */ }
+  }
+  const order = jobOrder(j);
+  const idx = order.indexOf(jobStage(j));
+  if (idx >= order.length - 1) { j.complete = true; }
+  else { j.stage = order[idx + 1]; j.complete = false; }
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  await reload();
+  renderPipeline();
+  if (typeof renderInvoices === 'function') renderInvoices();
+  toast('Marked paid');
+}
+
+// Open the doc-gen quote flow prefilled from this session's customer + service.
+function openQuoteForJob(j) {
+  if (typeof openGenerateForm !== 'function') { toast('Quote generator unavailable'); return; }
+  openGenerateForm('quote', {
+    clientId: j.clientId != null ? j.clientId : null,
+    clientName: j.client || '',
+    fields: {
+      clientId: j.clientId != null ? j.clientId : null,
+      lineItems: [{ description: j.serviceName || unitWord(), qty: (j.count > 0 ? j.count : 1), unitPrice: Number(j.amount) || 0 }],
+    },
+  });
+  // Mark this engagement pending AFTER opening (openGenerateForm clears it first);
+  // docgen.js links quoteDocId + advances only on a successful save. Cancelling
+  // leaves the stage untouched.
+  window.__pendingQuoteJobId = j.id;
+}
+
+// Called by invoices.js after an invoice is created from a pipeline session.
+window.onEngagementInvoiceCreated = async function (invoiceId, jobId) {
+  if (jobId == null) return;
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  j.invoiceId = invoiceId;
+  const order = jobOrder(j);
+  const idx = order.indexOf(jobStage(j));
+  if (idx >= 0 && idx < order.length - 1) { j.stage = order[idx + 1]; j.complete = false; }
+  else if (idx >= order.length - 1) { j.complete = true; }
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  await reload();
+  renderPipeline();
+};
+
+// Called by docgen.js after a quote document is saved from a pipeline session:
+// link the doc, then advance that session's stage. Cancelling never reaches here.
+window.onEngagementQuoteCreated = async function (docId, jobId) {
+  if (jobId == null) return;
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  j.quoteDocId = docId;
+  const order = jobOrder(j);
+  const idx = order.indexOf(jobStage(j));
+  if (idx >= 0 && idx < order.length - 1) { j.stage = order[idx + 1]; j.complete = false; }
+  else if (idx >= order.length - 1) { j.complete = true; }
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  await reload();
+  renderPipeline();
+};
+
+// ─── WORKFLOW SETTINGS (reorder + quote toggle) ────────────────────────
+// Single-persona edition: no business-model preset picker (there's only ever
+// one persona), just manual reorder + an optional Quote stage.
+function renderWorkflowControls() {
+  const wrap = document.getElementById('workflow-body');
+  if (!wrap) return;
+  const order = getStageOrder();
+  const rows = order.map((stage, i) => {
+    const meta = STAGE_META[stage] || {};
+    const isQuote = stage === 'quote';
+    return `<div class="wf-row">
+      <span class="wf-ico">${meta.icon || ''}</span>
+      <span class="wf-name">${htmlEsc(meta.label || stage)}</span>
+      <span class="wf-btns">
+        <button type="button" class="wf-move" aria-label="Move ${htmlEsc(meta.label || stage)} up" ${i === 0 ? 'disabled' : ''} onclick="wfMove(${i},-1)">↑</button>
+        <button type="button" class="wf-move" aria-label="Move ${htmlEsc(meta.label || stage)} down" ${i === order.length - 1 ? 'disabled' : ''} onclick="wfMove(${i},1)">↓</button>
+        ${isQuote ? `<button type="button" class="wf-move wf-rm" aria-label="Remove Quote stage" onclick="wfToggleQuote()">×</button>` : ''}
+      </span>
+    </div>`;
+  }).join('');
+  const quoteOff = !order.includes('quote');
+  wrap.innerHTML = `<div class="wf-list">${rows}</div>` +
+    (quoteOff ? `<button type="button" class="wf-add" onclick="wfToggleQuote()">＋ Add Quote stage</button>` : '');
+}
+window.renderWorkflowControls = renderWorkflowControls;
+
+async function wfMove(i, delta) {
+  const order = getStageOrder();
+  const j = i + delta;
+  if (j < 0 || j >= order.length) return;
+  const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+  // 'paid' must never precede 'invoice' (both are core stages, always present).
+  if (order.indexOf('paid') < order.indexOf('invoice')) {
+    toast('Payment must come after the invoice');
+    return;   // revert: order is a local copy, nothing saved
+  }
+  await saveSetting('stageOrder', order);
+  renderWorkflowControls();
+  renderPipeline();
+}
+window.wfMove = wfMove;
+
+async function wfToggleQuote() {
+  let order = getStageOrder();
+  if (order.includes('quote')) order = order.filter(s => s !== 'quote');
+  else order = ['quote', ...order];   // add quote at the front by default
+  await saveSetting('stageOrder', order);
+  renderWorkflowControls();
+  renderPipeline();
+}
+window.wfToggleQuote = wfToggleQuote;
 
 // ─── CUSTOMERS (records only — history/stats are BACKLOG) ──────────────
 // Gym trainer intake fields shown on every customer form.
@@ -1194,10 +1501,12 @@ function switchScreen(name) {
   const navBtn = document.getElementById('nav-'+name);
   if (navBtn) { navBtn.classList.add('active'); navBtn.setAttribute('aria-current','page'); }
   const fab = document.getElementById('fab');
-  if (fab) fab.style.display = (name === 'home' || name === 'jobs') ? 'flex' : 'none';
+  if (fab) fab.style.display = (name === 'home' || name === 'jobs' || name === 'pipeline') ? 'flex' : 'none';
   if (name === 'home') renderHome();
   if (name === 'customers') renderCustomers();
   if (name === 'services') renderServices();
+  if (name === 'pipeline' && typeof renderPipeline === 'function') renderPipeline();
+  if (name === 'more' && typeof renderWorkflowControls === 'function') renderWorkflowControls();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.
   if (name === 'invoices' && typeof renderInvoices === 'function') renderInvoices();
