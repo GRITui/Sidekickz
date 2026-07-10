@@ -110,20 +110,56 @@
   // Small local datasets (bookings + jobs both live entirely on-device), so it's
   // cheapest to just compute the full set of active dates once per render
   // rather than re-querying per visible day, including the leading/trailing
-  // days from adjacent months shown to fill the grid.
+  // days from adjacent months shown to fill the grid. Pipeline dates are
+  // bucketed per CURRENT stage (jobStage()), not just "has a job" — the
+  // calendar dot for a day shows exactly which stage(s) its engagements are
+  // in, using the same stage names/colors as the Pipeline board.
   async function computeActivitySets() {
     const uid = uidNow();
     const allBookings = (await dbAll(STORE)).filter(r => r.uid === uid && r.status !== 'cancelled');
     const bookingDates = new Set(allBookings.map(r => r.date));
-    const jobDates = new Set((typeof jobs !== 'undefined' ? jobs : []).map(j => j.date).filter(Boolean));
-    return { bookingDates, jobDates };
+    const stageDates = {}; // stage id -> Set of dates
+    (typeof STAGES !== 'undefined' ? STAGES : []).forEach(s => { stageDates[s] = new Set(); });
+    (typeof jobs !== 'undefined' ? jobs : []).forEach(j => {
+      if (!j.date || typeof jobStage !== 'function') return;
+      const s = jobStage(j);
+      if (stageDates[s]) stageDates[s].add(j.date);
+    });
+    return { bookingDates, stageDates };
   }
 
-  function dayCellHtml(iso, dayNum, dim, bookingDates, jobDates) {
+  // All dates shown in the ym grid, including the leading/trailing padding
+  // days borrowed from adjacent months — used both to render cells and to
+  // scope the legend to only what's actually visible this month.
+  function monthGridDates(ym) {
+    const [y, m] = ym.split('-').map(Number);
+    const startWeekday = (new Date(y, m - 1, 1).getDay() + 6) % 7; // Monday=0..Sunday=6
+    const numDays = new Date(y, m, 0).getDate();
+    const prevMonthDays = new Date(y, m - 1, 0).getDate();
+    const out = [];
+    for (let i = 0; i < startWeekday; i++) {
+      const dayNum = prevMonthDays - startWeekday + 1 + i;
+      const py = m === 1 ? y - 1 : y, pm = m === 1 ? 12 : m - 1;
+      out.push({ iso: `${py}-${pad2(pm)}-${pad2(dayNum)}`, dayNum, dim: true });
+    }
+    for (let d = 1; d <= numDays; d++) {
+      out.push({ iso: `${y}-${pad2(m)}-${pad2(d)}`, dayNum: d, dim: false });
+    }
+    const trailing = (7 - ((startWeekday + numDays) % 7)) % 7;
+    for (let i = 1; i <= trailing; i++) {
+      const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
+      out.push({ iso: `${ny}-${pad2(nm)}-${pad2(i)}`, dayNum: i, dim: true });
+    }
+    return out;
+  }
+
+  function dayCellHtml(iso, dayNum, dim, bookingDates, stageDates) {
     const isToday = iso === todayISO();
     const isSelected = iso === expandedDate;
-    const dots = (jobDates.has(iso) ? '<span class="cal-dot cal-dot-pipe"></span>' : '') +
-      (bookingDates.has(iso) ? '<span class="cal-dot cal-dot-book"></span>' : '');
+    const stageDots = (typeof STAGES !== 'undefined' ? STAGES : [])
+      .filter(s => stageDates[s] && stageDates[s].has(iso))
+      .map(s => `<span class="cal-dot" style="background:${STAGE_META[s].dot}"></span>`).join('');
+    const dots = stageDots + (bookingDates.has(iso) ? '<span class="cal-dot cal-dot-book"></span>' : '');
     const cls = 'cal-cell' + (dim ? ' cal-dim' : '') + (isToday ? ' cal-today' : '') + (isSelected ? ' cal-selected' : '');
     return `<button type="button" class="${cls}" data-cal="${iso}">
         <span class="cal-daynum">${dayNum}</span>
@@ -131,33 +167,34 @@
       </button>`;
   }
 
-  function buildMonthGrid(ym, bookingDates, jobDates) {
-    const [y, m] = ym.split('-').map(Number);
-    const startWeekday = (new Date(y, m - 1, 1).getDay() + 6) % 7; // Monday=0..Sunday=6
-    const numDays = new Date(y, m, 0).getDate();
-    const prevMonthDays = new Date(y, m - 1, 0).getDate();
-    let html = '';
-    for (let i = 0; i < startWeekday; i++) {
-      const dayNum = prevMonthDays - startWeekday + 1 + i;
-      const py = m === 1 ? y - 1 : y, pm = m === 1 ? 12 : m - 1;
-      html += dayCellHtml(`${py}-${pad2(pm)}-${pad2(dayNum)}`, dayNum, true, bookingDates, jobDates);
-    }
-    for (let d = 1; d <= numDays; d++) {
-      html += dayCellHtml(`${y}-${pad2(m)}-${pad2(d)}`, d, false, bookingDates, jobDates);
-    }
-    const trailing = (7 - ((startWeekday + numDays) % 7)) % 7;
-    for (let i = 1; i <= trailing; i++) {
-      const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
-      html += dayCellHtml(`${ny}-${pad2(nm)}-${pad2(i)}`, i, true, bookingDates, jobDates);
-    }
-    return html;
+  function buildMonthGrid(gridDates, bookingDates, stageDates) {
+    return gridDates.map(c => dayCellHtml(c.iso, c.dayNum, c.dim, bookingDates, stageDates)).join('');
   }
 
   function emptyDayHtml(dateISO) {
     return `<div class="empty" style="padding:28px 16px">
         <div class="empty-icon" style="font-size:44px;color:var(--brand)">${CAL_SVG}</div>
-        <p>No bookings on ${esc(fmtDate(dateISO))}</p>
+        <p>Nothing on ${esc(fmtDate(dateISO))}</p>
         <span>Tap “+ New booking” above to schedule work — set a duration and a travel buffer so back-to-back jobs stay realistic.</span>
+      </div>`;
+  }
+
+  // A day's pipeline dot only says "something's here" — this row is what makes
+  // it identifiable (which client, which stage), same info the Pipeline board
+  // itself shows on a card. Tapping a row jumps straight to that stage there.
+  function pipelineDayRowHtml(j) {
+    const stage = (typeof jobStage === 'function') ? jobStage(j) : null;
+    const meta = (stage && STAGE_META[stage]) || {};
+    const amt = (typeof money === 'function') ? money(j.amount) : (j.amount || '');
+    return `<div class="list-row" data-pipe-stage="${aesc(stage || '')}" tabindex="0" role="button">
+        <div class="list-icon" style="background:${meta.dot}22;color:${meta.dot}">${meta.icon || ''}</div>
+        <div class="list-main">
+          <div class="list-title">${esc(j.client || 'Client')}</div>
+          <div class="list-sub">${esc(meta.label || stage || '')}${j.serviceName ? ' · ' + esc(j.serviceName) : ''}</div>
+        </div>
+        <div class="list-right">
+          <div class="list-amt tnum">${esc(amt)}</div>
+        </div>
       </div>`;
   }
 
@@ -173,7 +210,20 @@
       const nextRows = await loadBookings(addDays(dateISO, 1));
       nextDayFirst = nextRows.filter(r => r.status !== 'cancelled')[0] || null;
     }
-    const body = rows.length ? buildDayList(rows, nextDayFirst) : emptyDayHtml(dateISO);
+    // Pipeline dots and booking rows are two different domains (sales-stage
+    // activity vs. scheduled time slots) — a day can have any mix of the two,
+    // including several engagements on the same day, so both render as their
+    // own list rather than trying to merge them into one row per client.
+    const dayJobs = (typeof jobs !== 'undefined' ? jobs : []).filter(j => j.date === dateISO);
+    const both = dayJobs.length > 0 && rows.length > 0;
+    const pipelineSection = dayJobs.length
+      ? (both ? `<div class="section-title" style="font-size:12px;margin:0 0 6px">Pipeline</div>` : '') +
+        `<div class="list-card" style="margin-bottom:${both ? '14px' : '0'}">${dayJobs.map(pipelineDayRowHtml).join('')}</div>`
+      : '';
+    const bookingSection = rows.length
+      ? (both ? `<div class="section-title" style="font-size:12px;margin:0 0 6px">Bookings</div>` : '') + buildDayList(rows, nextDayFirst)
+      : '';
+    const body = (pipelineSection || bookingSection) ? (pipelineSection + bookingSection) : emptyDayHtml(dateISO);
     return `<div class="cal-daypanel">
         <div class="cal-daypanel-head">${esc(dayLabel(dateISO))}</div>
         ${body}
@@ -186,9 +236,9 @@
     if (!selectedDate) selectedDate = todayISO();
     if (!calMonth) calMonth = todayISO().slice(0, 7);
 
-    let bookingDates, jobDates, dayPanelHtml = '';
+    let bookingDates, stageDates, dayPanelHtml = '';
     try {
-      ({ bookingDates, jobDates } = await computeActivitySets());
+      ({ bookingDates, stageDates } = await computeActivitySets());
       if (expandedDate) dayPanelHtml = await buildDayPanel(expandedDate);
     } catch (err) {
       console.error('renderBookings', err);
@@ -206,11 +256,20 @@
 
     const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const wdRow = `<div class="cal-wd-row">${WD.map(w => `<div class="cal-wd">${w}</div>`).join('')}</div>`;
-    const grid = `<div class="cal-grid">${buildMonthGrid(calMonth, bookingDates, jobDates)}</div>`;
-    const legend = `<div class="cal-legend">
-        <span class="cal-legend-item"><span class="cal-dot cal-dot-pipe"></span> Pipeline</span>
-        <span class="cal-legend-item"><span class="cal-dot cal-dot-book"></span> Booking</span>
-      </div>`;
+    const gridDates = monthGridDates(calMonth);
+    const grid = `<div class="cal-grid">${buildMonthGrid(gridDates, bookingDates, stageDates)}</div>`;
+
+    // Legend only lists what's actually marked somewhere on the visible grid
+    // (including its leading/trailing padding days) — no point explaining a
+    // stage color the user can't currently see a dot for.
+    const isos = gridDates.map(c => c.iso);
+    const stageLegendItems = (typeof STAGES !== 'undefined' ? STAGES : [])
+      .filter(s => stageDates[s] && isos.some(iso => stageDates[s].has(iso)))
+      .map(s => `<span class="cal-legend-item"><span class="cal-dot" style="background:${STAGE_META[s].dot}"></span> ${esc(STAGE_META[s].label)}</span>`).join('');
+    const bookingLegendItem = isos.some(iso => bookingDates.has(iso))
+      ? `<span class="cal-legend-item"><span class="cal-dot cal-dot-book"></span> Booking</span>` : '';
+    const legend = (stageLegendItems || bookingLegendItem)
+      ? `<div class="cal-legend">${stageLegendItems}${bookingLegendItem}</div>` : '';
     const addLabel = expandedDate ? ' · ' + fmtDate(expandedDate) : '';
     const btn = `<button type="button" id="bk-new-btn" class="btn-submit" style="width:100%;margin:14px 0 16px">+ New booking${esc(addLabel)}</button>`;
 
@@ -253,6 +312,16 @@
       row.addEventListener('click', open);
       row.addEventListener('keydown', e => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+      });
+    });
+
+    // Pipeline rows in the day panel jump to that engagement's stage on the
+    // Pipeline board — the calendar itself never edits pipeline data.
+    el.querySelectorAll('[data-pipe-stage]').forEach(row => {
+      const go = () => { if (typeof openPipelineAt === 'function') openPipelineAt(row.getAttribute('data-pipe-stage')); };
+      row.addEventListener('click', go);
+      row.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
       });
     });
   }

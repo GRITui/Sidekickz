@@ -346,16 +346,15 @@ select option{background:var(--select-option-bg);color:var(--select-option-fg);}
   aspect-ratio:1/1;border:1px solid transparent;border-radius:9px;background:var(--card);
   font-family:inherit;cursor:pointer;padding:0;}
 .cal-daynum{font-size:12.5px;font-weight:700;color:var(--text);}
-.cal-dots{display:flex;gap:2px;min-height:5px;}
+.cal-dots{display:flex;gap:2px;min-height:5px;flex-wrap:wrap;justify-content:center;}
 .cal-dot{width:4.5px;height:4.5px;border-radius:50%;}
-.cal-dot-pipe{background:var(--brand);}
-.cal-dot-book{background:var(--marigold);}
+.cal-dot-book{background:var(--text3);}
 .cal-cell.cal-dim{background:none;}
 .cal-cell.cal-dim .cal-daynum{color:var(--text4);}
 .cal-cell.cal-today{border-color:var(--brand);}
 .cal-cell.cal-selected{background:var(--brand-tint);}
 .cal-cell.cal-selected .cal-daynum{color:var(--brand);}
-.cal-legend{display:flex;gap:16px;justify-content:center;margin:10px 0 4px;}
+.cal-legend{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:center;margin:10px 0 4px;}
 .cal-legend-item{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--text3);}
 .cal-legend-item .cal-dot{width:6px;height:6px;}
 .cal-daypanel-head{font-size:13px;font-weight:800;color:var(--text2);margin:2px 0 8px;}
