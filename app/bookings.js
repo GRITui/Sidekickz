@@ -24,6 +24,10 @@
   const esc = (s) => htmlEsc(s);
   const aesc = (s) => attrEsc(s);
   const STORE = 'bookings';
+  // Same outline used by the nav's Book icon — kept as a shared line icon
+  // instead of the 📅 emoji, matching the SVG icon style used elsewhere
+  // (Pipeline's stage icons, the old jump-to-date button).
+  const CAL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:block"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>';
 
   function uidNow() { return isGuest ? 'guest' : currentUser.id; }
   function n(v) { const x = parseFloat(v); return isFinite(x) ? x : 0; }
@@ -76,73 +80,172 @@
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  //  DAY VIEW  →  #book-body
+  //  MONTH CALENDAR  →  #book-body
   // ══════════════════════════════════════════════════════════════════════
-  let selectedDate = todayISO();   // module-closure state — nav re-renders this day only
-  let editing = null;              // full record being edited, or null on create
+  // A full month grid replaces the old single-day agenda as the landing view:
+  // each cell gets a small legend dot if that date has a booking and/or a
+  // pipeline engagement (a 'jobs' record dated that day), so the user can see
+  // where the month's activity is without stepping through days one at a
+  // time. Tapping a cell expands an inline agenda panel below the grid (the
+  // day-list rendering itself — buildDayList/rowHtml/stripHtml — is unchanged
+  // from the old day view, just relocated into that panel).
+  let selectedDate = todayISO();          // last date the user looked at (fallback for "+ New booking")
+  let expandedDate = todayISO();          // date whose agenda panel is open beneath the grid; null = collapsed
+  let calMonth = todayISO().slice(0, 7);  // 'YYYY-MM' currently shown in the grid
+  let editing = null;                     // full record being edited, or null on create
+
+  function shiftMonth(ym, delta) {
+    let [y, m] = ym.split('-').map(Number);
+    m += delta;
+    while (m < 1) { m += 12; y--; }
+    while (m > 12) { m -= 12; y++; }
+    return `${y}-${pad2(m)}`;
+  }
+  function monthLabel(ym) {
+    const [y, m] = ym.split('-').map(Number);
+    const d = new Date(y, m - 1, 1);
+    return d.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  }
+
+  // Small local datasets (bookings + jobs both live entirely on-device), so it's
+  // cheapest to just compute the full set of active dates once per render
+  // rather than re-querying per visible day, including the leading/trailing
+  // days from adjacent months shown to fill the grid.
+  async function computeActivitySets() {
+    const uid = uidNow();
+    const allBookings = (await dbAll(STORE)).filter(r => r.uid === uid && r.status !== 'cancelled');
+    const bookingDates = new Set(allBookings.map(r => r.date));
+    const jobDates = new Set((typeof jobs !== 'undefined' ? jobs : []).map(j => j.date).filter(Boolean));
+    return { bookingDates, jobDates };
+  }
+
+  function dayCellHtml(iso, dayNum, dim, bookingDates, jobDates) {
+    const isToday = iso === todayISO();
+    const isSelected = iso === expandedDate;
+    const dots = (jobDates.has(iso) ? '<span class="cal-dot cal-dot-pipe"></span>' : '') +
+      (bookingDates.has(iso) ? '<span class="cal-dot cal-dot-book"></span>' : '');
+    const cls = 'cal-cell' + (dim ? ' cal-dim' : '') + (isToday ? ' cal-today' : '') + (isSelected ? ' cal-selected' : '');
+    return `<button type="button" class="${cls}" data-cal="${iso}">
+        <span class="cal-daynum">${dayNum}</span>
+        <span class="cal-dots">${dots}</span>
+      </button>`;
+  }
+
+  function buildMonthGrid(ym, bookingDates, jobDates) {
+    const [y, m] = ym.split('-').map(Number);
+    const startWeekday = (new Date(y, m - 1, 1).getDay() + 6) % 7; // Monday=0..Sunday=6
+    const numDays = new Date(y, m, 0).getDate();
+    const prevMonthDays = new Date(y, m - 1, 0).getDate();
+    let html = '';
+    for (let i = 0; i < startWeekday; i++) {
+      const dayNum = prevMonthDays - startWeekday + 1 + i;
+      const py = m === 1 ? y - 1 : y, pm = m === 1 ? 12 : m - 1;
+      html += dayCellHtml(`${py}-${pad2(pm)}-${pad2(dayNum)}`, dayNum, true, bookingDates, jobDates);
+    }
+    for (let d = 1; d <= numDays; d++) {
+      html += dayCellHtml(`${y}-${pad2(m)}-${pad2(d)}`, d, false, bookingDates, jobDates);
+    }
+    const trailing = (7 - ((startWeekday + numDays) % 7)) % 7;
+    for (let i = 1; i <= trailing; i++) {
+      const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
+      html += dayCellHtml(`${ny}-${pad2(nm)}-${pad2(i)}`, i, true, bookingDates, jobDates);
+    }
+    return html;
+  }
+
+  function emptyDayHtml(dateISO) {
+    return `<div class="empty" style="padding:28px 16px">
+        <div class="empty-icon" style="font-size:44px;color:var(--brand)">${CAL_SVG}</div>
+        <p>No bookings on ${esc(fmtDate(dateISO))}</p>
+        <span>Tap “+ New booking” above to schedule work — set a duration and a travel buffer so back-to-back jobs stay realistic.</span>
+      </div>`;
+  }
+
+  async function buildDayPanel(dateISO) {
+    const rows = await loadBookings(dateISO);
+    // If the last active booking of the day runs past midnight, pull
+    // tomorrow's first active booking too so the buffer/overlap check can
+    // see across the day boundary instead of stopping dead at midnight.
+    let nextDayFirst = null;
+    const active = rows.filter(r => r.status !== 'cancelled');
+    const last = active[active.length - 1];
+    if (last && toMin(last.startTime) + n(last.durationMin) >= 1440) {
+      const nextRows = await loadBookings(addDays(dateISO, 1));
+      nextDayFirst = nextRows.filter(r => r.status !== 'cancelled')[0] || null;
+    }
+    const body = rows.length ? buildDayList(rows, nextDayFirst) : emptyDayHtml(dateISO);
+    return `<div class="cal-daypanel">
+        <div class="cal-daypanel-head">${esc(dayLabel(dateISO))}</div>
+        ${body}
+      </div>`;
+  }
 
   async function renderBookings() {
     const el = document.getElementById('book-body');
     if (!el) return;
     if (!selectedDate) selectedDate = todayISO();
-    let rows, nextDayFirst = null;
+    if (!calMonth) calMonth = todayISO().slice(0, 7);
+
+    let bookingDates, jobDates, dayPanelHtml = '';
     try {
-      rows = await loadBookings(selectedDate);
-      // If the last active booking of the day runs past midnight, pull
-      // tomorrow's first active booking too so the buffer/overlap check can
-      // see across the day boundary instead of stopping dead at midnight.
-      const active = rows.filter(r => r.status !== 'cancelled');
-      const last = active[active.length - 1];
-      if (last && toMin(last.startTime) + n(last.durationMin) >= 1440) {
-        const nextRows = await loadBookings(addDays(selectedDate, 1));
-        nextDayFirst = nextRows.filter(r => r.status !== 'cancelled')[0] || null;
-      }
+      ({ bookingDates, jobDates } = await computeActivitySets());
+      if (expandedDate) dayPanelHtml = await buildDayPanel(expandedDate);
     } catch (err) {
       console.error('renderBookings', err);
       el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>Could not load bookings.</p></div>`;
       return;
     }
 
-    const nav = `<div style="position:relative;display:flex;align-items:center;gap:8px;background:var(--card);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:6px;margin:0 0 14px">
-        <button type="button" id="bk-prev" aria-label="Previous day" style="flex:0 0 auto;width:40px;padding:10px 0;border:none;background:var(--brand-tint);color:var(--brand);border-radius:9px;font-size:18px;font-weight:800;font-family:inherit;cursor:pointer">‹</button>
-        <button type="button" id="bk-today" style="flex:1;padding:8px;border:none;background:none;color:var(--text);border-radius:9px;font-family:inherit;cursor:pointer;text-align:center">
-          <div style="font-size:14px;font-weight:800">${esc(dayLabel(selectedDate))}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:1px">${selectedDate === todayISO() ? 'Tap ‹ › to change day' : 'Tap to jump to today'}</div>
-        </button>
-        <button type="button" id="bk-next" aria-label="Next day" style="flex:0 0 auto;width:40px;padding:10px 0;border:none;background:var(--brand-tint);color:var(--brand);border-radius:9px;font-size:18px;font-weight:800;font-family:inherit;cursor:pointer">›</button>
-        <button type="button" id="bk-jump-btn" aria-label="Jump to a date" title="Jump to a date" style="flex:0 0 auto;width:40px;padding:10px 0;border:none;background:var(--brand-tint);color:var(--brand);border-radius:9px;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
-        </button>
+    const monthNav = `<div class="cal-topnav">
+        <button type="button" id="cal-prev" class="cal-navbtn" aria-label="Previous month">‹</button>
+        <button type="button" id="cal-label" class="cal-monthlabel">${esc(monthLabel(calMonth))}</button>
+        <button type="button" id="cal-next" class="cal-navbtn" aria-label="Next month">›</button>
+        <button type="button" id="cal-today-btn" class="cal-todaybtn">Today</button>
         <input type="date" id="bk-jump" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
       </div>`;
 
-    const btn = `<button type="button" id="bk-new-btn" class="btn-submit" style="width:100%;margin:0 0 16px">+ New booking</button>`;
+    const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const wdRow = `<div class="cal-wd-row">${WD.map(w => `<div class="cal-wd">${w}</div>`).join('')}</div>`;
+    const grid = `<div class="cal-grid">${buildMonthGrid(calMonth, bookingDates, jobDates)}</div>`;
+    const legend = `<div class="cal-legend">
+        <span class="cal-legend-item"><span class="cal-dot cal-dot-pipe"></span> Pipeline</span>
+        <span class="cal-legend-item"><span class="cal-dot cal-dot-book"></span> Booking</span>
+      </div>`;
+    const addLabel = expandedDate ? ' · ' + fmtDate(expandedDate) : '';
+    const btn = `<button type="button" id="bk-new-btn" class="btn-submit" style="width:100%;margin:14px 0 16px">+ New booking${esc(addLabel)}</button>`;
 
-    let content;
-    if (!rows.length) {
-      content = `<div class="empty"><div class="empty-icon">📅</div>
-           <p>No bookings for this day</p>
-           <span>Tap “+ New booking” to schedule work — set a duration and a travel buffer so back-to-back jobs stay realistic.</span>
-         </div>`;
-    } else {
-      content = buildDayList(rows, nextDayFirst);
-    }
+    el.innerHTML = monthNav + wdRow + grid + legend + btn + dayPanelHtml;
 
-    el.innerHTML = nav + btn + content;
-
-    document.getElementById('bk-prev').addEventListener('click', () => { selectedDate = addDays(selectedDate, -1); renderBookings(); });
-    document.getElementById('bk-next').addEventListener('click', () => { selectedDate = addDays(selectedDate, 1); renderBookings(); });
-    document.getElementById('bk-today').addEventListener('click', () => { selectedDate = todayISO(); renderBookings(); });
-    document.getElementById('bk-new-btn').addEventListener('click', () => openBookingForm(selectedDate));
-    // Jump straight to any date via the native date picker, instead of stepping
-    // one day at a time with ‹ › — the hidden input just proxies the picker UI.
-    document.getElementById('bk-jump-btn').addEventListener('click', () => {
+    document.getElementById('cal-prev').addEventListener('click', () => { calMonth = shiftMonth(calMonth, -1); expandedDate = null; renderBookings(); });
+    document.getElementById('cal-next').addEventListener('click', () => { calMonth = shiftMonth(calMonth, 1); expandedDate = null; renderBookings(); });
+    document.getElementById('cal-today-btn').addEventListener('click', () => { calMonth = todayISO().slice(0, 7); expandedDate = todayISO(); selectedDate = todayISO(); renderBookings(); });
+    document.getElementById('bk-new-btn').addEventListener('click', () => openBookingForm(expandedDate || selectedDate || todayISO()));
+    // Tapping the month label jumps straight to any date via the native date
+    // picker, instead of stepping one month at a time with ‹ › — the hidden
+    // input just proxies the picker UI.
+    document.getElementById('cal-label').addEventListener('click', () => {
       const inp = document.getElementById('bk-jump');
-      inp.value = selectedDate;
+      inp.value = expandedDate || selectedDate || todayISO();
       if (inp.showPicker) inp.showPicker(); else inp.click();
     });
     document.getElementById('bk-jump').addEventListener('change', (e) => {
-      if (e.target.value) { selectedDate = e.target.value; renderBookings(); }
+      if (!e.target.value) return;
+      calMonth = e.target.value.slice(0, 7);
+      expandedDate = e.target.value;
+      selectedDate = e.target.value;
+      renderBookings();
+    });
+
+    el.querySelectorAll('[data-cal]').forEach(cell => {
+      cell.addEventListener('click', () => {
+        const iso = cell.getAttribute('data-cal');
+        if (!iso) return;
+        if (iso === expandedDate) { expandedDate = null; renderBookings(); return; }
+        expandedDate = iso;
+        selectedDate = iso;
+        if (iso.slice(0, 7) !== calMonth) calMonth = iso.slice(0, 7);
+        renderBookings();
+      });
     });
 
     el.querySelectorAll('[data-bk]').forEach(row => {
@@ -218,7 +321,7 @@
     if (r.status === 'cancelled') subParts.push('Cancelled');
     const titleStyle = dim ? ' style="text-decoration:line-through"' : '';
     return `<div class="list-row" data-bk="${r.id}" tabindex="0" role="button"${dim ? ' style="opacity:.55"' : ''}>
-        <div class="list-icon">📅</div>
+        <div class="list-icon" style="font-size:19px;color:var(--brand)">${CAL_SVG}</div>
         <div class="list-main">
           <div class="list-title"${titleStyle}>${esc(r.title || 'Booking')}</div>
           <div class="list-sub">${subParts.join(' · ')}</div>
@@ -388,7 +491,11 @@
       toast('Could not save booking');
       return;
     }
-    selectedDate = date; // follow the booking to its (possibly changed) day
+    // Follow the booking to its (possibly changed) day: expand that date's
+    // panel and jump the grid to its month so the saved booking is visible.
+    selectedDate = date;
+    expandedDate = date;
+    calMonth = date.slice(0, 7);
     closeModal('bk-form-modal');
     renderBookings();
   }
