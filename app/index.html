@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>document.documentElement.dataset.theme='light';</script><!-- light-only: set before CSS paints to avoid a dark flash on dark-OS -->
-<link rel="stylesheet" href="styles.css?v=0.8.2">
+<link rel="stylesheet" href="styles.css?v=0.8.3">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -46,21 +46,15 @@
     <div class="goal-sub" id="goal-sub"></div>
   </div>
 
-  <div class="qa-grid">
-    <button class="qa-btn" onclick="openAddJob()"><span class="qa-ico">➕</span><span data-i18n="new_job">New session</span></button>
-    <button class="qa-btn accent" onclick="newInvoice()"><span class="qa-ico">🧾</span><span data-i18n="new_invoice">New invoice</span></button>
+  <div class="content" style="padding-bottom:0">
+    <div class="section-title" data-i18n="pipeline_glance_title">Pipeline at a glance</div>
+    <div class="pg-row" id="pipeline-glance"></div>
   </div>
 
   <div class="content">
     <div class="section-title" data-i18n="action_queue">Action queue</div>
     <div id="queue-body"></div>
   </div>
-</section>
-
-<!-- ══ JOBS ══ -->
-<section class="screen" id="s-jobs">
-  <div class="hdr-plain"><h1 data-i18n="jobs_title">Sessions</h1></div>
-  <div class="content"><div id="jobs-body"></div></div>
 </section>
 
 <!-- ══ PIPELINE (primary engagement view) ══ -->
@@ -223,7 +217,7 @@
 
     <div class="settings-list" style="margin-top:16px">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version">0.8.2</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version">0.8.3</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
@@ -284,11 +278,6 @@
   <button class="nav-btn" id="nav-home" onclick="switchScreen('home')">
     <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
     <span data-i18n="nav_home">Home</span>
-  </button>
-  <button class="nav-btn" id="nav-jobs" onclick="switchScreen('jobs')">
-    <svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
-    <span data-i18n="nav_jobs">Sessions</span>
-    <span class="nav-badge" id="jobs-badge" style="display:none">0</span>
   </button>
   <button class="nav-btn" id="nav-pipeline" onclick="switchScreen('pipeline')">
     <svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M7 21v-7"/><path d="M12 21V6"/><path d="M17 21v-4"/></svg>
@@ -431,17 +420,17 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.8.2"></script>
+<script src="app.js?v=0.8.3"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.8.2"></script>
-<script src="invoices.js?v=0.8.2"></script>
-<script src="docgen.js?v=0.8.2"></script>
+<script src="tax.js?v=0.8.3"></script>
+<script src="invoices.js?v=0.8.3"></script>
+<script src="docgen.js?v=0.8.3"></script>
 <!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
      the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
-<script src="bookings.js?v=0.8.2"></script>
-<script src="followups.js?v=0.8.2"></script>
-<script src="portfolio.js?v=0.8.2"></script>
+<script src="bookings.js?v=0.8.3"></script>
+<script src="followups.js?v=0.8.3"></script>
+<script src="portfolio.js?v=0.8.3"></script>
 <!-- M5: research.js (content library, subscription UI stubbed open — no
      payment verification yet; see project-changelog-handshake.md). -->
-<script src="research.js?v=0.8.2"></script>
+<script src="research.js?v=0.8.3"></script>
