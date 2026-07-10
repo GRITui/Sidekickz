@@ -1,7 +1,7 @@
 {
-  "name": "Freelanz",
-  "short_name": "Freelanz",
-  "description": "Local-first admin for independent workers: jobs, invoicing, tax, docs, booking.",
+  "name": "Freelanz — Gym Trainer",
+  "short_name": "Freelanz Gym",
+  "description": "Local-first admin for personal trainers: sessions, members, invoicing, tax, docs, booking.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

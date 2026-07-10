@@ -268,7 +268,7 @@ select option{background:var(--select-option-bg);color:var(--select-option-fg);}
   .nav{position:sticky;top:0;left:auto;transform:none;grid-column:1;grid-row:1;width:230px;max-width:none;
     height:100vh;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:6px;padding:24px 14px;
     background:var(--card);backdrop-filter:none;border-top:none;border-right:0.5px solid var(--border);}
-  .nav::before{content:"Freelanz";font-size:19px;font-weight:800;color:var(--brand);letter-spacing:-.3px;padding:6px 12px 18px;}
+  .nav::before{content:"Freelanz Gym";font-size:19px;font-weight:800;color:var(--brand);letter-spacing:-.3px;padding:6px 12px 18px;}
   .nav-btn{flex:0 0 auto;flex-direction:row;justify-content:flex-start;gap:14px;padding:12px 14px;border-radius:10px;}
   .nav-btn span{font-size:14px;}
   .nav-btn.active{background:var(--brand-tint);}

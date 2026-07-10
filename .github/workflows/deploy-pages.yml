@@ -1,0 +1,60 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, personal-gym-trainer-freelanz]
+  workflow_dispatch:
+
+# Least-privilege perms for the Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; let a newer push supersede an in-flight run
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # This single Pages site hosts two independent Freelanz PWAs, built from
+      # two branches on every run regardless of which one triggered it, so a
+      # push to either branch can never wipe out the other's live pages:
+      #   /       <- main (general multi-persona Freelanz app)
+      #   /gym/   <- personal-gym-trainer-freelanz (single-purpose gym app)
+      - name: Checkout main (root app)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: site-main
+
+      - name: Checkout gym fork (subpath app)
+        uses: actions/checkout@v4
+        with:
+          ref: personal-gym-trainer-freelanz
+          path: site-gym
+
+      - name: Assemble combined Pages site
+        run: |
+          mkdir -p _site
+          cp -r site-main/app/. _site/
+          mkdir -p _site/gym
+          cp -r site-gym/app/. _site/gym/
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload combined site as the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

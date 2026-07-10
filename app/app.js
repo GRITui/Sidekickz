@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.6.0';          // <-> sw.js SW_VERSION 'freelanz-v0.6.0'
+const APP_VERSION = '0.6.1';          // <-> sw.js SW_VERSION 'freelanz-v0.6.1'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -22,7 +22,11 @@ let db;
 // ('research'). onupgradeneeded only CREATES missing stores (each guarded by
 // !contains) — it never drops or clears existing stores, so guest jobs /
 // clients / settings survive the upgrade.
-const DB_NAME = 'freelanz-v2', DB_VER = 4;   // DB_NAME kept as freelanz-v2 (no prior real users; only DB_VER bumps now)
+// DB_NAME/storage keys below are namespaced 'gym' because this app co-hosts
+// with the main Freelanz app on the same GitHub Pages origin (root vs /gym/):
+// IndexedDB/localStorage/sessionStorage are scoped per-ORIGIN, not per-path,
+// so an unprefixed name here would silently share the main app's database.
+const DB_NAME = 'freelanz-gym-v1', DB_VER = 4;
 function openDB() {
   return new Promise((res, rej) => {
     const req = indexedDB.open(DB_NAME, DB_VER);
@@ -102,7 +106,7 @@ function cuid() { return crypto.randomUUID ? crypto.randomUUID() : 'c' + Date.no
 function nowISO() { return new Date().toISOString(); }
 
 // ─── AUTH ─────────────────────────────────────────────────────────────
-const SESSION_KEY = 'freelanz_uid';
+const SESSION_KEY = 'freelanz_gym_uid';
 let currentUser = null;
 let authMode = 'login';
 let isGuest = false;
@@ -145,12 +149,12 @@ function authError(msg) {
 // Stable per-device guest identity (label only; all guest data lives under the
 // fixed uid 'guest' so leaving and re-entering guest mode restores it).
 function guestUsername() {
-  let u = localStorage.getItem('guest_username');
+  let u = localStorage.getItem('gym_guest_username');
   if (!u) {
-    const n = (parseInt(localStorage.getItem('guest_counter') || '0', 10) + 1);
-    localStorage.setItem('guest_counter', String(n));
+    const n = (parseInt(localStorage.getItem('gym_guest_counter') || '0', 10) + 1);
+    localStorage.setItem('gym_guest_counter', String(n));
     u = 'Guest' + String(n).padStart(6, '0');
-    localStorage.setItem('guest_username', u);
+    localStorage.setItem('gym_guest_username', u);
   }
   return u;
 }
@@ -158,7 +162,7 @@ async function loginGuest() {
   isGuest = true;
   currentUser = {id: 0, username: guestUsername()};
   localStorage.setItem(SESSION_KEY, 'guest');
-  sessionStorage.setItem('post_login_toast', t('welcome') + ', ' + t('guest_name') + '!');
+  sessionStorage.setItem('gym_post_login_toast', t('welcome') + ', ' + t('guest_name') + '!');
   location.href = './';
 }
 async function submitAuth() {
@@ -179,7 +183,7 @@ async function submitAuth() {
     currentUser = {id, username:id0, firstName};
     isGuest = false;
     localStorage.setItem(SESSION_KEY, String(id));
-    sessionStorage.setItem('post_login_toast', t('welcome') + (firstName ? ', ' + firstName : '') + '!');
+    sessionStorage.setItem('gym_post_login_toast', t('welcome') + (firstName ? ', ' + firstName : '') + '!');
     location.href = './';
   } else {
     const user = await dbGetByUsername(id0);
@@ -189,13 +193,13 @@ async function submitAuth() {
     currentUser = {id: user.id, username: user.username, firstName: user.firstName || ''};
     isGuest = false;
     localStorage.setItem(SESSION_KEY, String(user.id));
-    sessionStorage.setItem('post_login_toast', t('welcome_back') + (user.firstName ? ', ' + user.firstName : '') + '!');
+    sessionStorage.setItem('gym_post_login_toast', t('welcome_back') + (user.firstName ? ', ' + user.firstName : '') + '!');
     location.href = './';
   }
 }
 async function logout() {
   localStorage.removeItem(SESSION_KEY);
-  sessionStorage.setItem('post_login_toast', t('logged_out'));
+  sessionStorage.setItem('gym_post_login_toast', t('logged_out'));
   location.href = 'login.html';
 }
 async function restoreSession() {
@@ -301,7 +305,7 @@ const I18N = {
     export_customers_csv:'Export customers CSV',
   }
 };
-function curLang() { return (settings && settings.lang) || localStorage.getItem('ui_lang') || 'en'; }
+function curLang() { return (settings && settings.lang) || localStorage.getItem('gym_ui_lang') || 'en'; }
 function t(key) {
   const l = curLang();
   return (I18N[l] && I18N[l][key]) ?? I18N.en[key] ?? key;
@@ -343,14 +347,14 @@ function netOf(j) { return (Number(j.amount)||0) + (Number(j.tip)||0) - (Number(
 // (the [data-theme="light"] token block overrides the prefers-color-scheme dark
 // media query). The dark-theme CSS tokens are kept in styles.css but dormant.
 function applyTheme() {
-  localStorage.setItem('ui_theme', 'light');
+  localStorage.setItem('gym_ui_theme', 'light');
   document.documentElement.dataset.theme = 'light';
 }
 
 // ─── BOOT ─────────────────────────────────────────────────────────────
 function showPostLoginToast() {
-  const msg = sessionStorage.getItem('post_login_toast');
-  if (msg) { sessionStorage.removeItem('post_login_toast'); toast(msg); }
+  const msg = sessionStorage.getItem('gym_post_login_toast');
+  if (msg) { sessionStorage.removeItem('gym_post_login_toast'); toast(msg); }
 }
 // login.html entry — already-authed devices skip to the app.
 async function bootLogin() {
@@ -916,7 +920,7 @@ async function saveSetting(key, val) {
   settings[key] = val;
   const prefix = isGuest ? 'guest:' : (currentUser.id + ':');
   await dbPut('settings', {key: prefix + key, value: val});
-  if (key === 'lang') localStorage.setItem('ui_lang', val);
+  if (key === 'lang') localStorage.setItem('gym_ui_lang', val);
 }
 async function onCurrencyChange(v) { await saveSetting('currency', v); applyLang(); }
 async function onGoalChange(v) { const n = parseFloat(v); await saveSetting('dailyGoal', isNaN(n)?0:n); renderGoal(); }
@@ -987,7 +991,7 @@ async function exportBackup() {
   const uid = isGuest ? 'guest' : currentUser.id;
   const allByStore = await Promise.all(BACKUP_STORES.map(s => dbAll(s)));
   const backup = {
-    app: 'Freelanz', version: APP_VERSION, exportedAt: nowISO(),
+    app: 'FreelanzGym', version: APP_VERSION, exportedAt: nowISO(),
     user: (currentUser && currentUser.username) || 'guest',
     settings: settings, theme: 'light',   // dark mode paused in M1.5; restore never flips theme
   };
@@ -995,7 +999,7 @@ async function exportBackup() {
   const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `freelanz-backup-${backup.user}-${todayISO()}.json`;
+  a.download = `freelanz-gym-backup-${backup.user}-${todayISO()}.json`;
   a.click();
   await saveSetting('lastBackupAt', nowISO());
   renderHome();   // clears the backup-reminder queue item immediately, no reload needed
@@ -1009,7 +1013,7 @@ async function importBackup(inputEl) {
   let data;
   try { data = JSON.parse(await file.text()); }
   catch(e) { toast(t('restore_bad_file')); return; }
-  if (!data || data.app !== 'Freelanz' || !Array.isArray(data.jobs)) { toast(t('restore_bad_file')); return; }
+  if (!data || data.app !== 'FreelanzGym' || !Array.isArray(data.jobs)) { toast(t('restore_bad_file')); return; }
   // Validate the ENTIRE payload before touching the DB: every row in every
   // store must be a plain, non-null object. Reject malformed backups up front
   // so a bad file (e.g. jobs:[null]) can never delete data mid-import. A

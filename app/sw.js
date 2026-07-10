@@ -1,16 +1,22 @@
 /* Freelanz service worker — local-first PWA app shell.
  *
  * VERSION LOCKSTEP: SW_VERSION tracks APP_VERSION in app.js.
- *   app.js  APP_VERSION = '0.6.0'
- *   sw.js   SW_VERSION   = 'freelanz-v0.6.0'
+ *   app.js  APP_VERSION = '0.6.1'
+ *   sw.js   SW_VERSION   = 'freelanz-v0.6.1'
  * Bump BOTH together on every deploy, and keep the ?v= query on the precached
  * app.js / styles.css in step (they double as cache-busters).
  *
  * No backend, no secrets: this SW only precaches the versioned shell and serves
  * same-origin assets cache-first so the app works fully offline.
  */
-const SW_VERSION = 'freelanz-v0.6.0';
-const SHELL_CACHE = `freelanz-shell-${SW_VERSION}`;
+const SW_VERSION = 'freelanz-v0.6.1';
+// Prefixed 'freelanz-gym-' (not just 'freelanz-'): this app co-hosts with the
+// main Freelanz app on the same GitHub Pages origin (root vs /gym/), and the
+// Cache Storage API is scoped per-ORIGIN, not per-path — every SW on the origin
+// sees every cache key in caches.keys(). The activate handler below only
+// deletes keys matching ITS OWN prefix so it never nukes the other app's cache.
+const CACHE_PREFIX = 'freelanz-gym-shell-';
+const SHELL_CACHE = `${CACHE_PREFIX}${SW_VERSION}`;
 
 // BASE is derived from the SW's own location so the app works mounted at any
 // subpath (e.g. /freelanz/ on shared hosting), not just the domain root.
@@ -20,15 +26,15 @@ const SHELL_ASSETS = [
   BASE,
   BASE + 'index.html',
   BASE + 'login.html',
-  BASE + 'app.js?v=0.6.0',
-  BASE + 'tax.js?v=0.6.0',
-  BASE + 'invoices.js?v=0.6.0',
-  BASE + 'docgen.js?v=0.6.0',
-  BASE + 'bookings.js?v=0.6.0',
-  BASE + 'followups.js?v=0.6.0',
-  BASE + 'portfolio.js?v=0.6.0',
-  BASE + 'research.js?v=0.6.0',
-  BASE + 'styles.css?v=0.6.0',
+  BASE + 'app.js?v=0.6.1',
+  BASE + 'tax.js?v=0.6.1',
+  BASE + 'invoices.js?v=0.6.1',
+  BASE + 'docgen.js?v=0.6.1',
+  BASE + 'bookings.js?v=0.6.1',
+  BASE + 'followups.js?v=0.6.1',
+  BASE + 'portfolio.js?v=0.6.1',
+  BASE + 'research.js?v=0.6.1',
+  BASE + 'styles.css?v=0.6.1',
   BASE + 'manifest.json',
   BASE + 'icons/icon.svg',
   BASE + 'icons/icon-192.png',
@@ -48,7 +54,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
-        keys.filter((k) => k !== SHELL_CACHE).map((k) => caches.delete(k))
+        keys.filter((k) => k.startsWith(CACHE_PREFIX) && k !== SHELL_CACHE).map((k) => caches.delete(k))
       ))
       .then(() => self.clients.claim())
   );
