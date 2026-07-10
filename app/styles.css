@@ -181,6 +181,9 @@ body.authed .nav{display:flex;}
 .kb-back{flex:0 0 auto;width:34px;height:34px;border:1px solid var(--border);background:var(--bg);border-radius:9px;color:var(--text3);font-size:15px;font-weight:800;cursor:pointer;line-height:1;}
 .kb-back:hover{border-color:var(--brand);color:var(--brand);}
 .kb-back:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
+.pl-skip{flex:0 0 auto;padding:8px 10px;border:1px solid var(--border);background:var(--bg);border-radius:9px;color:var(--text3);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;}
+.pl-skip:hover{border-color:var(--brand);color:var(--brand);}
+.pl-skip:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
 
 @keyframes kb-enter{from{opacity:0;transform:translateX(-16px);}to{opacity:1;transform:none;}}
 .kb-card.kb-enter{animation:kb-enter .32s ease both;}

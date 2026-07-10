@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.8.5';          // <-> sw.js SW_VERSION 'freelanz-v0.8.5'
+const APP_VERSION = '0.8.6';          // <-> sw.js SW_VERSION 'freelanz-v0.8.6'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -246,8 +246,8 @@ function unitWord() { return 'Session'; }
 const STAGES = ['pitch', 'quote', 'invoice', 'paid', 'delivery', 'extend'];
 const STAGE_META = {
   pitch:    {label:'Pitch',    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'Log pitch',       done:'Pitched'},
-  quote:    {label:'Quote',    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent'},
-  invoice:  {label:'Invoice',  icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent'},
+  quote:    {label:'Quote',    icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent', skippable:true},
+  invoice:  {label:'Invoice',  icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent', skippable:true},
   paid:     {label:'Paid',     icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid'},
   delivery: {label:'Delivery', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark delivered',  done:'Delivered'},
   extend:   {label:'Extend',   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'Mark extended',    done:'Extended'},
@@ -297,6 +297,7 @@ const I18N = {
     // nav
     nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Pipeline', nav_book:'Book', nav_more:'More',
     pipeline_title:'Pipeline', workflow_title:'Workflow', pipeline_glance_title:'Pipeline at a glance',
+    skip_stage:'Skip', mark_finished:'Finished',
     // dashboard
     earned_this_month:'Earned this month', net_after_expenses:'net after expenses',
     stat_jobs:'Sessions', stat_avg:'Avg / session', stat_expenses:'Expenses',
@@ -551,9 +552,10 @@ function renderInsights() {
       stageCounts[s] = (stageCounts[s]||0) + 1;
     }
   });
-  const stageOrderForDisplay = (typeof getStageOrder === 'function') ? getStageOrder().concat('done') : Object.keys(stageCounts);
+  const stageOrderForDisplay = (typeof getStageOrder === 'function') ? getStageOrder().concat(['extended', 'finished', 'done']) : Object.keys(stageCounts);
+  const STAGE_DISPLAY_LABELS = { done: t('insights_stage_done'), extended: STAGE_META.extend && STAGE_META.extend.done, finished: t('mark_finished') };
   const stageRows = stageOrderForDisplay.filter(s => stageCounts[s]).map(s => {
-    const label = s === 'done' ? t('insights_stage_done') : ((STAGE_META[s] && STAGE_META[s].label) || s);
+    const label = STAGE_DISPLAY_LABELS[s] || (STAGE_META[s] && STAGE_META[s].label) || s;
     return {label, count: stageCounts[s]};
   });
 
@@ -917,9 +919,16 @@ function pipelineCard(j, stage) {
   const order = jobOrder(j);
   const canBack = complete || order.indexOf(jobStage(j)) > 0;
   const enter = (window.__kbMoved === j.id) ? ' kb-enter' : '';
+  const doneLabel = j.outcome === 'finished' ? t('mark_finished') : (meta.done || 'Done');
   const foot = complete
-    ? `<span class="pl-done">✓ ${htmlEsc(meta.done || 'Done')}</span>`
+    ? `<span class="pl-done">✓ ${htmlEsc(doneLabel)}</span>`
     : `<button type="button" class="pl-action" onclick="event.stopPropagation();pipelineAction(${j.id})">${htmlEsc(meta.action || 'Advance')} →</button>`;
+  const skip = (!complete && meta.skippable)
+    ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();skipJobStage(${j.id})">${htmlEsc(t('skip_stage'))}</button>`
+    : '';
+  const finish = (!complete && stage === 'extend')
+    ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();finishJobStage(${j.id})">${htmlEsc(t('mark_finished'))}</button>`
+    : '';
   const back = canBack
     ? `<button type="button" class="kb-back" aria-label="Move back a stage" title="Move back" onclick="event.stopPropagation();moveJobStageBack(${j.id})">←</button>`
     : '';
@@ -931,7 +940,7 @@ function pipelineCard(j, stage) {
       </div>
       <button type="button" class="pl-edit" aria-label="Edit engagement" onclick="event.stopPropagation();openEditJob(${j.id})">✎</button>
     </div>
-    <div class="kb-card-foot">${back}${foot}</div>
+    <div class="kb-card-foot">${back}${skip}${finish}${foot}</div>
   </div>`;
 }
 
@@ -967,15 +976,45 @@ async function advanceJobStage(jobId) {
   const order = jobOrder(j);
   const idx = order.indexOf(jobStage(j));
   if (idx < 0) { j.stage = order[0]; j.complete = false; }
-  else if (idx >= order.length - 1) { j.stage = order[idx]; j.complete = true; }
+  else if (idx >= order.length - 1) { j.stage = order[idx]; j.complete = true; j.outcome = 'extended'; }
   else { j.stage = order[idx + 1]; j.complete = false; }
   j.updatedAt = nowISO();
-  logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
+  logEvent('pipeline_stage:' + (j.complete ? (j.outcome || 'done') : j.stage));
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
 }
+
+// Skip the current stage's linked action (no quote/invoice document required) and
+// just move the card forward, same mechanics as advanceJobStage — only exposed
+// on stages flagged skippable (Quote, Invoice) since those are paperwork, not
+// money-received checkpoints. Paid is never skippable: it's what Home's earnings
+// stats are built on.
+async function skipJobStage(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (j) logEvent('pipeline_stage_skipped:' + jobStage(j));
+  await advanceJobStage(jobId);
+}
+window.skipJobStage = skipJobStage;
+
+// Alt completion for the Extend stage: the engagement is over without a renewal.
+// Distinct from the primary "Mark extended" action so the completed badge (and
+// the Insights pipeline-activity breakdown) can tell "extended" and "finished"
+// engagements apart.
+async function finishJobStage(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  j.complete = true;
+  j.outcome = 'finished';
+  j.updatedAt = nowISO();
+  logEvent('pipeline_stage:finished');
+  window.__kbMoved = jobId;
+  await dbPut('jobs', j);
+  await reload();
+  renderPipeline();
+}
+window.finishJobStage = finishJobStage;
 
 // Move a card back one stage (or re-open a completed engagement at its final stage).
 async function moveJobStageBack(jobId) {
@@ -986,6 +1025,7 @@ async function moveJobStageBack(jobId) {
   if (idx > 0) { j.stage = order[idx - 1]; }            // step back one column
   else if (!jobComplete(j)) return;                     // already at the first stage, nothing to undo
   j.complete = false;
+  j.outcome = null;   // stepping back out of a completed engagement clears its extended/finished outcome
   j.updatedAt = nowISO();
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
