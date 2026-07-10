@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.8.6';          // <-> sw.js SW_VERSION 'freelanz-v0.8.6'
+const APP_VERSION = '0.8.7';          // <-> sw.js SW_VERSION 'freelanz-v0.8.7'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -371,7 +371,7 @@ const I18N = {
     insights_sessions_logged:'Sessions logged', insights_clients_added:'Clients added', insights_active_days_30:'Active days (30d)',
     insights_feature_usage:'Feature usage', insights_pipeline_activity:'Pipeline activity', insights_no_pipeline_activity:'No pipeline activity yet',
     insights_stage_done:'Completed', insights_clear:'Clear usage data', insights_clear_confirm:'Clear all local usage data? This cannot be undone.',
-    insights_cleared:'Usage data cleared',
+    insights_cleared:'Usage data cleared', insights_unlocked:'Insights unlocked',
   }
 };
 function curLang() { return (settings && settings.lang) || localStorage.getItem('gym_ui_lang') || 'en'; }
@@ -506,15 +506,40 @@ async function reload() {
   setTxt('set-count', jobs.length);
 }
 // ─── USAGE INSIGHTS (local-only — never leaves this device) ───────────
-// A lightweight event log so the trainer using this app can see which
-// features they actually reach for, to guide what's worth building next.
-// No network calls, no third-party analytics — this is purely a local
-// mirror the user can inspect (and clear) themselves in Settings > Insights.
+// A lightweight event log so the app owner can see which features get reached
+// for, to guide what's worth building next. Collection always runs (it's the
+// whole point), but the Settings > Insights screen itself is developer-only —
+// hidden from the normal Manage list so ordinary end users never see or land
+// on it. No network calls, no third-party analytics.
 function logEvent(name) {
   if (!db) return;
   const uid = isGuest ? 'guest' : currentUser.id;
   const row = {uid, name, ts: nowISO()};
   dbAdd('usageEvents', row).then(id => { row.id = id; usageEvents.push(row); }).catch(()=>{});
+}
+// Reveal Insights the same way Android reveals Developer Options: tap the
+// version number 7 times. Unlocking is a one-time, permanent, per-device flag.
+const INSIGHTS_UNLOCK_TAPS = 7;
+let _versionTapCount = 0;
+let _versionTapTimer = null;
+function tapVersion() {
+  if (settings.insightsUnlocked) return;
+  _versionTapCount++;
+  clearTimeout(_versionTapTimer);
+  _versionTapTimer = setTimeout(() => { _versionTapCount = 0; }, 2000);
+  if (_versionTapCount >= INSIGHTS_UNLOCK_TAPS) {
+    _versionTapCount = 0;
+    unlockInsights();
+  }
+}
+async function unlockInsights() {
+  await saveSetting('insightsUnlocked', true);
+  applyInsightsVisibility();
+  toast(t('insights_unlocked'));
+}
+function applyInsightsVisibility() {
+  const row = document.getElementById('insights-row');
+  if (row) row.style.display = settings.insightsUnlocked ? 'flex' : 'none';
 }
 const SCREEN_LABELS = {
   home:'Home', pipeline:'Pipeline', customers:'Clients', book:'Booking', more:'Settings',
@@ -1626,6 +1651,7 @@ async function importBackup(inputEl) {
 
 // ─── NAV / SCREENS ────────────────────────────────────────────────────
 function switchScreen(name) {
+  if (name === 'insights' && !settings.insightsUnlocked) name = 'more';   // hidden dev-only screen — bounce direct navigation
   logEvent('screen_view:' + name);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => { b.classList.remove('active'); b.removeAttribute('aria-current'); });
@@ -1639,6 +1665,7 @@ function switchScreen(name) {
   if (name === 'services') renderServices();
   if (name === 'pipeline' && typeof renderPipeline === 'function') renderPipeline();
   if (name === 'more' && typeof renderWorkflowControls === 'function') renderWorkflowControls();
+  if (name === 'more') applyInsightsVisibility();
   if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.
