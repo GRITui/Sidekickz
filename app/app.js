@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.8.4';          // <-> sw.js SW_VERSION 'freelanz-v0.8.4'
+const APP_VERSION = '0.8.5';          // <-> sw.js SW_VERSION 'freelanz-v0.8.5'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -19,14 +19,15 @@ let db;
 // without a version bump, so onupgradeneeded never re-fired for existing v2
 // databases; this bump fixes that too, since the guarded creates below run
 // for ANY store still missing, not just the three new ones), 3→4 in M5
-// ('research'), 4→5 ('memberTags'). onupgradeneeded only CREATES missing
-// stores (each guarded by !contains) — it never drops or clears existing
-// stores, so guest jobs / clients / settings survive the upgrade.
+// ('research'), 4→5 ('memberTags'), 5→6 ('usageEvents' — local usage
+// analytics). onupgradeneeded only CREATES missing stores (each guarded by
+// !contains) — it never drops or clears existing stores, so guest jobs /
+// clients / settings survive the upgrade.
 // DB_NAME/storage keys below are namespaced 'gym' because this app co-hosts
 // with the main Freelanz app on the same GitHub Pages origin (root vs /gym/):
 // IndexedDB/localStorage/sessionStorage are scoped per-ORIGIN, not per-path,
 // so an unprefixed name here would silently share the main app's database.
-const DB_NAME = 'freelanz-gym-v1', DB_VER = 5;
+const DB_NAME = 'freelanz-gym-v1', DB_VER = 6;
 function openDB() {
   return new Promise((res, rej) => {
     const req = indexedDB.open(DB_NAME, DB_VER);
@@ -47,6 +48,7 @@ function openDB() {
       if (!d.objectStoreNames.contains('portfolio')) d.createObjectStore('portfolio', {keyPath:'id', autoIncrement:true}); // M3 showcase
       if (!d.objectStoreNames.contains('research'))  d.createObjectStore('research',  {keyPath:'id', autoIncrement:true}); // M5 content library
       if (!d.objectStoreNames.contains('memberTags')) d.createObjectStore('memberTags', {keyPath:'id', autoIncrement:true}); // reusable Member-field tags
+      if (!d.objectStoreNames.contains('usageEvents')) d.createObjectStore('usageEvents', {keyPath:'id', autoIncrement:true}); // local-only usage analytics (never leaves this device)
       if (!d.objectStoreNames.contains('settings'))  d.createObjectStore('settings',  {keyPath:'key'});
       if (!d.objectStoreNames.contains('meta'))      d.createObjectStore('meta',      {keyPath:'key'});   // dormant (future sync)
       if (!d.objectStoreNames.contains('outbox'))    d.createObjectStore('outbox',    {keyPath:'key', autoIncrement:true}); // dormant
@@ -216,7 +218,7 @@ async function restoreSession() {
 }
 
 // ─── STATE ────────────────────────────────────────────────────────────
-let jobs = [], expenses = [], customers = [], services = [], memberTags = [], settings = {lang:'en', currency:'THB'};
+let jobs = [], expenses = [], customers = [], services = [], memberTags = [], usageEvents = [], settings = {lang:'en', currency:'THB'};
 let currentPeriod = 'month';
 
 // HTML/attr escaping (shared by all list/form renderers)
@@ -363,6 +365,12 @@ const I18N = {
     add_new_client_option:'+ Add a new client…',
     export_customers_csv:'Export clients CSV',
     nav_customers:'Clients',
+    // Usage insights (local-only analytics)
+    insights_title:'Insights', no_insights:'No activity yet', no_insights_sub:'Insights build up as you use the app — nothing is sent anywhere, this stays on your device.',
+    insights_sessions_logged:'Sessions logged', insights_clients_added:'Clients added', insights_active_days_30:'Active days (30d)',
+    insights_feature_usage:'Feature usage', insights_pipeline_activity:'Pipeline activity', insights_no_pipeline_activity:'No pipeline activity yet',
+    insights_stage_done:'Completed', insights_clear:'Clear usage data', insights_clear_confirm:'Clear all local usage data? This cannot be undone.',
+    insights_cleared:'Usage data cleared',
   }
 };
 function curLang() { return (settings && settings.lang) || localStorage.getItem('gym_ui_lang') || 'en'; }
@@ -485,14 +493,98 @@ async function reload() {
   services.sort((a,b) => (a.name||'').localeCompare(b.name||''));
   memberTags = (await dbAll('memberTags')).filter(m => m.uid === uid);
   memberTags.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+  usageEvents = (await dbAll('usageEvents')).filter(e => e.uid === uid);
   renderHome();
   renderCustomers();
   renderServices();
   renderMemberTags();
   populateMemberTagsDatalist();
   if (typeof renderPipeline === 'function') renderPipeline();
+  renderInsights();
   const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   setTxt('set-count', jobs.length);
+}
+// ─── USAGE INSIGHTS (local-only — never leaves this device) ───────────
+// A lightweight event log so the trainer using this app can see which
+// features they actually reach for, to guide what's worth building next.
+// No network calls, no third-party analytics — this is purely a local
+// mirror the user can inspect (and clear) themselves in Settings > Insights.
+function logEvent(name) {
+  if (!db) return;
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const row = {uid, name, ts: nowISO()};
+  dbAdd('usageEvents', row).then(id => { row.id = id; usageEvents.push(row); }).catch(()=>{});
+}
+const SCREEN_LABELS = {
+  home:'Home', pipeline:'Pipeline', customers:'Clients', book:'Booking', more:'Settings',
+  membertags:'Member tags', services:'Services', invoices:'Invoices', tax:'Tax', docs:'Documents',
+  followups:'Follow-ups', portfolio:'Portfolio', research:'Research', insights:'Insights',
+};
+function daysAgoISO(days) { const d = new Date(); d.setDate(d.getDate() - days); return d.toISOString(); }
+function renderInsights() {
+  const wrap = document.getElementById('insights-body');
+  if (!wrap) return;
+  if (!usageEvents.length) {
+    wrap.innerHTML = `<div class="empty"><div class="empty-icon">📊</div>
+      <p>${htmlEsc(t('no_insights'))}</p><span>${htmlEsc(t('no_insights_sub'))}</span></div>`;
+    return;
+  }
+  const since30 = daysAgoISO(30);
+  const last30 = usageEvents.filter(e => e.ts >= since30);
+  const sessionsLogged = usageEvents.filter(e => e.name === 'session_logged').length;
+  const clientsAdded = usageEvents.filter(e => e.name === 'client_added').length;
+  const activeDays30 = new Set(last30.map(e => e.ts.slice(0,10))).size;
+
+  const screenCounts = {};
+  usageEvents.forEach(e => {
+    if (e.name.startsWith('screen_view:')) {
+      const s = e.name.slice('screen_view:'.length);
+      screenCounts[s] = (screenCounts[s]||0) + 1;
+    }
+  });
+  const topScreens = Object.entries(screenCounts).sort((a,b) => b[1]-a[1]);
+
+  const stageCounts = {};
+  usageEvents.forEach(e => {
+    if (e.name.startsWith('pipeline_stage:')) {
+      const s = e.name.slice('pipeline_stage:'.length);
+      stageCounts[s] = (stageCounts[s]||0) + 1;
+    }
+  });
+  const stageOrderForDisplay = (typeof getStageOrder === 'function') ? getStageOrder().concat('done') : Object.keys(stageCounts);
+  const stageRows = stageOrderForDisplay.filter(s => stageCounts[s]).map(s => {
+    const label = s === 'done' ? t('insights_stage_done') : ((STAGE_META[s] && STAGE_META[s].label) || s);
+    return {label, count: stageCounts[s]};
+  });
+
+  wrap.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">${htmlEsc(t('insights_sessions_logged'))}</div><div class="stat-val tnum">${sessionsLogged}</div></div>
+      <div class="stat-card"><div class="stat-label">${htmlEsc(t('insights_clients_added'))}</div><div class="stat-val tnum">${clientsAdded}</div></div>
+      <div class="stat-card"><div class="stat-label">${htmlEsc(t('insights_active_days_30'))}</div><div class="stat-val tnum">${activeDays30}</div></div>
+    </div>
+    <div class="section-title">${htmlEsc(t('insights_feature_usage'))}</div>
+    <div class="list-card">${topScreens.length ? topScreens.map(([s,n]) => `
+      <div class="list-row" style="cursor:default">
+        <div class="list-main"><div class="list-title">${htmlEsc(SCREEN_LABELS[s] || s)}</div></div>
+        <div class="list-right"><span class="list-amt">${n}</span></div>
+      </div>`).join('') : `<div class="list-row" style="cursor:default"><div class="list-main"><div class="list-sub">${htmlEsc(t('no_insights_sub'))}</div></div></div>`}</div>
+    <div class="section-title">${htmlEsc(t('insights_pipeline_activity'))}</div>
+    <div class="list-card">${stageRows.length ? stageRows.map(r => `
+      <div class="list-row" style="cursor:default">
+        <div class="list-main"><div class="list-title">${htmlEsc(r.label)}</div></div>
+        <div class="list-right"><span class="list-amt">${r.count}</span></div>
+      </div>`).join('') : `<div class="list-row" style="cursor:default"><div class="list-main"><div class="list-sub">${htmlEsc(t('insights_no_pipeline_activity'))}</div></div></div>`}</div>
+    <button type="button" class="btn-danger" style="width:100%;margin-top:6px" onclick="clearUsageEvents()">${htmlEsc(t('insights_clear'))}</button>
+  `;
+}
+async function clearUsageEvents() {
+  if (!confirm(t('insights_clear_confirm'))) return;
+  const uid = isGuest ? 'guest' : currentUser.id;
+  for (const e of usageEvents) { await dbDel('usageEvents', e.id); }
+  usageEvents = usageEvents.filter(e => e.uid !== uid);
+  renderInsights();
+  toast(t('insights_cleared'));
 }
 
 // ─── DASHBOARD (Home) ─────────────────────────────────────────────────
@@ -768,8 +860,10 @@ async function saveJob() {
     obj.quoteDocId = null;
   }
   obj.updatedAt = nowISO();
+  const isNew = !editId;
   const key = await dbPut('jobs', obj);
   if (obj.id == null) obj.id = key;
+  if (isNew) logEvent('session_logged');
   closeJobModal();
   await reload();
   toast(t('job_saved'));
@@ -876,6 +970,7 @@ async function advanceJobStage(jobId) {
   else if (idx >= order.length - 1) { j.stage = order[idx]; j.complete = true; }
   else { j.stage = order[idx + 1]; j.complete = false; }
   j.updatedAt = nowISO();
+  logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
   await reload();
@@ -913,6 +1008,7 @@ async function markJobPaid(jobId) {
   if (idx >= order.length - 1) { j.complete = true; }
   else { j.stage = order[idx + 1]; j.complete = false; }
   j.updatedAt = nowISO();
+  logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
@@ -948,6 +1044,7 @@ window.onEngagementInvoiceCreated = async function (invoiceId, jobId) {
   if (idx >= 0 && idx < order.length - 1) { j.stage = order[idx + 1]; j.complete = false; }
   else if (idx >= order.length - 1) { j.complete = true; }
   j.updatedAt = nowISO();
+  logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
@@ -965,6 +1062,7 @@ window.onEngagementQuoteCreated = async function (docId, jobId) {
   if (idx >= 0 && idx < order.length - 1) { j.stage = order[idx + 1]; j.complete = false; }
   else if (idx >= order.length - 1) { j.complete = true; }
   j.updatedAt = nowISO();
+  logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
@@ -1124,6 +1222,7 @@ async function saveCustomer() {
   obj.updatedAt = nowISO();
   const linkToJob = !!window.__pendingJobCustomerLink && !prev;
   const newId = await dbPut('clients', obj);
+  if (!prev) logEvent('client_added');
   closeCustomerModal();
   await reload();
   toast(t('customer_saved'));
@@ -1422,6 +1521,7 @@ async function exportBackup() {
   a.href = URL.createObjectURL(blob);
   a.download = `freelanz-gym-backup-${backup.user}-${todayISO()}.json`;
   a.click();
+  logEvent('backup_exported');
   await saveSetting('lastBackupAt', nowISO());
   renderHome();   // clears the backup-reminder queue item immediately, no reload needed
   toast(t('exported'));
@@ -1486,6 +1586,7 @@ async function importBackup(inputEl) {
 
 // ─── NAV / SCREENS ────────────────────────────────────────────────────
 function switchScreen(name) {
+  logEvent('screen_view:' + name);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => { b.classList.remove('active'); b.removeAttribute('aria-current'); });
   document.getElementById('s-'+name)?.classList.add('active');
@@ -1498,6 +1599,7 @@ function switchScreen(name) {
   if (name === 'services') renderServices();
   if (name === 'pipeline' && typeof renderPipeline === 'function') renderPipeline();
   if (name === 'more' && typeof renderWorkflowControls === 'function') renderWorkflowControls();
+  if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.
   if (name === 'invoices' && typeof renderInvoices === 'function') renderInvoices();
