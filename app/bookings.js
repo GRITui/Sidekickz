@@ -103,13 +103,17 @@
       return;
     }
 
-    const nav = `<div style="display:flex;align-items:center;gap:8px;background:var(--card);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:6px;margin:0 0 14px">
+    const nav = `<div style="position:relative;display:flex;align-items:center;gap:8px;background:var(--card);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:6px;margin:0 0 14px">
         <button type="button" id="bk-prev" aria-label="Previous day" style="flex:0 0 auto;width:40px;padding:10px 0;border:none;background:var(--brand-tint);color:var(--brand);border-radius:9px;font-size:18px;font-weight:800;font-family:inherit;cursor:pointer">‹</button>
         <button type="button" id="bk-today" style="flex:1;padding:8px;border:none;background:none;color:var(--text);border-radius:9px;font-family:inherit;cursor:pointer;text-align:center">
           <div style="font-size:14px;font-weight:800">${esc(dayLabel(selectedDate))}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:1px">${selectedDate === todayISO() ? 'Tap ‹ › to change day' : 'Tap to jump to today'}</div>
         </button>
         <button type="button" id="bk-next" aria-label="Next day" style="flex:0 0 auto;width:40px;padding:10px 0;border:none;background:var(--brand-tint);color:var(--brand);border-radius:9px;font-size:18px;font-weight:800;font-family:inherit;cursor:pointer">›</button>
+        <button type="button" id="bk-jump-btn" aria-label="Jump to a date" title="Jump to a date" style="flex:0 0 auto;width:40px;padding:10px 0;border:none;background:var(--brand-tint);color:var(--brand);border-radius:9px;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
+        </button>
+        <input type="date" id="bk-jump" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
       </div>`;
 
     const btn = `<button type="button" id="bk-new-btn" class="btn-submit" style="width:100%;margin:0 0 16px">+ New booking</button>`;
@@ -130,6 +134,16 @@
     document.getElementById('bk-next').addEventListener('click', () => { selectedDate = addDays(selectedDate, 1); renderBookings(); });
     document.getElementById('bk-today').addEventListener('click', () => { selectedDate = todayISO(); renderBookings(); });
     document.getElementById('bk-new-btn').addEventListener('click', () => openBookingForm(selectedDate));
+    // Jump straight to any date via the native date picker, instead of stepping
+    // one day at a time with ‹ › — the hidden input just proxies the picker UI.
+    document.getElementById('bk-jump-btn').addEventListener('click', () => {
+      const inp = document.getElementById('bk-jump');
+      inp.value = selectedDate;
+      if (inp.showPicker) inp.showPicker(); else inp.click();
+    });
+    document.getElementById('bk-jump').addEventListener('change', (e) => {
+      if (e.target.value) { selectedDate = e.target.value; renderBookings(); }
+    });
 
     el.querySelectorAll('[data-bk]').forEach(row => {
       const open = () => openBookingEdit(parseInt(row.getAttribute('data-bk'), 10));
