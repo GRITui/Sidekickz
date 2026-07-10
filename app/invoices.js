@@ -49,18 +49,8 @@
     return rows;
   }
 
-  function nextNumber(rows) {
-    const year = todayISO().slice(0, 4);
-    const prefix = `INV-${year}-`;
-    let max = 0;
-    rows.forEach(r => {
-      if (typeof r.number === 'string' && r.number.indexOf(prefix) === 0) {
-        const seq = parseInt(r.number.slice(prefix.length), 10);
-        if (isFinite(seq) && seq > max) max = seq;
-      }
-    });
-    return prefix + String(max + 1).padStart(4, '0');
-  }
+  // Shared with docgen.js's quote/receipt numbering — see app.js's nextDocNumber().
+  function nextNumber(rows) { return nextDocNumber(rows, 'INV'); }
 
   function statusChip(status) {
     const map = {
