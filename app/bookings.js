@@ -118,14 +118,17 @@
     const uid = uidNow();
     const allBookings = (await dbAll(STORE)).filter(r => r.uid === uid && r.status !== 'cancelled');
     const bookingDates = new Set(allBookings.map(r => r.date));
-    const stageDates = {}; // stage id -> Set of dates
+    const stageDates = {};        // stage id -> Set of dates (legend scoping)
+    const stagesByDate = {};      // iso -> array of stage ids, one entry per engagement that day
     (typeof STAGES !== 'undefined' ? STAGES : []).forEach(s => { stageDates[s] = new Set(); });
     (typeof jobs !== 'undefined' ? jobs : []).forEach(j => {
       if (!j.date || typeof jobStage !== 'function') return;
       const s = jobStage(j);
-      if (stageDates[s]) stageDates[s].add(j.date);
+      if (!stageDates[s]) return;
+      stageDates[s].add(j.date);
+      (stagesByDate[j.date] = stagesByDate[j.date] || []).push(s);
     });
-    return { bookingDates, stageDates };
+    return { bookingDates, stageDates, stagesByDate };
   }
 
   // All dates shown in the ym grid, including the leading/trailing padding
@@ -153,13 +156,26 @@
     return out;
   }
 
-  function dayCellHtml(iso, dayNum, dim, bookingDates, stageDates) {
+  // A single engagement that day still renders as a small stage-colored dot
+  // (matches the legend). Two or more render as one number badge instead —
+  // stacking dots doesn't scale for "how many," and the exact breakdown is
+  // one tap away in the day panel anyway. The badge is stage-colored when
+  // every engagement that day shares one stage, otherwise a neutral brand
+  // color (a single dot can't represent a mix of colors).
+  function pipelineMarkerHtml(stagesHere) {
+    if (!stagesHere || !stagesHere.length) return '';
+    if (stagesHere.length === 1) {
+      return `<span class="cal-dot" style="background:${STAGE_META[stagesHere[0]].dot}"></span>`;
+    }
+    const uniq = Array.from(new Set(stagesHere));
+    const color = uniq.length === 1 ? STAGE_META[uniq[0]].dot : 'var(--brand)';
+    return `<span class="cal-count" style="background:${color}">${stagesHere.length}</span>`;
+  }
+
+  function dayCellHtml(iso, dayNum, dim, bookingDates, stagesByDate) {
     const isToday = iso === todayISO();
     const isSelected = iso === expandedDate;
-    const stageDots = (typeof STAGES !== 'undefined' ? STAGES : [])
-      .filter(s => stageDates[s] && stageDates[s].has(iso))
-      .map(s => `<span class="cal-dot" style="background:${STAGE_META[s].dot}"></span>`).join('');
-    const dots = stageDots + (bookingDates.has(iso) ? '<span class="cal-dot cal-dot-book"></span>' : '');
+    const dots = pipelineMarkerHtml(stagesByDate[iso]) + (bookingDates.has(iso) ? '<span class="cal-dot cal-dot-book"></span>' : '');
     const cls = 'cal-cell' + (dim ? ' cal-dim' : '') + (isToday ? ' cal-today' : '') + (isSelected ? ' cal-selected' : '');
     return `<button type="button" class="${cls}" data-cal="${iso}">
         <span class="cal-daynum">${dayNum}</span>
@@ -167,8 +183,8 @@
       </button>`;
   }
 
-  function buildMonthGrid(gridDates, bookingDates, stageDates) {
-    return gridDates.map(c => dayCellHtml(c.iso, c.dayNum, c.dim, bookingDates, stageDates)).join('');
+  function buildMonthGrid(gridDates, bookingDates, stagesByDate) {
+    return gridDates.map(c => dayCellHtml(c.iso, c.dayNum, c.dim, bookingDates, stagesByDate)).join('');
   }
 
   function emptyDayHtml(dateISO) {
@@ -236,9 +252,9 @@
     if (!selectedDate) selectedDate = todayISO();
     if (!calMonth) calMonth = todayISO().slice(0, 7);
 
-    let bookingDates, stageDates, dayPanelHtml = '';
+    let bookingDates, stageDates, stagesByDate, dayPanelHtml = '';
     try {
-      ({ bookingDates, stageDates } = await computeActivitySets());
+      ({ bookingDates, stageDates, stagesByDate } = await computeActivitySets());
       if (expandedDate) dayPanelHtml = await buildDayPanel(expandedDate);
     } catch (err) {
       console.error('renderBookings', err);
@@ -257,7 +273,7 @@
     const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const wdRow = `<div class="cal-wd-row">${WD.map(w => `<div class="cal-wd">${w}</div>`).join('')}</div>`;
     const gridDates = monthGridDates(calMonth);
-    const grid = `<div class="cal-grid">${buildMonthGrid(gridDates, bookingDates, stageDates)}</div>`;
+    const grid = `<div class="cal-grid">${buildMonthGrid(gridDates, bookingDates, stagesByDate)}</div>`;
 
     // Legend only lists what's actually marked somewhere on the visible grid
     // (including its leading/trailing padding days) — no point explaining a
