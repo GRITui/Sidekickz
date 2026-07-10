@@ -660,8 +660,38 @@ function backupReminderDue() {
 }
 async function snoozeBackupReminder() {
   await saveSetting('backupReminderSnoozedUntil', addDaysISO(todayISO(), BACKUP_SNOOZE_DAYS));
-  renderHome();
+  renderBackupReminder();
+  updateMoreNavBadge();
   toast(t('backup_snoozed'));
+}
+// Lives in More/Settings (next to the Backup JSON/Restore JSON actions it's
+// nudging you toward) rather than on Home — a device-housekeeping reminder,
+// not something that competes with pipeline/payment items for attention.
+function renderBackupReminder() {
+  const el = document.getElementById('backup-reminder-body');
+  if (!el) return;
+  if (!backupReminderDue()) { el.innerHTML = ''; return; }
+  const last = settings.lastBackupAt ? fmtDate(settings.lastBackupAt.slice(0,10)) : t('backup_never');
+  el.innerHTML = `<div class="list-card">
+      <div class="list-row" style="cursor:default">
+        <div class="list-icon">💾</div>
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(t('backup_reminder_title'))}</div>
+          <div class="list-sub">${htmlEsc(t('backup_reminder_sub').replace('{date}', last))}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;padding:0 16px 14px">
+        <button type="button" onclick="exportBackup()" style="flex:1;padding:10px;border:none;background:var(--brand);color:#fff;border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('backup_now'))}</button>
+        <button type="button" onclick="snoozeBackupReminder()" style="flex:1;padding:10px;border:1px solid var(--border);background:none;color:var(--text3);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('remind_later'))}</button>
+      </div>
+    </div>`;
+}
+// A small dot on the More nav icon so a due backup reminder is still
+// discoverable without opening Settings, now that it no longer shows on Home.
+function updateMoreNavBadge() {
+  const badge = document.getElementById('more-nav-badge');
+  if (!badge) return;
+  badge.style.display = backupReminderDue() ? 'flex' : 'none';
 }
 
 // ─── Notifications (in-app Action Queue + OS-level, app-triggered) ─────
@@ -769,28 +799,17 @@ async function renderHome() {
 
   renderGoal();
   renderPipelineGlance();
-  // Action queue: a list of independent nudges, not a single mutually-
-  // exclusive slot — the backup reminder, overdue invoices, imminent
+  updateMoreNavBadge();
+  // Action queue: a list of independent nudges — overdue invoices, imminent
   // bookings, and stale pipeline engagements can all be true at once.
   // computeNotificationConditions() is the same function the OS-notification
-  // checker uses, so the two can never show different things.
+  // checker uses, so the two can never show different things. The backup
+  // reminder moved to the More screen (see renderBackupReminder()) — it's a
+  // device-housekeeping nudge, not a pipeline/payment one, so it doesn't
+  // compete with those for attention on Home.
   const q = document.getElementById('queue-body');
   if (!q) return;
   const rows = [];
-  if (backupReminderDue()) {
-    const last = settings.lastBackupAt ? fmtDate(settings.lastBackupAt.slice(0,10)) : t('backup_never');
-    rows.push(`<div class="list-row" style="cursor:default">
-        <div class="list-icon">💾</div>
-        <div class="list-main">
-          <div class="list-title">${htmlEsc(t('backup_reminder_title'))}</div>
-          <div class="list-sub">${htmlEsc(t('backup_reminder_sub').replace('{date}', last))}</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;padding:0 16px 14px">
-        <button type="button" onclick="exportBackup()" style="flex:1;padding:10px;border:none;background:var(--brand);color:#fff;border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('backup_now'))}</button>
-        <button type="button" onclick="snoozeBackupReminder()" style="flex:1;padding:10px;border:1px solid var(--border);background:none;color:var(--text3);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('remind_later'))}</button>
-      </div>`);
-  }
   try {
     const { overdueInvoices, upcomingBookings, staleJobs } = await computeNotificationConditions();
     if (overdueInvoices.length) {
@@ -1670,7 +1689,7 @@ async function exportBackup() {
   a.click();
   logEvent('backup_exported');
   await saveSetting('lastBackupAt', nowISO());
-  renderHome();   // clears the backup-reminder queue item immediately, no reload needed
+  renderBackupReminder(); updateMoreNavBadge();   // clears the reminder immediately, no reload needed
   toast(t('exported'));
 }
 function pickBackupFile() { const inp = document.getElementById('backup-file'); if (inp) inp.click(); }
@@ -1748,6 +1767,7 @@ function switchScreen(name) {
   if (name === 'pipeline' && typeof renderPipeline === 'function') renderPipeline();
   if (name === 'more' && typeof renderWorkflowControls === 'function') renderWorkflowControls();
   if (name === 'more') applyInsightsVisibility();
+  if (name === 'more') renderBackupReminder();
   if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.
