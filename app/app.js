@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.5';          // <-> sw.js SW_VERSION 'sidekick-v0.9.5'
+const APP_VERSION = '0.9.6';          // <-> sw.js SW_VERSION 'sidekick-v0.9.6'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -319,7 +319,7 @@ const STAGE_META = {
   quote:    {label:'Quote',    dot:'#8B5CF6', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent', skippable:true},
   invoice:  {label:'Invoice',  dot:'#F59E0B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent', skippable:true},
   paid:     {label:'Paid',     dot:'#2F9E5B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid'},
-  delivery: {label:'Delivery', dot:'#0F766E', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark delivered',  done:'Delivered'},
+  delivery: {label:'Delivery', dot:'#22554B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark delivered',  done:'Delivered'},
   extend:   {label:'Extend',   dot:'#0EA5E9', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'Mark extended',    done:'Extended'},
 };
 const DEFAULT_STAGE_ORDER = STAGES.slice();
@@ -600,12 +600,33 @@ function money(n, dec=0) { return curSym() + fmt(n, dec); }
 function netOf(j) { return (Number(j.amount)||0) + (Number(j.tip)||0) - (Number(j.expense)||0); }
 
 // ─── THEME ────────────────────────────────────────────────────────────
-// M1.5: dark mode is PAUSED. applyTheme always forces light regardless of OS
-// (the [data-theme="light"] token block overrides the prefers-color-scheme dark
-// media query). The dark-theme CSS tokens are kept in styles.css but dormant.
+// Un-paused for the 2026 rebrand (dark mode was force-disabled since M1.5).
+// Stored value is one of 'light' | 'dark' | 'auto', in localStorage (not the
+// per-uid `settings` DB object) so the pre-paint inline script in index.html/
+// login.html can read it synchronously, before IndexedDB is even open, to
+// avoid a flash of the wrong theme.
+//   'light' -> dataset.theme = 'light'  (forces light, overrides OS)
+//   'dark'  -> dataset.theme = 'dark'   (forces dark, overrides OS)
+//   'auto'  -> dataset.theme removed    (styles.css's prefers-color-scheme
+//              media query decides, tracking the OS live)
+const THEME_KEY = 'sidekick_ui_theme';
+// One-time: every boot before this rebrand force-wrote 'light' into storage
+// while dark mode was paused, so an existing 'light' value there was never a
+// real user choice — flip it to the new dark default exactly once. Anything
+// a user picks afterward (via Settings) is respected normally, forever.
+const THEME_MIGRATION_FLAG = 'sidekick_dark_default_migrated_v1';
 function applyTheme() {
-  localStorage.setItem('sidekick_ui_theme', 'light');
-  document.documentElement.dataset.theme = 'light';
+  if (!localStorage.getItem(THEME_MIGRATION_FLAG)) {
+    if (localStorage.getItem(THEME_KEY) === 'light') localStorage.setItem(THEME_KEY, 'dark');
+    localStorage.setItem(THEME_MIGRATION_FLAG, '1');
+  }
+  const stored = localStorage.getItem(THEME_KEY) || 'dark';
+  if (stored === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = (stored === 'light') ? 'light' : 'dark';
+}
+async function onThemeChange(v) {
+  localStorage.setItem(THEME_KEY, (v === 'light' || v === 'auto') ? v : 'dark');
+  applyTheme();
 }
 
 // ─── BOOT ─────────────────────────────────────────────────────────────
@@ -639,7 +660,7 @@ function boot() {
     console.error('boot failed', err);
     const msg = (err && err.message ? String(err.message) : 'storage error').replace(/[<>]/g, '');
     document.body.insertAdjacentHTML('afterbegin',
-      '<div style="padding:24px;max-width:34rem;margin:0 auto;font:15px/1.5 system-ui;color:#13201C">' +
+      '<div style="padding:24px;max-width:34rem;margin:0 auto;font:15px/1.5 system-ui;color:#1A2421">' +
       '<b>Couldn’t start Sidekick.</b><br>' + msg +
       '<br><br>Close any other Sidekick tabs and reload.</div>');
   });
@@ -661,6 +682,7 @@ async function enterApp() {
   if (settings.wht == null) settings.wht = 3;
   if (settings.vat == null) settings.vat = 7;
   const set = (id, v) => { const el = document.getElementById(id); if (el != null && v != null) el.value = v; };
+  set('set-theme', localStorage.getItem(THEME_KEY) || 'dark');
   set('set-lang', settings.lang || 'en');
   set('set-currency', settings.currency || 'THB');
   set('set-goal', settings.dailyGoal || '');
