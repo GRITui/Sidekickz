@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.6';          // <-> sw.js SW_VERSION 'sidekick-v0.9.6'
+const APP_VERSION = '0.9.7';          // <-> sw.js SW_VERSION 'sidekick-v0.9.7'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -234,6 +234,59 @@ async function loginGuest() {
   sessionStorage.setItem('sidekick_post_login_toast', t('welcome') + ', ' + t('guest_name') + '!');
   location.href = './';
 }
+
+// ─── LINE LOGIN ───────────────────────────────────────────────────────
+// api/line-login-callback.js hands the verified LINE profile back as a URL
+// fragment (never sent to any server) on redirect to this page. Accounts
+// are local-only here too — a LINE user is just another 'users' row, keyed
+// by username `line:<sub>` so it can't collide with an email/username a
+// person would type by hand, with hash:null marking it passwordless (only
+// reachable via loginWithLine(), never via submitAuth()'s password check).
+function base64UrlToBytes(b64url) {
+  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - b64url.length % 4) % 4);
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+function loginWithLine() {
+  location.href = 'api/line-login-start';
+}
+// Returns true if this load was a LINE redirect and login was handled
+// (caller should stop its own boot sequence); false otherwise.
+async function handleLineLoginRedirect() {
+  const hash = location.hash;
+  if (!hash) return false;
+  const params = new URLSearchParams(hash.slice(1));
+  const errCode = params.get('line_error');
+  const encoded = params.get('line');
+  history.replaceState(null, '', location.pathname + location.search);
+  if (!errCode && !encoded) return false;
+  if (errCode) { authError(t('err_line_login')); return false; }
+
+  let profile;
+  try { profile = JSON.parse(new TextDecoder().decode(base64UrlToBytes(encoded))); }
+  catch { authError(t('err_line_login')); return false; }
+  if (!profile || !profile.sub) { authError(t('err_line_login')); return false; }
+
+  const username = 'line:' + profile.sub;
+  let user = await dbGetByUsername(username);
+  if (!user) {
+    const id = await dbAdd('users', {
+      username, salt: null, hash: null, iters: null,
+      firstName: profile.name || '', linePicture: profile.picture || '',
+      lineAuth: true, createdAt: nowISO(),
+    });
+    user = { id, username, firstName: profile.name || '' };
+  }
+  currentUser = { id: user.id, username: user.username, firstName: user.firstName || '' };
+  isGuest = false;
+  localStorage.setItem(SESSION_KEY, String(user.id));
+  sessionStorage.setItem('sidekick_post_login_toast', t('welcome_back') + (user.firstName ? ', ' + user.firstName : '') + '!');
+  location.href = './';
+  return true;
+}
+
 async function submitAuth() {
   const id0 = document.getElementById('auth-user').value.trim().toLowerCase();
   const password = document.getElementById('auth-pass').value;
@@ -393,7 +446,8 @@ const I18N = {
   en: {
     // auth
     login:'Log in', create_account:'Create account', email:'Email or username', password:'Password',
-    confirm_password:'Confirm password', your_name:'Your name', login_guest:'Continue as guest',
+    confirm_password:'Confirm password', your_name:'Your name', login_guest:'Continue as guest', login_line:'Continue with LINE',
+    err_line_login:'LINE login didn’t go through — please try again.',
     auth_hint:'Create an account to save your work on this device.<br>Everything stays local — no cloud, no tracking.<br>Guest mode is temporary.',
     tagline:'Get booked. Get hired. Get paid.',
     // nav
@@ -492,7 +546,8 @@ const I18N = {
   th: {
     // auth
     login:'เข้าสู่ระบบ', create_account:'สร้างบัญชี', email:'อีเมลหรือชื่อผู้ใช้', password:'รหัสผ่าน',
-    confirm_password:'ยืนยันรหัสผ่าน', your_name:'ชื่อของคุณ', login_guest:'เข้าใช้แบบผู้เยี่ยมชม',
+    confirm_password:'ยืนยันรหัสผ่าน', your_name:'ชื่อของคุณ', login_guest:'เข้าใช้แบบผู้เยี่ยมชม', login_line:'เข้าสู่ระบบด้วย LINE',
+    err_line_login:'เข้าสู่ระบบด้วย LINE ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
     auth_hint:'สร้างบัญชีเพื่อบันทึกข้อมูลไว้ในเครื่องนี้<br>ทุกอย่างเก็บอยู่ในเครื่อง — ไม่มีคลาวด์ ไม่มีการติดตาม<br>โหมดผู้เยี่ยมชมใช้งานได้ชั่วคราวเท่านั้น',
     tagline:'จองคิวได้ ได้งาน ได้รับเงิน',
     // nav
@@ -639,6 +694,7 @@ async function bootLogin() {
   applyTheme();
   await openDB();
   await migrateLegacyStorageIfNeeded();
+  if (await handleLineLoginRedirect()) return;
   if (await restoreSession()) { location.replace('./'); return; }
   applyLang();
   showPostLoginToast();

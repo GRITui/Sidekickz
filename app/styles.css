@@ -287,6 +287,8 @@ details.settings-section:not([open]) summary.section-title::after{transform:rota
 .auth-btn:active{background:#1B443C;}
 .auth-btn.guest{background:var(--card);color:var(--brand);border:1.5px solid var(--border);margin-top:12px;box-shadow:0 4px 16px rgba(0,0,0,.12);}
 .auth-btn.guest:active{background:var(--brand-tint);}
+.auth-btn.line{background:#06C755;margin-top:12px;}
+.auth-btn.line:active{background:#05a648;}
 .auth-hint{text-align:center;font-size:12px;color:var(--text3);margin-top:16px;line-height:1.6;}
 
 /* ── Forms / modal ──────────────────────────────────────────── */
