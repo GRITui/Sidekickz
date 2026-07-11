@@ -1151,7 +1151,7 @@
       @media print{
         body > *{ display:none !important; }
         #inv-print-root{ display:block !important; position:static; }
-        @page{ margin:16mm; }
+        ${docPageSizeCss()}
       }
       #inv-print-root{ color:#111; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
       #inv-print-root .pi-wrap{ max-width:720px; margin:0 auto; padding:24px; }
