@@ -97,6 +97,23 @@
       }
     });
 
+    // 4. Session packages that have run out — a natural moment to ask about
+    // renewal, using the same key-based snooze/dismiss mechanism as the other
+    // candidate types (not a stored follow-up record of its own).
+    if (typeof clientPackages === 'function' && typeof packageRemaining === 'function') {
+      custList.forEach(c => {
+        const own = clientPackages(c.id);
+        if (!own.length) return;
+        const latest = own[0];   // clientPackages() sorts most-recent-purchase-first
+        if (packageRemaining(latest) > 0) return;   // still has sessions left, nothing to ask about
+        candidates.push({
+          group: 3, sortN: 0, icon: '📦', title: c.name || 'Customer',
+          reason: `${c.name || 'This client'}'s ${latest.totalSessions}-session package is used up — ask about renewing`,
+          key: `pkg-empty:${c.id}:${latest.id}`,
+        });
+      });
+    }
+
     // Apply snooze/dismiss decisions. Dismissed candidates are split out
     // (rather than dropped) so the "Show dismissed" panel can list them with
     // an Undo action — the underlying invoice/customer is never touched by
