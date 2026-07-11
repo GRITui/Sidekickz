@@ -342,7 +342,7 @@ const I18N = {
     earned_this_month:'Earned this month', net_after_expenses:'net after expenses',
     stat_jobs:'Sessions', stat_avg:'Avg / session', stat_expenses:'Expenses',
     todays_goal:"Today's goal", goal_reached:'Goal reached! 🎉', goal_of:'of',
-    action_queue:'Action queue', queue_empty:'You’re all caught up.', queue_empty_sub:'New tasks will appear here as you add sessions and invoices.',
+    incoming_pipeline:'Incoming pipeline', incoming_pipeline_empty:'Pipeline is clear.', incoming_pipeline_empty_sub:'New engagements will appear here as you log sessions.',
     coming_m2:'Invoices ship in M2',
     // job form
     add_job:'Add session', edit_job:'Edit session', save_job:'Save session', delete_job:'Delete session',
@@ -354,7 +354,7 @@ const I18N = {
     err_enter_date:'Please pick a date', err_amount:'Amount must be 0 or more', err_neg:'Values cannot be negative', err_too_big:'That value is too large',
     // settings
     more_title:'More', settings_title:'Settings', account:'Account', local_account:'Local account on this device',
-    preferences:'Preferences', currency:'Currency', theme:'Theme',
+    preferences:'Preferences', currency:'Currency', theme:'Theme', language:'Language',
     theme_auto:'Auto', theme_light:'Light', theme_dark:'Dark',
     business_info_title:'Business info (optional)', business_info_sub:'Fill these in to have them show up automatically on your quotes, invoices, and receipts — none of them are required.',
     business_name:'Business name', business_taxid:'Tax ID', business_address:'Address',
@@ -380,6 +380,18 @@ const I18N = {
     err_id_min3:'Enter an email or username (3+ characters).', err_pw_min4:'Password must be at least 8 characters.',
     err_pw_mismatch:'Passwords do not match.', err_account_exists:'That account already exists on this device.',
     err_no_account:'No account with that email on this device.', err_incorrect_pw:'Incorrect password.',
+    // More/Settings menu rows added after the initial i18n pass (Manage's
+    // Docs row, More tools, Preferences' page-size/notifications, Payment
+    // channels, Data's invoices-CSV export)
+    manage_docs_row:'Docs', more_tools_title:'More tools',
+    followups_row_title:'Follow-ups', portfolio_row_title:'Portfolio', research_row_title:'Research',
+    page_size_label:'Document page size', notifications_label:'Notifications',
+    notifications_sub:'Overdue invoices, bookings starting soon, and stuck engagements — only while this app is open or recently open in the background.',
+    payment_channels_title:'Payment channels',
+    payment_channels_sub:'Add PromptPay, bank transfer, cash, or another method so clients know how to pay you. PromptPay shows a scannable QR on invoices; the rest show as reference text.',
+    add_payment_channel:'+ Add payment channel', export_invoices_csv:'Export invoices CSV',
+    no_payment_channels:'No payment channels yet', no_payment_channels_sub:'Add PromptPay, bank transfer, cash, or another method so clients know how to pay you.',
+    business_name_ph:'Defaults to your account name',
     // M1.5 — customers (displayed as "client" throughout — the gym-trainer term)
     manage:'Manage', customers_title:'Clients', add_customer:'Add client', edit_customer:'Edit client',
     save_customer:'Save client', delete_customer:'Delete client', delete_customer_confirm:'Delete this client?',
@@ -408,7 +420,103 @@ const I18N = {
     insights_feature_usage:'Feature usage', insights_pipeline_activity:'Pipeline activity', insights_no_pipeline_activity:'No pipeline activity yet',
     insights_stage_done:'Completed', insights_clear:'Clear usage data', insights_clear_confirm:'Clear all local usage data? This cannot be undone.',
     insights_cleared:'Usage data cleared', insights_unlocked:'Insights unlocked',
-  }
+  },
+  // Thai — covers the static app chrome (nav, Settings/More menu, dashboard,
+  // forms, toasts) via the same data-i18n/t() keys as `en`. Screens built by
+  // owned modules that don't route their dynamic content through t() yet
+  // (docgen.js/invoices.js generated documents, bookings.js's day-panel text,
+  // tax.js) stay English — out of scope for a "static menu" pass; t() already
+  // falls back to `en` for any key missing here, so nothing breaks either way.
+  th: {
+    // auth
+    login:'เข้าสู่ระบบ', create_account:'สร้างบัญชี', email:'อีเมลหรือชื่อผู้ใช้', password:'รหัสผ่าน',
+    confirm_password:'ยืนยันรหัสผ่าน', your_name:'ชื่อของคุณ', login_guest:'เข้าใช้แบบผู้เยี่ยมชม',
+    auth_hint:'สร้างบัญชีเพื่อบันทึกข้อมูลไว้ในเครื่องนี้<br>ทุกอย่างเก็บอยู่ในเครื่อง — ไม่มีคลาวด์ ไม่มีการติดตาม<br>โหมดผู้เยี่ยมชมใช้งานได้ชั่วคราวเท่านั้น',
+    tagline:'จัดการงานธุรการฟรีแลนซ์ให้เรียบร้อย',
+    // nav
+    nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_pipeline:'ไปป์ไลน์', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
+    pipeline_title:'ไปป์ไลน์', workflow_title:'ขั้นตอนการทำงาน', pipeline_glance_title:'ภาพรวมไปป์ไลน์',
+    skip_stage:'ข้าม', mark_finished:'เสร็จสิ้น',
+    // dashboard
+    earned_this_month:'รายได้เดือนนี้', net_after_expenses:'สุทธิหลังหักค่าใช้จ่าย',
+    stat_jobs:'เซสชัน', stat_avg:'เฉลี่ย/เซสชัน', stat_expenses:'ค่าใช้จ่าย',
+    todays_goal:'เป้าหมายวันนี้', goal_reached:'ถึงเป้าหมายแล้ว! 🎉', goal_of:'จาก',
+    incoming_pipeline:'ไปป์ไลน์ที่กำลังเข้ามา', incoming_pipeline_empty:'ไปป์ไลน์ว่างอยู่', incoming_pipeline_empty_sub:'งานใหม่จะปรากฏที่นี่เมื่อคุณบันทึกเซสชัน',
+    coming_m2:'ใบแจ้งหนี้จะเปิดใช้งานใน M2',
+    // job form
+    add_job:'เพิ่มเซสชัน', edit_job:'แก้ไขเซสชัน', save_job:'บันทึกเซสชัน', delete_job:'ลบเซสชัน',
+    field_date:'วันที่',
+    field_client:'สมาชิก', field_amount:'ค่าธรรมเนียม', field_tip:'ทิป', field_expense:'ค่าใช้จ่าย', field_count:'จำนวนเซสชัน', field_notes:'บันทึกช่วยจำ',
+    field_notes_ph:'สิ่งที่ต้องจำ…',
+    net_take:'รายรับสุทธิ',
+    // validation
+    err_enter_date:'กรุณาเลือกวันที่', err_amount:'จำนวนเงินต้องมากกว่าหรือเท่ากับ 0', err_neg:'ค่าต้องไม่ติดลบ', err_too_big:'ค่านี้สูงเกินไป',
+    // settings
+    more_title:'เพิ่มเติม', settings_title:'ตั้งค่า', account:'บัญชี', local_account:'บัญชีในเครื่องนี้',
+    preferences:'การตั้งค่าทั่วไป', currency:'สกุลเงิน', theme:'ธีม', language:'ภาษา',
+    theme_auto:'อัตโนมัติ', theme_light:'สว่าง', theme_dark:'มืด',
+    business_info_title:'ข้อมูลธุรกิจ (ไม่บังคับ)', business_info_sub:'กรอกข้อมูลนี้เพื่อให้แสดงอัตโนมัติในใบเสนอราคา ใบแจ้งหนี้ และใบเสร็จ — ไม่บังคับกรอก',
+    business_name:'ชื่อธุรกิจ', business_taxid:'เลขประจำตัวผู้เสียภาษี', business_address:'ที่อยู่',
+    tax_defaults:'ค่าเริ่มต้นภาษี', wht:'ภาษีหัก ณ ที่จ่าย %', vat:'ภาษีมูลค่าเพิ่ม %',
+    daily_goal:'เป้าหมายรายได้ต่อวัน', data:'ข้อมูล', export_csv:'ส่งออก CSV', backup_json:'สำรองข้อมูล JSON', restore_json:'กู้คืนข้อมูล JSON',
+    total_jobs:'จำนวนเซสชันทั้งหมด', app_word:'แอป', version:'เวอร์ชัน', logout:'ออกจากระบบ', exit_guest:'ออกจากโหมดผู้เยี่ยมชม',
+    // placeholder modules
+    invoices_title:'ใบแจ้งหนี้', docs_title:'เอกสาร', book_title:'ปฏิทิน',
+    module_soon_h:'เร็วๆ นี้', mod_invoices_p:'ส่งใบแจ้งหนี้ที่มีแบรนด์ของคุณ ติดตามสถานะจ่ายแล้ว/ค้างจ่าย/เกินกำหนด และคำนวณภาษีอัตโนมัติ เปิดใช้งานใน M2',
+    mod_docs_p:'เก็บสัญญา ใบเสร็จ และผลงานทั้งหมดไว้ในเครื่องของคุณ เปิดใช้งานใน M2',
+    mod_book_p:'แชร์ลิงก์นัดหมายให้ลูกค้าเลือกเวลาได้เอง เปิดใช้งานใน M3',
+    pill_m2:'เปิดใช้งานใน M2', pill_m3:'เปิดใช้งานใน M3',
+    // misc
+    welcome:'ยินดีต้อนรับ', welcome_back:'ยินดีต้อนรับกลับมา', guest_name:'ผู้เยี่ยมชม', logged_out:'ออกจากระบบแล้ว',
+    greeting_morning:'สวัสดีตอนเช้า', greeting_afternoon:'สวัสดีตอนบ่าย', greeting_evening:'สวัสดีตอนเย็น',
+    cancel:'ยกเลิก', saved:'บันทึกแล้ว', deleted:'ลบแล้ว', job_saved:'บันทึกเซสชันแล้ว', job_deleted:'ลบเซสชันแล้ว',
+    exported:'ส่งออกแล้ว', restore_confirm:'กู้คืนข้อมูลสำรองนี้หรือไม่? การทำเช่นนี้จะแทนที่เซสชันและค่าใช้จ่าย {n} รายการปัจจุบันของบัญชีนี้ทั้งหมด และไม่สามารถย้อนกลับได้',
+    restore_done:'กู้คืนข้อมูลแล้ว {n} รายการ', restore_bad_file:'ไฟล์นี้ไม่ใช่ไฟล์สำรองข้อมูลของ Freelanz ที่ถูกต้อง',
+    restore_failed:'กู้คืนข้อมูลไม่สำเร็จ — ข้อมูลเดิมของคุณยังคงอยู่',
+    backup_reminder_title:'สำรองข้อมูลของคุณ', backup_reminder_sub:'ข้อมูลทั้งหมดเก็บอยู่ในเครื่องนี้เท่านั้น สำรองข้อมูลล่าสุด: {date}',
+    backup_now:'สำรองข้อมูลตอนนี้', remind_later:'เตือนภายหลัง', backup_snoozed:'เลื่อนการแจ้งเตือนออกไป 2 สัปดาห์', backup_never:'ไม่เคย',
+    delete_job_confirm:'ลบเซสชันนี้หรือไม่?', name_saved:'บันทึกชื่อแล้ว',
+    err_id_min3:'กรอกอีเมลหรือชื่อผู้ใช้ (อย่างน้อย 3 ตัวอักษร)', err_pw_min4:'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',
+    err_pw_mismatch:'รหัสผ่านไม่ตรงกัน', err_account_exists:'มีบัญชีนี้อยู่แล้วในเครื่องนี้',
+    err_no_account:'ไม่พบบัญชีที่ใช้อีเมลนี้ในเครื่องนี้', err_incorrect_pw:'รหัสผ่านไม่ถูกต้อง',
+    manage_docs_row:'เอกสาร', more_tools_title:'เครื่องมือเพิ่มเติม',
+    followups_row_title:'ติดตามลูกค้า', portfolio_row_title:'ผลงาน', research_row_title:'คลังความรู้',
+    page_size_label:'ขนาดหน้าเอกสาร', notifications_label:'การแจ้งเตือน',
+    notifications_sub:'ใบแจ้งหนี้ที่เกินกำหนด การนัดหมายที่ใกล้ถึง และงานที่ค้างในไปป์ไลน์ — แจ้งเตือนเฉพาะขณะเปิดแอปหรือเพิ่งใช้งานล่าสุดเท่านั้น',
+    payment_channels_title:'ช่องทางการชำระเงิน',
+    payment_channels_sub:'เพิ่มพร้อมเพย์ โอนผ่านธนาคาร เงินสด หรือช่องทางอื่นให้ลูกค้าทราบวิธีชำระเงิน พร้อมเพย์จะแสดง QR ให้สแกนบนใบแจ้งหนี้ ส่วนช่องทางอื่นแสดงเป็นข้อความอ้างอิง',
+    add_payment_channel:'+ เพิ่มช่องทางชำระเงิน', export_invoices_csv:'ส่งออกใบแจ้งหนี้เป็น CSV',
+    no_payment_channels:'ยังไม่มีช่องทางชำระเงิน', no_payment_channels_sub:'เพิ่มพร้อมเพย์ โอนผ่านธนาคาร เงินสด หรือช่องทางอื่นให้ลูกค้าทราบวิธีชำระเงิน',
+    business_name_ph:'ค่าเริ่มต้นตามชื่อบัญชีของคุณ',
+    // M1.5 — customers
+    manage:'จัดการ', customers_title:'ลูกค้า', add_customer:'เพิ่มลูกค้า', edit_customer:'แก้ไขลูกค้า',
+    save_customer:'บันทึกลูกค้า', delete_customer:'ลบลูกค้า', delete_customer_confirm:'ลบลูกค้ารายนี้หรือไม่?',
+    no_customers:'ยังไม่มีลูกค้า', no_customers_sub:'เพิ่มลูกค้ารายแรกเพื่อใช้ข้อมูลซ้ำได้',
+    customer_saved:'บันทึกลูกค้าแล้ว', customer_deleted:'ลบลูกค้าแล้ว',
+    field_name:'ชื่อ', field_phone:'เบอร์โทร', field_email:'อีเมล', field_tags:'แท็ก (คั่นด้วยจุลภาค)',
+    field_taxid:'เลขประจำตัวผู้เสียภาษี', field_billing:'ที่อยู่สำหรับเรียกเก็บเงิน', field_member_no:'รหัสสมาชิก',
+    field_health:'บันทึกสุขภาพ', field_allergies:'อาการแพ้', field_goals:'เป้าหมาย',
+    assigned_on_save:'(กำหนดให้เมื่อบันทึก)',
+    err_name_required:'กรุณากรอกชื่อ',
+    err_select_client:'กรุณาเลือกลูกค้า',
+    // M1.5 — services
+    services_title:'บริการ', add_service:'เพิ่มบริการ', edit_service:'แก้ไขบริการ', save_service:'บันทึกบริการ',
+    delete_service:'ลบบริการ', delete_service_confirm:'ลบบริการนี้หรือไม่?',
+    no_services:'ยังไม่มีบริการ', no_services_sub:'เพิ่มบริการเพื่อกรอกค่าธรรมเนียมล่วงหน้าเมื่อบันทึกงาน',
+    service_saved:'บันทึกบริการแล้ว', service_deleted:'ลบบริการแล้ว',
+    field_rate:'อัตราค่าบริการเริ่มต้น', field_unit:'หน่วย', field_unit_ph:'เช่น เซสชัน, ชั่วโมง, โปรเจกต์',
+    // M1.5 — job form links
+    field_customer:'ลูกค้า', field_service:'บริการ', none_option:'— ไม่มี —',
+    add_new_client_option:'+ เพิ่มลูกค้าใหม่…',
+    export_customers_csv:'ส่งออกลูกค้าเป็น CSV',
+    nav_customers:'ลูกค้า',
+    // Usage insights
+    insights_title:'ข้อมูลเชิงลึก', no_insights:'ยังไม่มีกิจกรรม', no_insights_sub:'ข้อมูลเชิงลึกจะสะสมเมื่อคุณใช้งานแอป — ไม่มีการส่งข้อมูลออกไปที่ใด เก็บอยู่ในเครื่องนี้เท่านั้น',
+    insights_sessions_logged:'เซสชันที่บันทึก', insights_clients_added:'ลูกค้าที่เพิ่ม', insights_active_days_30:'วันที่ใช้งาน (30 วัน)',
+    insights_feature_usage:'การใช้งานฟีเจอร์', insights_pipeline_activity:'กิจกรรมไปป์ไลน์', insights_no_pipeline_activity:'ยังไม่มีกิจกรรมไปป์ไลน์',
+    insights_stage_done:'เสร็จสมบูรณ์', insights_clear:'ล้างข้อมูลการใช้งาน', insights_clear_confirm:'ล้างข้อมูลการใช้งานทั้งหมดในเครื่องหรือไม่? ไม่สามารถย้อนกลับได้',
+    insights_cleared:'ล้างข้อมูลการใช้งานแล้ว', insights_unlocked:'ปลดล็อกข้อมูลเชิงลึกแล้ว',
+  },
 };
 function curLang() { return (settings && settings.lang) || localStorage.getItem('gym_ui_lang') || 'en'; }
 function t(key) {
@@ -489,6 +597,7 @@ async function enterApp() {
   if (settings.wht == null) settings.wht = 3;
   if (settings.vat == null) settings.vat = 7;
   const set = (id, v) => { const el = document.getElementById(id); if (el != null && v != null) el.value = v; };
+  set('set-lang', settings.lang || 'en');
   set('set-currency', settings.currency || 'THB');
   set('set-goal', settings.dailyGoal || '');
   set('set-page-size', settings.docPageSize || 'A4');
@@ -851,58 +960,54 @@ async function renderHome() {
   renderGoal();
   renderPipelineGlance();
   updateMoreNavBadge();
-  // Action queue: a list of independent nudges — overdue invoices, imminent
-  // bookings, and stale pipeline engagements can all be true at once.
-  // computeNotificationConditions() is the same function the OS-notification
-  // checker uses, so the two can never show different things. The backup
-  // reminder moved to the More screen (see renderBackupReminder()) — it's a
-  // device-housekeeping nudge, not a pipeline/payment one, so it doesn't
-  // compete with those for attention on Home.
-  const q = document.getElementById('queue-body');
-  if (!q) return;
-  const rows = [];
-  try {
-    const { overdueInvoices, upcomingBookings, staleJobs } = await computeNotificationConditions();
-    if (overdueInvoices.length) {
-      rows.push(`<div class="list-row" onclick="switchScreen('invoices')">
-          <div class="list-icon">⚠️</div>
-          <div class="list-main">
-            <div class="list-title">${overdueInvoices.length} invoice${overdueInvoices.length > 1 ? 's' : ''} overdue</div>
-            <div class="list-sub">${htmlEsc(overdueInvoices.map(i => i.number).join(', '))}</div>
-          </div>
-          <div class="list-right"><span style="color:var(--text3)">›</span></div>
-        </div>`);
-    }
-    if (upcomingBookings.length) {
-      upcomingBookings.forEach(b => {
-        rows.push(`<div class="list-row" onclick="switchScreen('book')">
-            <div class="list-icon">⏰</div>
-            <div class="list-main">
-              <div class="list-title">${htmlEsc(b.title || 'Booking')} at ${htmlEsc(b.startTime)}</div>
-              <div class="list-sub">Starting soon</div>
-            </div>
-            <div class="list-right"><span style="color:var(--text3)">›</span></div>
-          </div>`);
-      });
-    }
-    if (staleJobs.length) {
-      rows.push(`<div class="list-row" onclick="switchScreen('pipeline')">
-          <div class="list-icon">📌</div>
-          <div class="list-main">
-            <div class="list-title">${staleJobs.length} engagement${staleJobs.length > 1 ? 's need' : ' needs'} attention</div>
-            <div class="list-sub">No movement for ${NOTIFY_STALE_DAYS}+ days</div>
-          </div>
-          <div class="list-right"><span style="color:var(--text3)">›</span></div>
-        </div>`);
-    }
-  } catch (e) { console.error('renderHome notifications', e); }
-
-  q.innerHTML = rows.length
-    ? '<div class="list-card">' + rows.join('') + '</div>'
-    : `<div class="empty"><div class="empty-icon">✅</div>
-        <p data-i18n="queue_empty">${t('queue_empty')}</p>
-        <span data-i18n="queue_empty_sub">${t('queue_empty_sub')}</span></div>`;
+  renderIncomingPipeline();
 }
+// Incoming pipeline: replaces the old Action Queue nudge list with a direct
+// preview of active engagements, so Home shows what's actually moving through
+// the pipeline instead of a separate notification-style summary. Overdue
+// invoices / imminent bookings / stale engagements still drive OS-level
+// notifications (checkAndFireNotifications(), unaffected by this) — this is
+// just Home's own in-app view.
+const INCOMING_PIPELINE_LIMIT = 6;
+function incomingPipelineRowHtml(j) {
+  const stage = jobStage(j);
+  const meta = STAGE_META[stage] || {};
+  return `<div class="list-row" onclick="openPipelineAt('${stage}')">
+      <div class="list-icon" style="background:${meta.dot}22;color:${meta.dot}">${meta.icon || ''}</div>
+      <div class="list-main">
+        <div class="list-title">${htmlEsc(j.client || 'Client')}</div>
+        <div class="list-sub">${htmlEsc(meta.label || stage || '')}${j.serviceName ? ' · ' + htmlEsc(j.serviceName) : ''}</div>
+      </div>
+      <div class="list-right"><div class="list-amt tnum">${htmlEsc(money(j.amount))}</div></div>
+    </div>`;
+}
+function renderIncomingPipeline() {
+  const el = document.getElementById('incoming-pipeline-body');
+  if (!el) return;
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const order = getStageOrder();
+  // Earliest stage first (newest leads read as most "incoming"), then oldest
+  // updatedAt within the same stage (surfaces stalled engagements first —
+  // keeps the one thing the old stale-engagement nudge was good for).
+  const active = jobs.filter(j => j.uid === uid && !jobComplete(j)).sort((a, b) => {
+    const ai = order.indexOf(jobStage(a)), bi = order.indexOf(jobStage(b));
+    if (ai !== bi) return ai - bi;
+    return (a.updatedAt || '').localeCompare(b.updatedAt || '');
+  });
+  const shown = active.slice(0, INCOMING_PIPELINE_LIMIT);
+  if (!shown.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">✅</div>
+        <p data-i18n="incoming_pipeline_empty">${t('incoming_pipeline_empty')}</p>
+        <span data-i18n="incoming_pipeline_empty_sub">${t('incoming_pipeline_empty_sub')}</span></div>`;
+    return;
+  }
+  let html = '<div class="list-card">' + shown.map(incomingPipelineRowHtml).join('') + '</div>';
+  if (active.length > shown.length) {
+    html += `<div style="text-align:center;padding:12px;color:var(--brand);font-weight:700;font-size:13px;cursor:pointer" onclick="switchScreen('pipeline')">+${active.length - shown.length} more in Pipeline →</div>`;
+  }
+  el.innerHTML = html;
+}
+window.renderIncomingPipeline = renderIncomingPipeline;
 function renderPipelineGlance() {
   const wrap = document.getElementById('pipeline-glance');
   if (!wrap) return;
@@ -1013,10 +1118,10 @@ function onJobServiceChange(v) {
   const s = services.find(x => x.id === parseInt(v));
   if (s) { document.getElementById('j-amount').value = s.rate; calcNet(); }
 }
-function openAddJob() {
+function openAddJob(dateISO) {
   document.getElementById('modal-title').textContent = t('add_job');
   document.getElementById('j-edit-id').value = '';
-  document.getElementById('j-date').value = todayISO();
+  document.getElementById('j-date').value = dateISO || todayISO();
   ['j-amount','j-tip','j-expense','j-count','j-notes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   populateJobSelects('', '');
   refreshJobPackageRow(null, null);
@@ -1871,6 +1976,7 @@ async function saveSetting(key, val) {
   if (key === 'lang') localStorage.setItem('gym_ui_lang', val);
 }
 async function onCurrencyChange(v) { await saveSetting('currency', v); applyLang(); }
+async function onLangChange(v) { await saveSetting('lang', v === 'th' ? 'th' : 'en'); applyLang(); }
 async function onGoalChange(v) { const n = parseFloat(v); await saveSetting('dailyGoal', isNaN(n)?0:n); renderGoal(); }
 async function onWhtChange(v) { const n = parseFloat(v); await saveSetting('wht', isNaN(n)?null:n); }
 async function onVatChange(v) { const n = parseFloat(v); await saveSetting('vat', isNaN(n)?null:n); }
@@ -1910,8 +2016,8 @@ function renderPaymentChannels() {
   const chans = paymentChannels();
   if (!chans.length) {
     wrap.innerHTML = `<div class="empty" style="padding:20px 12px">
-        <p style="font-size:13px;font-weight:700">No payment channels yet</p>
-        <span style="font-size:12px">Add PromptPay, bank transfer, cash, or another method so clients know how to pay you.</span>
+        <p style="font-size:13px;font-weight:700">${htmlEsc(t('no_payment_channels'))}</p>
+        <span style="font-size:12px">${htmlEsc(t('no_payment_channels_sub'))}</span>
       </div>`;
     return;
   }
@@ -2187,7 +2293,7 @@ function applyLang() {
   if (hintEl) hintEl.innerHTML = t('auth_hint');
   const submitBtn = document.getElementById('auth-submit');
   if (submitBtn) submitBtn.textContent = authMode === 'register' ? t('create_account') : t('login');
-  try { if (currentUser) { renderHome(); applyUser(); } } catch(e) {}
+  try { if (currentUser) { renderHome(); applyUser(); renderPaymentChannels(); } } catch(e) {}
 }
 
 // ─── UTILS ────────────────────────────────────────────────────────────

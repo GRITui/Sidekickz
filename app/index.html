@@ -52,8 +52,8 @@
   </div>
 
   <div class="content">
-    <div class="section-title" data-i18n="action_queue">Action queue</div>
-    <div id="queue-body"></div>
+    <div class="section-title" data-i18n="incoming_pipeline">Incoming pipeline</div>
+    <div id="incoming-pipeline-body"></div>
   </div>
 </section>
 
@@ -152,29 +152,29 @@
           <span class="settings-label" style="color:var(--text3)">›</span>
         </div>
         <div class="settings-row" style="cursor:pointer" onclick="switchScreen('invoices')">
-          <span class="settings-label">Invoices</span>
+          <span class="settings-label" data-i18n="invoices_title">Invoices</span>
           <span class="settings-label" style="color:var(--text3)">›</span>
         </div>
         <div class="settings-row" style="cursor:pointer" onclick="switchScreen('docs')">
-          <span class="settings-label">Docs</span>
+          <span class="settings-label" data-i18n="manage_docs_row">Docs</span>
           <span class="settings-label" style="color:var(--text3)">›</span>
         </div>
       </div>
     </details>
 
     <details class="settings-section">
-      <summary class="section-title">More tools</summary>
+      <summary class="section-title" data-i18n="more_tools_title">More tools</summary>
       <div class="settings-list">
         <div class="settings-row" style="cursor:pointer" onclick="switchScreen('followups')">
-          <span class="settings-label">Follow-ups</span>
+          <span class="settings-label" data-i18n="followups_row_title">Follow-ups</span>
           <span class="settings-label" style="color:var(--text3)">›</span>
         </div>
         <div class="settings-row" style="cursor:pointer" onclick="switchScreen('portfolio')">
-          <span class="settings-label">Portfolio</span>
+          <span class="settings-label" data-i18n="portfolio_row_title">Portfolio</span>
           <span class="settings-label" style="color:var(--text3)">›</span>
         </div>
         <div class="settings-row" style="cursor:pointer" onclick="switchScreen('research')">
-          <span class="settings-label">Research</span>
+          <span class="settings-label" data-i18n="research_row_title">Research</span>
           <span class="settings-label" style="color:var(--text3)">›</span>
         </div>
         <div class="settings-row" id="insights-row" style="cursor:pointer;display:none" onclick="switchScreen('insights')">
@@ -195,6 +195,13 @@
       <summary class="section-title" data-i18n="preferences">Preferences</summary>
       <div class="settings-list">
         <div class="settings-row">
+          <label class="settings-label" for="set-lang" data-i18n="language">Language</label>
+          <select id="set-lang" onchange="onLangChange(this.value)">
+            <option value="en">English</option>
+            <option value="th">ไทย</option>
+          </select>
+        </div>
+        <div class="settings-row">
           <label class="settings-label" for="set-currency" data-i18n="currency">Currency</label>
           <select id="set-currency" onchange="onCurrencyChange(this.value)">
             <option value="THB">฿ THB</option><option value="USD">$ USD</option>
@@ -207,25 +214,25 @@
           <input class="settings-input tnum" id="set-goal" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalChange(this.value)">
         </div>
         <div class="settings-row">
-          <label class="settings-label" for="set-page-size">Document page size</label>
+          <label class="settings-label" for="set-page-size" data-i18n="page_size_label">Document page size</label>
           <select id="set-page-size" onchange="onPageSizeChange(this.value)">
             <option value="A4">A4</option>
             <option value="A5">A5</option>
           </select>
         </div>
         <div class="settings-row">
-          <label class="settings-label" for="set-notifications">Notifications</label>
+          <label class="settings-label" for="set-notifications" data-i18n="notifications_label">Notifications</label>
           <input type="checkbox" id="set-notifications" style="width:20px;height:20px" onchange="onNotificationsToggle(this.checked)">
         </div>
       </div>
-      <p style="font-size:12px;color:var(--text3);margin:-4px 16px 4px">Overdue invoices, bookings starting soon, and stuck engagements — only while this app is open or recently open in the background.</p>
+      <p style="font-size:12px;color:var(--text3);margin:-4px 16px 4px" data-i18n="notifications_sub">Overdue invoices, bookings starting soon, and stuck engagements — only while this app is open or recently open in the background.</p>
     </details>
 
     <details class="settings-section" open>
-      <summary class="section-title">Payment channels</summary>
-      <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px">Add PromptPay, bank transfer, cash, or another method so clients know how to pay you. PromptPay shows a scannable QR on invoices; the rest show as reference text.</p>
+      <summary class="section-title" data-i18n="payment_channels_title">Payment channels</summary>
+      <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px" data-i18n="payment_channels_sub">Add PromptPay, bank transfer, cash, or another method so clients know how to pay you. PromptPay shows a scannable QR on invoices; the rest show as reference text.</p>
       <div id="payment-channels-list" style="margin:0 16px 10px"></div>
-      <button class="btn-submit" style="margin:0 16px 20px;width:calc(100% - 32px)" onclick="openAddPaymentChannel()">+ Add payment channel</button>
+      <button class="btn-submit" style="margin:0 16px 20px;width:calc(100% - 32px)" onclick="openAddPaymentChannel()" data-i18n="add_payment_channel">+ Add payment channel</button>
     </details>
 
     <details class="settings-section" open>
@@ -234,7 +241,7 @@
       <div class="settings-list">
         <div class="settings-row">
           <label class="settings-label" for="set-seller-name" data-i18n="business_name">Business name</label>
-          <input class="settings-input" id="set-seller-name" type="text" placeholder="Defaults to your account name" onchange="onSellerBusinessNameChange(this.value)">
+          <input class="settings-input" id="set-seller-name" type="text" placeholder="Defaults to your account name" data-i18n-ph="business_name_ph" onchange="onSellerBusinessNameChange(this.value)">
         </div>
         <div class="settings-row">
           <label class="settings-label" for="set-seller-taxid" data-i18n="business_taxid">Tax ID</label>
@@ -271,7 +278,7 @@
         <button onclick="exportCustomersCSV()" data-i18n="export_customers_csv">Export clients CSV</button>
       </div>
       <div class="export-btns" style="grid-template-columns:1fr">
-        <button onclick="exportInvoicesCSV()">Export invoices CSV</button>
+        <button onclick="exportInvoicesCSV()" data-i18n="export_invoices_csv">Export invoices CSV</button>
       </div>
       <div class="export-btns" style="grid-template-columns:1fr">
         <button onclick="pickBackupFile()" data-i18n="restore_json">Restore JSON</button>
