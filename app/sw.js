@@ -1,8 +1,8 @@
 /* Sidekick service worker — local-first PWA app shell.
  *
  * VERSION LOCKSTEP: SW_VERSION tracks APP_VERSION in app.js.
- *   app.js  APP_VERSION = '0.9.4'
- *   sw.js   SW_VERSION   = 'sidekick-v0.9.4'
+ *   app.js  APP_VERSION = '0.9.5'
+ *   sw.js   SW_VERSION   = 'sidekick-v0.9.5'
  * Bump BOTH together on every deploy, and keep the ?v= query on the precached
  * app.js / styles.css in step (they double as cache-busters).
  *
@@ -17,7 +17,7 @@
  * this rename is simply left alone (harmless, and evicted by the browser's
  * normal cache-storage limits over time) rather than actively cleaned up.
  */
-const SW_VERSION = 'sidekick-v0.9.4';
+const SW_VERSION = 'sidekick-v0.9.5';
 const CACHE_PREFIX = 'sidekick-shell-';
 const SHELL_CACHE = `${CACHE_PREFIX}${SW_VERSION}`;
 
@@ -29,20 +29,22 @@ const SHELL_ASSETS = [
   BASE,
   BASE + 'index.html',
   BASE + 'login.html',
-  BASE + 'app.js?v=0.9.4',
-  BASE + 'tax.js?v=0.9.4',
-  BASE + 'invoices.js?v=0.9.4',
-  BASE + 'docgen.js?v=0.9.4',
-  BASE + 'bookings.js?v=0.9.4',
-  BASE + 'followups.js?v=0.9.4',
-  BASE + 'portfolio.js?v=0.9.4',
-  BASE + 'research.js?v=0.9.4',
-  BASE + 'styles.css?v=0.9.4',
+  BASE + 'app.js?v=0.9.5',
+  BASE + 'tax.js?v=0.9.5',
+  BASE + 'invoices.js?v=0.9.5',
+  BASE + 'docgen.js?v=0.9.5',
+  BASE + 'bookings.js?v=0.9.5',
+  BASE + 'followups.js?v=0.9.5',
+  BASE + 'portfolio.js?v=0.9.5',
+  BASE + 'research.js?v=0.9.5',
+  BASE + 'styles.css?v=0.9.5',
   BASE + 'manifest.json',
   BASE + 'icons/icon.svg',
   BASE + 'icons/icon-192.png',
   BASE + 'icons/icon-512.png',
-  BASE + 'icons/apple-touch-icon.png'
+  BASE + 'icons/apple-touch-icon.png',
+  BASE + 'fonts/schibsted-grotesk-variable.woff2',
+  BASE + 'fonts/spline-sans-mono-variable.woff2'
 ];
 
 self.addEventListener('install', (e) => {
