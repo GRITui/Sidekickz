@@ -214,6 +214,9 @@ details.settings-section:not([open]) summary.section-title::after{transform:rota
 @media (prefers-reduced-motion:reduce){.kb-card.kb-enter{animation:none;}}
 @media (min-width:900px){
   #s-pipeline .content{max-width:1000px;}
+  #s-book .content{max-width:1000px;}
+  .cal-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start;}
+  .cal-right{position:sticky;top:20px;}
 }
 
 /* Chips */
@@ -369,6 +372,8 @@ select option{background:var(--select-option-bg);color:var(--select-option-fg);}
 .cal-legend-item{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--text3);}
 .cal-legend-item .cal-dot{width:6px;height:6px;}
 .cal-daypanel-head{font-size:13px;font-weight:800;color:var(--text2);margin:2px 0 8px;}
+.cal-schedule-link{display:block;width:100%;margin-top:10px;padding:8px;border:none;background:none;
+  color:var(--brand);font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;text-align:center;}
 
 /* Toast */
 .toast{position:fixed;bottom:calc(var(--nav) + 20px);left:50%;transform:translateX(-50%) translateY(20px);
