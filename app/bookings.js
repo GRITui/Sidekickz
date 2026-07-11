@@ -191,8 +191,18 @@
     return `<div class="empty" style="padding:28px 16px">
         <div class="empty-icon" style="font-size:44px;color:var(--brand)">${CAL_SVG}</div>
         <p>Nothing on ${esc(fmtDate(dateISO))}</p>
-        <span>Tap “+ New booking” above to schedule work — set a duration and a travel buffer so back-to-back jobs stay realistic.</span>
+        <span>Tap “+ New session” above to log work.</span>
+        ${scheduleBookingLinkHtml(dateISO)}
       </div>`;
+  }
+
+  // The main "+ New session" button logs pipeline work, not a scheduled time
+  // slot — this small secondary link keeps the duration/travel-buffer
+  // booking form (still fully built below) reachable for the "block out a
+  // slot on the calendar" use case, without it competing with session-
+  // logging for the primary call-to-action.
+  function scheduleBookingLinkHtml(dateISO) {
+    return `<button type="button" class="cal-schedule-link" onclick="openBookingForm('${aesc(dateISO)}')">+ Schedule a booking</button>`;
   }
 
   // A day's pipeline dot only says "something's here" — this row is what makes
@@ -239,7 +249,9 @@
     const bookingSection = rows.length
       ? (both ? `<div class="section-title" style="font-size:12px;margin:0 0 6px">Bookings</div>` : '') + buildDayList(rows, nextDayFirst)
       : '';
-    const body = (pipelineSection || bookingSection) ? (pipelineSection + bookingSection) : emptyDayHtml(dateISO);
+    const body = (pipelineSection || bookingSection)
+      ? (pipelineSection + bookingSection + scheduleBookingLinkHtml(dateISO))
+      : emptyDayHtml(dateISO);
     return `<div class="cal-daypanel">
         <div class="cal-daypanel-head">${esc(dayLabel(dateISO))}</div>
         ${body}
@@ -287,14 +299,26 @@
     const legend = (stageLegendItems || bookingLegendItem)
       ? `<div class="cal-legend">${stageLegendItems}${bookingLegendItem}</div>` : '';
     const addLabel = expandedDate ? ' · ' + fmtDate(expandedDate) : '';
-    const btn = `<button type="button" id="bk-new-btn" class="btn-submit" style="width:100%;margin:14px 0 16px">+ New booking${esc(addLabel)}</button>`;
+    // Adding from Calendar creates a pipeline session (same "Add session" job
+    // form/modal used from Home/Pipeline's FAB, pre-filled with the selected
+    // date), not a separate booking — a calendar day's primary action is
+    // logging the work itself, not scheduling a time slot for it.
+    const btn = `<button type="button" id="bk-new-btn" class="btn-submit" style="width:100%;margin:14px 0 16px">+ New session${esc(addLabel)}</button>`;
 
-    el.innerHTML = monthNav + wdRow + grid + legend + btn + dayPanelHtml;
+    // Two visual columns on desktop (`.cal-layout` grid, see styles.css) so
+    // the day panel sits beside the month grid instead of below it — no
+    // scrolling needed to see what's on a day after tapping it. On mobile
+    // the grid rule doesn't apply and this just stacks top-to-bottom as before.
+    const rightPanel = dayPanelHtml || `<div class="empty cal-daypanel-placeholder"><p>Tap a day to see what's on it.</p></div>`;
+    el.innerHTML = `<div class="cal-layout">
+        <div class="cal-left">${monthNav}${wdRow}${grid}${legend}${btn}</div>
+        <div class="cal-right">${rightPanel}</div>
+      </div>`;
 
     document.getElementById('cal-prev').addEventListener('click', () => { calMonth = shiftMonth(calMonth, -1); expandedDate = null; renderBookings(); });
     document.getElementById('cal-next').addEventListener('click', () => { calMonth = shiftMonth(calMonth, 1); expandedDate = null; renderBookings(); });
     document.getElementById('cal-today-btn').addEventListener('click', () => { calMonth = todayISO().slice(0, 7); expandedDate = todayISO(); selectedDate = todayISO(); renderBookings(); });
-    document.getElementById('bk-new-btn').addEventListener('click', () => openBookingForm(expandedDate || selectedDate || todayISO()));
+    document.getElementById('bk-new-btn').addEventListener('click', () => openAddJob(expandedDate || selectedDate || todayISO()));
     // Tapping the month label jumps straight to any date via the native date
     // picker, instead of stepping one month at a time with ‹ › — the hidden
     // input just proxies the picker UI.
