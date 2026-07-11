@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.3';          // <-> sw.js SW_VERSION 'sidekick-v0.9.3'
+const APP_VERSION = '0.9.4';          // <-> sw.js SW_VERSION 'sidekick-v0.9.4'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
