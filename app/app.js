@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.9.0';          // <-> sw.js SW_VERSION 'freelanz-v0.9.0'
+const APP_VERSION = '0.9.1';          // <-> sw.js SW_VERSION 'freelanz-v0.9.1'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -299,7 +299,7 @@ const I18N = {
     auth_hint:'Create an account to save your work on this device.<br>Everything stays local — no cloud, no tracking.<br>Guest mode is temporary.',
     tagline:'Freelance admin, handled.',
     // nav
-    nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Pipeline', nav_book:'Book', nav_more:'More',
+    nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Pipeline', nav_book:'Calendar', nav_more:'More',
     pipeline_title:'Pipeline', workflow_title:'Workflow', pipeline_glance_title:'Pipeline at a glance',
     skip_stage:'Skip', mark_finished:'Finished',
     // dashboard
@@ -326,7 +326,7 @@ const I18N = {
     daily_goal:'Daily income goal', data:'Data', export_csv:'Export CSV', backup_json:'Backup JSON', restore_json:'Restore JSON',
     total_jobs:'Total jobs', app_word:'App', version:'Version', logout:'Log out', exit_guest:'Exit guest mode',
     // placeholder modules
-    invoices_title:'Invoices', docs_title:'Documents', book_title:'Booking',
+    invoices_title:'Invoices', docs_title:'Documents', book_title:'Calendar',
     module_soon_h:'Coming soon', mod_invoices_p:'Send branded invoices, track paid / due / overdue, and auto-fill tax. Arrives in M2.',
     mod_docs_p:'Store contracts, receipts and portfolio files — all on your device. Arrives in M2.',
     mod_book_p:'Share a booking link and let clients pick a slot. Arrives in M3.',
@@ -455,6 +455,7 @@ async function enterApp() {
   const set = (id, v) => { const el = document.getElementById(id); if (el != null && v != null) el.value = v; };
   set('set-currency', settings.currency || 'THB');
   set('set-goal', settings.dailyGoal || '');
+  set('set-page-size', settings.docPageSize || 'A4');
   set('set-wht', settings.wht != null ? settings.wht : '');
   set('set-vat', settings.vat != null ? settings.vat : '');
   set('set-seller-name', settings.sellerBusinessName || '');
@@ -566,7 +567,7 @@ function applyInsightsVisibility() {
   if (row) row.style.display = settings.insightsUnlocked ? 'flex' : 'none';
 }
 const SCREEN_LABELS = {
-  home:'Home', pipeline:'Pipeline', customers:'Clients', book:'Booking', more:'Settings',
+  home:'Home', pipeline:'Pipeline', customers:'Clients', book:'Calendar', more:'Settings',
   services:'Services', invoices:'Invoices', tax:'Tax', docs:'Documents',
   followups:'Follow-ups', portfolio:'Portfolio', research:'Research', insights:'Insights',
 };
@@ -1622,6 +1623,15 @@ async function onCurrencyChange(v) { await saveSetting('currency', v); applyLang
 async function onGoalChange(v) { const n = parseFloat(v); await saveSetting('dailyGoal', isNaN(n)?0:n); renderGoal(); }
 async function onWhtChange(v) { const n = parseFloat(v); await saveSetting('wht', isNaN(n)?null:n); }
 async function onVatChange(v) { const n = parseFloat(v); await saveSetting('vat', isNaN(n)?null:n); }
+async function onPageSizeChange(v) { await saveSetting('docPageSize', v === 'A5' ? 'A5' : 'A4'); }
+// Shared by invoices.js/docgen.js's print flows so both document types honor
+// the same Settings ▸ Preferences ▸ "Document page size" choice.
+function docPageSizeCss() {
+  const size = (typeof settings !== 'undefined' && settings && settings.docPageSize === 'A5') ? 'A5' : 'A4';
+  const margin = size === 'A5' ? '10mm' : '16mm';
+  return `@page{ size: ${size}; margin: ${margin}; }`;
+}
+window.docPageSizeCss = docPageSizeCss;
 // ─── PAYMENT CHANNELS (Settings) ──────────────────────────────────────
 // Generalizes the old single "PromptPay ID" field into a saved list of
 // payment methods — only 'promptpay' ever renders a scannable QR

@@ -55,6 +55,10 @@ function dgListHTML(docs) {
     + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'quote\')"><span class="dg-tpl-ico">💬</span><span class="dg-tpl-name">Quote</span></button>'
     + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'receipt\')"><span class="dg-tpl-ico">🧾</span><span class="dg-tpl-name">Receipt</span></button>'
     + '</div>';
+  h += '<div class="section-title">Tools</div>';
+  h += '<div class="dg-tool-grid">'
+    + '<button type="button" class="dg-tool-btn" onclick="switchScreen(\'tax\')"><span class="dg-tool-ico">🧮</span><span class="dg-tool-name">Tax calculator</span></button>'
+    + '</div>';
   h += '<div class="section-title">Saved documents</div>';
   if (!docs.length) {
     h += '<div class="empty"><div class="empty-icon">🗂️</div><p>No documents yet</p><span>Generate a contract, NDA, quote, or receipt above.</span></div>';
@@ -93,6 +97,14 @@ function ensureDocgenUI() {
       cursor:pointer;font-family:inherit;}
     .dg-tpl-btn:active{background:var(--brand-tint);border-color:var(--brand);}
     .dg-tpl-btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
+    .dg-tool-grid{display:grid;grid-template-columns:1fr;gap:10px;margin:0 0 20px;}
+    .dg-tool-btn{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:10px;padding:14px 16px;
+      border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--card);
+      cursor:pointer;font-family:inherit;width:100%;}
+    .dg-tool-btn:active{background:var(--brand-tint);border-color:var(--brand);}
+    .dg-tool-btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
+    .dg-tool-ico{font-size:20px;}
+    .dg-tool-name{font-size:13px;font-weight:700;color:var(--text);}
     .dg-tpl-ico{font-size:24px;}
     .dg-tpl-name{font-size:13px;font-weight:700;color:var(--text);}
     .dg-chip{display:inline-block;padding:3px 9px;border-radius:9px;font-size:11px;font-weight:700;
@@ -809,6 +821,15 @@ function printDocument(html) {
   const root = document.getElementById('docgen-print-root');
   if (!root) return;
   root.innerHTML = html;
+  // Page size is a Settings-wide choice (A4/A5), so it's set fresh per print
+  // call rather than baked into ensureDocgenUI()'s one-time style block.
+  let pageStyle = document.getElementById('dg-page-style');
+  if (!pageStyle) {
+    pageStyle = document.createElement('style');
+    pageStyle.id = 'dg-page-style';
+    document.head.appendChild(pageStyle);
+  }
+  pageStyle.textContent = `@media print{ ${docPageSizeCss()} }`;
   const cleanup = () => {
     document.body.classList.remove('dg-printing');
     window.removeEventListener('afterprint', cleanup);
