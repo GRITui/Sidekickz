@@ -1,4 +1,4 @@
-/* Freelanz — bookings.js  (M3 BOOKING — day view + travel buffers)
+/* Sidekick — bookings.js  (M3 BOOKING — day view + travel buffers)
  *
  * OWNED BY the booking agent. Replaces the stub entirely.
  * Loaded AFTER app.js (and the other M2/M3 modules), so app.js globals (dbAll,

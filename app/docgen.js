@@ -1,4 +1,4 @@
-/* Freelanz — docgen.js  (M2 DOC-GEN)
+/* Sidekick — docgen.js  (M2 DOC-GEN)
  *
  * OWNED BY the doc-gen agent. Fills #docgen-body only. Loaded AFTER app.js
  * (and tax.js / invoices.js), so all app.js globals are available at call

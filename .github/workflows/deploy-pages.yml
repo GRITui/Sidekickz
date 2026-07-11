@@ -23,11 +23,15 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      # This single Pages site hosts two independent Freelanz PWAs, built from
-      # two branches on every run regardless of which one triggered it, so a
-      # push to either branch can never wipe out the other's live pages:
-      #   /       <- main (general multi-persona Freelanz app)
-      #   /gym/   <- personal-gym-trainer-freelanz (single-purpose gym app)
+      # This single Pages site hosts two builds of the app, built from two
+      # branches on every run regardless of which one triggered it, so a push
+      # to either branch can never wipe out the other's live pages:
+      #   /       <- main (Sidekick, the flagship app — formerly the general
+      #              multi-persona "Freelanz" app, retired and replaced when
+      #              personal-gym-trainer-freelanz was promoted to main)
+      #   /gym/   <- personal-gym-trainer-freelanz (kept as its own branch;
+      #              identical to main at the time of promotion, free to
+      #              diverge again if it's used for further gym-specific work)
       - name: Checkout main (root app)
         uses: actions/checkout@v4
         with:

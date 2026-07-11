@@ -1,7 +1,7 @@
-<!-- Freelanz app icon. Teal rounded square, marigold "F" / receipt mark.
-     M1 uses this single SVG (crisp at any size, purpose "any maskable").
+<!-- Sidekick app icon. Teal rounded square, marigold "S" / receipt mark.
+     Rebranded from Freelanz (was a marigold "F") — same style otherwise.
      PNG icons (192/512/maskable) are a later polish pass. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Freelanz">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Sidekick">
   <rect width="512" height="512" rx="115" fill="#0F766E"/>
   <rect width="512" height="512" rx="115" fill="url(#g)"/>
   <defs>
@@ -10,8 +10,9 @@
       <stop offset="1" stop-color="#0F766E" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <!-- receipt tab behind the F -->
+  <!-- receipt tab behind the S -->
   <path d="M150 120 h150 a20 20 0 0 1 20 20 v250 l-28 -20 -28 20 -28 -20 -28 20 -28 -20 -28 20 V140 a20 20 0 0 1 20 -20 Z" fill="#FBFAF7" opacity="0.14"/>
-  <!-- marigold F -->
-  <path d="M196 150 h150 v46 h-100 v52 h84 v46 h-84 v98 h-50 Z" fill="#F59E0B"/>
+  <!-- marigold S -->
+  <path d="M322 168 C 322 136, 268 128, 226 128 C 176 128, 150 154, 150 190 C 150 234, 188 246, 232 254 C 274 262, 302 270, 302 306 C 302 340, 270 358, 228 358 C 182 358, 148 342, 148 306"
+        fill="none" stroke="#F59E0B" stroke-width="46" stroke-linecap="round"/>
 </svg>

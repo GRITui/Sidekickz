@@ -1,21 +1,24 @@
-/* Freelanz service worker — local-first PWA app shell.
+/* Sidekick service worker — local-first PWA app shell.
  *
  * VERSION LOCKSTEP: SW_VERSION tracks APP_VERSION in app.js.
- *   app.js  APP_VERSION = '0.9.2'
- *   sw.js   SW_VERSION   = 'freelanz-v0.9.2'
+ *   app.js  APP_VERSION = '0.9.3'
+ *   sw.js   SW_VERSION   = 'sidekick-v0.9.3'
  * Bump BOTH together on every deploy, and keep the ?v= query on the precached
  * app.js / styles.css in step (they double as cache-busters).
  *
  * No backend, no secrets: this SW only precaches the versioned shell and serves
  * same-origin assets cache-first so the app works fully offline.
+ *
+ * Formerly "freelanz-gym-shell-" — that prefix existed because this app used
+ * to co-host with a separate "Freelanz" app on the same origin (root vs /gym/)
+ * and Cache Storage is scoped per-origin, not per-path. That sibling app has
+ * been retired; the activate handler below still only deletes keys matching
+ * ITS OWN current prefix, so an old 'freelanz-gym-shell-*' cache from before
+ * this rename is simply left alone (harmless, and evicted by the browser's
+ * normal cache-storage limits over time) rather than actively cleaned up.
  */
-const SW_VERSION = 'freelanz-v0.9.2';
-// Prefixed 'freelanz-gym-' (not just 'freelanz-'): this app co-hosts with the
-// main Freelanz app on the same GitHub Pages origin (root vs /gym/), and the
-// Cache Storage API is scoped per-ORIGIN, not per-path — every SW on the origin
-// sees every cache key in caches.keys(). The activate handler below only
-// deletes keys matching ITS OWN prefix so it never nukes the other app's cache.
-const CACHE_PREFIX = 'freelanz-gym-shell-';
+const SW_VERSION = 'sidekick-v0.9.3';
+const CACHE_PREFIX = 'sidekick-shell-';
 const SHELL_CACHE = `${CACHE_PREFIX}${SW_VERSION}`;
 
 // BASE is derived from the SW's own location so the app works mounted at any
@@ -26,15 +29,15 @@ const SHELL_ASSETS = [
   BASE,
   BASE + 'index.html',
   BASE + 'login.html',
-  BASE + 'app.js?v=0.9.2',
-  BASE + 'tax.js?v=0.9.2',
-  BASE + 'invoices.js?v=0.9.2',
-  BASE + 'docgen.js?v=0.9.2',
-  BASE + 'bookings.js?v=0.9.2',
-  BASE + 'followups.js?v=0.9.2',
-  BASE + 'portfolio.js?v=0.9.2',
-  BASE + 'research.js?v=0.9.2',
-  BASE + 'styles.css?v=0.9.2',
+  BASE + 'app.js?v=0.9.3',
+  BASE + 'tax.js?v=0.9.3',
+  BASE + 'invoices.js?v=0.9.3',
+  BASE + 'docgen.js?v=0.9.3',
+  BASE + 'bookings.js?v=0.9.3',
+  BASE + 'followups.js?v=0.9.3',
+  BASE + 'portfolio.js?v=0.9.3',
+  BASE + 'research.js?v=0.9.3',
+  BASE + 'styles.css?v=0.9.3',
   BASE + 'manifest.json',
   BASE + 'icons/icon.svg',
   BASE + 'icons/icon-192.png',

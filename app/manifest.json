@@ -1,7 +1,7 @@
 {
-  "name": "Freelanz — Gym Trainer",
-  "short_name": "Freelanz Gym",
-  "description": "Local-first admin for personal trainers: sessions, members, invoicing, tax, docs, booking.",
+  "name": "Sidekick",
+  "short_name": "Sidekick",
+  "description": "Local-first admin for freelancers: bookings, invoicing, tax, docs, and client follow-up — all on your device.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

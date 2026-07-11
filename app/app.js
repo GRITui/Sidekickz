@@ -1,12 +1,16 @@
-/* Freelanz — app.js  (all screens + logic + PWA boot)
+/* Sidekick — app.js  (all screens + logic + PWA boot)
  * Local-first freelance-admin PWA. Vanilla JS + IndexedDB + Service Worker.
  * NO backend, NO secrets, NO external CDNs. English-only MVP; i18n engine is
  * built so Thai (or any locale) can be added later by extending I18N.
  *
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
+ *
+ * Formerly "Freelanz Gym" (a personal-gym-trainer-focused fork of the general
+ * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
+ * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.2';          // <-> sw.js SW_VERSION 'freelanz-v0.9.2'
+const APP_VERSION = '0.9.3';          // <-> sw.js SW_VERSION 'sidekick-v0.9.3'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -26,11 +30,16 @@ let db;
 // weight/notes entries over time). onupgradeneeded only CREATES
 // missing stores (each guarded by !contains) — it never drops or clears
 // existing stores, so guest jobs / clients / settings survive the upgrade.
-// DB_NAME/storage keys below are namespaced 'gym' because this app co-hosts
-// with the main Freelanz app on the same GitHub Pages origin (root vs /gym/):
-// IndexedDB/localStorage/sessionStorage are scoped per-ORIGIN, not per-path,
-// so an unprefixed name here would silently share the main app's database.
-const DB_NAME = 'freelanz-gym-v1', DB_VER = 7;
+const DB_NAME = 'sidekick-v1', DB_VER = 7;
+// RENAME/MIGRATION: this app used to be "Freelanz Gym" (DB_NAME
+// 'freelanz-gym-v1'), namespaced that way because it co-hosted with a
+// separate "Freelanz" app on the same GitHub Pages origin. That sibling app
+// has been retired and this one promoted to be the flagship — see
+// migrateLegacyStorageIfNeeded() below, which one-time-copies any existing
+// local data (IndexedDB stores + the logged-in session + UI prefs) from the
+// old names into the new ones, so nobody's on-device data is silently
+// orphaned by the rename.
+const LEGACY_DB_NAME = 'freelanz-gym-v1';
 function openDB() {
   return new Promise((res, rej) => {
     const req = indexedDB.open(DB_NAME, DB_VER);
@@ -66,8 +75,61 @@ function openDB() {
     };
     req.onerror = () => rej(req.error);
     // Another tab holds an older-version connection open: surface it instead of hanging forever.
-    req.onblocked = () => rej(new Error('DB upgrade blocked — close other Freelanz tabs and reload.'));
+    req.onblocked = () => rej(new Error('DB upgrade blocked — close other Sidekick tabs and reload.'));
   });
+}
+// One-time carry-over from the pre-rebrand "Freelanz Gym" database/session/UI-pref
+// names into the new Sidekick ones, so a browser that already had local data
+// doesn't get silently logged out or see an empty account after the rename.
+// Guarded by a flag so it only ever runs once per browser; safe to no-op if
+// the legacy DB never existed (a fresh install) or the browser doesn't support
+// indexedDB.databases() (older Safari/Firefox — skips migration rather than
+// crashing boot, since this is a best-effort convenience, not the data itself).
+const LEGACY_MIGRATION_FLAG = 'sidekick_migrated_from_freelanz_gym';
+async function migrateLegacyStorageIfNeeded() {
+  if (localStorage.getItem(LEGACY_MIGRATION_FLAG)) return;
+  try {
+    const hasLegacyDb = typeof indexedDB.databases === 'function'
+      ? (await indexedDB.databases()).some(d => d.name === LEGACY_DB_NAME)
+      : false;
+    if (hasLegacyDb) {
+      const legacyDb = await new Promise((res, rej) => {
+        const req = indexedDB.open(LEGACY_DB_NAME);   // no version arg — opens as-is, never triggers an upgrade
+        req.onsuccess = e => res(e.target.result);
+        req.onerror = () => rej(req.error);
+      });
+      for (const storeName of Array.from(legacyDb.objectStoreNames)) {
+        if (!db.objectStoreNames.contains(storeName)) continue;   // e.g. retired 'memberTags'
+        const rows = await new Promise(res => {
+          legacyDb.transaction(storeName, 'readonly').objectStore(storeName).getAll().onsuccess = e => res(e.target.result);
+        });
+        for (const row of rows) {
+          // put() (not add()) preserves each row's original id/key, so
+          // cross-store references (jobs.clientId -> clients.id, etc.) stay intact.
+          await new Promise(res => {
+            const tx = db.transaction(storeName, 'readwrite');
+            tx.objectStore(storeName).put(row);
+            tx.oncomplete = () => res();
+          });
+        }
+      }
+      legacyDb.close();
+    }
+    // Carry over the logged-in session and UI prefs too, so a returning user
+    // isn't bounced to the login screen or has their language/theme reset.
+    const legacyPairs = [
+      ['freelanz_gym_uid', SESSION_KEY],
+      ['gym_guest_username', 'sidekick_guest_username'],
+      ['gym_guest_counter', 'sidekick_guest_counter'],
+      ['gym_ui_lang', 'sidekick_ui_lang'],
+      ['gym_ui_theme', 'sidekick_ui_theme'],
+    ];
+    legacyPairs.forEach(([oldKey, newKey]) => {
+      const v = localStorage.getItem(oldKey);
+      if (v != null && localStorage.getItem(newKey) == null) localStorage.setItem(newKey, v);
+    });
+  } catch (e) { console.error('migrateLegacyStorageIfNeeded', e); }
+  localStorage.setItem(LEGACY_MIGRATION_FLAG, '1');
 }
 function dbAll(store) {
   return new Promise(res => {
@@ -113,7 +175,7 @@ function cuid() { return crypto.randomUUID ? crypto.randomUUID() : 'c' + Date.no
 function nowISO() { return new Date().toISOString(); }
 
 // ─── AUTH ─────────────────────────────────────────────────────────────
-const SESSION_KEY = 'freelanz_gym_uid';
+const SESSION_KEY = 'sidekick_uid';
 let currentUser = null;
 let authMode = 'login';
 let isGuest = false;
@@ -156,12 +218,12 @@ function authError(msg) {
 // Stable per-device guest identity (label only; all guest data lives under the
 // fixed uid 'guest' so leaving and re-entering guest mode restores it).
 function guestUsername() {
-  let u = localStorage.getItem('gym_guest_username');
+  let u = localStorage.getItem('sidekick_guest_username');
   if (!u) {
-    const n = (parseInt(localStorage.getItem('gym_guest_counter') || '0', 10) + 1);
-    localStorage.setItem('gym_guest_counter', String(n));
+    const n = (parseInt(localStorage.getItem('sidekick_guest_counter') || '0', 10) + 1);
+    localStorage.setItem('sidekick_guest_counter', String(n));
     u = 'Guest' + String(n).padStart(6, '0');
-    localStorage.setItem('gym_guest_username', u);
+    localStorage.setItem('sidekick_guest_username', u);
   }
   return u;
 }
@@ -169,7 +231,7 @@ async function loginGuest() {
   isGuest = true;
   currentUser = {id: 0, username: guestUsername()};
   localStorage.setItem(SESSION_KEY, 'guest');
-  sessionStorage.setItem('gym_post_login_toast', t('welcome') + ', ' + t('guest_name') + '!');
+  sessionStorage.setItem('sidekick_post_login_toast', t('welcome') + ', ' + t('guest_name') + '!');
   location.href = './';
 }
 async function submitAuth() {
@@ -190,7 +252,7 @@ async function submitAuth() {
     currentUser = {id, username:id0, firstName};
     isGuest = false;
     localStorage.setItem(SESSION_KEY, String(id));
-    sessionStorage.setItem('gym_post_login_toast', t('welcome') + (firstName ? ', ' + firstName : '') + '!');
+    sessionStorage.setItem('sidekick_post_login_toast', t('welcome') + (firstName ? ', ' + firstName : '') + '!');
     location.href = './';
   } else {
     const user = await dbGetByUsername(id0);
@@ -200,13 +262,13 @@ async function submitAuth() {
     currentUser = {id: user.id, username: user.username, firstName: user.firstName || ''};
     isGuest = false;
     localStorage.setItem(SESSION_KEY, String(user.id));
-    sessionStorage.setItem('gym_post_login_toast', t('welcome_back') + (user.firstName ? ', ' + user.firstName : '') + '!');
+    sessionStorage.setItem('sidekick_post_login_toast', t('welcome_back') + (user.firstName ? ', ' + user.firstName : '') + '!');
     location.href = './';
   }
 }
 async function logout() {
   localStorage.removeItem(SESSION_KEY);
-  sessionStorage.setItem('gym_post_login_toast', t('logged_out'));
+  sessionStorage.setItem('sidekick_post_login_toast', t('logged_out'));
   location.href = 'login.html';
 }
 async function restoreSession() {
@@ -232,7 +294,7 @@ function attrEsc(s) { return htmlEsc(s).replace(/"/g,'&quot;'); }
 const CURRENCY_SYM = {THB:'฿', USD:'$', EUR:'€', GBP:'£', SGD:'S$', MYR:'RM'};
 function curSym() { return CURRENCY_SYM[(settings && settings.currency) || 'THB'] || '฿'; }
 
-// Freelanz — Personal Gym Trainer edition: single work type, no persona picker.
+// Sidekick: single work type, no persona picker.
 function unitWord() { return 'Session'; }
 
 // ─── ENGAGEMENT PIPELINE ────────────────────────────────────────────────
@@ -244,9 +306,9 @@ function unitWord() { return 'Session'; }
 //   delivery → deliver the session(s) themselves
 //   extend   → offer a renewal/extension once delivered
 // All six are mandatory and always present (no optional/toggleable stage,
-// unlike the general Freelanz app's per-persona presets) — this fixed order
-// IS the business process for this edition. Still reorderable in Settings ▸
-// Workflow for personal preference, guarded so Paid can't precede Invoice.
+// no per-persona presets) — this fixed order IS the business process. Still
+// reorderable in Settings ▸ Workflow for personal preference, guarded so
+// Paid can't precede Invoice.
 const STAGES = ['pitch', 'quote', 'invoice', 'paid', 'delivery', 'extend'];
 // dot: a distinct per-stage color used by the Booking calendar's activity
 // legend (bookings.js) to show which stage(s) a day's engagements are in —
@@ -333,7 +395,7 @@ const I18N = {
     login:'Log in', create_account:'Create account', email:'Email or username', password:'Password',
     confirm_password:'Confirm password', your_name:'Your name', login_guest:'Continue as guest',
     auth_hint:'Create an account to save your work on this device.<br>Everything stays local — no cloud, no tracking.<br>Guest mode is temporary.',
-    tagline:'Freelance admin, handled.',
+    tagline:'Get booked. Get hired. Get paid.',
     // nav
     nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Pipeline', nav_book:'Calendar', nav_more:'More',
     pipeline_title:'Pipeline', workflow_title:'Workflow', pipeline_glance_title:'Pipeline at a glance',
@@ -372,7 +434,7 @@ const I18N = {
     greeting_morning:'Good morning', greeting_afternoon:'Good afternoon', greeting_evening:'Good evening',
     cancel:'Cancel', saved:'Saved', deleted:'Deleted', job_saved:'Job saved', job_deleted:'Job deleted',
     exported:'Exported', restore_confirm:'Restore this backup? It REPLACES this account’s {n} current jobs + expenses. This cannot be undone.',
-    restore_done:'Restored {n} records', restore_bad_file:'Not a valid Freelanz backup file',
+    restore_done:'Restored {n} records', restore_bad_file:'Not a valid Sidekick backup file',
     restore_failed:'Restore failed — your existing data was kept.',
     backup_reminder_title:'Back up your data', backup_reminder_sub:'Everything lives only on this device. Last backup: {date}.',
     backup_now:'Back up now', remind_later:'Remind me later', backup_snoozed:'Reminder snoozed for 2 weeks', backup_never:'never',
@@ -432,7 +494,7 @@ const I18N = {
     login:'เข้าสู่ระบบ', create_account:'สร้างบัญชี', email:'อีเมลหรือชื่อผู้ใช้', password:'รหัสผ่าน',
     confirm_password:'ยืนยันรหัสผ่าน', your_name:'ชื่อของคุณ', login_guest:'เข้าใช้แบบผู้เยี่ยมชม',
     auth_hint:'สร้างบัญชีเพื่อบันทึกข้อมูลไว้ในเครื่องนี้<br>ทุกอย่างเก็บอยู่ในเครื่อง — ไม่มีคลาวด์ ไม่มีการติดตาม<br>โหมดผู้เยี่ยมชมใช้งานได้ชั่วคราวเท่านั้น',
-    tagline:'จัดการงานธุรการฟรีแลนซ์ให้เรียบร้อย',
+    tagline:'จองคิวได้ ได้งาน ได้รับเงิน',
     // nav
     nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_pipeline:'ไปป์ไลน์', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
     pipeline_title:'ไปป์ไลน์', workflow_title:'ขั้นตอนการทำงาน', pipeline_glance_title:'ภาพรวมไปป์ไลน์',
@@ -471,7 +533,7 @@ const I18N = {
     greeting_morning:'สวัสดีตอนเช้า', greeting_afternoon:'สวัสดีตอนบ่าย', greeting_evening:'สวัสดีตอนเย็น',
     cancel:'ยกเลิก', saved:'บันทึกแล้ว', deleted:'ลบแล้ว', job_saved:'บันทึกเซสชันแล้ว', job_deleted:'ลบเซสชันแล้ว',
     exported:'ส่งออกแล้ว', restore_confirm:'กู้คืนข้อมูลสำรองนี้หรือไม่? การทำเช่นนี้จะแทนที่เซสชันและค่าใช้จ่าย {n} รายการปัจจุบันของบัญชีนี้ทั้งหมด และไม่สามารถย้อนกลับได้',
-    restore_done:'กู้คืนข้อมูลแล้ว {n} รายการ', restore_bad_file:'ไฟล์นี้ไม่ใช่ไฟล์สำรองข้อมูลของ Freelanz ที่ถูกต้อง',
+    restore_done:'กู้คืนข้อมูลแล้ว {n} รายการ', restore_bad_file:'ไฟล์นี้ไม่ใช่ไฟล์สำรองข้อมูลของ Sidekick ที่ถูกต้อง',
     restore_failed:'กู้คืนข้อมูลไม่สำเร็จ — ข้อมูลเดิมของคุณยังคงอยู่',
     backup_reminder_title:'สำรองข้อมูลของคุณ', backup_reminder_sub:'ข้อมูลทั้งหมดเก็บอยู่ในเครื่องนี้เท่านั้น สำรองข้อมูลล่าสุด: {date}',
     backup_now:'สำรองข้อมูลตอนนี้', remind_later:'เตือนภายหลัง', backup_snoozed:'เลื่อนการแจ้งเตือนออกไป 2 สัปดาห์', backup_never:'ไม่เคย',
@@ -518,7 +580,7 @@ const I18N = {
     insights_cleared:'ล้างข้อมูลการใช้งานแล้ว', insights_unlocked:'ปลดล็อกข้อมูลเชิงลึกแล้ว',
   },
 };
-function curLang() { return (settings && settings.lang) || localStorage.getItem('gym_ui_lang') || 'en'; }
+function curLang() { return (settings && settings.lang) || localStorage.getItem('sidekick_ui_lang') || 'en'; }
 function t(key) {
   const l = curLang();
   return (I18N[l] && I18N[l][key]) ?? I18N.en[key] ?? key;
@@ -542,19 +604,20 @@ function netOf(j) { return (Number(j.amount)||0) + (Number(j.tip)||0) - (Number(
 // (the [data-theme="light"] token block overrides the prefers-color-scheme dark
 // media query). The dark-theme CSS tokens are kept in styles.css but dormant.
 function applyTheme() {
-  localStorage.setItem('gym_ui_theme', 'light');
+  localStorage.setItem('sidekick_ui_theme', 'light');
   document.documentElement.dataset.theme = 'light';
 }
 
 // ─── BOOT ─────────────────────────────────────────────────────────────
 function showPostLoginToast() {
-  const msg = sessionStorage.getItem('gym_post_login_toast');
-  if (msg) { sessionStorage.removeItem('gym_post_login_toast'); toast(msg); }
+  const msg = sessionStorage.getItem('sidekick_post_login_toast');
+  if (msg) { sessionStorage.removeItem('sidekick_post_login_toast'); toast(msg); }
 }
 // login.html entry — already-authed devices skip to the app.
 async function bootLogin() {
   applyTheme();
   await openDB();
+  await migrateLegacyStorageIfNeeded();
   if (await restoreSession()) { location.replace('./'); return; }
   applyLang();
   showPostLoginToast();
@@ -564,6 +627,7 @@ async function bootApp() {
   applyTheme();
   { const v = document.getElementById('app-version'); if (v) v.textContent = APP_VERSION; }
   await openDB();
+  await migrateLegacyStorageIfNeeded();
   if (!(await restoreSession())) { location.replace('login.html'); return; }
   await enterApp();
   showPostLoginToast();
@@ -576,8 +640,8 @@ function boot() {
     const msg = (err && err.message ? String(err.message) : 'storage error').replace(/[<>]/g, '');
     document.body.insertAdjacentHTML('afterbegin',
       '<div style="padding:24px;max-width:34rem;margin:0 auto;font:15px/1.5 system-ui;color:#13201C">' +
-      '<b>Couldn’t start Freelanz.</b><br>' + msg +
-      '<br><br>Close any other Freelanz tabs and reload.</div>');
+      '<b>Couldn’t start Sidekick.</b><br>' + msg +
+      '<br><br>Close any other Sidekick tabs and reload.</div>');
   });
 }
 
@@ -791,7 +855,7 @@ function jobsThisMonth() { const m = monthKey(); return jobs.filter(j => (j.date
 function jobsToday() { const t0 = todayISO(); return jobs.filter(j => j.date === t0); }
 
 // ─── Backup reminder (data-loss protection) ────────────────────────────
-// Freelanz is local-only storage: clearing browser data or switching
+// Sidekick is local-only storage: clearing browser data or switching
 // devices without ever exporting a backup means total, unrecoverable data
 // loss. Nudge (not nag): only once there's real data worth losing, only
 // after 30 days since the last export (or none ever), and dismissible for
@@ -1973,7 +2037,7 @@ async function saveSetting(key, val) {
   settings[key] = val;
   const prefix = isGuest ? 'guest:' : (currentUser.id + ':');
   await dbPut('settings', {key: prefix + key, value: val});
-  if (key === 'lang') localStorage.setItem('gym_ui_lang', val);
+  if (key === 'lang') localStorage.setItem('sidekick_ui_lang', val);
 }
 async function onCurrencyChange(v) { await saveSetting('currency', v); applyLang(); }
 async function onLangChange(v) { await saveSetting('lang', v === 'th' ? 'th' : 'en'); applyLang(); }
@@ -2133,7 +2197,7 @@ function exportCSV() {
   const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `freelanz-jobs-${(currentUser&&currentUser.username)||'guest'}-${todayISO()}.csv`;
+  a.download = `sidekick-jobs-${(currentUser&&currentUser.username)||'guest'}-${todayISO()}.csv`;
   a.click();
   toast(t('exported'));
 }
@@ -2146,7 +2210,7 @@ function exportCustomersCSV() {
   const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `freelanz-customers-${(currentUser&&currentUser.username)||'guest'}-${todayISO()}.csv`;
+  a.download = `sidekick-customers-${(currentUser&&currentUser.username)||'guest'}-${todayISO()}.csv`;
   a.click();
   toast(t('exported'));
 }
@@ -2164,7 +2228,7 @@ async function exportInvoicesCSV() {
   const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `freelanz-invoices-${(currentUser&&currentUser.username)||'guest'}-${todayISO()}.csv`;
+  a.download = `sidekick-invoices-${(currentUser&&currentUser.username)||'guest'}-${todayISO()}.csv`;
   a.click();
   toast(t('exported'));
 }
@@ -2177,7 +2241,7 @@ async function exportBackup() {
   const uid = isGuest ? 'guest' : currentUser.id;
   const allByStore = await Promise.all(BACKUP_STORES.map(s => dbAll(s)));
   const backup = {
-    app: 'FreelanzGym', version: APP_VERSION, exportedAt: nowISO(),
+    app: 'Sidekick', version: APP_VERSION, exportedAt: nowISO(),
     user: (currentUser && currentUser.username) || 'guest',
     settings: settings, theme: 'light',   // dark mode paused in M1.5; restore never flips theme
   };
@@ -2185,7 +2249,7 @@ async function exportBackup() {
   const blob = new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `freelanz-gym-backup-${backup.user}-${todayISO()}.json`;
+  a.download = `sidekick-backup-${backup.user}-${todayISO()}.json`;
   a.click();
   logEvent('backup_exported');
   await saveSetting('lastBackupAt', nowISO());
@@ -2200,7 +2264,9 @@ async function importBackup(inputEl) {
   let data;
   try { data = JSON.parse(await file.text()); }
   catch(e) { toast(t('restore_bad_file')); return; }
-  if (!data || data.app !== 'FreelanzGym' || !Array.isArray(data.jobs)) { toast(t('restore_bad_file')); return; }
+  // Accepts backups from either the current 'Sidekick' tag or the pre-rebrand
+  // 'FreelanzGym' one, so a backup file exported before the rename still restores.
+  if (!data || (data.app !== 'Sidekick' && data.app !== 'FreelanzGym') || !Array.isArray(data.jobs)) { toast(t('restore_bad_file')); return; }
   // Validate the ENTIRE payload before touching the DB: every row in every
   // store must be a plain, non-null object. Reject malformed backups up front
   // so a bad file (e.g. jobs:[null]) can never delete data mid-import. A

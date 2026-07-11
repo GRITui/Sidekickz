@@ -1,4 +1,4 @@
-/* Freelanz — tax.js  (M2 TAX ENGINE)
+/* Sidekick — tax.js  (M2 TAX ENGINE)
  *
  * OWNED BY the tax-engine agent. Fills #tax-body only. English-only inline
  * UI; does not touch app.js's I18N dict. Light-mode tokens only (consumes

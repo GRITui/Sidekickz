@@ -1,4 +1,4 @@
-/* Freelanz — api/draft-followup.js (M-AI, Vercel serverless function)
+/* Sidekick — api/draft-followup.js (M-AI, Vercel serverless function)
  *
  * The ONE place in this project that talks to the network for anything
  * beyond static assets. Everything else is local-first by design; this
