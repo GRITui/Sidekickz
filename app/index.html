@@ -1,17 +1,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
-<title>Freelanz Gym</title>
-<meta name="description" content="Local-first admin for personal trainers: sessions, members, invoicing, tax, docs, booking.">
+<title>Sidekick</title>
+<meta name="description" content="Local-first admin for freelancers: bookings, invoicing, tax, docs, and client follow-up — all on your device.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F766E">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Freelanz Gym">
+<meta name="apple-mobile-web-app-title" content="Sidekick">
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>document.documentElement.dataset.theme='light';</script><!-- light-only: set before CSS paints to avoid a dark flash on dark-OS -->
-<link rel="stylesheet" href="styles.css?v=0.9.2">
+<link rel="stylesheet" href="styles.css?v=0.9.3">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -21,7 +21,7 @@
     <div class="hdr-row">
       <div>
         <h1 id="home-greeting">Hello</h1>
-        <div class="hdr-sub" data-i18n="tagline">Freelance admin, handled.</div>
+        <div class="hdr-sub" data-i18n="tagline">Get booked. Get hired. Get paid.</div>
       </div>
       <button class="avatar" id="home-avatar" onclick="switchScreen('more')" data-i18n-aria="more_title" aria-label="More">F</button>
     </div>
@@ -288,7 +288,7 @@
 
     <div class="settings-list" style="margin-top:16px">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.2</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.3</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
@@ -463,17 +463,17 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.9.2"></script>
+<script src="app.js?v=0.9.3"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.9.2"></script>
-<script src="invoices.js?v=0.9.2"></script>
-<script src="docgen.js?v=0.9.2"></script>
+<script src="tax.js?v=0.9.3"></script>
+<script src="invoices.js?v=0.9.3"></script>
+<script src="docgen.js?v=0.9.3"></script>
 <!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
      the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
-<script src="bookings.js?v=0.9.2"></script>
-<script src="followups.js?v=0.9.2"></script>
-<script src="portfolio.js?v=0.9.2"></script>
+<script src="bookings.js?v=0.9.3"></script>
+<script src="followups.js?v=0.9.3"></script>
+<script src="portfolio.js?v=0.9.3"></script>
 <!-- M5: research.js (content library, subscription UI stubbed open — no
      payment verification yet; see project-changelog-handshake.md). -->
-<script src="research.js?v=0.9.2"></script>
+<script src="research.js?v=0.9.3"></script>

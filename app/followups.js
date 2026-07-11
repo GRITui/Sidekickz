@@ -1,4 +1,4 @@
-/* Freelanz — followups.js  (M3 FOLLOW-UP QUEUE / lightweight CRM)
+/* Sidekick — followups.js  (M3 FOLLOW-UP QUEUE / lightweight CRM)
  *
  * OWNED BY the CRM agent. Loaded AFTER app.js and invoices.js, so app.js
  * globals (dbAll, dbAdd, dbPut, cuid, nowISO, todayISO, htmlEsc, attrEsc,
@@ -248,7 +248,7 @@
 
   // ══════════════════════════════════════════════════════════════════════
   //  M-AI — optional "Draft message" via the Vercel serverless proxy.
-  //  This is the ONLY network call anywhere in Freelanz: it sends just the
+  //  This is the ONLY network call anywhere in Sidekick: it sends just the
   //  reason text + customer name (never the local database) to /api/draft-
   //  followup, which holds the AI Gateway key server-side. If that endpoint
   //  isn't deployed (e.g. running on Hostinger/plain static hosting, or
@@ -303,7 +303,7 @@
       if (!resp.ok || !data.draft) throw new Error(data.error || 'Draft request failed');
       draft = data.draft;
     } catch (err) {
-      body.innerHTML = `<div style="color:var(--overdue);font-size:13px">Couldn't reach the AI Gateway. This feature needs Freelanz deployed on Vercel with the gateway configured (see .env.example) and an internet connection.</div>`;
+      body.innerHTML = `<div style="color:var(--overdue);font-size:13px">Couldn't reach the AI Gateway. This feature needs Sidekick deployed on Vercel with the gateway configured (see .env.example) and an internet connection.</div>`;
       return;
     }
 

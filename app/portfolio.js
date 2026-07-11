@@ -1,4 +1,4 @@
-/* Freelanz — portfolio.js  (M3 PORTFOLIO)
+/* Sidekick — portfolio.js  (M3 PORTFOLIO)
  *
  * OWNED BY the portfolio agent. Fills #portfolio-body only. Loaded AFTER
  * app.js (and tax.js / invoices.js / docgen.js / followups.js), so all app.js
@@ -289,8 +289,8 @@
     if (prevStyle) prevStyle.remove();
 
     const owner = (typeof currentUser !== 'undefined' && currentUser)
-      ? (currentUser.firstName || currentUser.username || 'Freelanz')
-      : 'Freelanz';
+      ? (currentUser.firstName || currentUser.username || 'Sidekick')
+      : 'Sidekick';
 
     const style = document.createElement('style');
     style.id = 'pf-print-style';

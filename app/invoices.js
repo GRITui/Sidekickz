@@ -1,4 +1,4 @@
-/* Freelanz — invoices.js  (M2 INVOICING + PromptPay)
+/* Sidekick — invoices.js  (M2 INVOICING + PromptPay)
  *
  * OWNED BY the invoicing agent. Replaces the stub entirely.
  * Loaded AFTER app.js and tax.js, so app.js globals (dbAll, dbAdd, dbPut,
@@ -1116,7 +1116,7 @@
   //  PRINT / PDF  (print-optimized DOM + window.print(); scoped print CSS)
   // ══════════════════════════════════════════════════════════════════════
   function printInvoice(inv) {
-    const fromName = esc((typeof sellerBusinessName === 'function') ? sellerBusinessName() : 'Freelanz');
+    const fromName = esc((typeof sellerBusinessName === 'function') ? sellerBusinessName() : 'Sidekick');
     // Optional seller tax ID/address — shown only when filled in under
     // Settings > Business info, mirroring how client tax ID/address below
     // only show when the client profile has them.
