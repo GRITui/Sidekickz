@@ -191,7 +191,6 @@
           <div class="list-sub">${esc(it.reason)}</div>
         </div>
         <div class="list-right" style="display:flex;gap:6px">
-          <button type="button" data-fu-draft="${i}" title="Draft a message with AI (needs internet)" style="padding:7px 9px;border:1px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">✨ Draft</button>
           <button type="button" data-fu-snooze="${i}" style="padding:7px 9px;border:1px solid var(--border);background:var(--card);color:var(--text3);border-radius:var(--radius-sm);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Snooze 7d</button>
           <button type="button" data-fu-dismiss="${i}" style="padding:7px 9px;border:1px solid var(--overdue);background:none;color:var(--overdue);border-radius:var(--radius-sm);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Dismiss</button>
         </div>
@@ -237,91 +236,7 @@
         if (it) undismiss(it.key);
       });
     });
-    el.querySelectorAll('[data-fu-draft]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const it = queue[parseInt(btn.getAttribute('data-fu-draft'), 10)];
-        if (it) openDraftModal(it);
-      });
-    });
   }
   window.renderFollowups = renderFollowups;
-
-  // ══════════════════════════════════════════════════════════════════════
-  //  M-AI — optional "Draft message" via the Vercel serverless proxy.
-  //  This is the ONLY network call anywhere in Sidekick: it sends just the
-  //  reason text + customer name (never the local database) to /api/draft-
-  //  followup, which holds the AI Gateway key server-side. If that endpoint
-  //  isn't deployed (e.g. running on Hostinger/plain static hosting, or
-  //  offline), this fails gracefully with a toast — nothing else in the app
-  //  depends on it.
-  // ══════════════════════════════════════════════════════════════════════
-  function closeModal(idStr) {
-    const el = document.getElementById(idStr);
-    if (el) el.remove();
-  }
-
-  function openDraftModal(it) {
-    closeModal('fu-draft-modal');
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay open';
-    overlay.id = 'fu-draft-modal';
-    overlay.innerHTML = `
-      <div class="modal" role="dialog" aria-modal="true">
-        <div class="modal-handle"></div>
-        <div class="modal-title">Draft a message</div>
-        <div style="padding:4px 16px 2px;color:var(--text3);font-size:13px">${esc(it.reason)}</div>
-        <div id="fu-draft-body" style="padding:14px 16px">
-          <div style="display:flex;align-items:center;gap:8px;color:var(--text3);font-size:13px">Drafting with AI…</div>
-        </div>
-        <div style="display:flex;gap:8px;padding:2px 16px 16px">
-          <button type="button" id="fu-draft-tone" style="flex:1;padding:11px;border:1px solid var(--border);background:var(--card);color:var(--text);border-radius:var(--radius-sm);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">Try firmer tone</button>
-          <button type="button" id="fu-draft-copy" disabled style="flex:1;padding:11px;border:none;background:var(--brand);color:#fff;border-radius:var(--radius-sm);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;opacity:.5">Copy</button>
-        </div>
-        <button type="button" class="btn-danger" id="fu-draft-close" style="border-color:var(--border-mid);color:var(--text3)">Close</button>
-      </div>`;
-    document.body.appendChild(overlay);
-    overlay.querySelector('#fu-draft-close').addEventListener('click', () => closeModal('fu-draft-modal'));
-    overlay.querySelector('#fu-draft-tone').addEventListener('click', () => requestDraft(it, 'firm'));
-    requestDraft(it, 'friendly');
-  }
-
-  async function requestDraft(it, tone) {
-    const body = document.getElementById('fu-draft-body');
-    const copyBtn = document.getElementById('fu-draft-copy');
-    if (!body) return;
-    body.innerHTML = `<div style="color:var(--text3);font-size:13px">Drafting with AI…</div>`;
-    if (copyBtn) { copyBtn.disabled = true; copyBtn.style.opacity = '.5'; copyBtn.onclick = null; }
-
-    let draft;
-    try {
-      const resp = await fetch('/api/draft-followup', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ reason: it.reason, customerName: it.title, tone }),
-      });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok || !data.draft) throw new Error(data.error || 'Draft request failed');
-      draft = data.draft;
-    } catch (err) {
-      body.innerHTML = `<div style="color:var(--overdue);font-size:13px">Couldn't reach the AI Gateway. This feature needs Sidekick deployed on Vercel with the gateway configured (see .env.example) and an internet connection.</div>`;
-      return;
-    }
-
-    body.innerHTML = `<textarea id="fu-draft-text" rows="4" style="width:100%;border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px;font-family:inherit;font-size:14px;background:var(--card);color:var(--text)">${esc(draft)}</textarea>`;
-    if (copyBtn) {
-      copyBtn.disabled = false;
-      copyBtn.style.opacity = '1';
-      copyBtn.onclick = async () => {
-        const ta = document.getElementById('fu-draft-text');
-        try {
-          await navigator.clipboard.writeText(ta ? ta.value : draft);
-          toast('Copied');
-        } catch (e) {
-          if (ta) { ta.focus(); ta.select(); }
-          toast('Select and copy manually');
-        }
-      };
-    }
-  }
 
 })();

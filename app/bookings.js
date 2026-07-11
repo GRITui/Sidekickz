@@ -24,6 +24,10 @@
   const esc = (s) => htmlEsc(s);
   const aesc = (s) => attrEsc(s);
   const STORE = 'bookings';
+  // Safety cap on how many extra rows a single "repeat until" can generate —
+  // protects against an accidental far-future end date silently creating
+  // thousands of booking rows (e.g. weekly for 10 years).
+  const MAX_REPEAT_OCCURRENCES = 52;
   // Same outline used by the nav's Book icon — kept as a shared line icon
   // instead of the 📅 emoji, matching the SVG icon style used elsewhere
   // (Pipeline's stage icons, the old jump-to-date button).
@@ -535,6 +539,20 @@
             <label for="bk-notes">Notes</label>
             <textarea id="bk-notes" rows="2">${esc(v.notes)}</textarea>
           </div>
+          ${!isEdit ? `
+          <div class="form-header">Repeat</div>
+          <div class="field">
+            <label for="bk-repeat">Repeat</label>
+            <select id="bk-repeat">
+              <option value="">Does not repeat</option>
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Every 2 weeks</option>
+            </select>
+          </div>
+          <div class="field" id="bk-repeat-until-wrap" style="display:none">
+            <label for="bk-repeat-until">Repeat until</label>
+            <input type="date" id="bk-repeat-until">
+          </div>` : ''}
         </div>
         <button type="button" class="btn-submit" id="bk-save">${isEdit ? 'Save changes' : 'Create booking'}</button>
         ${isEdit ? `<button type="button" class="btn-danger" id="bk-del">Delete booking</button>` : ''}
@@ -547,6 +565,14 @@
     overlay.querySelector('#bk-save').addEventListener('click', () => saveBooking(isEdit));
     overlay.querySelector('#bk-cancel').addEventListener('click', () => closeModal('bk-form-modal'));
     if (isEdit) overlay.querySelector('#bk-del').addEventListener('click', () => deleteBooking(editing.id));
+
+    const repeatSel = overlay.querySelector('#bk-repeat');
+    if (repeatSel) {
+      repeatSel.addEventListener('change', () => {
+        const wrap = overlay.querySelector('#bk-repeat-until-wrap');
+        wrap.style.display = repeatSel.value ? '' : 'none';
+      });
+    }
   }
 
   async function saveBooking(isEdit) {
@@ -559,11 +585,20 @@
     const durationMin = Math.round(n(document.getElementById('bk-dur').value));
     const travelBufferMin = Math.max(0, Math.round(n(document.getElementById('bk-buffer').value)));
 
+    const repeatEl = document.getElementById('bk-repeat');
+    const repeat = (!isEdit && repeatEl) ? repeatEl.value : '';
+    const repeatUntilEl = document.getElementById('bk-repeat-until');
+    const repeatUntil = repeat ? (repeatUntilEl ? repeatUntilEl.value : '') : '';
+
     let bad = false;
     if (!title) { markErr('bk-title', 'Enter a title for this booking'); bad = true; }
     if (!date) { markErr('bk-date', 'Pick a date'); bad = true; }
     if (!startTime) { markErr('bk-start', 'Pick a start time'); bad = true; }
     if (!(durationMin > 0)) { markErr('bk-dur', 'Duration must be at least 1 minute'); bad = true; }
+    if (repeat) {
+      if (!repeatUntil) { markErr('bk-repeat-until', 'Pick an end date for the repeat'); bad = true; }
+      else if (repeatUntil < date) { markErr('bk-repeat-until', 'Repeat end date must be after the booking date'); bad = true; }
+    }
     if (bad) return;
 
     const uid = uidNow();
@@ -582,6 +617,7 @@
       updatedAt: nowISO(),
     };
 
+    let extraCount = 0;
     try {
       if (isEdit) {
         base.id = editing.id;
@@ -593,7 +629,19 @@
         base.cuid = cuid();
         base.createdAt = nowISO();
         await dbAdd(STORE, base);
-        toast('Booking created');
+
+        if (repeat) {
+          const stepDays = repeat === 'biweekly' ? 14 : 7;
+          let nextDate = addDays(date, stepDays);
+          while (nextDate <= repeatUntil && extraCount < MAX_REPEAT_OCCURRENCES) {
+            const row = { ...base, date: nextDate, cuid: cuid(), createdAt: nowISO(), updatedAt: nowISO() };
+            delete row.id;
+            await dbAdd(STORE, row);
+            extraCount++;
+            nextDate = addDays(nextDate, stepDays);
+          }
+        }
+        toast(extraCount > 0 ? `Booking created (+${extraCount} more in the series)` : 'Booking created');
       }
     } catch (err) {
       console.error(err);
