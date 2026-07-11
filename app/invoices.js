@@ -621,6 +621,12 @@
     return (typeof PAYMENT_CHANNEL_TYPES !== 'undefined' && PAYMENT_CHANNEL_TYPES[type]) ? PAYMENT_CHANNEL_TYPES[type].label : type;
   }
 
+  // Exposed so other modules (research.js's Premium-subscribe modal) can reuse
+  // the exact same PromptPay-QR-or-plain-text rendering invoices use, instead
+  // of duplicating the QR-drawing pipeline. `invLike` just needs `.paymentChannels`
+  // (array) and `.clientPays` (amount) — a real invoice satisfies both already.
+  window.renderPaymentChannelsInto = renderPaymentChannelsInto;
+
   function renderPaymentChannelsInto(wrap, inv) {
     if (!wrap) return;
     const chans = invoicePaymentChannels(inv);

@@ -9,14 +9,14 @@
  *   - renderResearch()      — fills #research-body
  *   - openResearchForm()    — create/edit article UI
  *
- * MONETIZATION STATUS (read this before wiring real payments): articles carry
- * an `isPremium` flag and the screen shows a "Subscribe" entry point, but there
- * is NO payment verification anywhere in this file — every article is fully
- * readable regardless of `isPremium`. This is deliberate: subscriptions need a
- * backend to verify payment state, and that work is paused (see the project
- * handshake doc). The `isPremium` flag and Subscribe button are UI scaffolding
- * only, ready to gate real content once a backend exists — do not remove them
- * when adding real payments, wire actual gating INTO them.
+ * MONETIZATION STATUS: Premium articles are now actually gated behind
+ * `settings.premiumUnlocked`. Since Sidekick is local-first with no backend,
+ * there's no automated payment-gateway callback to verify a real charge —
+ * "Subscribe" shows a PromptPay QR (via window.renderPaymentChannelsInto,
+ * reusing the exact same rendering invoices.js uses) plus honest instructions,
+ * and unlocking is a manual, self-attested step ("I've paid — unlock Premium")
+ * rather than an automatic one. This is a deliberate scope choice (PromptPay +
+ * manual verify, not Stripe/Omise) — see the project handshake doc.
  *
  * Content itself is per-uid (like Services/Portfolio), not shared/global —
  * there is no backend to distribute shared content yet, so each user gets
@@ -32,6 +32,8 @@
   const aesc = (s) => attrEsc(s);
   const STORE = 'research';
   const SEED_FLAG = 'researchSeeded';
+  const PREMIUM_PRICE_THB = 99;
+  const TEASER_CHARS = 140;
 
   function uidNow() { return isGuest ? 'guest' : currentUser.id; }
 
@@ -111,10 +113,14 @@
       return;
     }
 
-    const subscribeBanner = `
+    const subscribeBanner = settings.premiumUnlocked ? `
+      <div style="background:var(--marigold-tint);border:1px solid var(--marigold);border-radius:var(--radius-sm);padding:14px 16px;margin:0 0 16px">
+        <div style="font-weight:800;color:var(--marigold-ink);font-size:14px">⭐ Premium unlocked</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:3px">You have full access to every Premium article on this device.</div>
+      </div>` : `
       <div style="background:var(--marigold-tint);border:1px solid var(--marigold);border-radius:var(--radius-sm);padding:14px 16px;margin:0 0 16px">
         <div style="font-weight:800;color:var(--marigold-ink);font-size:14px;margin-bottom:3px">⭐ Premium research</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:10px">In-depth guides marked "Premium" are unlocked for everyone while subscriptions are in preview — no payment needed yet.</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Unlock in-depth guides marked "Premium" — pay once via PromptPay, ${esc(String(PREMIUM_PRICE_THB))} THB.</div>
         <button type="button" id="rs-subscribe-btn" style="width:100%;padding:11px;border:1.5px solid var(--marigold);background:none;color:var(--marigold-ink);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">Subscribe</button>
       </div>`;
 
@@ -164,9 +170,7 @@
     });
 
     const subBtn = document.getElementById('rs-subscribe-btn');
-    if (subBtn) subBtn.addEventListener('click', () => {
-      toast("Subscriptions aren't live yet — enjoy full access during preview");
-    });
+    if (subBtn) subBtn.addEventListener('click', openSubscribeModal);
     const addBtnEl = document.getElementById('rs-add-btn');
     if (addBtnEl) addBtnEl.addEventListener('click', () => openResearchForm());
 
@@ -193,6 +197,19 @@
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay open';
     overlay.id = 'rs-detail-modal';
+
+    const locked = !!a.isPremium && !settings.premiumUnlocked;
+    const body = a.body || '';
+    const bodyHtml = !locked
+      ? `<div style="padding:10px 16px 6px;white-space:pre-wrap;font-size:14px;line-height:1.55;color:var(--text)">${esc(body)}</div>`
+      : `<div style="padding:10px 16px 6px">
+          <div style="white-space:pre-wrap;font-size:14px;line-height:1.55;color:var(--text)">${esc(body.slice(0, TEASER_CHARS))}${body.length > TEASER_CHARS ? '…' : ''}</div>
+          <div style="background:var(--marigold-tint);border:1px solid var(--marigold);border-radius:var(--radius-sm);padding:14px;margin-top:12px;text-align:center">
+            <div style="font-weight:800;color:var(--marigold-ink);font-size:13px;margin-bottom:8px">⭐ Subscribe to read the rest of this Premium article</div>
+            <button type="button" id="rs-d-subscribe" style="width:100%;padding:11px;border:none;background:var(--marigold);color:#fff;border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">Subscribe — ${esc(String(PREMIUM_PRICE_THB))} THB</button>
+          </div>
+        </div>`;
+
     overlay.innerHTML = `
       <div class="modal" role="dialog" aria-modal="true">
         <div class="modal-handle"></div>
@@ -201,7 +218,7 @@
           ${a.isPremium ? `<span style="background:var(--marigold-tint);color:var(--marigold-ink);border-radius:999px;padding:3px 9px;font-size:11px;font-weight:800;margin-left:8px;vertical-align:middle">⭐ Premium</span>` : ''}
         </div>
         <div style="padding:2px 16px 4px;color:var(--text3);font-size:12px">${esc(a.category || 'General')}</div>
-        <div style="padding:10px 16px 6px;white-space:pre-wrap;font-size:14px;line-height:1.55;color:var(--text)">${esc(a.body || '')}</div>
+        ${bodyHtml}
         <div style="display:flex;gap:8px;padding:14px 16px 2px">
           <button type="button" id="rs-d-edit" style="flex:1;padding:12px;border:1.5px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">Edit</button>
           <button type="button" id="rs-d-delete" style="flex:1;padding:12px;border:1.5px solid var(--overdue);background:none;color:var(--overdue);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">Delete</button>
@@ -212,6 +229,51 @@
     overlay.querySelector('#rs-d-close').addEventListener('click', () => closeModal('rs-detail-modal'));
     overlay.querySelector('#rs-d-edit').addEventListener('click', () => { closeModal('rs-detail-modal'); openResearchEdit(a); });
     overlay.querySelector('#rs-d-delete').addEventListener('click', () => deleteArticle(a.id));
+    const subBtn = overlay.querySelector('#rs-d-subscribe');
+    if (subBtn) subBtn.addEventListener('click', () => { closeModal('rs-detail-modal'); openSubscribeModal(); });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  SUBSCRIBE  (PromptPay QR + manual verify — no payment gateway/backend)
+  //  Sidekick is local-first with no server to receive a real payment-gateway
+  //  callback, so unlocking Premium is an honest, self-attested manual step
+  //  rather than an automated one: show the same PromptPay QR rendering
+  //  invoices.js uses (window.renderPaymentChannelsInto), then the user
+  //  confirms they've sent it. This does not stop someone from unlocking
+  //  without actually paying — that's the accepted tradeoff of "no backend".
+  // ══════════════════════════════════════════════════════════════════════
+  function openSubscribeModal() {
+    closeModal('rs-sub-modal');
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay open';
+    overlay.id = 'rs-sub-modal';
+    overlay.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal-handle"></div>
+        <div class="modal-title">Subscribe to Premium</div>
+        <div style="padding:2px 16px 10px;color:var(--text2);font-size:13px">Scan to pay ${esc(String(PREMIUM_PRICE_THB))} THB via PromptPay, then confirm below. Sidekick can't verify payments automatically — this is a manual, honor-system unlock for this device.</div>
+        <div id="rs-sub-channels" style="padding:0 16px 6px"></div>
+        <button type="button" class="btn-submit" id="rs-sub-confirm" style="margin:8px 16px 0">I've paid — unlock Premium</button>
+        <button type="button" class="btn-danger" id="rs-sub-close" style="border-color:var(--border-mid);color:var(--text3)">Close</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector('#rs-sub-close').addEventListener('click', () => closeModal('rs-sub-modal'));
+    overlay.querySelector('#rs-sub-confirm').addEventListener('click', confirmSubscribe);
+
+    if (typeof window.renderPaymentChannelsInto === 'function') {
+      window.renderPaymentChannelsInto(document.getElementById('rs-sub-channels'), {
+        paymentChannels: settings.paymentChannels || [],
+        clientPays: PREMIUM_PRICE_THB,
+      });
+    }
+  }
+
+  async function confirmSubscribe() {
+    await saveSetting('premiumUnlocked', true);
+    await saveSetting('premiumUnlockedAt', nowISO());
+    closeModal('rs-sub-modal');
+    toast('Premium unlocked on this device');
+    renderResearch();
   }
 
   async function deleteArticle(id) {
