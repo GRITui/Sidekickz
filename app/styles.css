@@ -141,6 +141,22 @@ details.settings-section:not([open]) summary.section-title::after{transform:rota
 .list-amt{font-size:15px;font-weight:800;color:var(--text);}
 .list-amt.pos{color:var(--paid);}
 .list-amt-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.pkg-badge{display:inline-block;background:var(--brand-tint);color:var(--brand);font-size:10px;font-weight:800;
+  padding:3px 7px;border-radius:999px;margin-right:8px;vertical-align:middle;white-space:nowrap;}
+.qc-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:none;
+  border-radius:9px;background:var(--brand-tint);color:var(--brand);font-size:14px;cursor:pointer;
+  margin-right:8px;vertical-align:middle;font-family:inherit;}
+.qc-btn:active{background:var(--border);}
+
+/* ── Session packages / progress log (Customer modal) ──────────────── */
+.pkg-status{background:var(--card);border:0.5px solid var(--border);border-radius:var(--radius-sm);
+  padding:12px 14px;font-size:13px;color:var(--text2);}
+.pkg-status-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-weight:700;color:var(--text);}
+.pkg-status-date{font-size:11px;font-weight:600;color:var(--text3);white-space:nowrap;}
+.pkg-status-track{height:8px;background:var(--border);border-radius:5px;overflow:hidden;margin-top:8px;}
+.pkg-status-fill{height:100%;background:var(--brand-bright);border-radius:5px;}
+.progress-up{color:var(--overdue);font-weight:700;}
+.progress-down{color:var(--paid);font-weight:700;}
 
 /* Engagement stage badge (jobs list) + pipeline action buttons */
 .stage-badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:800;

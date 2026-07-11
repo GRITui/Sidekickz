@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>document.documentElement.dataset.theme='light';</script><!-- light-only: set before CSS paints to avoid a dark flash on dark-OS -->
-<link rel="stylesheet" href="styles.css?v=0.9.1">
+<link rel="stylesheet" href="styles.css?v=0.9.2">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -281,7 +281,7 @@
 
     <div class="settings-list" style="margin-top:16px">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.1</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.2</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
@@ -370,6 +370,11 @@
         <label for="j-service" data-i18n="field_service">Service</label>
         <select id="j-service" onchange="onJobServiceChange(this.value)"></select>
       </div>
+      <div class="field" id="j-package-row" style="display:none;flex-direction:row;align-items:center;justify-content:space-between;gap:10px">
+        <label id="j-package-label" for="j-apply-package" style="margin:0">Apply to package</label>
+        <input type="checkbox" id="j-apply-package" style="width:20px;height:20px;flex-shrink:0">
+        <input type="hidden" id="j-package-id">
+      </div>
       <div class="form-row">
         <div class="field-half"><label for="j-amount" data-i18n="field_amount">Fee</label><input type="number" id="j-amount" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
         <div class="field-half"><label for="j-tip" data-i18n="field_tip">Tip</label><input type="number" id="j-tip" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
@@ -413,6 +418,14 @@
       <div class="field"><label for="c-billing" data-i18n="field_billing">Billing address</label><input type="text" id="c-billing"></div>
     </div>
     <div class="form-section" id="cust-intake"></div>
+    <div class="form-section" id="cust-package-section" style="display:none">
+      <div class="section-title" style="margin:0 0 8px">Session package</div>
+      <div id="cust-package-body"></div>
+    </div>
+    <div class="form-section" id="cust-progress-section" style="display:none">
+      <div class="section-title" style="margin:0 0 8px">Progress log</div>
+      <div id="cust-progress-body"></div>
+    </div>
     <div class="form-section">
       <div class="field"><label for="c-notes" data-i18n="field_notes">Notes</label><textarea id="c-notes" rows="2"></textarea></div>
     </div>
@@ -443,17 +456,17 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.9.1"></script>
+<script src="app.js?v=0.9.2"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.9.1"></script>
-<script src="invoices.js?v=0.9.1"></script>
-<script src="docgen.js?v=0.9.1"></script>
+<script src="tax.js?v=0.9.2"></script>
+<script src="invoices.js?v=0.9.2"></script>
+<script src="docgen.js?v=0.9.2"></script>
 <!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
      the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
-<script src="bookings.js?v=0.9.1"></script>
-<script src="followups.js?v=0.9.1"></script>
-<script src="portfolio.js?v=0.9.1"></script>
+<script src="bookings.js?v=0.9.2"></script>
+<script src="followups.js?v=0.9.2"></script>
+<script src="portfolio.js?v=0.9.2"></script>
 <!-- M5: research.js (content library, subscription UI stubbed open — no
      payment verification yet; see project-changelog-handshake.md). -->
-<script src="research.js?v=0.9.1"></script>
+<script src="research.js?v=0.9.2"></script>

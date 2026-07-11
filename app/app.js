@@ -6,7 +6,7 @@
  * VERSION LOCKSTEP: APP_VERSION tracks sw.js SW_VERSION and the ?v= query on
  * the precached app.js / styles.css. Bump all three together on every deploy.
  */
-const APP_VERSION = '0.9.1';          // <-> sw.js SW_VERSION 'freelanz-v0.9.1'
+const APP_VERSION = '0.9.2';          // <-> sw.js SW_VERSION 'freelanz-v0.9.2'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -21,14 +21,16 @@ let db;
 // for ANY store still missing, not just the three new ones), 3→4 in M5
 // ('research'), 4→5 ('memberTags' — retired; the store creation line was
 // removed once Member Tags merged into the Client system, see saveJob()),
-// 5→6 ('usageEvents' — local usage analytics). onupgradeneeded only CREATES
+// 5→6 ('usageEvents' — local usage analytics), 6→7 ('packages' — session
+// bundles, e.g. "buy 10, track remaining"; 'progressLogs' — per-client
+// weight/notes entries over time). onupgradeneeded only CREATES
 // missing stores (each guarded by !contains) — it never drops or clears
 // existing stores, so guest jobs / clients / settings survive the upgrade.
 // DB_NAME/storage keys below are namespaced 'gym' because this app co-hosts
 // with the main Freelanz app on the same GitHub Pages origin (root vs /gym/):
 // IndexedDB/localStorage/sessionStorage are scoped per-ORIGIN, not per-path,
 // so an unprefixed name here would silently share the main app's database.
-const DB_NAME = 'freelanz-gym-v1', DB_VER = 6;
+const DB_NAME = 'freelanz-gym-v1', DB_VER = 7;
 function openDB() {
   return new Promise((res, rej) => {
     const req = indexedDB.open(DB_NAME, DB_VER);
@@ -49,6 +51,8 @@ function openDB() {
       if (!d.objectStoreNames.contains('portfolio')) d.createObjectStore('portfolio', {keyPath:'id', autoIncrement:true}); // M3 showcase
       if (!d.objectStoreNames.contains('research'))  d.createObjectStore('research',  {keyPath:'id', autoIncrement:true}); // M5 content library
       if (!d.objectStoreNames.contains('usageEvents')) d.createObjectStore('usageEvents', {keyPath:'id', autoIncrement:true}); // local-only usage analytics (never leaves this device)
+      if (!d.objectStoreNames.contains('packages'))    d.createObjectStore('packages',    {keyPath:'id', autoIncrement:true}); // session bundles
+      if (!d.objectStoreNames.contains('progressLogs')) d.createObjectStore('progressLogs', {keyPath:'id', autoIncrement:true}); // per-client weight/notes over time
       if (!d.objectStoreNames.contains('settings'))  d.createObjectStore('settings',  {keyPath:'key'});
       if (!d.objectStoreNames.contains('meta'))      d.createObjectStore('meta',      {keyPath:'key'});   // dormant (future sync)
       if (!d.objectStoreNames.contains('outbox'))    d.createObjectStore('outbox',    {keyPath:'key', autoIncrement:true}); // dormant
@@ -218,7 +222,7 @@ async function restoreSession() {
 }
 
 // ─── STATE ────────────────────────────────────────────────────────────
-let jobs = [], expenses = [], customers = [], services = [], usageEvents = [], settings = {lang:'en', currency:'THB'};
+let jobs = [], expenses = [], customers = [], services = [], usageEvents = [], packages = [], settings = {lang:'en', currency:'THB'};
 let currentPeriod = 'month';
 
 // HTML/attr escaping (shared by all list/form renderers)
@@ -285,6 +289,38 @@ function jobComplete(j) {
   if (j.complete) return true;
   if (j.stage == null) return true;
   return false;
+}
+// A session "ships" (counts against a package) once it reaches Delivery or
+// later in its own stage order, or is otherwise complete — matches the
+// business meaning of "delivery" regardless of where a reorder puts it.
+function jobDelivered(j) {
+  if (jobComplete(j)) return true;
+  const order = jobOrder(j);
+  const deliveryIdx = order.indexOf('delivery');
+  const idx = order.indexOf(jobStage(j));
+  return deliveryIdx >= 0 && idx >= deliveryIdx;
+}
+
+// ─── SESSION PACKAGES (N-session bundles, e.g. "buy 10, track remaining") ──
+// Remaining is always computed live from `jobs` rather than decremented and
+// stored — same pattern as renderPipelineGlance()'s stage counts — so it can
+// never drift out of sync with a session being re-opened/un-delivered later.
+function packageUsed(pkg) {
+  return jobs.filter(j => j.packageId === pkg.id && jobDelivered(j)).length;
+}
+function packageRemaining(pkg) {
+  return Math.max(0, (Number(pkg.totalSessions) || 0) - packageUsed(pkg));
+}
+// The package a new session should offer to apply to: the client's most
+// recently purchased package that still has sessions left, or null.
+function activePackageFor(clientId) {
+  const mine = packages.filter(p => p.clientId === clientId)
+    .sort((a, b) => (b.purchasedDate || '').localeCompare(a.purchasedDate || '') || (b.id || 0) - (a.id || 0));
+  return mine.find(p => packageRemaining(p) > 0) || null;
+}
+function clientPackages(clientId) {
+  return packages.filter(p => p.clientId === clientId)
+    .sort((a, b) => (b.purchasedDate || '').localeCompare(a.purchasedDate || '') || (b.id || 0) - (a.id || 0));
 }
 
 // ─── I18N ─────────────────────────────────────────────────────────────
@@ -521,6 +557,7 @@ async function reload() {
   services = (await dbAll('services')).filter(s => s.uid === uid);
   services.sort((a,b) => (a.name||'').localeCompare(b.name||''));
   usageEvents = (await dbAll('usageEvents')).filter(e => e.uid === uid);
+  packages = (await dbAll('packages')).filter(p => p.uid === uid);
   renderHome();
   renderCustomers();
   renderServices();
@@ -941,6 +978,35 @@ function onJobCustomerChange(v) {
     openAddCustomer();
     return;
   }
+  refreshJobPackageRow(v, null);
+}
+// Shows/hides the job form's "Apply to package" row depending on whether the
+// selected client has a session package with sessions left. `existingPackageId`
+// (a job's own stored packageId, on edit) takes precedence over whatever's
+// currently active, so editing a session already linked to a now-exhausted
+// package still shows that same package rather than silently switching it.
+function refreshJobPackageRow(clientId, existingPackageId) {
+  const row = document.getElementById('j-package-row');
+  const checkbox = document.getElementById('j-apply-package');
+  const label = document.getElementById('j-package-label');
+  const hidden = document.getElementById('j-package-id');
+  if (!row || !checkbox || !label || !hidden) return;
+  const cid = clientId ? parseInt(clientId) : null;
+  let pkg = null;
+  if (cid != null) {
+    if (existingPackageId != null) pkg = packages.find(p => p.id === existingPackageId) || null;
+    if (!pkg) pkg = activePackageFor(cid);
+  }
+  if (!pkg) {
+    row.style.display = 'none';
+    hidden.value = '';
+    checkbox.checked = false;
+    return;
+  }
+  row.style.display = 'flex';
+  hidden.value = pkg.id;
+  label.textContent = `Apply to package (${packageRemaining(pkg)} of ${pkg.totalSessions} left)`;
+  checkbox.checked = existingPackageId != null ? existingPackageId === pkg.id : true;
 }
 function onJobServiceChange(v) {
   if (!v) return;
@@ -953,6 +1019,7 @@ function openAddJob() {
   document.getElementById('j-date').value = todayISO();
   ['j-amount','j-tip','j-expense','j-count','j-notes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   populateJobSelects('', '');
+  refreshJobPackageRow(null, null);
   document.getElementById('j-delete').style.display = 'none';
   clearFieldErrors();
   calcNet();
@@ -968,6 +1035,7 @@ function openEditJob(id) {
   set('j-amount', j.amount); set('j-tip', j.tip);
   set('j-expense', j.expense); set('j-count', j.count); set('j-notes', j.notes);
   populateJobSelects(j.clientId != null ? j.clientId : '', j.serviceId != null ? j.serviceId : '');
+  refreshJobPackageRow(j.clientId, j.packageId != null ? j.packageId : null);
   document.getElementById('j-delete').style.display = 'block';
   clearFieldErrors();
   calcNet();
@@ -1053,6 +1121,9 @@ async function saveJob() {
     obj.invoiceId = null;
     obj.quoteDocId = null;
   }
+  const applyPkgEl = document.getElementById('j-apply-package');
+  const pkgIdEl = document.getElementById('j-package-id');
+  obj.packageId = (applyPkgEl && applyPkgEl.checked && pkgIdEl && pkgIdEl.value) ? parseInt(pkgIdEl.value) : null;
   obj.updatedAt = nowISO();
   const isNew = !editId;
   const key = await dbPut('jobs', obj);
@@ -1432,13 +1503,20 @@ function renderCustomers() {
   }
   wrap.innerHTML = '<div class="list-card">' + customers.map(c => {
     const sub = [c.memberNo, c.company || c.phone || c.email || ''].filter(Boolean).join(' · ');
+    const pkg = activePackageFor(c.id);
+    const pkgBadge = pkg
+      ? `<span class="pkg-badge">${packageRemaining(pkg)}/${htmlEsc(pkg.totalSessions)} left</span>` : '';
     return `<div class="list-row" onclick="openEditCustomer(${c.id})">
       <div class="list-icon">👤</div>
       <div class="list-main">
         <div class="list-title">${htmlEsc(c.name)}</div>
         <div class="list-sub">${htmlEsc(sub)}</div>
       </div>
-      <div class="list-right"><span style="color:var(--text3);font-size:18px">›</span></div>
+      <div class="list-right">
+        ${pkgBadge}
+        <button type="button" class="qc-btn" title="Quick check-in" aria-label="Quick check-in for ${attrEsc(c.name)}" onclick="event.stopPropagation(); quickCheckIn(${c.id})">⚡</button>
+        <span style="color:var(--text3);font-size:18px">›</span>
+      </div>
     </div>`;
   }).join('') + '</div>';
 }
@@ -1449,6 +1527,170 @@ function renderIntakeFields(c) {
     `<div class="field"><label for="ci-${f.id}">${htmlEsc(t(f.key))}</label>
       <input type="text" id="ci-${f.id}" value="${attrEsc(c[f.id] || '')}"></div>`).join('');
 }
+
+// ─── SESSION PACKAGES — shown within the Customer modal (edit mode only) ──
+window.__pkgFormOpen = false;
+function renderCustomerPackages(clientId) {
+  const wrap = document.getElementById('cust-package-body');
+  if (!wrap) return;
+  const list = clientPackages(clientId);
+  const active = activePackageFor(clientId);
+  let html = '';
+  if (active) {
+    const remaining = packageRemaining(active);
+    const pct = active.totalSessions > 0 ? Math.round((remaining / active.totalSessions) * 100) : 0;
+    html += `<div class="pkg-status">
+        <div class="pkg-status-row"><span>${remaining} of ${htmlEsc(active.totalSessions)} sessions left</span><span class="pkg-status-date">Since ${htmlEsc(fmtDate(active.purchasedDate))}</span></div>
+        <div class="pkg-status-track"><div class="pkg-status-fill" style="width:${pct}%"></div></div>
+      </div>`;
+  } else if (list.length) {
+    html += `<div class="pkg-status"><span>No sessions left on the last package.</span></div>`;
+  } else {
+    html += `<div class="pkg-status"><span>No package yet.</span></div>`;
+  }
+  if (list.length > 1 || (list.length === 1 && !active)) {
+    html += '<div class="list-card" style="margin-top:8px">' + list.map(p => {
+      const rem = packageRemaining(p);
+      return `<div class="list-row" style="cursor:default">
+          <div class="list-main"><div class="list-title">${htmlEsc(p.totalSessions)} sessions</div>
+          <div class="list-sub">Purchased ${htmlEsc(fmtDate(p.purchasedDate))}</div></div>
+          <div class="list-right"><span class="list-amt tnum">${rem} left</span></div>
+        </div>`;
+    }).join('') + '</div>';
+  }
+  html += window.__pkgFormOpen ? `
+      <div class="form-row" style="margin-top:10px">
+        <div class="field-half"><label for="pkg-total">Sessions</label><input type="number" id="pkg-total" class="tnum" inputmode="numeric" min="1" placeholder="10"></div>
+        <div class="field-half"><label for="pkg-price">Price</label><input type="number" id="pkg-price" class="tnum" inputmode="decimal" min="0" placeholder="0"></div>
+      </div>
+      <div class="field"><label for="pkg-date">Purchased</label><input type="date" id="pkg-date"></div>
+      <button type="button" class="btn-submit" style="margin-top:6px" onclick="savePackage(${clientId})">Save package</button>
+    ` : `<button type="button" class="btn-submit" style="margin-top:10px" onclick="togglePackageForm(true, ${clientId})">${active ? '+ Renew package' : '+ New package'}</button>`;
+  wrap.innerHTML = html;
+  if (window.__pkgFormOpen) {
+    const dateEl = document.getElementById('pkg-date');
+    if (dateEl && !dateEl.value) dateEl.value = todayISO();
+  }
+}
+function togglePackageForm(open, clientId) {
+  window.__pkgFormOpen = open;
+  renderCustomerPackages(clientId);
+}
+window.togglePackageForm = togglePackageForm;
+async function savePackage(clientId) {
+  const total = parseInt(document.getElementById('pkg-total').value) || 0;
+  const price = parseFloat(document.getElementById('pkg-price').value) || 0;
+  const date = document.getElementById('pkg-date').value || todayISO();
+  if (total <= 0) { toast('Enter how many sessions this package includes'); return; }
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const obj = { uid, clientId, totalSessions: total, price, purchasedDate: date, notes: '', cuid: cuid(), updatedAt: nowISO() };
+  await dbAdd('packages', obj);
+  window.__pkgFormOpen = false;
+  await reload();
+  renderCustomerPackages(clientId);
+  toast('Package saved');
+}
+window.savePackage = savePackage;
+
+// ─── PROGRESS LOG — weight/notes over time, shown within the Customer modal ──
+window.__progressFormOpen = false;
+async function renderCustomerProgress(clientId) {
+  const wrap = document.getElementById('cust-progress-body');
+  if (!wrap) return;
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const entries = (await dbAll('progressLogs')).filter(p => p.uid === uid && p.clientId === clientId)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.id || 0) - (a.id || 0));
+  let html = '';
+  if (!entries.length) {
+    html += `<div class="pkg-status"><span>No entries yet.</span></div>`;
+  } else {
+    html += '<div class="list-card">' + entries.map((e, i) => {
+      const prev = entries[i + 1];
+      let delta = '';
+      if (prev && e.weight != null && prev.weight != null) {
+        const d = Number(e.weight) - Number(prev.weight);
+        if (d !== 0) delta = ` <span class="${d > 0 ? 'progress-up' : 'progress-down'}">(${d > 0 ? '+' : ''}${fmt(d, 1)})</span>`;
+      }
+      return `<div class="list-row" style="cursor:default">
+          <div class="list-main"><div class="list-title">${e.weight != null ? htmlEsc(fmt(e.weight, 1)) + ' kg' + delta : htmlEsc(fmtDate(e.date))}</div>
+          <div class="list-sub">${e.weight != null ? htmlEsc(fmtDate(e.date)) + (e.notes ? ' · ' + htmlEsc(e.notes) : '') : htmlEsc(e.notes || '')}</div></div>
+          <div class="list-right"><button type="button" class="qc-btn" aria-label="Delete entry" onclick="deleteProgressEntry(${e.id}, ${clientId})">✕</button></div>
+        </div>`;
+    }).join('') + '</div>';
+  }
+  html += window.__progressFormOpen ? `
+      <div class="form-row" style="margin-top:10px">
+        <div class="field-half"><label for="pl-date">Date</label><input type="date" id="pl-date"></div>
+        <div class="field-half"><label for="pl-weight">Weight (kg)</label><input type="number" id="pl-weight" class="tnum" inputmode="decimal" min="0" step="0.1" placeholder="0"></div>
+      </div>
+      <div class="field"><label for="pl-notes">Notes</label><input type="text" id="pl-notes" placeholder="e.g. chest 96cm, waist 82cm"></div>
+      <button type="button" class="btn-submit" style="margin-top:6px" onclick="saveProgressEntry(${clientId})">Save entry</button>
+    ` : `<button type="button" class="btn-submit" style="margin-top:10px" onclick="toggleProgressForm(true, ${clientId})">+ Add entry</button>`;
+  wrap.innerHTML = html;
+  if (window.__progressFormOpen) {
+    const dateEl = document.getElementById('pl-date');
+    if (dateEl && !dateEl.value) dateEl.value = todayISO();
+  }
+}
+function toggleProgressForm(open, clientId) {
+  window.__progressFormOpen = open;
+  renderCustomerProgress(clientId);
+}
+window.toggleProgressForm = toggleProgressForm;
+async function saveProgressEntry(clientId) {
+  const date = document.getElementById('pl-date').value || todayISO();
+  const weightVal = document.getElementById('pl-weight').value;
+  const weight = weightVal !== '' ? parseFloat(weightVal) : null;
+  const notes = (document.getElementById('pl-notes').value || '').trim();
+  if (weight == null && !notes) { toast('Enter a weight or a note'); return; }
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const obj = { uid, clientId, date, weight, notes, cuid: cuid(), updatedAt: nowISO() };
+  await dbAdd('progressLogs', obj);
+  window.__progressFormOpen = false;
+  await renderCustomerProgress(clientId);
+  toast('Entry saved');
+}
+window.saveProgressEntry = saveProgressEntry;
+async function deleteProgressEntry(id, clientId) {
+  if (!confirm('Delete this entry?')) return;
+  await dbDel('progressLogs', id);
+  await renderCustomerProgress(clientId);
+}
+window.deleteProgressEntry = deleteProgressEntry;
+
+// ─── QUICK SESSION CHECK-IN — one-tap log for a recurring client ──────────
+// Reuses the client's most recent session's service/amount so a routine
+// repeat visit doesn't need the full Add Session form; goes straight to the
+// Delivery stage (skipping Pitch/Quote/Invoice/Paid) since this is a repeat
+// client, not a new sale, and auto-applies their active package if they have
+// one — this IS the "did the package session happen" moment those exist for.
+async function quickCheckIn(clientId) {
+  const c = customers.find(x => x.id === clientId);
+  if (!c) return;
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const priorJobs = jobs.filter(j => j.clientId === clientId)
+    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  const last = priorJobs[0];
+  const order = getStageOrder();
+  const pkg = activePackageFor(clientId);
+  const job = {
+    uid, date: todayISO(), client: c.name, clientId: c.id,
+    serviceId: last ? last.serviceId : null, serviceName: last ? last.serviceName : '',
+    jobType: settings.workType || '',
+    amount: last ? last.amount : 0, tip: 0, expense: 0, count: 1, notes: '',
+    netAmount: last ? last.amount : 0,
+    cuid: cuid(), stageOrder: order, stage: 'delivery', complete: false,
+    invoiceId: null, quoteDocId: null,
+    packageId: pkg ? pkg.id : null,
+    updatedAt: nowISO(),
+  };
+  await dbAdd('jobs', job);
+  logEvent('quick_checkin');
+  await reload();
+  toast(`Checked in ${c.name}`);
+}
+window.quickCheckIn = quickCheckIn;
+
 function openCustomerModal() { document.getElementById('modal-customer').classList.add('open'); }
 // Always resets the pending job->customer link flag: cancelling (or clicking
 // outside) the "add a new client" flow started from the session form must not
@@ -1461,6 +1703,10 @@ function openAddCustomer() {
   const memberNoEl = document.getElementById('c-memberno');
   if (memberNoEl) memberNoEl.value = t('assigned_on_save');
   renderIntakeFields({});
+  // Package/progress tracking needs a saved client id to attach records to —
+  // hidden on Add, shown once the client actually exists (openEditCustomer).
+  document.getElementById('cust-package-section').style.display = 'none';
+  document.getElementById('cust-progress-section').style.display = 'none';
   document.getElementById('c-delete').style.display = 'none';
   clearFieldErrors();
   openCustomerModal();
@@ -1475,6 +1721,11 @@ function openEditCustomer(id) {
   set('c-tags', c.tags); set('c-notes', c.notes); set('c-taxid', c.taxId); set('c-billing', c.billingAddress);
   set('c-memberno', c.memberNo || t('assigned_on_save'));
   renderIntakeFields(c);
+  window.__pkgFormOpen = false; window.__progressFormOpen = false;
+  document.getElementById('cust-package-section').style.display = 'block';
+  document.getElementById('cust-progress-section').style.display = 'block';
+  renderCustomerPackages(id);
+  renderCustomerProgress(id);
   document.getElementById('c-delete').style.display = 'block';
   clearFieldErrors();
   openCustomerModal();
@@ -1814,7 +2065,7 @@ async function exportInvoicesCSV() {
 // All uid-scoped stores a full backup/restore round-trips. Kept in one place
 // so a future new store (like bookings/followups/portfolio were for M3) only
 // needs to be added here, not re-plumbed through export/import separately.
-const BACKUP_STORES = ['jobs', 'expenses', 'clients', 'services', 'invoices', 'documents', 'bookings', 'followups', 'portfolio', 'research'];
+const BACKUP_STORES = ['jobs', 'expenses', 'clients', 'services', 'invoices', 'documents', 'bookings', 'followups', 'portfolio', 'research', 'packages', 'progressLogs'];
 
 async function exportBackup() {
   const uid = isGuest ? 'guest' : currentUser.id;
