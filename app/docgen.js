@@ -1,4 +1,4 @@
-/* Freelanz — docgen.js  (M2 DOC-GEN)
+/* Sidekick — docgen.js  (M2 DOC-GEN)
  *
  * OWNED BY the doc-gen agent. Fills #docgen-body only. Loaded AFTER app.js
  * (and tax.js / invoices.js), so all app.js globals are available at call
@@ -17,18 +17,18 @@
 'use strict';
 
 // ─── module state ──────────────────────────────────────────────────────
-let dgCurrentType = null;   // 'contract' | 'nda' | 'quote'
+let dgCurrentType = null;   // 'contract' | 'nda' | 'quote' | 'receipt'
 let dgEditId = null;        // documents row id being edited, or null = create
 let dgQuoteItems = [];      // [{description, qty, unitPrice}] while editing a quote
 let dgTitleAuto = true;     // true while the title field still tracks the auto default
 let dgLastPreviewHtml = '';
 
-const DG_TYPE_LABEL = { contract: 'Contract', nda: 'NDA', quote: 'Quote' };
-const DG_TYPE_ICON  = {
-  contract: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg>',
-  nda: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>',
-  quote: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>'
-};
+const DG_TYPE_LABEL = { contract: 'Contract', nda: 'NDA', quote: 'Quote', receipt: 'Receipt' };
+const DG_TYPE_ICON  = { contract: '📄', nda: '🔒', quote: '💬', receipt: '🧾' };
+// Referable running numbers (shared nextDocNumber() from app.js, same scheme
+// as invoices.js's own "INV-2026-0001" numbers) — contract/nda don't get one,
+// they aren't the kind of document a client would need to "reference" later.
+const DG_NUMBER_PREFIX = { quote: 'QUO', receipt: 'REC' };
 
 // ─── entry point ────────────────────────────────────────────────────────
 function renderDocgen() {
@@ -42,7 +42,7 @@ function renderDocgen() {
     el.innerHTML = dgListHTML(docs);
   }).catch(err => {
     console.error('renderDocgen', err);
-    el.innerHTML = '<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M10.3 4l-7.5 13A2 2 0 0 0 4.5 20h15a2 2 0 0 0 1.7-3l-7.5-13a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div><p>Could not load documents.</p></div>';
+    el.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><p>Could not load documents.</p></div>';
   });
 }
 window.renderDocgen = renderDocgen;
@@ -50,13 +50,18 @@ window.renderDocgen = renderDocgen;
 function dgListHTML(docs) {
   let h = '<div class="section-title">New document</div>';
   h += '<div class="dg-tpl-grid">'
-    + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'contract\')"><span class="dg-tpl-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg></span><span class="dg-tpl-name">Contract</span></button>'
-    + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'nda\')"><span class="dg-tpl-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span><span class="dg-tpl-name">NDA</span></button>'
-    + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'quote\')"><span class="dg-tpl-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg></span><span class="dg-tpl-name">Quote</span></button>'
+    + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'contract\')"><span class="dg-tpl-ico">📄</span><span class="dg-tpl-name">Contract</span></button>'
+    + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'nda\')"><span class="dg-tpl-ico">🔒</span><span class="dg-tpl-name">NDA</span></button>'
+    + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'quote\')"><span class="dg-tpl-ico">💬</span><span class="dg-tpl-name">Quote</span></button>'
+    + '<button type="button" class="dg-tpl-btn" onclick="openGenerateForm(\'receipt\')"><span class="dg-tpl-ico">🧾</span><span class="dg-tpl-name">Receipt</span></button>'
+    + '</div>';
+  h += '<div class="section-title">Tools</div>';
+  h += '<div class="dg-tool-grid">'
+    + '<button type="button" class="dg-tool-btn" onclick="switchScreen(\'tax\')"><span class="dg-tool-ico">🧮</span><span class="dg-tool-name">Tax calculator</span></button>'
     + '</div>';
   h += '<div class="section-title">Saved documents</div>';
   if (!docs.length) {
-    h += '<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg></div><p>No documents yet</p><span>Generate a contract, NDA, or quote above.</span></div>';
+    h += '<div class="empty"><div class="empty-icon">🗂️</div><p>No documents yet</p><span>Generate a contract, NDA, quote, or receipt above.</span></div>';
   } else {
     h += '<div class="list-card">' + docs.map(dgRowHTML).join('') + '</div>';
   }
@@ -64,9 +69,10 @@ function dgListHTML(docs) {
 }
 
 function dgRowHTML(d) {
-  const ico = DG_TYPE_ICON[d.type] || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg>';
+  const ico = DG_TYPE_ICON[d.type] || '📄';
   const label = DG_TYPE_LABEL[d.type] || d.type;
-  const sub = (d.clientName ? htmlEsc(d.clientName) : 'No client') + ' · ' + htmlEsc(d.issueDate || '');
+  const sub = (d.number ? htmlEsc(d.number) + ' · ' : '')
+    + (d.clientName ? htmlEsc(d.clientName) : 'No client') + ' · ' + htmlEsc(d.issueDate || '');
   const invoicedChip = (d.type === 'quote' && d.fields && d.fields.convertedToInvoice)
     ? '<span class="dg-chip" style="background:var(--brand);color:#fff;margin-left:4px">✓ Invoiced</span>' : '';
   return '<div class="list-row" tabindex="0" role="button" onclick="viewDocument(' + d.id + ')"'
@@ -85,12 +91,20 @@ function ensureDocgenUI() {
   const st = document.createElement('style');
   st.id = 'dg-style';
   st.textContent = `
-    .dg-tpl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 0 20px;}
+    .dg-tpl-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:0 0 20px;}
     .dg-tpl-btn{display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 10px;
       border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--card);
       cursor:pointer;font-family:inherit;}
     .dg-tpl-btn:active{background:var(--brand-tint);border-color:var(--brand);}
     .dg-tpl-btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
+    .dg-tool-grid{display:grid;grid-template-columns:1fr;gap:10px;margin:0 0 20px;}
+    .dg-tool-btn{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:10px;padding:14px 16px;
+      border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--card);
+      cursor:pointer;font-family:inherit;width:100%;}
+    .dg-tool-btn:active{background:var(--brand-tint);border-color:var(--brand);}
+    .dg-tool-btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
+    .dg-tool-ico{font-size:20px;}
+    .dg-tool-name{font-size:13px;font-weight:700;color:var(--text);}
     .dg-tpl-ico{font-size:24px;}
     .dg-tpl-name{font-size:13px;font-weight:700;color:var(--text);}
     .dg-chip{display:inline-block;padding:3px 9px;border-radius:9px;font-size:11px;font-weight:700;
@@ -155,6 +169,11 @@ function dgGenerateModalHTML() {
       <div class="modal-handle"></div>
       <div class="modal-title" id="dg-modal-title">New document</div>
 
+      <div class="form-section" id="dg-number-row" style="display:none">
+        <div class="field"><label for="dg-number">Reference no.</label>
+          <input type="text" id="dg-number" readonly disabled style="color:var(--text3)"></div>
+      </div>
+
       <div class="form-section">
         <div class="field">
           <label for="dg-client">Customer</label>
@@ -212,10 +231,25 @@ function dgGenerateModalHTML() {
         <div id="dg-q-items-wrap"></div>
       </div>
       <button type="button" class="dg-add-row" id="dg-fields-quote-add" onclick="dgAddLine()">+ Add line item</button>
-      <div class="dg-quote-total-line" id="dg-fields-quote-total-wrap">Subtotal: <span id="dg-q-subtotal">${money(0, 2)}</span></div>
+      <div class="dg-quote-total-line" id="dg-fields-quote-total-wrap">Subtotal: <span id="dg-q-subtotal">${money(0)}</span></div>
       <div class="form-section" id="dg-fields-quote-notes-wrap">
         <div class="field"><label for="dg-q-notes">Notes (optional)</label>
           <textarea id="dg-q-notes" rows="2" placeholder="Anything else the client should know…"></textarea></div>
+      </div>
+
+      <div class="form-section" id="dg-fields-receipt">
+        <div class="form-header">Receipt details</div>
+        <div class="form-row">
+          <div class="field-half"><label for="dg-r-amount">Amount received</label>
+            <input type="number" id="dg-r-amount" class="tnum" min="0" step="any" inputmode="decimal" placeholder="0"></div>
+          <div class="field-half"><label for="dg-r-date">Payment date</label><input type="date" id="dg-r-date"></div>
+        </div>
+        <div class="field"><label for="dg-r-method">Payment method</label>
+          <input type="text" id="dg-r-method" placeholder="e.g. Cash, bank transfer, PromptPay"></div>
+        <div class="field"><label for="dg-r-ref">Reference (optional)</label>
+          <input type="text" id="dg-r-ref" placeholder="e.g. the invoice number this pays off"></div>
+        <div class="field"><label for="dg-r-notes">Notes (optional)</label>
+          <textarea id="dg-r-notes" rows="2" placeholder="Anything else to include…"></textarea></div>
       </div>
 
       <div class="dg-preview-wrap" id="dg-preview-wrap" style="display:none"></div>
@@ -249,11 +283,8 @@ function dgViewModalHTML() {
 function openGenerateForm(type, rec) {
   ensureDocgenUI();
   dgCurrentType = type;
-  // A prefill-only object (fields, no id — e.g. from the pipeline) is a NEW
-  // document, not an edit. Only a persisted record (with an id) is edit-mode.
-  const isEdit = rec && rec.id != null;
-  dgEditId = isEdit ? rec.id : null;
-  // Clear any stale pipeline linkage; openQuoteForJob re-sets it after this call.
+  dgEditId = rec ? rec.id : null;
+  // Clear any stale pipeline linkage; openQuoteForJob (app.js) re-sets it after this call.
   window.__pendingQuoteJobId = null;
   dgLastPreviewHtml = '';
   dgClearErrors();
@@ -262,9 +293,9 @@ function openGenerateForm(type, rec) {
   wrap.style.display = 'none';
   wrap.innerHTML = '';
 
-  document.getElementById('dg-modal-title').textContent = (isEdit ? 'Edit ' : 'New ') + DG_TYPE_LABEL[type];
+  document.getElementById('dg-modal-title').textContent = (rec ? 'Edit ' : 'New ') + DG_TYPE_LABEL[type];
 
-  ['contract', 'nda', 'quote'].forEach(t => {
+  ['contract', 'nda', 'quote', 'receipt'].forEach(t => {
     const grp = document.getElementById('dg-fields-' + t);
     if (grp) grp.style.display = (t === type) ? '' : 'none';
   });
@@ -275,15 +306,20 @@ function openGenerateForm(type, rec) {
   if (totalWrap) totalWrap.style.display = (type === 'quote') ? '' : 'none';
   if (notesWrap) notesWrap.style.display = (type === 'quote') ? '' : 'none';
 
+  // Reference number: read-only, only shown for the types that get one.
+  const numberRow = document.getElementById('dg-number-row');
+  if (numberRow) numberRow.style.display = DG_NUMBER_PREFIX[type] ? '' : 'none';
+  setVal('dg-number', DG_NUMBER_PREFIX[type] ? ((rec && rec.number) || 'assigned on save') : '');
+
   const f = (rec && rec.fields) || {};
 
-  dgTitleAuto = !isEdit;
+  dgTitleAuto = !rec;
   populateClientSelect(f.clientId != null ? f.clientId : null);
   document.getElementById('dg-client-name').value = rec ? (rec.clientName || '') : '';
   onDgClientChange();
   if (!f.clientId) document.getElementById('dg-client-name').value = (rec && rec.clientName) || '';
 
-  document.getElementById('dg-title').value = isEdit ? (rec.title || '') : defaultTitle(type, document.getElementById('dg-client-name').value);
+  document.getElementById('dg-title').value = rec ? (rec.title || '') : defaultTitle(type, document.getElementById('dg-client-name').value);
   document.getElementById('dg-issue-date').value = (rec && rec.issueDate) || todayISO();
 
   if (type === 'contract') {
@@ -305,6 +341,12 @@ function openGenerateForm(type, rec) {
       ? f.lineItems.map(li => ({ description: li.description || '', qty: li.qty != null ? li.qty : 1, unitPrice: li.unitPrice != null ? li.unitPrice : 0 }))
       : [{ description: '', qty: 1, unitPrice: 0 }];
     renderQuoteRows();
+  } else if (type === 'receipt') {
+    setVal('dg-r-amount', f.amount != null ? f.amount : '');
+    setVal('dg-r-date', f.paymentDate || todayISO());
+    setVal('dg-r-method', f.method || '');
+    setVal('dg-r-ref', f.reference || '');
+    setVal('dg-r-notes', f.notes || '');
   }
 
   document.getElementById('dg-modal').classList.add('open');
@@ -352,8 +394,7 @@ function onDgClientChange() {
 }
 window.onDgClientChange = onDgClientChange;
 
-// Persona-aware, cheap defaults: photographer usage rights + gym waiver data
-// are pulled straight from the selected customer's intake fields.
+// Prefill the contract's usage-rights field from the customer's saved value, if any.
 function applyPersonaDefaultsForContract() {
   const sel = document.getElementById('dg-client');
   const c = sel.value ? customers.find(x => String(x.id) === sel.value) : null;
@@ -392,7 +433,7 @@ window.dgRemoveLine = dgRemoveLine;
 function dgUpdateQuoteTotal() {
   const subtotal = dgQuoteItems.reduce((s, li) => s + (Number(li.qty) || 0) * (Number(li.unitPrice) || 0), 0);
   const el = document.getElementById('dg-q-subtotal');
-  if (el) el.textContent = money(subtotal, 2);
+  if (el) el.textContent = money(subtotal);
   return subtotal;
 }
 window.dgUpdateQuoteTotal = dgUpdateQuoteTotal;
@@ -466,6 +507,14 @@ function buildDocFromForm() {
     if (!lineItems.length) { toast('Add at least one line item with a description and quantity.'); ok = false; }
     const subtotal = lineItems.reduce((s, li) => s + li.qty * li.unitPrice, 0);
     Object.assign(fields, { validUntil, notes, lineItems, subtotal });
+  } else if (dgCurrentType === 'receipt') {
+    const amount = parseFloat(document.getElementById('dg-r-amount').value) || 0;
+    const paymentDate = document.getElementById('dg-r-date').value || todayISO();
+    const method = (document.getElementById('dg-r-method').value || '').trim();
+    const reference = (document.getElementById('dg-r-ref').value || '').trim();
+    const notes = (document.getElementById('dg-r-notes').value || '').trim();
+    if (amount <= 0) { dgMarkError('dg-r-amount', 'Enter the amount received.'); ok = false; }
+    Object.assign(fields, { amount, paymentDate, method, reference, notes });
   }
 
   if (!ok) return null;
@@ -482,7 +531,28 @@ function nlToP(s) {
 }
 
 function freelancerName() {
-  return (currentUser && (currentUser.firstName || currentUser.username)) || 'Freelancer';
+  return (typeof sellerBusinessName === 'function')
+    ? sellerBusinessName()
+    : ((currentUser && (currentUser.firstName || currentUser.username)) || 'Freelancer');
+}
+// Seller line shown at the top of every document: name always (falls back to
+// the account's display name), tax ID/address only when filled in under
+// Settings > Business info — never required.
+function sellerInfoLine(fname) {
+  const bits = [fname];
+  if (typeof settings !== 'undefined' && settings) {
+    if (settings.sellerAddress) bits.push(esc(settings.sellerAddress));
+    if (settings.sellerTaxId) bits.push('Tax ID: ' + esc(settings.sellerTaxId));
+  }
+  return '<p class="dg-meta">' + bits.join(' · ') + '</p>';
+}
+// Optional client billing address/tax ID, snapshotted from the customer
+// profile onto the document's fields when a customer was selected.
+function clientInfoLine(f) {
+  const bits = [];
+  if (f.billingAddress) bits.push(esc(f.billingAddress));
+  if (f.taxId) bits.push('Tax ID: ' + esc(f.taxId));
+  return bits.length ? '<p class="dg-meta">' + bits.join(' · ') + '</p>' : '';
 }
 
 function signatureBlock(fname, cname) {
@@ -496,7 +566,7 @@ function buildDocHtml(rec) {
   const f = rec.fields || {};
   const fname = esc(freelancerName());
   const cname = esc(rec.clientName || 'Client');
-  let body = '<div class="dg-doc"><h1>' + esc(rec.title) + '</h1>';
+  let body = '<div class="dg-doc"><h1>' + esc(rec.title) + '</h1>' + sellerInfoLine(fname);
 
   if (rec.type === 'contract') {
     body += '<p class="dg-meta">Issue date: ' + esc(rec.issueDate) + '</p>';
@@ -505,7 +575,7 @@ function buildDocHtml(rec) {
     if (f.billingAddress) body += '<p><b>Billing address:</b> ' + esc(f.billingAddress) + '</p>';
     if (f.taxId) body += '<p><b>Client Tax ID:</b> ' + esc(f.taxId) + '</p>';
     body += '<h3>Deliverables</h3>' + nlToP(f.deliverables);
-    body += '<h3>Fee</h3><p>Total fee: <b>' + money(f.fee || 0, 2) + '</b></p>';
+    body += '<h3>Fee</h3><p>Total fee: <b>' + money(f.fee || 0) + '</b></p>';
     body += '<h3>Term</h3><p>' + (f.startDate ? esc(f.startDate) : '—') + ' to ' + (f.endDate ? esc(f.endDate) : '—') + '</p>';
     if (f.usageRights) body += '<h3>Usage Rights &amp; Licensing</h3>' + nlToP(f.usageRights);
     if (f.healthNotes || f.allergies || f.goals) {
@@ -529,18 +599,28 @@ function buildDocHtml(rec) {
     body += '<h3>5. Notes</h3>' + nlToP(f.notes);
     body += signatureBlock(fname, cname);
   } else if (rec.type === 'quote') {
-    body += '<p class="dg-meta">Issue date: ' + esc(rec.issueDate) + (f.validUntil ? ' · Valid until: ' + esc(f.validUntil) : '') + '</p>';
+    body += '<p class="dg-meta">' + (rec.number ? 'Quote #' + esc(rec.number) + ' · ' : '') + 'Issue date: ' + esc(rec.issueDate) + (f.validUntil ? ' · Valid until: ' + esc(f.validUntil) : '') + '</p>';
     body += '<p><b>Prepared for:</b> ' + cname + (f.company ? ' (' + esc(f.company) + ')' : '') + '</p>';
+    body += clientInfoLine(f);
     body += '<table><thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead><tbody>';
     (f.lineItems || []).forEach(li => {
       const qtyNum = Number(li.qty) || 0;
       const lineTotal = qtyNum * (Number(li.unitPrice) || 0);
-      body += '<tr><td>' + esc(li.description) + '</td><td>' + fmt(qtyNum, qtyNum % 1 !== 0 ? 2 : 0) + '</td><td>' + money(li.unitPrice, 2) + '</td><td>' + money(lineTotal, 2) + '</td></tr>';
+      body += '<tr><td>' + esc(li.description) + '</td><td>' + fmt(qtyNum, qtyNum % 1 !== 0 ? 2 : 0) + '</td><td>' + money(li.unitPrice) + '</td><td>' + money(lineTotal) + '</td></tr>';
     });
     body += '</tbody></table>';
-    body += '<p style="text-align:right;font-weight:800">Subtotal: ' + money(f.subtotal || 0, 2) + '</p>';
+    body += '<p style="text-align:right;font-weight:800">Subtotal: ' + money(f.subtotal || 0) + '</p>';
     if (f.notes) body += '<h3>Notes</h3>' + nlToP(f.notes);
     body += '<p style="margin-top:16px">This quote is valid until <b>' + (f.validUntil ? esc(f.validUntil) : '—') + '</b> and excludes tax unless stated in a formal invoice.</p>';
+  } else if (rec.type === 'receipt') {
+    body += '<p class="dg-meta">' + (rec.number ? 'Receipt #' + esc(rec.number) + ' · ' : '') + 'Payment date: ' + esc(f.paymentDate || rec.issueDate) + '</p>';
+    body += '<p><b>Received from:</b> ' + cname + (f.company ? ' (' + esc(f.company) + ')' : '') + '</p>';
+    body += clientInfoLine(f);
+    body += '<h3>Amount received</h3><p><b>' + money(f.amount || 0) + '</b></p>';
+    body += '<h3>Payment method</h3><p>' + (f.method ? esc(f.method) : '—') + '</p>';
+    if (f.reference) body += '<h3>Reference</h3><p>' + esc(f.reference) + '</p>';
+    if (f.notes) body += '<h3>Notes</h3>' + nlToP(f.notes);
+    body += '<p style="margin-top:16px">This receipt confirms payment has been received in full for the amount stated above.</p>';
   }
 
   body += '</div>';
@@ -571,6 +651,23 @@ async function saveDocumentFromForm() {
   const draft = buildDocFromForm();
   if (!draft) { toast('Please fix the highlighted fields.'); return; }
   const uid = isGuest ? 'guest' : currentUser.id;
+
+  // Reference number: assigned once at creation, immutable on edit — same
+  // rule invoices.js follows for its own "INV-2026-0001" numbers. Only the
+  // types in DG_NUMBER_PREFIX get one (contract/nda don't).
+  let number = null;
+  const prefix = DG_NUMBER_PREFIX[draft.type];
+  if (prefix) {
+    if (dgEditId) {
+      const existing = await dbGet('documents', dgEditId);
+      number = (existing && existing.number) || null;
+    } else {
+      const sameType = (await dbAll('documents')).filter(d => d.uid === uid && d.type === draft.type);
+      number = nextDocNumber(sameType, prefix);
+    }
+  }
+  draft.number = number;   // baked into the rendered content snapshot below
+
   const content = buildDocHtml(draft);
   const rec = {
     uid,
@@ -581,6 +678,7 @@ async function saveDocumentFromForm() {
     invoiceId: null,
     fields: draft.fields,
     content,
+    number,
     issueDate: draft.issueDate,
     updatedAt: nowISO(),
   };
@@ -593,21 +691,17 @@ async function saveDocumentFromForm() {
       toast('Document updated.');
     } else {
       rec.cuid = cuid();
-      // Persist the originating pipeline jobId ON the quote doc so a later
-      // convert-to-invoice can relink the invoice back to the same engagement
-      // (and advance the pipeline) instead of spawning an unlinked duplicate.
-      const pipelineJobId = (rec.type === 'quote' && window.__pendingQuoteJobId != null)
-        ? window.__pendingQuoteJobId : null;
-      if (pipelineJobId != null) rec.fields = { ...rec.fields, jobId: pipelineJobId };
       const newId = await dbAdd('documents', rec);
       rec.id = newId;
       toast('Document saved.');
-      // Engagement linking: a quote saved from the pipeline links quoteDocId onto
-      // the job + advances its stage. Cancelling never reaches this save path.
+      // Engagement linking: a quote saved from the pipeline links back to its
+      // session and advances the stage. Any other save leaves __pendingQuoteJobId unset.
+      const pipelineJobId = (rec.type === 'quote' && window.__pendingQuoteJobId != null)
+        ? window.__pendingQuoteJobId : null;
       if (pipelineJobId != null && typeof window.onEngagementQuoteCreated === 'function') {
         try { window.onEngagementQuoteCreated(newId, pipelineJobId); } catch (e) { /* non-fatal */ }
-        window.__pendingQuoteJobId = null;
       }
+      window.__pendingQuoteJobId = null;
     }
     closeDgModal();
     renderDocgen();
@@ -629,7 +723,7 @@ async function viewDocument(id) {
   ensureDocgenUI();
   const rec = await dbGet('documents', id);
   if (!rec) { toast('Document not found.'); return; }
-  document.getElementById('dg-view-title').textContent = rec.title || DG_TYPE_LABEL[rec.type] || 'Document';
+  document.getElementById('dg-view-title').textContent = (rec.number ? rec.number + ' — ' : '') + (rec.title || DG_TYPE_LABEL[rec.type] || 'Document');
   document.getElementById('dg-view-content').innerHTML = '<div class="dg-preview">' + (rec.content || '') + '</div>';
   document.getElementById('dg-view-modal').dataset.docId = String(rec.id);
   document.getElementById('dg-view-modal').classList.add('open');
@@ -668,11 +762,7 @@ async function convertQuoteToInvoice() {
   renderDocgen();
   if (typeof openInvoiceForm === 'function') {
     switchScreen('invoices');
-    // Pass the originating pipeline jobId (stored on the quote) as fromJobId so
-    // the resulting invoice links back via onEngagementInvoiceCreated and the
-    // engagement advances, rather than the pipeline offering "Send invoice" again.
-    const jobId = (f && f.jobId != null) ? f.jobId : null;
-    openInvoiceForm(jobId, { clientId: rec.clientId, clientName: rec.clientName, lineItems: f.lineItems || [] });
+    openInvoiceForm(null, { clientId: rec.clientId, clientName: rec.clientName, lineItems: f.lineItems || [] });
   } else {
     toast('Invoicing module not loaded');
   }
@@ -731,6 +821,15 @@ function printDocument(html) {
   const root = document.getElementById('docgen-print-root');
   if (!root) return;
   root.innerHTML = html;
+  // Page size is a Settings-wide choice (A4/A5), so it's set fresh per print
+  // call rather than baked into ensureDocgenUI()'s one-time style block.
+  let pageStyle = document.getElementById('dg-page-style');
+  if (!pageStyle) {
+    pageStyle = document.createElement('style');
+    pageStyle.id = 'dg-page-style';
+    document.head.appendChild(pageStyle);
+  }
+  pageStyle.textContent = `@media print{ ${docPageSizeCss()} }`;
   const cleanup = () => {
     document.body.classList.remove('dg-printing');
     window.removeEventListener('afterprint', cleanup);

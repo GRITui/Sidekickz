@@ -1,25 +1,25 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
-<title>Freelanz — Log in</title>
-<meta name="description" content="Local-first admin for independent workers: jobs, invoicing, tax, docs, booking.">
+<title>Sidekick — Log in</title>
+<meta name="description" content="Local-first admin for freelancers: bookings, invoicing, tax, docs, and client follow-up — all on your device.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F766E">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Freelanz">
+<meta name="apple-mobile-web-app-title" content="Sidekick">
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>document.documentElement.dataset.theme='light';</script><!-- light-only: set before CSS paints to avoid a dark flash on dark-OS -->
-<link rel="stylesheet" href="styles.css?v=0.7.6">
+<link rel="stylesheet" href="styles.css?v=0.9.3">
 <!-- data-page drives boot(): 'login' → bootLogin() (redirects to ./ when already signed in) -->
 <body data-page="login">
 
 <div class="auth active" id="s-auth">
   <div class="auth-hero">
     <img class="auth-logo" src="icons/icon.svg" alt="">
-    <h1>Freelanz</h1>
-    <p data-i18n="tagline">Freelance admin, handled.</p>
+    <h1>Sidekick</h1>
+    <p data-i18n="tagline">Get booked. Get hired. Get paid.</p>
   </div>
   <div class="auth-card">
     <div class="auth-tabs">
@@ -45,11 +45,10 @@
     </div>
     <button class="auth-btn" id="auth-submit" onclick="submitAuth()" data-i18n="login">Log in</button>
     <button class="auth-btn guest" onclick="loginGuest()" data-i18n="login_guest">Continue as guest</button>
-    <a href="info/" style="display:block;text-align:center;margin-top:14px;color:#0F766E;font-weight:700;font-size:14px;text-decoration:none">New to Freelanz? See how it works &rarr;</a>
     <div class="auth-hint"><span id="auth-hint-text"></span><br><br>Local-first · No cloud · Built with Claude</div>
   </div>
 </div>
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.7.6"></script>
+<script src="app.js?v=0.9.3"></script>

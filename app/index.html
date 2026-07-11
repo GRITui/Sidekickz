@@ -1,17 +1,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
-<title>Freelanz</title>
-<meta name="description" content="Local-first admin for independent workers: jobs, invoicing, tax, docs, booking.">
+<title>Sidekick</title>
+<meta name="description" content="Local-first admin for freelancers: bookings, invoicing, tax, docs, and client follow-up — all on your device.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F766E">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Freelanz">
+<meta name="apple-mobile-web-app-title" content="Sidekick">
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>document.documentElement.dataset.theme='light';</script><!-- light-only: set before CSS paints to avoid a dark flash on dark-OS -->
-<link rel="stylesheet" href="styles.css?v=0.7.6">
+<link rel="stylesheet" href="styles.css?v=0.9.3">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -21,7 +21,7 @@
     <div class="hdr-row">
       <div>
         <h1 id="home-greeting">Hello</h1>
-        <div class="hdr-sub" data-i18n="tagline">Freelance admin, handled.</div>
+        <div class="hdr-sub" data-i18n="tagline">Get booked. Get hired. Get paid.</div>
       </div>
       <button class="avatar" id="home-avatar" onclick="switchScreen('more')" data-i18n-aria="more_title" aria-label="More">F</button>
     </div>
@@ -31,8 +31,8 @@
     <div class="hero-label" id="hero-label">Earned this month</div>
     <div class="hero-amt tnum" id="hero-amt">฿0</div>
     <div class="hero-stats">
-      <div><div class="hero-stat-label" data-i18n="stat_jobs">Jobs</div><div class="hero-stat-val tnum" id="stat-jobs-val">0</div></div>
-      <div><div class="hero-stat-label" data-i18n="stat_avg">Avg / job</div><div class="hero-stat-val tnum" id="stat-avg-val">฿0</div></div>
+      <div><div class="hero-stat-label" data-i18n="stat_jobs">Sessions</div><div class="hero-stat-val tnum" id="stat-jobs-val">0</div></div>
+      <div><div class="hero-stat-label" data-i18n="stat_avg">Avg / session</div><div class="hero-stat-val tnum" id="stat-avg-val">฿0</div></div>
       <div><div class="hero-stat-label" data-i18n="stat_expenses">Expenses</div><div class="hero-stat-val tnum" id="stat-exp-val">฿0</div></div>
     </div>
   </div>
@@ -46,34 +46,23 @@
     <div class="goal-sub" id="goal-sub"></div>
   </div>
 
-  <div class="qa-grid">
-    <button class="qa-btn" onclick="openAddJob()"><span class="qa-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M12 5v14"/><path d="M5 12h14"/></svg></span><span data-i18n="new_job">New job</span></button>
-    <button class="qa-btn accent" onclick="newInvoice()"><span class="qa-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg></span><span data-i18n="new_invoice">New invoice</span></button>
-  </div>
-
-  <div style="margin:0 16px 18px">
-    <button class="qa-btn" style="width:100%" onclick="switchScreen('pipeline')"><span class="qa-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M3 21h18"/><path d="M7 21v-7"/><path d="M12 21V6"/><path d="M17 21v-4"/></svg></span><span>Pipeline</span></button>
+  <div class="content" style="padding-bottom:0">
+    <div class="section-title" data-i18n="pipeline_glance_title">Pipeline at a glance</div>
+    <div class="pg-row" id="pipeline-glance"></div>
   </div>
 
   <div class="content">
-    <div class="section-title" data-i18n="action_queue">Action queue</div>
-    <div id="queue-body"></div>
+    <div class="section-title" data-i18n="incoming_pipeline">Incoming pipeline</div>
+    <div id="incoming-pipeline-body"></div>
   </div>
 </section>
 
-<!-- ══ JOBS ══ -->
-<section class="screen" id="s-jobs">
-  <div class="hdr-plain"><h1 data-i18n="jobs_title">Jobs</h1></div>
-  <div class="content"><div id="jobs-body"></div></div>
-</section>
-
-<!-- ══ PIPELINE (M2.5 — engagement board) ══ -->
+<!-- ══ PIPELINE (primary engagement view) ══ -->
 <section class="screen" id="s-pipeline">
   <div class="hdr-plain">
     <div class="hdr-row">
       <div style="display:flex;align-items:center;gap:12px">
-        <button class="avatar" onclick="switchScreen('home')" aria-label="Back" style="font-size:22px">‹</button>
-        <h1>Pipeline</h1>
+        <h1 data-i18n="pipeline_title">Pipeline</h1>
       </div>
     </div>
   </div>
@@ -88,7 +77,14 @@
 
 <!-- ══ TAX (M2 — owned by tax.js) ══ -->
 <section class="screen" id="s-tax">
-  <div class="hdr-plain"><h1>Tax</h1></div>
+  <div class="hdr-plain">
+    <div class="hdr-row">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="avatar" onclick="switchScreen('docs')" aria-label="Back" style="font-size:22px">‹</button>
+        <h1>Tax calculator</h1>
+      </div>
+    </div>
+  </div>
   <div class="content"><div id="tax-body"></div></div>
 </section>
 
@@ -100,7 +96,7 @@
 
 <!-- ══ BOOK / DAY VIEW (M3 — owned by bookings.js) ══ -->
 <section class="screen" id="s-book">
-  <div class="hdr-plain"><h1 data-i18n="book_title">Booking</h1></div>
+  <div class="hdr-plain"><h1 data-i18n="book_title">Calendar</h1></div>
   <div class="content"><div id="book-body"></div></div>
 </section>
 
@@ -122,6 +118,19 @@
   <div class="content"><div id="research-body"></div></div>
 </section>
 
+<!-- ══ INSIGHTS (local-only usage analytics — never leaves this device) ══ -->
+<section class="screen" id="s-insights">
+  <div class="hdr-plain">
+    <div class="hdr-row">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="avatar" onclick="switchScreen('more')" aria-label="Back" style="font-size:22px">‹</button>
+        <h1 data-i18n="insights_title">Insights</h1>
+      </div>
+    </div>
+  </div>
+  <div class="content"><div id="insights-body"></div></div>
+</section>
+
 <!-- ══ MORE / SETTINGS ══ -->
 <section class="screen" id="s-more">
   <div class="hdr-plain"><h1 data-i18n="more_title">More</h1></div>
@@ -133,133 +142,170 @@
       </div>
     </div>
 
-    <div class="section-title" data-i18n="work_type">Work type</div>
-    <div class="settings-list">
-      <div class="settings-row">
-        <label class="settings-label" for="set-worktype" data-i18n="whats_your_job">What's your job?</label>
-        <select id="set-worktype" onchange="onSettingsTypeChange(this.value)"></select>
-      </div>
-      <div class="settings-row" id="set-custom-row" style="display:none;flex-direction:column;align-items:stretch;gap:10px">
-        <div style="display:flex;flex-direction:column;gap:5px">
-          <label class="settings-label" for="set-custom-name" data-i18n="custom_name_label">Name it</label>
-          <input class="settings-input" id="set-custom-name" style="max-width:none;text-align:left" data-i18n-ph="custom_name_ph" placeholder="e.g. Yoga instructor" oninput="onCustomEdit()">
+    <div id="backup-reminder-body"></div>
+
+    <details class="settings-section" open>
+      <summary class="section-title" data-i18n="manage">Manage</summary>
+      <div class="settings-list">
+        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('services')">
+          <span class="settings-label" data-i18n="services_title">Services</span>
+          <span class="settings-label" style="color:var(--text3)">›</span>
         </div>
-        <div style="display:flex;flex-direction:column;gap:5px">
-          <label class="settings-label" for="set-custom-unit" data-i18n="custom_unit_label">One unit is a</label>
-          <input class="settings-input" id="set-custom-unit" style="max-width:none;text-align:left" data-i18n-ph="custom_unit_ph" placeholder="e.g. Class" oninput="onCustomEdit()">
+        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('invoices')">
+          <span class="settings-label" data-i18n="invoices_title">Invoices</span>
+          <span class="settings-label" style="color:var(--text3)">›</span>
+        </div>
+        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('docs')">
+          <span class="settings-label" data-i18n="manage_docs_row">Docs</span>
+          <span class="settings-label" style="color:var(--text3)">›</span>
         </div>
       </div>
-    </div>
+    </details>
 
-    <div class="section-title">Workflow</div>
-    <p style="font-size:12px;color:var(--text3);margin:-4px 0 10px">The stages each engagement moves through, in order. Reorder or toggle Quote to fit how you work.</p>
-    <div class="settings-list" id="workflow-body"></div>
+    <details class="settings-section">
+      <summary class="section-title" data-i18n="more_tools_title">More tools</summary>
+      <div class="settings-list">
+        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('followups')">
+          <span class="settings-label" data-i18n="followups_row_title">Follow-ups</span>
+          <span class="settings-label" style="color:var(--text3)">›</span>
+        </div>
+        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('portfolio')">
+          <span class="settings-label" data-i18n="portfolio_row_title">Portfolio</span>
+          <span class="settings-label" style="color:var(--text3)">›</span>
+        </div>
+        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('research')">
+          <span class="settings-label" data-i18n="research_row_title">Research</span>
+          <span class="settings-label" style="color:var(--text3)">›</span>
+        </div>
+        <div class="settings-row" id="insights-row" style="cursor:pointer;display:none" onclick="switchScreen('insights')">
+          <span class="settings-label" data-i18n="insights_title">Insights</span>
+          <span class="settings-label" style="color:var(--text3)">›</span>
+        </div>
+      </div>
+    </details>
 
-    <div class="section-title" data-i18n="manage">Manage</div>
-    <div class="settings-list">
-      <div class="settings-row" style="cursor:pointer" tabindex="0" role="button" onclick="switchScreen('pipeline')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchScreen('pipeline')}">
-        <span class="settings-label">Pipeline</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
+    <details class="settings-section" open>
+      <summary class="section-title" data-i18n="workflow_title">Workflow</summary>
+      <div class="settings-list">
+        <div id="workflow-body"></div>
       </div>
-      <div class="settings-row" style="cursor:pointer" tabindex="0" role="button" onclick="switchScreen('customers')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchScreen('customers')}">
-        <span class="settings-label" data-i18n="customers_title">Customers</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
-      </div>
-      <div class="settings-row" style="cursor:pointer" tabindex="0" role="button" onclick="switchScreen('services')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchScreen('services')}">
-        <span class="settings-label" data-i18n="services_title">Services</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
-      </div>
-      <div class="settings-row" style="cursor:pointer" tabindex="0" role="button" onclick="switchScreen('invoices')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchScreen('invoices')}">
-        <span class="settings-label">Invoices</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
-      </div>
-      <div class="settings-row" style="cursor:pointer" tabindex="0" role="button" onclick="switchScreen('tax')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();switchScreen('tax')}">
-        <span class="settings-label">Tax</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
-      </div>
-      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('followups')">
-        <span class="settings-label">Follow-ups</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
-      </div>
-      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('portfolio')">
-        <span class="settings-label">Portfolio</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
-      </div>
-      <div class="settings-row" style="cursor:pointer" onclick="switchScreen('research')">
-        <span class="settings-label">Research</span>
-        <span class="settings-label" style="color:var(--text3)">›</span>
-      </div>
-    </div>
+    </details>
 
-    <div class="section-title" data-i18n="preferences">Preferences</div>
-    <div class="settings-list">
-      <div class="settings-row">
-        <label class="settings-label" for="set-currency" data-i18n="currency">Currency</label>
-        <select id="set-currency" onchange="onCurrencyChange(this.value)">
-          <option value="THB">฿ THB</option><option value="USD">$ USD</option>
-          <option value="EUR">€ EUR</option><option value="GBP">£ GBP</option>
-          <option value="SGD">S$ SGD</option><option value="MYR">RM MYR</option>
-        </select>
+    <details class="settings-section" open>
+      <summary class="section-title" data-i18n="preferences">Preferences</summary>
+      <div class="settings-list">
+        <div class="settings-row">
+          <label class="settings-label" for="set-lang" data-i18n="language">Language</label>
+          <select id="set-lang" onchange="onLangChange(this.value)">
+            <option value="en">English</option>
+            <option value="th">ไทย</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-currency" data-i18n="currency">Currency</label>
+          <select id="set-currency" onchange="onCurrencyChange(this.value)">
+            <option value="THB">฿ THB</option><option value="USD">$ USD</option>
+            <option value="EUR">€ EUR</option><option value="GBP">£ GBP</option>
+            <option value="SGD">S$ SGD</option><option value="MYR">RM MYR</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-goal" data-i18n="daily_goal">Daily income goal</label>
+          <input class="settings-input tnum" id="set-goal" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalChange(this.value)">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-page-size" data-i18n="page_size_label">Document page size</label>
+          <select id="set-page-size" onchange="onPageSizeChange(this.value)">
+            <option value="A4">A4</option>
+            <option value="A5">A5</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-notifications" data-i18n="notifications_label">Notifications</label>
+          <input type="checkbox" id="set-notifications" style="width:20px;height:20px" onchange="onNotificationsToggle(this.checked)">
+        </div>
       </div>
-      <div class="settings-row">
-        <label class="settings-label" for="set-goal" data-i18n="daily_goal">Daily income goal</label>
-        <input class="settings-input tnum" id="set-goal" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalChange(this.value)">
-      </div>
-      <div class="settings-row">
-        <label class="settings-label" for="set-promptpay">PromptPay ID</label>
-        <input class="settings-input" id="set-promptpay" type="text" inputmode="tel" placeholder="Phone or Tax ID" onchange="onPromptPayChange(this.value)">
-      </div>
-    </div>
+      <p style="font-size:12px;color:var(--text3);margin:-4px 16px 4px" data-i18n="notifications_sub">Overdue invoices, bookings starting soon, and stuck engagements — only while this app is open or recently open in the background.</p>
+    </details>
 
-    <div class="section-title" data-i18n="tax_defaults">Tax defaults</div>
-    <div class="settings-list">
-      <div class="settings-row">
-        <label class="settings-label" for="set-wht" data-i18n="wht">Withholding tax %</label>
-        <input class="settings-input tnum" id="set-wht" type="number" inputmode="decimal" min="0" max="100" placeholder="3" onchange="onWhtChange(this.value)">
-      </div>
-      <div class="settings-row">
-        <label class="settings-label" for="set-vat" data-i18n="vat">VAT %</label>
-        <input class="settings-input tnum" id="set-vat" type="number" inputmode="decimal" min="0" max="100" placeholder="7" onchange="onVatChange(this.value)">
-      </div>
-    </div>
+    <details class="settings-section" open>
+      <summary class="section-title" data-i18n="payment_channels_title">Payment channels</summary>
+      <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px" data-i18n="payment_channels_sub">Add PromptPay, bank transfer, cash, or another method so clients know how to pay you. PromptPay shows a scannable QR on invoices; the rest show as reference text.</p>
+      <div id="payment-channels-list" style="margin:0 16px 10px"></div>
+      <button class="btn-submit" style="margin:0 16px 20px;width:calc(100% - 32px)" onclick="openAddPaymentChannel()" data-i18n="add_payment_channel">+ Add payment channel</button>
+    </details>
 
-    <div class="section-title" data-i18n="data">Data</div>
-    <div class="export-btns">
-      <button onclick="exportCSV()" data-i18n="export_csv">Export CSV</button>
-      <button onclick="exportBackup()" data-i18n="backup_json">Backup JSON</button>
-    </div>
-    <div class="export-btns" style="grid-template-columns:1fr">
-      <button onclick="exportCustomersCSV()" data-i18n="export_customers_csv">Export customers CSV</button>
-    </div>
-    <div class="export-btns" style="grid-template-columns:1fr">
-      <button onclick="exportInvoicesCSV()">Export invoices CSV</button>
-    </div>
-    <div class="export-btns" style="grid-template-columns:1fr">
-      <button onclick="pickBackupFile()" data-i18n="restore_json">Restore JSON</button>
-    </div>
-    <input type="file" id="backup-file" accept="application/json,.json" style="display:none" onchange="importBackup(this)">
+    <details class="settings-section" open>
+      <summary class="section-title" data-i18n="business_info_title">Business info (optional)</summary>
+      <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px" data-i18n="business_info_sub">Fill these in to have them show up automatically on your quotes, invoices, and receipts — none of them are required.</p>
+      <div class="settings-list">
+        <div class="settings-row">
+          <label class="settings-label" for="set-seller-name" data-i18n="business_name">Business name</label>
+          <input class="settings-input" id="set-seller-name" type="text" placeholder="Defaults to your account name" data-i18n-ph="business_name_ph" onchange="onSellerBusinessNameChange(this.value)">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-seller-taxid" data-i18n="business_taxid">Tax ID</label>
+          <input class="settings-input" id="set-seller-taxid" type="text" onchange="onSellerTaxIdChange(this.value)">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-seller-address" data-i18n="business_address">Address</label>
+          <input class="settings-input" id="set-seller-address" type="text" onchange="onSellerAddressChange(this.value)">
+        </div>
+      </div>
+    </details>
+
+    <details class="settings-section" open>
+      <summary class="section-title" data-i18n="tax_defaults">Tax defaults (for M2)</summary>
+      <div class="settings-list">
+        <div class="settings-row">
+          <label class="settings-label" for="set-wht" data-i18n="wht">Withholding tax %</label>
+          <input class="settings-input tnum" id="set-wht" type="number" inputmode="decimal" min="0" max="100" placeholder="3" onchange="onWhtChange(this.value)">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-vat" data-i18n="vat">VAT %</label>
+          <input class="settings-input tnum" id="set-vat" type="number" inputmode="decimal" min="0" max="100" placeholder="7" onchange="onVatChange(this.value)">
+        </div>
+      </div>
+    </details>
+
+    <details class="settings-section" open>
+      <summary class="section-title" data-i18n="data">Data</summary>
+      <div class="export-btns">
+        <button onclick="exportCSV()" data-i18n="export_csv">Export CSV</button>
+        <button onclick="exportBackup()" data-i18n="backup_json">Backup JSON</button>
+      </div>
+      <div class="export-btns" style="grid-template-columns:1fr">
+        <button onclick="exportCustomersCSV()" data-i18n="export_customers_csv">Export clients CSV</button>
+      </div>
+      <div class="export-btns" style="grid-template-columns:1fr">
+        <button onclick="exportInvoicesCSV()" data-i18n="export_invoices_csv">Export invoices CSV</button>
+      </div>
+      <div class="export-btns" style="grid-template-columns:1fr">
+        <button onclick="pickBackupFile()" data-i18n="restore_json">Restore JSON</button>
+      </div>
+      <input type="file" id="backup-file" accept="application/json,.json" style="display:none" onchange="importBackup(this)">
+    </details>
 
     <div class="settings-list" style="margin-top:16px">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version">0.7.6</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.3</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
   </div>
 </section>
 
-<!-- ══ CUSTOMERS ══ -->
+<!-- ══ CUSTOMERS (nav label: "Clients") ══ -->
 <section class="screen" id="s-customers">
   <div class="hdr-plain">
     <div class="hdr-row">
       <div style="display:flex;align-items:center;gap:12px">
-        <button class="avatar" onclick="switchScreen('more')" aria-label="Back" style="font-size:22px">‹</button>
-        <h1 data-i18n="customers_title">Customers</h1>
+        <h1 data-i18n="customers_title">Clients</h1>
       </div>
     </div>
   </div>
   <div class="content">
-    <button class="btn-submit" style="margin:0 0 16px;width:100%" onclick="openAddCustomer()" data-i18n="add_customer">Add customer</button>
+    <button class="btn-submit" style="margin:0 0 16px;width:100%" onclick="openAddCustomer()" data-i18n="add_customer">Add client</button>
     <div id="customers-body"></div>
   </div>
 </section>
@@ -286,22 +332,22 @@
     <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
     <span data-i18n="nav_home">Home</span>
   </button>
-  <button class="nav-btn" id="nav-jobs" onclick="switchScreen('jobs')">
-    <svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
-    <span data-i18n="nav_jobs">Jobs</span>
-    <span class="nav-badge" id="jobs-badge" style="display:none">0</span>
+  <button class="nav-btn" id="nav-pipeline" onclick="switchScreen('pipeline')">
+    <svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M7 21v-7"/><path d="M12 21V6"/><path d="M17 21v-4"/></svg>
+    <span data-i18n="nav_pipeline">Pipeline</span>
   </button>
-  <button class="nav-btn" id="nav-docs" onclick="switchScreen('docs')">
-    <svg viewBox="0 0 24 24"><path d="M13 3H6v18h12V8z"/><path d="M13 3v5h5"/></svg>
-    <span data-i18n="nav_docs">Docs</span>
+  <button class="nav-btn" id="nav-customers" onclick="switchScreen('customers')">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    <span data-i18n="nav_customers">Clients</span>
   </button>
   <button class="nav-btn" id="nav-book" onclick="switchScreen('book')">
     <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>
-    <span data-i18n="nav_book">Book</span>
+    <span data-i18n="nav_book">Calendar</span>
   </button>
   <button class="nav-btn" id="nav-more" onclick="switchScreen('more')">
     <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
     <span data-i18n="nav_more">More</span>
+    <span class="nav-badge" id="more-nav-badge" style="display:none"></span>
   </button>
 </nav>
 
@@ -312,44 +358,37 @@
 <div class="modal-overlay" id="modal-job">
   <div class="modal" role="dialog" aria-modal="true">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="modal-title" data-i18n="add_job">Add job</div>
+    <div class="modal-title" id="modal-title" data-i18n="add_job">Add session</div>
     <input type="hidden" id="j-edit-id">
 
     <div class="form-section">
       <div class="field">
         <label for="j-date" data-i18n="field_date">Date</label>
-        <input type="date" id="j-date" onchange="calcDuration()">
-      </div>
-      <div class="form-row">
-        <div class="field-half"><label for="j-start" data-i18n="field_start">Start time</label><input type="time" id="j-start" onchange="calcDuration()"></div>
-        <div class="field-half"><label for="j-end" data-i18n="field_end">End time</label><input type="time" id="j-end" onchange="calcDuration()"></div>
-      </div>
-      <div class="field">
-        <label><span data-i18n="duration">Duration</span> <span id="j-overnight" style="display:none;color:var(--due);font-weight:700" data-i18n="ends_next_day">ends next day</span></label>
-        <div id="j-dur" style="padding:5px 0 12px;font-size:16px">—</div>
+        <input type="date" id="j-date">
       </div>
     </div>
 
     <div class="form-section">
       <div class="field">
-        <label for="j-customer" data-i18n="field_customer">Customer</label>
+        <label for="j-customer" data-i18n="field_customer">Client</label>
         <select id="j-customer" onchange="onJobCustomerChange(this.value)"></select>
-      </div>
-      <div class="field">
-        <label for="j-client" data-i18n="field_client">Client</label>
-        <input type="text" id="j-client" data-i18n-ph="field_client_ph" placeholder="e.g. Acme Co.">
       </div>
       <div class="field">
         <label for="j-service" data-i18n="field_service">Service</label>
         <select id="j-service" onchange="onJobServiceChange(this.value)"></select>
       </div>
+      <div class="field" id="j-package-row" style="display:none;flex-direction:row;align-items:center;justify-content:space-between;gap:10px">
+        <label id="j-package-label" for="j-apply-package" style="margin:0">Apply to package</label>
+        <input type="checkbox" id="j-apply-package" style="width:20px;height:20px;flex-shrink:0">
+        <input type="hidden" id="j-package-id">
+      </div>
       <div class="form-row">
-        <div class="field-half"><label for="j-amount" data-i18n="field_amount">Amount</label><input type="number" id="j-amount" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
+        <div class="field-half"><label for="j-amount" data-i18n="field_amount">Fee</label><input type="number" id="j-amount" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
         <div class="field-half"><label for="j-tip" data-i18n="field_tip">Tip</label><input type="number" id="j-tip" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
       </div>
       <div class="form-row">
         <div class="field-half"><label for="j-expense" data-i18n="field_expense">Expense</label><input type="number" id="j-expense" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
-        <div class="field-half"><label for="j-count" data-i18n="field_count">Count</label><input type="number" id="j-count" class="tnum" inputmode="numeric" min="0" placeholder="0"></div>
+        <div class="field-half"><label for="j-count" data-i18n="field_count">Sessions</label><input type="number" id="j-count" class="tnum" inputmode="numeric" min="0" placeholder="0"></div>
       </div>
       <div class="field">
         <label for="j-notes" data-i18n="field_notes">Notes</label>
@@ -362,8 +401,8 @@
       <span class="net-box-val tnum" id="j-net">฿0</span>
     </div>
 
-    <button class="btn-submit" onclick="saveJob()" data-i18n="save_job">Save job</button>
-    <button class="btn-danger" id="j-delete" style="display:none" onclick="deleteJob()" data-i18n="delete_job">Delete job</button>
+    <button class="btn-submit" onclick="saveJob()" data-i18n="save_job">Save session</button>
+    <button class="btn-danger" id="j-delete" style="display:none" onclick="deleteJob()" data-i18n="delete_job">Delete session</button>
     <button class="btn-danger" style="border-color:var(--border-mid);color:var(--text3)" onclick="closeJobModal()" data-i18n="cancel">Cancel</button>
   </div>
 </div>
@@ -372,9 +411,10 @@
 <div class="modal-overlay" id="modal-customer">
   <div class="modal" role="dialog" aria-modal="true">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="cust-modal-title" data-i18n="add_customer">Add customer</div>
+    <div class="modal-title" id="cust-modal-title" data-i18n="add_customer">Add client</div>
     <input type="hidden" id="c-edit-id">
     <div class="form-section">
+      <div class="field"><label for="c-memberno" data-i18n="field_member_no">Member ID</label><input type="text" id="c-memberno" readonly disabled style="color:var(--text3)"></div>
       <div class="field"><label for="c-name" data-i18n="field_name">Name</label><input type="text" id="c-name"></div>
       <div class="field"><label for="c-phone" data-i18n="field_phone">Phone</label><input type="tel" id="c-phone"></div>
       <div class="field"><label for="c-email" data-i18n="field_email">Email</label><input type="email" id="c-email" autocapitalize="none"></div>
@@ -385,11 +425,19 @@
       <div class="field"><label for="c-billing" data-i18n="field_billing">Billing address</label><input type="text" id="c-billing"></div>
     </div>
     <div class="form-section" id="cust-intake"></div>
+    <div class="form-section" id="cust-package-section" style="display:none">
+      <div class="section-title" style="margin:0 0 8px">Session package</div>
+      <div id="cust-package-body"></div>
+    </div>
+    <div class="form-section" id="cust-progress-section" style="display:none">
+      <div class="section-title" style="margin:0 0 8px">Progress log</div>
+      <div id="cust-progress-body"></div>
+    </div>
     <div class="form-section">
       <div class="field"><label for="c-notes" data-i18n="field_notes">Notes</label><textarea id="c-notes" rows="2"></textarea></div>
     </div>
-    <button class="btn-submit" onclick="saveCustomer()" data-i18n="save_customer">Save customer</button>
-    <button class="btn-danger" id="c-delete" style="display:none" onclick="deleteCustomer()" data-i18n="delete_customer">Delete customer</button>
+    <button class="btn-submit" onclick="saveCustomer()" data-i18n="save_customer">Save client</button>
+    <button class="btn-danger" id="c-delete" style="display:none" onclick="deleteCustomer()" data-i18n="delete_customer">Delete client</button>
     <button class="btn-danger" style="border-color:var(--border-mid);color:var(--text3)" onclick="closeCustomerModal()" data-i18n="cancel">Cancel</button>
   </div>
 </div>
@@ -413,50 +461,19 @@
   </div>
 </div>
 
-<!-- ══ ONBOARDING ══ -->
-<div class="onboarding" id="onboarding">
-  <img class="ob-logo" src="icons/icon.svg" alt="">
-  <h2 data-i18n="onboard_title">What kind of work do you do?</h2>
-  <p data-i18n="onboard_sub">We’ll tailor labels and screens to fit. You can change this anytime in Settings.</p>
-  <div class="form-section" style="margin:0 0 14px">
-    <div class="field">
-      <label for="ob-jobtype" data-i18n="whats_your_job">What's your job?</label>
-      <select id="ob-jobtype" onchange="onOnboardTypeChange(this.value)"></select>
-    </div>
-  </div>
-  <div class="form-section" id="ob-custom" style="display:none;margin:0 0 14px">
-    <div class="field">
-      <label for="ob-custom-name" data-i18n="custom_name_label">Name it</label>
-      <input type="text" id="ob-custom-name" data-i18n-ph="custom_name_ph" placeholder="e.g. Yoga instructor">
-    </div>
-    <div class="field">
-      <label for="ob-custom-unit" data-i18n="custom_unit_label">One unit is a</label>
-      <input type="text" id="ob-custom-unit" data-i18n-ph="custom_unit_ph" placeholder="e.g. Class">
-    </div>
-  </div>
-  <button class="btn-submit" style="margin:0;width:100%" onclick="confirmOnboarding()" data-i18n="continue_btn">Continue</button>
-</div>
-
-<!-- Non-blocking "save this session's client as a customer" banner -->
-<div class="action-banner" id="save-cust-banner" role="status" aria-live="polite">
-  <span id="save-cust-text" class="action-banner-text">Save as a customer?</span>
-  <button type="button" class="action-banner-btn" onclick="acceptSaveCustomerBanner()">Save</button>
-  <button type="button" class="action-banner-dismiss" aria-label="Dismiss" onclick="dismissSaveCustomerBanner()">×</button>
-</div>
-
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.7.6"></script>
+<script src="app.js?v=0.9.3"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.7.6"></script>
-<script src="invoices.js?v=0.7.6"></script>
-<script src="docgen.js?v=0.7.6"></script>
+<script src="tax.js?v=0.9.3"></script>
+<script src="invoices.js?v=0.9.3"></script>
+<script src="docgen.js?v=0.9.3"></script>
 <!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
      the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
-<script src="bookings.js?v=0.7.6"></script>
-<script src="followups.js?v=0.7.6"></script>
-<script src="portfolio.js?v=0.7.6"></script>
+<script src="bookings.js?v=0.9.3"></script>
+<script src="followups.js?v=0.9.3"></script>
+<script src="portfolio.js?v=0.9.3"></script>
 <!-- M5: research.js (content library, subscription UI stubbed open — no
      payment verification yet; see project-changelog-handshake.md). -->
-<script src="research.js?v=0.7.6"></script>
+<script src="research.js?v=0.9.3"></script>

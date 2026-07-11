@@ -1,4 +1,4 @@
-/* Freelanz — local dev server for M-AI testing, without needing a Vercel
+/* Sidekick — local dev server for M-AI testing, without needing a Vercel
  * deploy first. Zero dependencies (Node built-ins only).
  *
  * Serves app/ as static files and routes POST /api/draft-followup to the
@@ -82,7 +82,7 @@ const server = http.createServer(async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Freelanz dev server running at http://localhost:${PORT}/`);
+  console.log(`Sidekick dev server running at http://localhost:${PORT}/`);
   if (!process.env.ANTHROPIC_AUTH_TOKEN && !process.env.ANTHROPIC_API_KEY) {
     console.log('NOTE: no ANTHROPIC_AUTH_TOKEN/ANTHROPIC_API_KEY set — copy .env.example to .env and fill in the real (rotated) values to test the AI Draft button.');
   }

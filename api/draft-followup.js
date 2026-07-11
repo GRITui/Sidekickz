@@ -1,4 +1,4 @@
-/* Freelanz — api/draft-followup.js (M-AI, Vercel serverless function)
+/* Sidekick — api/draft-followup.js (M-AI, Vercel serverless function)
  *
  * The ONE place in this project that talks to the network for anything
  * beyond static assets. Everything else is local-first by design; this
@@ -11,43 +11,12 @@
  * Settings → Environment Variables — never commit them, never paste them
  * in chat (rotate immediately if one ever is).
  */
-// Best-effort in-memory sliding-window rate limit, keyed per client IP.
-// NOTE: serverless instances are ephemeral and NOT shared, so this only
-// throttles bursts that hit one warm instance — for durable, cross-instance
-// limits use a shared store such as Vercel KV / Upstash Redis in production.
-const RATE_LIMIT = 10;          // max requests…
-const RATE_WINDOW_MS = 60_000;  // …per IP per minute
-function rateLimited(ip) {
-  const store = (globalThis.__flzRate = globalThis.__flzRate || new Map());
-  const now = Date.now();
-  const hits = (store.get(ip) || []).filter(ts => now - ts < RATE_WINDOW_MS);
-  hits.push(now);
-  store.set(ip, hits);
-  return hits.length > RATE_LIMIT;
-}
-
 export default async function handler(req, res) {
-  // CORS: only ever advertise the single configured origin (never '*') so other
-  // sites can't read this endpoint's responses from a browser.
-  const allowedOrigin = process.env.ALLOWED_ORIGIN;
-  const origin = req.headers.origin;
-  if (allowedOrigin) res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-  res.setHeader('Vary', 'Origin');
+  res.setHeader('Access-Control-Allow-Origin', process.env.ALLOWED_ORIGIN || '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
-  // Origin enforcement: once ALLOWED_ORIGIN is configured, reject any browser
-  // request whose Origin header doesn't match it. (Same-origin requests may omit
-  // Origin, so a missing header is allowed; pre-deploy the var may be unset.)
-  if (allowedOrigin && origin && origin !== allowedOrigin) {
-    res.status(403).json({ error: 'Forbidden origin' });
-    return;
-  }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
-
-  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()
-    || (req.socket && req.socket.remoteAddress) || 'unknown';
-  if (rateLimited(ip)) { res.status(429).json({ error: 'Too many requests, please slow down' }); return; }
 
   const body = req.body || {};
   const reason = typeof body.reason === 'string' ? body.reason.slice(0, 300) : '';

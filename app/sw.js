@@ -1,16 +1,25 @@
-/* Freelanz service worker — local-first PWA app shell.
+/* Sidekick service worker — local-first PWA app shell.
  *
  * VERSION LOCKSTEP: SW_VERSION tracks APP_VERSION in app.js.
- *   app.js  APP_VERSION = '0.7.6'
- *   sw.js   SW_VERSION   = 'freelanz-v0.7.6'
+ *   app.js  APP_VERSION = '0.9.3'
+ *   sw.js   SW_VERSION   = 'sidekick-v0.9.3'
  * Bump BOTH together on every deploy, and keep the ?v= query on the precached
  * app.js / styles.css in step (they double as cache-busters).
  *
  * No backend, no secrets: this SW only precaches the versioned shell and serves
  * same-origin assets cache-first so the app works fully offline.
+ *
+ * Formerly "freelanz-gym-shell-" — that prefix existed because this app used
+ * to co-host with a separate "Freelanz" app on the same origin (root vs /gym/)
+ * and Cache Storage is scoped per-origin, not per-path. That sibling app has
+ * been retired; the activate handler below still only deletes keys matching
+ * ITS OWN current prefix, so an old 'freelanz-gym-shell-*' cache from before
+ * this rename is simply left alone (harmless, and evicted by the browser's
+ * normal cache-storage limits over time) rather than actively cleaned up.
  */
-const SW_VERSION = 'freelanz-v0.7.6';
-const SHELL_CACHE = `freelanz-shell-${SW_VERSION}`;
+const SW_VERSION = 'sidekick-v0.9.3';
+const CACHE_PREFIX = 'sidekick-shell-';
+const SHELL_CACHE = `${CACHE_PREFIX}${SW_VERSION}`;
 
 // BASE is derived from the SW's own location so the app works mounted at any
 // subpath (e.g. /freelanz/ on shared hosting), not just the domain root.
@@ -20,16 +29,15 @@ const SHELL_ASSETS = [
   BASE,
   BASE + 'index.html',
   BASE + 'login.html',
-  BASE + 'info/',
-  BASE + 'app.js?v=0.7.6',
-  BASE + 'tax.js?v=0.7.6',
-  BASE + 'invoices.js?v=0.7.6',
-  BASE + 'docgen.js?v=0.7.6',
-  BASE + 'bookings.js?v=0.7.6',
-  BASE + 'followups.js?v=0.7.6',
-  BASE + 'portfolio.js?v=0.7.6',
-  BASE + 'research.js?v=0.7.6',
-  BASE + 'styles.css?v=0.7.6',
+  BASE + 'app.js?v=0.9.3',
+  BASE + 'tax.js?v=0.9.3',
+  BASE + 'invoices.js?v=0.9.3',
+  BASE + 'docgen.js?v=0.9.3',
+  BASE + 'bookings.js?v=0.9.3',
+  BASE + 'followups.js?v=0.9.3',
+  BASE + 'portfolio.js?v=0.9.3',
+  BASE + 'research.js?v=0.9.3',
+  BASE + 'styles.css?v=0.9.3',
   BASE + 'manifest.json',
   BASE + 'icons/icon.svg',
   BASE + 'icons/icon-192.png',
@@ -49,7 +57,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
-        keys.filter((k) => k !== SHELL_CACHE).map((k) => caches.delete(k))
+        keys.filter((k) => k.startsWith(CACHE_PREFIX) && k !== SHELL_CACHE).map((k) => caches.delete(k))
       ))
       .then(() => self.clients.claim())
   );
@@ -94,4 +102,18 @@ self.addEventListener('fetch', (e) => {
 // Let the page tell a waiting SW to activate immediately.
 self.addEventListener('message', (e) => {
   if (e.data === 'SKIP_WAITING') self.skipWaiting();
+});
+
+// Tapping an app-triggered OS notification (app.js's showOsNotification())
+// focuses an already-open tab if there is one, otherwise opens a new one —
+// standard PWA notification-click behavior.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil((async () => {
+    const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of clientsList) {
+      if (c.url.startsWith(BASE) && 'focus' in c) return c.focus();
+    }
+    return self.clients.openWindow(BASE);
+  })());
 });

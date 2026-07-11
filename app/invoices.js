@@ -1,4 +1,4 @@
-/* Freelanz — invoices.js  (M2 INVOICING + PromptPay)
+/* Sidekick — invoices.js  (M2 INVOICING + PromptPay)
  *
  * OWNED BY the invoicing agent. Replaces the stub entirely.
  * Loaded AFTER app.js and tax.js, so app.js globals (dbAll, dbAdd, dbPut,
@@ -49,18 +49,8 @@
     return rows;
   }
 
-  function nextNumber(rows) {
-    const year = todayISO().slice(0, 4);
-    const prefix = `INV-${year}-`;
-    let max = 0;
-    rows.forEach(r => {
-      if (typeof r.number === 'string' && r.number.indexOf(prefix) === 0) {
-        const seq = parseInt(r.number.slice(prefix.length), 10);
-        if (isFinite(seq) && seq > max) max = seq;
-      }
-    });
-    return prefix + String(max + 1).padStart(4, '0');
-  }
+  // Shared with docgen.js's quote/receipt numbering — see app.js's nextDocNumber().
+  function nextNumber(rows) { return nextDocNumber(rows, 'INV'); }
 
   function statusChip(status) {
     const map = {
@@ -88,7 +78,7 @@
 
     if (!rows.length) {
       el.innerHTML = btn +
-        `<div class="empty"><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg></div>
+        `<div class="empty"><div class="empty-icon">🧾</div>
            <p>No invoices yet</p>
            <span>Create your first invoice — add line items, snapshot tax, and share a PromptPay QR.</span>
          </div>`;
@@ -109,7 +99,7 @@
     const list = '<div class="list-card">' + rows.map(r => {
       const sub = [esc(r.clientName || 'No client'), esc(fmtInvDate(r.issueDate))].filter(Boolean).join(' · ');
       return `<div class="list-row" data-inv="${r.id}" tabindex="0" role="button">
-        <div class="list-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg></div>
+        <div class="list-icon">🧾</div>
         <div class="list-main">
           <div class="list-title">${esc(r.number || 'Invoice')}</div>
           <div class="list-sub">${sub}</div>
@@ -145,7 +135,7 @@
   // ══════════════════════════════════════════════════════════════════════
   let lines = [];        // working line items: {description, qty, unitPrice}
   let editing = null;    // full record being edited, or null on create
-  let formFromJobId = null; // pipeline job this form was opened from (for engagement linking)
+  let formFromJobId = null; // pipeline session this form was opened from (for engagement linking)
 
   function openInvoiceForm(fromJobId, prefillQuote) {
     editing = null;
@@ -230,8 +220,7 @@
 
     const custOpts = `<option value="">— Free text —</option>` +
       (typeof customers !== 'undefined' ? customers : []).map(c =>
-        `<option value="${c.id}"${String(c.id) === String(v.clientId) ? ' selected' : ''}>${esc(c.name)}</option>`).join('') +
-      `<option value="__new">＋ New customer…</option>`;
+        `<option value="${c.id}"${String(c.id) === String(v.clientId) ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
 
     const svcOpts = `<option value="">+ Add line from service…</option>` +
       (typeof services !== 'undefined' ? services : []).map(s =>
@@ -325,27 +314,6 @@
 
   function onCustChange(e) {
     const id = e.target.value;
-    // "+ New customer" → hand off to app.js's customer form; on save, add + select it.
-    if (id === '__new') {
-      e.target.value = '';
-      if (typeof window.openCustomerForResult === 'function') {
-        window.openCustomerForResult('', (cust) => {
-          const sel = document.getElementById('inv-cust');
-          if (sel) {
-            const opt = document.createElement('option');
-            opt.value = String(cust.id);
-            opt.textContent = cust.name || 'Unnamed';
-            sel.insertBefore(opt, sel.lastElementChild);   // before the "+ New customer" option
-            sel.value = String(cust.id);
-          }
-          const set = (s, val) => { const el = document.querySelector(s); if (el) el.value = val || ''; };
-          set('#inv-cname', cust.name);
-          set('#inv-ctax', cust.taxId);
-          set('#inv-caddr', cust.billingAddress);
-        });
-      }
-      return;
-    }
     if (!id) return;
     const c = (typeof customers !== 'undefined' ? customers : []).find(x => String(x.id) === String(id));
     if (!c) return;
@@ -481,7 +449,11 @@
       vat: tax.vat, wht: tax.wht, clientPays: tax.clientPays, youReceive: tax.youReceive,
       depositPct,
       status: document.getElementById('inv-status').value || 'draft',
-      promptpayId: (typeof settings !== 'undefined' && settings && settings.promptpayId) ? settings.promptpayId : '',
+      // Snapshot the whole payment-channels list at issue time (JSON
+      // round-trip = deep copy) so a later Settings change never rewrites
+      // what a client already saw on an issued invoice.
+      paymentChannels: (typeof settings !== 'undefined' && settings && Array.isArray(settings.paymentChannels))
+        ? JSON.parse(JSON.stringify(settings.paymentChannels)) : [],
       notes: document.getElementById('inv-notes').value.trim(),
       updatedAt: nowISO(),
     };
@@ -490,7 +462,7 @@
       if (isEdit) {
         base.id = editing.id;
         base.cuid = editing.cuid || cuid();
-        if (editing.promptpayId) base.promptpayId = editing.promptpayId; // preserve issue-time snapshot
+        if (editing.paymentChannels) base.paymentChannels = editing.paymentChannels; // preserve issue-time snapshot
         await dbPut(STORE, base);
         toast('Invoice updated');
       } else {
@@ -498,7 +470,7 @@
         const newId = await dbAdd(STORE, base);
         base.id = newId;
         toast('Invoice ' + base.number + ' created');
-        // Engagement linking: let app.js link invoiceId onto the job + advance.
+        // Engagement linking: let app.js link invoiceId onto the session + advance.
         if (formFromJobId != null && typeof window.onEngagementInvoiceCreated === 'function') {
           try { window.onEngagementInvoiceCreated(newId, formFromJobId); } catch (e) { /* non-fatal */ }
         }
@@ -610,8 +582,8 @@
     document.body.appendChild(overlay);
     overlay.classList.add('open');
 
-    // PromptPay QR
-    renderPromptPayInto(document.getElementById('inv-qr-wrap'), inv);
+    // Payment channels (PromptPay QR + any bank/cash/other reference text)
+    renderPaymentChannelsInto(document.getElementById('inv-qr-wrap'), inv);
 
     overlay.querySelector('#inv-d-edit').addEventListener('click', () => { closeModal('inv-detail-modal'); openInvoiceEdit(inv); });
     overlay.querySelector('#inv-d-print').addEventListener('click', () => printInvoice(inv));
@@ -632,51 +604,64 @@
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  //  PromptPay: EMVCo payload + QR render
+  //  Payment channels: PromptPay EMVCo payload + QR render, plus plain
+  //  reference text for bank/cash/other channels (app.js owns the settings
+  //  CRUD for the saved channel list — PAYMENT_CHANNEL_TYPES/renderPaymentChannels()).
   // ══════════════════════════════════════════════════════════════════════
-  function renderPromptPayInto(wrap, inv) {
+  // Prefer the invoice's own issue-time snapshot; fall back to live settings
+  // for invoices saved before this feature existed, and further fall back to
+  // a synthesized single channel from the older single-field promptpayId.
+  function invoicePaymentChannels(inv) {
+    if (Array.isArray(inv.paymentChannels) && inv.paymentChannels.length) return inv.paymentChannels;
+    if (inv.promptpayId) return [{ id: 'legacy', type: 'promptpay', label: 'PromptPay', detail: inv.promptpayId }];
+    if (typeof settings !== 'undefined' && settings && Array.isArray(settings.paymentChannels)) return settings.paymentChannels;
+    return [];
+  }
+  function channelTypeLabel(type) {
+    return (typeof PAYMENT_CHANNEL_TYPES !== 'undefined' && PAYMENT_CHANNEL_TYPES[type]) ? PAYMENT_CHANNEL_TYPES[type].label : type;
+  }
+
+  function renderPaymentChannelsInto(wrap, inv) {
     if (!wrap) return;
-    const rawId = (typeof settings !== 'undefined' && settings && settings.promptpayId)
-      ? settings.promptpayId
-      : (inv.promptpayId || '');
-    const target = normalizePromptPay(rawId);
-    if (!target) {
+    const chans = invoicePaymentChannels(inv);
+    if (!chans.length) {
       wrap.innerHTML = `<div style="background:var(--marigold-tint);border-radius:var(--radius-sm);padding:14px;font-size:13px;color:var(--marigold-ink)">
-        Set your PromptPay ID (phone or 13-digit national ID) in <b>More → Settings</b> to show a scannable payment QR.</div>`;
+        Add a payment channel (PromptPay, bank transfer, etc.) in <b>More → Settings</b> to show clients how to pay.</div>`;
       return;
     }
-    // PromptPay QR must encode the NET the freelancer actually receives, not the
-    // gross the client is billed. In Thailand the client withholds WHT and pays
-    // the freelancer the net (youReceive); encoding clientPays would make the
-    // client overpay by the withheld tax. When a deposit is set, the QR should
-    // represent just the deposit portion of that net.
-    const round2 = v => Math.round((Number(v) || 0) * 100) / 100;
-    const baseNet = n(inv.whtPct) > 0 ? n(inv.youReceive) : n(inv.clientPays);
-    const isDeposit = n(inv.depositPct) > 0;
-    const qrAmount = isDeposit ? round2(baseNet * n(inv.depositPct) / 100) : round2(baseNet);
-    let payload;
-    try {
-      payload = buildPromptPayPayload(target, qrAmount);
-    } catch (e) {
-      wrap.innerHTML = `<div style="font-size:12px;color:var(--overdue)">Could not build PromptPay payload.</div>`;
-      return;
-    }
+    const amount = n(inv.clientPays);
+    wrap.innerHTML = chans.map((c, i) => {
+      const gap = i < chans.length - 1 ? '10px' : '0';
+      if (c.type === 'promptpay') {
+        if (!normalizePromptPay(c.detail)) return '';
+        return `<div style="margin-bottom:${gap}">
+            <div style="display:inline-block;background:#fff;padding:14px;border-radius:14px;border:1px solid var(--border)">
+              <canvas id="inv-qr-canvas-${i}" style="display:block;image-rendering:pixelated"></canvas>
+            </div>
+            <div style="font-size:12px;color:var(--text3);margin-top:6px">Scan with any Thai banking app · ${esc(c.label || 'PromptPay')}</div>
+            <div class="tnum" style="font-size:16px;font-weight:800;color:var(--text);margin-top:2px">${esc(money2(amount))}</div>
+          </div>`;
+      }
+      return `<div style="text-align:left;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:${gap}">
+          <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.3px">${esc(c.label || channelTypeLabel(c.type))}</div>
+          ${c.detail ? `<div style="font-size:14px;color:var(--text);white-space:pre-wrap;margin-top:4px">${esc(c.detail)}</div>` : ''}
+        </div>`;
+    }).join('');
 
-    wrap.innerHTML = `
-      <div style="display:inline-block;background:#fff;padding:14px;border-radius:14px;border:1px solid var(--border)">
-        <canvas id="inv-qr-canvas" style="display:block;image-rendering:pixelated"></canvas>
-      </div>
-      <div style="font-size:12px;color:var(--text3);margin-top:6px">Scan with any Thai banking app · PromptPay</div>
-      <div class="tnum" style="font-size:16px;font-weight:800;color:var(--text);margin-top:2px">${esc((isDeposit ? 'Deposit ' : 'Amount ') + money2(qrAmount))}</div>`;
-
-    try {
-      const modules = qrGenerate(payload, ECL_M);
-      drawQr(document.getElementById('inv-qr-canvas'), modules, 6, 4);
-    } catch (e) {
-      console.error('QR render failed', e);
-      const c = document.getElementById('inv-qr-canvas');
-      if (c) c.replaceWith(Object.assign(document.createElement('div'), { textContent: 'QR unavailable', style: 'font-size:12px;color:var(--overdue)' }));
-    }
+    chans.forEach((c, i) => {
+      if (c.type !== 'promptpay') return;
+      const target = normalizePromptPay(c.detail);
+      if (!target) return;
+      try {
+        const payload = buildPromptPayPayload(target, amount);
+        const modules = qrGenerate(payload, ECL_M);
+        drawQr(document.getElementById('inv-qr-canvas-' + i), modules, 6, 4);
+      } catch (e) {
+        console.error('QR render failed', e);
+        const el = document.getElementById('inv-qr-canvas-' + i);
+        if (el) el.replaceWith(Object.assign(document.createElement('div'), { textContent: 'QR unavailable', style: 'font-size:12px;color:var(--overdue)' }));
+      }
+    });
   }
 
   // Normalize a PromptPay proxy id → {tag, value}.
@@ -1092,12 +1077,54 @@
     }
   }
 
+  // The live detail view can draw straight onto a visible <canvas>; the print
+  // root is a detached/hidden DOM tree until window.print() fires, so the
+  // PromptPay QR is rendered onto an offscreen canvas first and embedded as a
+  // data-URI <img> instead — the only way to guarantee it survives into print.
+  function paymentChannelsPrintHtml(inv) {
+    const chans = invoicePaymentChannels(inv);
+    if (!chans.length) return '';
+    const amount = n(inv.clientPays);
+    const blocks = chans.map(c => {
+      if (c.type === 'promptpay') {
+        const target = normalizePromptPay(c.detail);
+        if (!target) return '';
+        let dataUrl = '';
+        try {
+          const payload = buildPromptPayPayload(target, amount);
+          const modules = qrGenerate(payload, ECL_M);
+          const canvas = document.createElement('canvas');
+          drawQr(canvas, modules, 6, 4);
+          dataUrl = canvas.toDataURL('image/png');
+        } catch (e) { console.error('print QR failed', e); return ''; }
+        if (!dataUrl) return '';
+        return `<div class="pi-pay-block">
+            <img src="${dataUrl}" style="width:120px;height:120px;display:block">
+            <div class="pi-muted" style="margin-top:4px">Scan with any Thai banking app · ${esc(c.label || 'PromptPay')}</div>
+          </div>`;
+      }
+      return `<div class="pi-pay-block">
+          <div style="font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.3px;color:#555">${esc(c.label || channelTypeLabel(c.type))}</div>
+          ${c.detail ? `<div style="white-space:pre-wrap;font-size:13px;margin-top:4px">${esc(c.detail)}</div>` : ''}
+        </div>`;
+    }).filter(Boolean).join('');
+    if (!blocks) return '';
+    return `<div class="pi-pay"><div class="pi-pay-title">Payment</div><div class="pi-pay-grid">${blocks}</div></div>`;
+  }
+
   // ══════════════════════════════════════════════════════════════════════
   //  PRINT / PDF  (print-optimized DOM + window.print(); scoped print CSS)
   // ══════════════════════════════════════════════════════════════════════
   function printInvoice(inv) {
-    const uidUser = (typeof currentUser !== 'undefined' && currentUser) ? currentUser : { firstName: '', username: '' };
-    const fromName = esc(uidUser.firstName || uidUser.username || 'Freelanz');
+    const fromName = esc((typeof sellerBusinessName === 'function') ? sellerBusinessName() : 'Sidekick');
+    // Optional seller tax ID/address — shown only when filled in under
+    // Settings > Business info, mirroring how client tax ID/address below
+    // only show when the client profile has them.
+    const sellerBits = [];
+    if (typeof settings !== 'undefined' && settings) {
+      if (settings.sellerAddress) sellerBits.push(esc(settings.sellerAddress));
+      if (settings.sellerTaxId) sellerBits.push('Tax ID: ' + esc(settings.sellerTaxId));
+    }
 
     const rows = (inv.lineItems || []).map(li => {
       const amt = n(li.qty) * n(li.unitPrice);
@@ -1124,7 +1151,7 @@
       @media print{
         body > *{ display:none !important; }
         #inv-print-root{ display:block !important; position:static; }
-        @page{ margin:16mm; }
+        ${docPageSizeCss()}
       }
       #inv-print-root{ color:#111; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; }
       #inv-print-root .pi-wrap{ max-width:720px; margin:0 auto; padding:24px; }
@@ -1139,6 +1166,10 @@
       #inv-print-root .pi-tot .grand{ font-weight:800; font-size:16px; border-top:2px solid #111; margin-top:4px; padding-top:6px; }
       #inv-print-root .pi-status{ display:inline-block; padding:3px 10px; border:1px solid #111; border-radius:6px; font-size:12px; text-transform:uppercase; }
       #inv-print-root .pi-notes{ margin-top:20px; font-size:12px; color:#555; }
+      #inv-print-root .pi-pay{ margin-top:18px; }
+      #inv-print-root .pi-pay-title{ font-weight:700; font-size:13px; margin-bottom:8px; }
+      #inv-print-root .pi-pay-grid{ display:flex; flex-wrap:wrap; gap:14px; }
+      #inv-print-root .pi-pay-block{ border:1px solid #ddd; border-radius:8px; padding:10px 12px; }
     `;
     document.head.appendChild(style);
 
@@ -1154,6 +1185,7 @@
           </div>
           <div style="text-align:right">
             <div style="font-weight:800;font-size:16px">${fromName}</div>
+            ${sellerBits.map(b => `<div class="pi-muted">${b}</div>`).join('')}
             <div class="pi-status">${esc(inv.status || 'draft')}</div>
           </div>
         </div>
@@ -1175,6 +1207,7 @@
           <div class="r"><span>You receive</span><span>${esc(money2(inv.youReceive))}</span></div>
           ${n(inv.depositPct) > 0 ? `<div class="r"><span>Deposit (${esc(fmt(n(inv.depositPct), 0))}%)</span><span>${esc(money2(deposit))}</span></div>` : ''}
         </div>
+        ${paymentChannelsPrintHtml(inv)}
         ${inv.notes ? `<div class="pi-notes">${esc(inv.notes)}</div>` : ''}
       </div>`;
     document.body.appendChild(root);
