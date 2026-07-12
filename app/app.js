@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.8';          // <-> sw.js SW_VERSION 'sidekick-v0.9.8'
+const APP_VERSION = '0.9.9';          // <-> sw.js SW_VERSION 'sidekick-v0.9.9'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -285,16 +285,56 @@ async function handleLineLoginRedirect() {
     const id = await dbAdd('users', {
       username, salt: null, hash: null, iters: null,
       firstName: profile.name || '', linePicture: profile.picture || '',
-      lineAuth: true, createdAt: nowISO(),
+      lineAuth: true, profileComplete: false, createdAt: nowISO(),
     });
-    user = { id, username, firstName: profile.name || '' };
+    // Re-fetch the full stored row rather than hand-assembling a slim one —
+    // completeLineProfile() below does a keyPath put() of this same object,
+    // which replaces the whole record, so it must carry every field
+    // (salt/hash/iters/linePicture/etc.), not just the ones used here.
+    user = await dbGet('users', id);
   }
+  // profileComplete is undefined on any account created before this gate
+  // existed (password accounts always had a name up front, and earlier LINE
+  // sign-ins finished before this field existed) — only an explicit `false`
+  // blocks entry, so nobody already-signed-up gets stopped retroactively.
+  if (user.profileComplete === false) {
+    showLineProfileStep(user);
+    return true;
+  }
+  finishLineLogin(user);
+  return true;
+}
+
+function finishLineLogin(user) {
   currentUser = { id: user.id, username: user.username, firstName: user.firstName || '' };
   isGuest = false;
   localStorage.setItem(SESSION_KEY, String(user.id));
   sessionStorage.setItem('sidekick_post_login_toast', t('welcome_back') + (user.firstName ? ', ' + user.firstName : '') + '!');
   location.href = './';
-  return true;
+}
+
+// First LINE sign-in only: LINE's own display name is sometimes a nickname/
+// emoji, not the name the user wants stored — required (no skip), same as
+// the equivalent field on password registration, but shown as its own step
+// since there's no registration form to fold it into here. The account row
+// already exists at this point (created above) but isn't logged into yet —
+// SESSION_KEY is only set once this completes, so closing the tab mid-step
+// just re-shows this same step next time, rather than leaving a half-signed-
+// -in session.
+let pendingLineUser = null;
+function showLineProfileStep(user) {
+  pendingLineUser = user;
+  document.getElementById('line-profile-name').value = user.firstName || '';
+  document.getElementById('s-auth').classList.remove('active');
+  document.getElementById('s-line-profile').classList.add('active');
+}
+async function completeLineProfile() {
+  const firstName = document.getElementById('line-profile-name').value.trim();
+  if (!firstName) { document.getElementById('line-profile-err').classList.add('show'); return; }
+  document.getElementById('line-profile-err').classList.remove('show');
+  const user = { ...pendingLineUser, firstName, profileComplete: true };
+  await dbPut('users', user);
+  finishLineLogin(user);
 }
 
 async function submitAuth() {
@@ -311,12 +351,13 @@ async function submitAuth() {
     // hand and either collide with, or preemptively squat, a real LINE
     // user's account.
     if (id0.startsWith('line:')) { authError(t('err_reserved_username')); return; }
+    if (!firstName) { authError(t('err_auth_name_required')); return; }
     if (password !== document.getElementById('auth-confirm').value) { authError(t('err_pw_mismatch')); return; }
     if (await dbGetByUsername(id0)) { authError(t('err_account_exists')); return; }
     const salt = randomSalt();
     const iters = PBKDF2_ITERS;
     const hash = await hashPassword(password, salt, iters);
-    const id = await dbAdd('users', {username:id0, salt, hash, iters, firstName, createdAt: nowISO()});
+    const id = await dbAdd('users', {username:id0, salt, hash, iters, firstName, profileComplete: true, createdAt: nowISO()});
     currentUser = {id, username:id0, firstName};
     isGuest = false;
     localStorage.setItem(SESSION_KEY, String(id));
@@ -464,6 +505,8 @@ const I18N = {
     confirm_password:'Confirm password', your_name:'Your name', login_guest:'Continue as guest', login_line:'Continue with LINE',
     err_line_login:'LINE login didn’t go through — please try again.',
     err_reserved_username:'That username is reserved. Please choose a different one.',
+    err_auth_name_required:'Please enter your name.',
+    line_profile_title:'One more thing', line_profile_sub:'What name should we use for you?', btn_continue:'Continue',
     auth_hint:'Create an account to save your work on this device.<br>Everything stays local — no cloud, no tracking.<br>Guest mode is temporary.',
     tagline:'Get booked. Get hired. Get paid.',
     // nav
@@ -565,6 +608,8 @@ const I18N = {
     confirm_password:'ยืนยันรหัสผ่าน', your_name:'ชื่อของคุณ', login_guest:'เข้าใช้แบบผู้เยี่ยมชม', login_line:'เข้าสู่ระบบด้วย LINE',
     err_line_login:'เข้าสู่ระบบด้วย LINE ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
     err_reserved_username:'ชื่อผู้ใช้นี้ถูกสงวนไว้ กรุณาเลือกชื่ออื่น',
+    err_auth_name_required:'กรุณากรอกชื่อของคุณ',
+    line_profile_title:'อีกนิดเดียว', line_profile_sub:'ใช้ชื่ออะไรดี?', btn_continue:'ดำเนินการต่อ',
     auth_hint:'สร้างบัญชีเพื่อบันทึกข้อมูลไว้ในเครื่องนี้<br>ทุกอย่างเก็บอยู่ในเครื่อง — ไม่มีคลาวด์ ไม่มีการติดตาม<br>โหมดผู้เยี่ยมชมใช้งานได้ชั่วคราวเท่านั้น',
     tagline:'จองคิวได้ ได้งาน ได้รับเงิน',
     // nav
@@ -711,9 +756,13 @@ async function bootLogin() {
   applyTheme();
   await openDB();
   await migrateLegacyStorageIfNeeded();
+  // Runs before handleLineLoginRedirect() (not after, as `showPostLoginToast()`
+  // below implies) so the s-line-profile screen it can show is already
+  // localized — that early-return path never reaches the applyLang() call
+  // that used to sit down here.
+  applyLang();
   if (await handleLineLoginRedirect()) return;
   if (await restoreSession()) { location.replace('./'); return; }
-  applyLang();
   showPostLoginToast();
 }
 // index.html entry — no session → bounce to login.
