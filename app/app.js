@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.9';          // <-> sw.js SW_VERSION 'sidekick-v0.9.9'
+const APP_VERSION = '0.9.10';          // <-> sw.js SW_VERSION 'sidekick-v0.9.10'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -406,9 +406,12 @@ function curSym() { return CURRENCY_SYM[(settings && settings.currency) || 'THB'
 // Sidekick: single work type, no persona picker.
 function unitWord() { return 'Session'; }
 
-// ─── ENGAGEMENT PIPELINE ────────────────────────────────────────────────
-// A session IS an engagement moving through a fixed 6-stage lifecycle:
-//   pitch    → initial outreach to a prospective client
+// ─── ENGAGEMENT PIPELINE (user-facing label: "Workflow" — see i18n) ─────
+// A session IS an engagement moving through a fixed 6-stage lifecycle. The
+// internal stage id stays `pitch` even though its display label is now
+// "Inquiry" — same rename convention as Booking→Calendar, only the
+// user-facing text changed:
+//   pitch    → initial outreach to a prospective client ("Inquiry")
 //   quote    → send a price quote for a session/package
 //   invoice  → send the invoice
 //   paid     → payment received
@@ -416,7 +419,7 @@ function unitWord() { return 'Session'; }
 //   extend   → offer a renewal/extension once delivered
 // All six are mandatory and always present (no optional/toggleable stage,
 // no per-persona presets) — this fixed order IS the business process. Still
-// reorderable in Settings ▸ Workflow for personal preference, guarded so
+// reorderable in Settings ▸ Stage order for personal preference, guarded so
 // Paid can't precede Invoice.
 const STAGES = ['pitch', 'quote', 'invoice', 'paid', 'delivery', 'extend'];
 // dot: a distinct per-stage color used by the Booking calendar's activity
@@ -424,7 +427,7 @@ const STAGES = ['pitch', 'quote', 'invoice', 'paid', 'delivery', 'extend'];
 // chosen to read clearly at a few px each, separate from the semantically-
 // loaded --paid/--due/--overdue vars used elsewhere for invoice status.
 const STAGE_META = {
-  pitch:    {label:'Pitch',    dot:'#64748B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'Log pitch',       done:'Pitched'},
+  pitch:    {label:'Inquiry',  dot:'#64748B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'Log inquiry',     done:'Inquired'},
   quote:    {label:'Quote',    dot:'#8B5CF6', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent', skippable:true},
   invoice:  {label:'Invoice',  dot:'#F59E0B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent', skippable:true},
   paid:     {label:'Paid',     dot:'#2F9E5B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid'},
@@ -510,14 +513,14 @@ const I18N = {
     auth_hint:'Create an account to save your work on this device.<br>Everything stays local — no cloud, no tracking.<br>Guest mode is temporary.',
     tagline:'Get booked. Get hired. Get paid.',
     // nav
-    nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Pipeline', nav_book:'Calendar', nav_more:'More',
-    pipeline_title:'Pipeline', workflow_title:'Workflow', pipeline_glance_title:'Pipeline at a glance',
+    nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Workflow', nav_book:'Calendar', nav_more:'More',
+    pipeline_title:'Workflow', workflow_title:'Stage order', pipeline_glance_title:'Workflow at a glance',
     skip_stage:'Skip', mark_finished:'Finished',
     // dashboard
     earned_this_month:'Earned this month', net_after_expenses:'net after expenses',
     stat_jobs:'Sessions', stat_avg:'Avg / session', stat_expenses:'Expenses',
     todays_goal:"Today's goal", goal_reached:'Goal reached! 🎉', goal_of:'of',
-    incoming_pipeline:'Incoming pipeline', incoming_pipeline_empty:'Pipeline is clear.', incoming_pipeline_empty_sub:'New engagements will appear here as you log sessions.',
+    incoming_pipeline:'Incoming workflow', incoming_pipeline_empty:'Workflow is clear.', incoming_pipeline_empty_sub:'New engagements will appear here as you log sessions.',
     coming_m2:'Invoices ship in M2',
     // job form
     add_job:'Add session', edit_job:'Edit session', save_job:'Save session', delete_job:'Delete session',
@@ -529,6 +532,7 @@ const I18N = {
     err_enter_date:'Please pick a date', err_amount:'Amount must be 0 or more', err_neg:'Values cannot be negative', err_too_big:'That value is too large',
     // settings
     more_title:'More', settings_title:'Settings', account:'Account', local_account:'Local account on this device',
+    edit_name_title:'Edit your name', save_name:'Save name',
     preferences:'Preferences', currency:'Currency', theme:'Theme', language:'Language',
     theme_auto:'Auto', theme_light:'Light', theme_dark:'Dark',
     business_info_title:'Business info (optional)', business_info_sub:'Fill these in to have them show up automatically on your quotes, invoices, and receipts — none of them are required.',
@@ -592,7 +596,7 @@ const I18N = {
     // Usage insights (local-only analytics)
     insights_title:'Insights', no_insights:'No activity yet', no_insights_sub:'Insights build up as you use the app — nothing is sent anywhere, this stays on your device.',
     insights_sessions_logged:'Sessions logged', insights_clients_added:'Clients added', insights_active_days_30:'Active days (30d)',
-    insights_feature_usage:'Feature usage', insights_pipeline_activity:'Pipeline activity', insights_no_pipeline_activity:'No pipeline activity yet',
+    insights_feature_usage:'Feature usage', insights_pipeline_activity:'Workflow activity', insights_no_pipeline_activity:'No workflow activity yet',
     insights_stage_done:'Completed', insights_clear:'Clear usage data', insights_clear_confirm:'Clear all local usage data? This cannot be undone.',
     insights_cleared:'Usage data cleared', insights_unlocked:'Insights unlocked',
   },
@@ -613,14 +617,14 @@ const I18N = {
     auth_hint:'สร้างบัญชีเพื่อบันทึกข้อมูลไว้ในเครื่องนี้<br>ทุกอย่างเก็บอยู่ในเครื่อง — ไม่มีคลาวด์ ไม่มีการติดตาม<br>โหมดผู้เยี่ยมชมใช้งานได้ชั่วคราวเท่านั้น',
     tagline:'จองคิวได้ ได้งาน ได้รับเงิน',
     // nav
-    nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_pipeline:'ไปป์ไลน์', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
-    pipeline_title:'ไปป์ไลน์', workflow_title:'ขั้นตอนการทำงาน', pipeline_glance_title:'ภาพรวมไปป์ไลน์',
+    nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_pipeline:'ขั้นตอนการทำงาน', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
+    pipeline_title:'ขั้นตอนการทำงาน', workflow_title:'ลำดับขั้นตอน', pipeline_glance_title:'ภาพรวมขั้นตอนการทำงาน',
     skip_stage:'ข้าม', mark_finished:'เสร็จสิ้น',
     // dashboard
     earned_this_month:'รายได้เดือนนี้', net_after_expenses:'สุทธิหลังหักค่าใช้จ่าย',
     stat_jobs:'เซสชัน', stat_avg:'เฉลี่ย/เซสชัน', stat_expenses:'ค่าใช้จ่าย',
     todays_goal:'เป้าหมายวันนี้', goal_reached:'ถึงเป้าหมายแล้ว! 🎉', goal_of:'จาก',
-    incoming_pipeline:'ไปป์ไลน์ที่กำลังเข้ามา', incoming_pipeline_empty:'ไปป์ไลน์ว่างอยู่', incoming_pipeline_empty_sub:'งานใหม่จะปรากฏที่นี่เมื่อคุณบันทึกเซสชัน',
+    incoming_pipeline:'ขั้นตอนการทำงานที่กำลังเข้ามา', incoming_pipeline_empty:'ขั้นตอนการทำงานว่างอยู่', incoming_pipeline_empty_sub:'งานใหม่จะปรากฏที่นี่เมื่อคุณบันทึกเซสชัน',
     coming_m2:'ใบแจ้งหนี้จะเปิดใช้งานใน M2',
     // job form
     add_job:'เพิ่มเซสชัน', edit_job:'แก้ไขเซสชัน', save_job:'บันทึกเซสชัน', delete_job:'ลบเซสชัน',
@@ -632,6 +636,7 @@ const I18N = {
     err_enter_date:'กรุณาเลือกวันที่', err_amount:'จำนวนเงินต้องมากกว่าหรือเท่ากับ 0', err_neg:'ค่าต้องไม่ติดลบ', err_too_big:'ค่านี้สูงเกินไป',
     // settings
     more_title:'เพิ่มเติม', settings_title:'ตั้งค่า', account:'บัญชี', local_account:'บัญชีในเครื่องนี้',
+    edit_name_title:'แก้ไขชื่อของคุณ', save_name:'บันทึกชื่อ',
     preferences:'การตั้งค่าทั่วไป', currency:'สกุลเงิน', theme:'ธีม', language:'ภาษา',
     theme_auto:'อัตโนมัติ', theme_light:'สว่าง', theme_dark:'มืด',
     business_info_title:'ข้อมูลธุรกิจ (ไม่บังคับ)', business_info_sub:'กรอกข้อมูลนี้เพื่อให้แสดงอัตโนมัติในใบเสนอราคา ใบแจ้งหนี้ และใบเสร็จ — ไม่บังคับกรอก',
@@ -692,7 +697,7 @@ const I18N = {
     // Usage insights
     insights_title:'ข้อมูลเชิงลึก', no_insights:'ยังไม่มีกิจกรรม', no_insights_sub:'ข้อมูลเชิงลึกจะสะสมเมื่อคุณใช้งานแอป — ไม่มีการส่งข้อมูลออกไปที่ใด เก็บอยู่ในเครื่องนี้เท่านั้น',
     insights_sessions_logged:'เซสชันที่บันทึก', insights_clients_added:'ลูกค้าที่เพิ่ม', insights_active_days_30:'วันที่ใช้งาน (30 วัน)',
-    insights_feature_usage:'การใช้งานฟีเจอร์', insights_pipeline_activity:'กิจกรรมไปป์ไลน์', insights_no_pipeline_activity:'ยังไม่มีกิจกรรมไปป์ไลน์',
+    insights_feature_usage:'การใช้งานฟีเจอร์', insights_pipeline_activity:'กิจกรรมขั้นตอนการทำงาน', insights_no_pipeline_activity:'ยังไม่มีกิจกรรมขั้นตอนการทำงาน',
     insights_stage_done:'เสร็จสมบูรณ์', insights_clear:'ล้างข้อมูลการใช้งาน', insights_clear_confirm:'ล้างข้อมูลการใช้งานทั้งหมดในเครื่องหรือไม่? ไม่สามารถย้อนกลับได้',
     insights_cleared:'ล้างข้อมูลการใช้งานแล้ว', insights_unlocked:'ปลดล็อกข้อมูลเชิงลึกแล้ว',
   },
@@ -861,6 +866,31 @@ function applyUser() {
   setTxt('acct-sub', isGuest ? 'Temporary guest — data on this device only' : t('local_account'));
   const logoutBtn = document.querySelector('.btn-logout');
   if (logoutBtn) logoutBtn.textContent = isGuest ? t('exit_guest') : t('logout');
+  // Guest has no stored name to edit (displayName() is a fixed translation,
+  // not a users-store field) — hide the affordance rather than open a modal
+  // that has nothing real to save.
+  const chevron = document.getElementById('acct-edit-chevron');
+  if (chevron) chevron.style.display = isGuest ? 'none' : '';
+}
+
+function openAccountNameModal() {
+  if (isGuest || !currentUser) return;
+  document.getElementById('acct-name-input').value = currentUser.firstName || '';
+  document.getElementById('modal-account-name').classList.add('open');
+}
+function closeAccountNameModal() { document.getElementById('modal-account-name').classList.remove('open'); }
+async function saveAccountName() {
+  const name = document.getElementById('acct-name-input').value.trim();
+  if (!name) { markFieldError('acct-name-input', 'err_name_required'); return; }
+  // Fetch the full stored row rather than mutating a slim in-memory copy —
+  // dbPut() is a keyPath put() that replaces the entire record (see the
+  // same fix in completeLineProfile()), so it must carry every field.
+  const row = await dbGet('users', currentUser.id);
+  if (row) { row.firstName = name; await dbPut('users', row); }
+  currentUser.firstName = name;
+  closeAccountNameModal();
+  applyUser();
+  toast(t('saved'));
 }
 
 async function reload() {
@@ -921,7 +951,7 @@ function applyInsightsVisibility() {
   if (row) row.style.display = settings.insightsUnlocked ? 'flex' : 'none';
 }
 const SCREEN_LABELS = {
-  home:'Home', pipeline:'Pipeline', customers:'Clients', book:'Calendar', more:'Settings',
+  home:'Home', pipeline:'Workflow', customers:'Clients', book:'Calendar', more:'Settings',
   services:'Services', invoices:'Invoices', tax:'Tax', docs:'Documents',
   followups:'Follow-ups', portfolio:'Portfolio', research:'Research', insights:'Insights',
 };
@@ -1502,7 +1532,7 @@ function renderPipeline() {
     : '<div class="kb-empty">Nothing here yet</div>';
 
   el.innerHTML = `<div class="pl-layout">
-    <div class="pl-rail" role="tablist" aria-label="Pipeline stages">${rail}</div>
+    <div class="pl-rail" role="tablist" aria-label="Workflow stages">${rail}</div>
     <div class="pl-main">
       <div class="pl-main-head">
         <span class="pl-rail-ico">${activeMeta.icon || ''}</span>
