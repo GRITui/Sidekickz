@@ -1412,9 +1412,12 @@ function refreshJobPackageRow(clientId, existingPackageId, serviceId) {
   checkbox.checked = existingPackageId != null ? existingPackageId === pkg.id : true;
 }
 function onJobServiceChange(v) {
-  if (!v) return;
-  const s = services.find(x => x.id === parseInt(v));
-  if (s) { document.getElementById('j-amount').value = s.rate; calcNet(); }
+  if (v) {
+    const s = services.find(x => x.id === parseInt(v));
+    if (s) { document.getElementById('j-amount').value = s.rate; calcNet(); }
+  }
+  // Re-evaluate even when cleared (v === '') — otherwise the package-apply
+  // row keeps showing/offering the PREVIOUSLY selected service's package.
   const cid = document.getElementById('j-customer').value;
   refreshJobPackageRow(cid, null, v);
 }
@@ -1781,7 +1784,7 @@ async function deliverPackageUnit(jobId) {
   if (!info) { await advanceJobStage(jobId); return; }   // safety net — shouldn't be reachable from the UI
   if (info.svc.type === 'multiusage') {
     window.__deliverJobId = jobId;
-    openQuantityModal(info.svc.unit || 'units');
+    openQuantityModal(info.svc.unit || 'units', packageRemaining(info.pkg));
     return;   // continues in confirmQuantityModal() once the user submits
   }
   await applyPackageDelivery(jobId, 1);
@@ -1831,11 +1834,17 @@ async function applyPackageDelivery(jobId, qty) {
 }
 window.applyPackageDelivery = applyPackageDelivery;
 
-function openQuantityModal(unit) {
+function openQuantityModal(unit, remaining) {
   const title = document.getElementById('qty-modal-title');
   if (title) title.textContent = `How many ${unit}?`;
   const input = document.getElementById('qty-input');
-  if (input) input.value = '1';
+  if (input) {
+    input.value = '1';
+    // Caps entry at what's actually left — a fat-fingered "500" instead of
+    // "50" would otherwise permanently overstate consumedQty with no way to
+    // reconcile it later (packageRemaining only floors the *display* at 0).
+    if (remaining > 0) input.max = String(remaining); else input.removeAttribute('max');
+  }
   document.getElementById('modal-qty')?.classList.add('open');
 }
 window.openQuantityModal = openQuantityModal;
@@ -1845,13 +1854,17 @@ function closeQuantityModal() {
 }
 window.closeQuantityModal = closeQuantityModal;
 async function confirmQuantityModal() {
-  const qty = parseInt(document.getElementById('qty-input').value) || 0;
+  const input = document.getElementById('qty-input');
+  let qty = parseInt(input.value) || 0;
+  const max = input.max ? parseInt(input.max) : null;
   const jobId = window.__deliverJobId;
   document.getElementById('modal-qty')?.classList.remove('open');
   window.__deliverJobId = null;
   if (!jobId || qty <= 0) { if (qty <= 0) toast('Enter a quantity of 1 or more'); return; }
+  let clampedMsg = '';
+  if (max != null && qty > max) { qty = max; clampedMsg = ` (capped at ${max} left)`; }
   await applyPackageDelivery(jobId, qty);
-  toast('Delivery recorded');
+  toast('Delivery recorded' + clampedMsg);
 }
 window.confirmQuantityModal = confirmQuantityModal;
 
@@ -2166,7 +2179,7 @@ function renderCustomerPackages(clientId) {
   html += window.__pkgFormOpen ? `
       <div class="field" style="margin-top:10px">
         <label for="pkg-service">Service</label>
-        <select id="pkg-service">${options.length ? options.map(s =>
+        <select id="pkg-service" onchange="onPkgServiceChange()">${options.length ? options.map(s =>
           `<option value="${s.id}">${htmlEsc(s.name)}</option>`).join('') : `<option value="">No package services yet — add one under Services first</option>`}</select>
       </div>
       <div class="form-row">
@@ -2182,11 +2195,19 @@ function renderCustomerPackages(clientId) {
     if (dateEl && !dateEl.value) dateEl.value = todayISO();
     const svcEl = document.getElementById('pkg-service');
     if (svcEl && window.__pkgFormPreselectService != null) svcEl.value = String(window.__pkgFormPreselectService);
-    const svc = options.find(s => String(s.id) === (svcEl && svcEl.value));
-    if (svc && svc.defaultQty) document.getElementById('pkg-total').value = svc.defaultQty;
     window.__pkgFormPreselectService = null;
+    onPkgServiceChange();
   }
 }
+// Re-fills the Quantity field from the newly-selected service's default
+// quantity — runs both on initial form-open (renderCustomerPackages above)
+// and whenever the user changes the Service select afterward.
+function onPkgServiceChange() {
+  const svcEl = document.getElementById('pkg-service');
+  const svc = packageableServices().find(s => String(s.id) === (svcEl && svcEl.value));
+  if (svc && svc.defaultQty) document.getElementById('pkg-total').value = svc.defaultQty;
+}
+window.onPkgServiceChange = onPkgServiceChange;
 function togglePackageForm(open, clientId) {
   window.__pkgFormOpen = open;
   renderCustomerPackages(clientId);
