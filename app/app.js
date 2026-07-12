@@ -548,6 +548,12 @@ const I18N = {
     nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Task Queue', nav_book:'Calendar', nav_more:'More',
     pipeline_title:'Task Queue', workflow_title:'Stage order', pipeline_glance_title:'Task Queue at a glance',
     skip_stage:'Skip', mark_finished:'Finished',
+    renew_confirm:'{client} has used all {total} {unit} of {service}. Does the client want to renew?',
+    delete_stage_confirm:'Delete this stage? Any engagements sitting in it will move back to the first stage.',
+    qty_modal_title:'How many {unit}?', qty_modal_confirm:'Confirm', qty_min_error:'Enter a quantity of 1 or more',
+    qty_capped:'Delivery recorded (capped at {n} left)', delivery_recorded:'Delivery recorded',
+    biz_gym:'Gym / Personal training', biz_laundry:'Laundry', biz_photography:'Photography',
+    biz_consulting:'Consulting', biz_general:'Other / General',
     // dashboard
     earned_this_month:'Earned this month', net_after_expenses:'net after expenses',
     stat_jobs:'Sessions', stat_avg:'Avg / session', stat_expenses:'Expenses',
@@ -657,6 +663,12 @@ const I18N = {
     nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_pipeline:'คิวงาน', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
     pipeline_title:'คิวงาน', workflow_title:'ลำดับขั้นตอน', pipeline_glance_title:'ภาพรวมคิวงาน',
     skip_stage:'ข้าม', mark_finished:'เสร็จสิ้น',
+    renew_confirm:'{client} ใช้ {unit} ครบ {total} ของ {service} แล้ว ลูกค้าต้องการต่ออายุหรือไม่?',
+    delete_stage_confirm:'ลบขั้นตอนนี้หรือไม่? งานที่อยู่ในขั้นตอนนี้จะย้อนกลับไปขั้นตอนแรก',
+    qty_modal_title:'จำนวน {unit} เท่าไหร่?', qty_modal_confirm:'ยืนยัน', qty_min_error:'กรอกจำนวนตั้งแต่ 1 ขึ้นไป',
+    qty_capped:'บันทึกการส่งมอบแล้ว (จำกัดที่เหลือ {n})', delivery_recorded:'บันทึกการส่งมอบแล้ว',
+    biz_gym:'ยิม / เทรนเนอร์ส่วนตัว', biz_laundry:'ร้านซักรีด', biz_photography:'ช่างภาพ',
+    biz_consulting:'ที่ปรึกษา', biz_general:'อื่นๆ / ทั่วไป',
     // dashboard
     earned_this_month:'รายได้เดือนนี้', net_after_expenses:'สุทธิหลังหักค่าใช้จ่าย',
     stat_jobs:'เซสชัน', stat_avg:'เฉลี่ย/เซสชัน', stat_expenses:'ค่าใช้จ่าย',
@@ -1815,7 +1827,11 @@ async function applyPackageDelivery(jobId, qty) {
   // second full write + IndexedDB table sweep for the same user action.
   const unit = info.svc.unit || 'units';
   const wantsRenew = confirm(
-    `${j.client || 'This client'} has used all ${info.pkg.totalSessions} ${unit} of ${info.svc.name}. Does the client want to renew?`
+    t('renew_confirm')
+      .replace('{client}', j.client || 'This client')
+      .replace('{total}', info.pkg.totalSessions)
+      .replace('{unit}', unit)
+      .replace('{service}', info.svc.name)
   );
   if (wantsRenew) {
     await completeJobWithOutcome(jobId, 'renewed');
@@ -1836,7 +1852,9 @@ window.applyPackageDelivery = applyPackageDelivery;
 
 function openQuantityModal(unit, remaining) {
   const title = document.getElementById('qty-modal-title');
-  if (title) title.textContent = `How many ${unit}?`;
+  if (title) title.textContent = t('qty_modal_title').replace('{unit}', unit);
+  const confirmBtn = document.getElementById('qty-confirm-btn');
+  if (confirmBtn) confirmBtn.textContent = t('qty_modal_confirm');
   const input = document.getElementById('qty-input');
   if (input) {
     input.value = '1';
@@ -1860,11 +1878,11 @@ async function confirmQuantityModal() {
   const jobId = window.__deliverJobId;
   document.getElementById('modal-qty')?.classList.remove('open');
   window.__deliverJobId = null;
-  if (!jobId || qty <= 0) { if (qty <= 0) toast('Enter a quantity of 1 or more'); return; }
-  let clampedMsg = '';
-  if (max != null && qty > max) { qty = max; clampedMsg = ` (capped at ${max} left)`; }
+  if (!jobId || qty <= 0) { if (qty <= 0) toast(t('qty_min_error')); return; }
+  let capped = false;
+  if (max != null && qty > max) { qty = max; capped = true; }
   await applyPackageDelivery(jobId, qty);
-  toast('Delivery recorded' + clampedMsg);
+  toast(capped ? t('qty_capped').replace('{n}', max) : t('delivery_recorded'));
 }
 window.confirmQuantityModal = confirmQuantityModal;
 
@@ -2031,7 +2049,7 @@ window.wfAddStage = wfAddStage;
 // bookkeeping: jobStage()'s existing "stage removed from order → restart at
 // first" fallback (app.js) already handles that case.
 async function wfDeleteStage(stageId) {
-  if (!confirm('Delete this stage? Any engagements sitting in it will move back to the first stage.')) return;
+  if (!confirm(t('delete_stage_confirm'))) return;
   // Capture the order BEFORE removing the customStages entry — getStageOrder()
   // validates the stored order against allStageIds(), so deleting the custom
   // stage first would make the stored order look "invalid" (still containing
@@ -2216,18 +2234,27 @@ window.togglePackageForm = togglePackageForm;
 // Constructs the one Pipeline card a Multiple-time/Multiple-usage package is
 // tracked through — same shape saveJob()'s new-job branch builds, but built
 // directly since there's no open job form to read from here.
+// Shared boilerplate for a freshly-created job record — used by every place
+// that creates one OUTSIDE the job form itself (createTrackerJob,
+// quickCheckIn; the job form's own saveJob() has its own new-vs-edit
+// branching and isn't a good fit for this). Centralizing these means a new
+// universal default only needs adding in one place instead of drifting
+// across call sites.
+function newJobBoilerplate() {
+  return { jobType: settings.workType || '', cuid: cuid(), complete: false, invoiceId: null, quoteDocId: null, updatedAt: nowISO() };
+}
 async function createTrackerJob(clientId, serviceId, packageId) {
   const uid = isGuest ? 'guest' : currentUser.id;
   const custRec = customers.find(c => c.id === clientId);
   const svc = services.find(s => s.id === serviceId);
   const order = getStageOrder();
   const obj = {
+    ...newJobBoilerplate(),
     uid, date: todayISO(), client: (custRec && custRec.name) || '', clientId,
-    serviceId, serviceName: svc ? svc.name : '', jobType: settings.workType || '',
+    serviceId, serviceName: svc ? svc.name : '',
     amount: svc ? svc.rate : 0, tip: 0, expense: 0, count: 0, notes: '',
     netAmount: svc ? svc.rate : 0, packageId, consumedQty: 0,
-    cuid: cuid(), stageOrder: order.slice(), stage: order[0],
-    complete: false, invoiceId: null, quoteDocId: null, updatedAt: nowISO(),
+    stageOrder: order.slice(), stage: order[0],
   };
   return dbPut('jobs', obj);
 }
@@ -2355,15 +2382,13 @@ async function quickCheckIn(clientId) {
   const uid = isGuest ? 'guest' : currentUser.id;
   const order = getStageOrder();
   const job = {
+    ...newJobBoilerplate(),
     uid, date: todayISO(), client: c.name, clientId: c.id,
     serviceId: last ? last.serviceId : null, serviceName: last ? last.serviceName : '',
-    jobType: settings.workType || '',
     amount: last ? last.amount : 0, tip: 0, expense: 0, count: 1, notes: '',
     netAmount: last ? last.amount : 0,
-    cuid: cuid(), stageOrder: order, stage: 'delivery', complete: false,
-    invoiceId: null, quoteDocId: null,
+    stageOrder: order, stage: 'delivery',
     packageId: pkg ? pkg.id : null,   // legacy packages (no trackerJobId) keep the old per-visit counting
-    updatedAt: nowISO(),
   };
   await dbAdd('jobs', job);
   logEvent('quick_checkin');
@@ -2505,11 +2530,11 @@ async function seedServicesIfEmpty() {
 
 // ─── ONBOARDING: business type picker (first run only) ─────────────────
 const BUSINESS_TYPES = [
-  {id: 'gym', label: 'Gym / Personal training', icon: '🏋️'},
-  {id: 'laundry', label: 'Laundry', icon: '🧺'},
-  {id: 'photography', label: 'Photography', icon: '📷'},
-  {id: 'consulting', label: 'Consulting', icon: '💼'},
-  {id: 'general', label: 'Other / General', icon: '✨'},
+  {id: 'gym', labelKey: 'biz_gym', icon: '🏋️'},
+  {id: 'laundry', labelKey: 'biz_laundry', icon: '🧺'},
+  {id: 'photography', labelKey: 'biz_photography', icon: '📷'},
+  {id: 'consulting', labelKey: 'biz_consulting', icon: '💼'},
+  {id: 'general', labelKey: 'biz_general', icon: '✨'},
 ];
 function openBusinessTypePicker() {
   const wrap = document.getElementById('biz-type-body');
@@ -2517,7 +2542,7 @@ function openBusinessTypePicker() {
     wrap.innerHTML = BUSINESS_TYPES.map(b => `
       <button type="button" class="biz-type-btn" onclick="chooseBusinessType('${b.id}')">
         <span class="biz-type-icon">${b.icon}</span>
-        <span>${htmlEsc(b.label)}</span>
+        <span>${htmlEsc(t(b.labelKey))}</span>
       </button>`).join('');
   }
   document.getElementById('modal-business-type')?.classList.add('open');
