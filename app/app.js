@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.7';          // <-> sw.js SW_VERSION 'sidekick-v0.9.7'
+const APP_VERSION = '0.9.8';          // <-> sw.js SW_VERSION 'sidekick-v0.9.8'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -249,8 +249,18 @@ function base64UrlToBytes(b64url) {
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
 }
+// The Vercel deployment is the only origin that runs api/ handlers at all
+// (GitHub Pages is 100% static) — so this has to be an absolute cross-origin
+// URL, not a relative one that would 404 on GitHub Pages. `returnTo` tells
+// the serverless side which of the app's several live origins (GitHub Pages
+// root, its /gym/ mirror, or this Vercel project's own static mirror) to
+// send the browser back to once LINE's redirect dance is done — each is a
+// separate origin with its own separate local IndexedDB, so getting this
+// wrong strands the login in the wrong account store.
+const LINE_LOGIN_ORIGIN = 'https://sidekickz.vercel.app';
 function loginWithLine() {
-  location.href = 'api/line-login-start';
+  const returnTo = encodeURIComponent(location.origin + location.pathname);
+  location.href = `${LINE_LOGIN_ORIGIN}/api/line-login-start?returnTo=${returnTo}`;
 }
 // Returns true if this load was a LINE redirect and login was handled
 // (caller should stop its own boot sequence); false otherwise.
@@ -296,6 +306,11 @@ async function submitAuth() {
   if (!id0 || id0.length < 3) { authError(t('err_id_min3')); return; }
   if (!password || password.length < 8) { authError(t('err_pw_min4')); return; }
   if (authMode === 'register') {
+    // 'line:' is a reserved prefix (see handleLineLoginRedirect() above) —
+    // without this guard, someone could register e.g. "line:U1234..." by
+    // hand and either collide with, or preemptively squat, a real LINE
+    // user's account.
+    if (id0.startsWith('line:')) { authError(t('err_reserved_username')); return; }
     if (password !== document.getElementById('auth-confirm').value) { authError(t('err_pw_mismatch')); return; }
     if (await dbGetByUsername(id0)) { authError(t('err_account_exists')); return; }
     const salt = randomSalt();
@@ -448,6 +463,7 @@ const I18N = {
     login:'Log in', create_account:'Create account', email:'Email or username', password:'Password',
     confirm_password:'Confirm password', your_name:'Your name', login_guest:'Continue as guest', login_line:'Continue with LINE',
     err_line_login:'LINE login didn’t go through — please try again.',
+    err_reserved_username:'That username is reserved. Please choose a different one.',
     auth_hint:'Create an account to save your work on this device.<br>Everything stays local — no cloud, no tracking.<br>Guest mode is temporary.',
     tagline:'Get booked. Get hired. Get paid.',
     // nav
@@ -548,6 +564,7 @@ const I18N = {
     login:'เข้าสู่ระบบ', create_account:'สร้างบัญชี', email:'อีเมลหรือชื่อผู้ใช้', password:'รหัสผ่าน',
     confirm_password:'ยืนยันรหัสผ่าน', your_name:'ชื่อของคุณ', login_guest:'เข้าใช้แบบผู้เยี่ยมชม', login_line:'เข้าสู่ระบบด้วย LINE',
     err_line_login:'เข้าสู่ระบบด้วย LINE ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
+    err_reserved_username:'ชื่อผู้ใช้นี้ถูกสงวนไว้ กรุณาเลือกชื่ออื่น',
     auth_hint:'สร้างบัญชีเพื่อบันทึกข้อมูลไว้ในเครื่องนี้<br>ทุกอย่างเก็บอยู่ในเครื่อง — ไม่มีคลาวด์ ไม่มีการติดตาม<br>โหมดผู้เยี่ยมชมใช้งานได้ชั่วคราวเท่านั้น',
     tagline:'จองคิวได้ ได้งาน ได้รับเงิน',
     // nav
