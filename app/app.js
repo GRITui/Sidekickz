@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.10';          // <-> sw.js SW_VERSION 'sidekick-v0.9.10'
+const APP_VERSION = '0.9.11';          // <-> sw.js SW_VERSION 'sidekick-v0.9.11'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -406,7 +406,7 @@ function curSym() { return CURRENCY_SYM[(settings && settings.currency) || 'THB'
 // Sidekick: single work type, no persona picker.
 function unitWord() { return 'Session'; }
 
-// ─── ENGAGEMENT PIPELINE (user-facing label: "Workflow" — see i18n) ─────
+// ─── ENGAGEMENT PIPELINE (user-facing label: "Task Queue" — see i18n) ─────
 // A session IS an engagement moving through a fixed 6-stage lifecycle. The
 // internal stage id stays `pitch` even though its display label is now
 // "Inquiry" — same rename convention as Booking→Calendar, only the
@@ -432,21 +432,36 @@ const STAGE_META = {
   invoice:  {label:'Invoice',  dot:'#F59E0B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent', skippable:true},
   paid:     {label:'Paid',     dot:'#2F9E5B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid'},
   delivery: {label:'Delivery', dot:'#22554B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark delivered',  done:'Delivered'},
-  extend:   {label:'Extend',   dot:'#0EA5E9', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'Mark extended',    done:'Extended'},
+  extend:   {label:'Renew',    dot:'#0EA5E9', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'Mark renewed',     done:'Renewed'},
 };
 const DEFAULT_STAGE_ORDER = STAGES.slice();
+// User-defined stages beyond the fixed 6 (settings.customStages: [{id, label}],
+// id always prefixed 'custom:' so it can never collide with a built-in key).
+// A generic icon/action/done since there's no per-stage artwork for these.
+const CUSTOM_STAGE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/></svg>';
+function customStages() { return Array.isArray(settings.customStages) ? settings.customStages : []; }
+function allStageIds() { return STAGES.concat(customStages().map(s => s.id)); }
+// Stage metadata lookup that works for both the 6 built-ins (STAGE_META) and
+// any user-added custom stage (synthesized from settings.customStages).
+function metaFor(stage) {
+  if (STAGE_META[stage]) return STAGE_META[stage];
+  const cs = customStages().find(s => s.id === stage);
+  return cs ? {label: cs.label, dot:'#64748B', icon: CUSTOM_STAGE_ICON, action:'Advance', done:'Done'} : {};
+}
 function getStageOrder() {
   const s = settings && settings.stageOrder;
-  if (Array.isArray(s) && s.length === STAGES.length && s.every(x => STAGES.includes(x)) && new Set(s).size === s.length) {
+  const ids = allStageIds();
+  if (Array.isArray(s) && s.length === ids.length && s.every(x => ids.includes(x)) && new Set(s).size === s.length) {
     return s.slice();
   }
-  return DEFAULT_STAGE_ORDER.slice();
+  return DEFAULT_STAGE_ORDER.concat(customStages().map(s => s.id));
 }
 // The stage order snapshotted onto a session at creation, so a later reorder
 // in Settings never remaps an already-in-flight engagement out from under it.
 function jobOrder(j) {
   const o = j && j.stageOrder;
-  if (Array.isArray(o) && o.length && o.every(x => STAGES.includes(x)) && new Set(o).size === o.length) return o.slice();
+  const ids = allStageIds();
+  if (Array.isArray(o) && o.length && o.every(x => ids.includes(x)) && new Set(o).size === o.length) return o.slice();
   return getStageOrder();
 }
 // Current stage of a session within its own order. Legacy sessions (no stage)
@@ -479,16 +494,33 @@ function jobDelivered(j) {
 // Remaining is always computed live from `jobs` rather than decremented and
 // stored — same pattern as renderPipelineGlance()'s stage counts — so it can
 // never drift out of sync with a session being re-opened/un-delivered later.
+// Two coexisting counting modes, same formula: the old "many small visit-jobs
+// share one package" case (no consumedQty on those jobs — each delivered one
+// counts as 1, unchanged from before) and the newer "one tracker-card job per
+// package" case (multitime/multiusage services — that one job's consumedQty
+// accumulates directly, 1 per visit or a variable amount per visit). A job
+// can only be one or the other, never both, so summing is always correct.
 function packageUsed(pkg) {
-  return jobs.filter(j => j.packageId === pkg.id && jobDelivered(j)).length;
+  return jobs.filter(j => j.packageId === pkg.id)
+    .reduce((sum, j) => sum + (j.consumedQty != null ? j.consumedQty : (jobDelivered(j) ? 1 : 0)), 0);
 }
 function packageRemaining(pkg) {
   return Math.max(0, (Number(pkg.totalSessions) || 0) - packageUsed(pkg));
 }
 // The package a new session should offer to apply to: the client's most
 // recently purchased package that still has sessions left, or null.
-function activePackageFor(clientId) {
-  const mine = packages.filter(p => p.clientId === clientId)
+// serviceId is optional — a client can hold independent concurrent packages
+// per service (a gym package and a laundry package are never the same
+// bundle), so callers that know which service they're dealing with (the job
+// form's "Apply to package" row) should pass it; callers that just want "any
+// active package" for a generic badge/display (customer list, quick check-in)
+// can omit it, unchanged from before this was service-scoped.
+function activePackageFor(clientId, serviceId) {
+  // Packages bought before packages had a serviceId at all (p.serviceId ==
+  // null) predate this scoping — always match them regardless of the
+  // queried service, or they'd silently disappear from "Apply to package"
+  // for every existing user's already-in-progress package.
+  const mine = packages.filter(p => p.clientId === clientId && (serviceId == null || p.serviceId == null || p.serviceId === serviceId))
     .sort((a, b) => (b.purchasedDate || '').localeCompare(a.purchasedDate || '') || (b.id || 0) - (a.id || 0));
   return mine.find(p => packageRemaining(p) > 0) || null;
 }
@@ -513,14 +545,14 @@ const I18N = {
     auth_hint:'Create an account to save your work on this device.<br>Everything stays local — no cloud, no tracking.<br>Guest mode is temporary.',
     tagline:'Get booked. Get hired. Get paid.',
     // nav
-    nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Workflow', nav_book:'Calendar', nav_more:'More',
-    pipeline_title:'Workflow', workflow_title:'Stage order', pipeline_glance_title:'Workflow at a glance',
+    nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Task Queue', nav_book:'Calendar', nav_more:'More',
+    pipeline_title:'Task Queue', workflow_title:'Stage order', pipeline_glance_title:'Task Queue at a glance',
     skip_stage:'Skip', mark_finished:'Finished',
     // dashboard
     earned_this_month:'Earned this month', net_after_expenses:'net after expenses',
     stat_jobs:'Sessions', stat_avg:'Avg / session', stat_expenses:'Expenses',
     todays_goal:"Today's goal", goal_reached:'Goal reached! 🎉', goal_of:'of',
-    incoming_pipeline:'Incoming workflow', incoming_pipeline_empty:'Workflow is clear.', incoming_pipeline_empty_sub:'New engagements will appear here as you log sessions.',
+    incoming_pipeline:'Incoming Task Queue', incoming_pipeline_empty:'Task Queue is clear.', incoming_pipeline_empty_sub:'New engagements will appear here as you log sessions.',
     coming_m2:'Invoices ship in M2',
     // job form
     add_job:'Add session', edit_job:'Edit session', save_job:'Save session', delete_job:'Delete session',
@@ -588,6 +620,11 @@ const I18N = {
     no_services:'No services yet', no_services_sub:'Add services to prefill fees when logging work.',
     service_saved:'Service saved', service_deleted:'Service deleted',
     field_rate:'Default rate', field_unit:'Unit', field_unit_ph:'e.g. session, hour, project',
+    field_service_type:'Type', svc_type_onetime:'One-time', svc_type_multitime:'Multiple-time (fixed quantity)',
+    svc_type_multiusage:'Multiple-usage (variable quantity)', field_default_qty:'Default quantity',
+    svc_type_multitime_badge:'Package', svc_type_multiusage_badge:'Usage-based',
+    biz_type_title:'What kind of business do you run?',
+    biz_type_sub:'This picks a starter set of services for you — you can edit or add to it any time.',
     // M1.5 — job form links
     field_customer:'Client', field_service:'Service', none_option:'— None —',
     add_new_client_option:'+ Add a new client…',
@@ -596,7 +633,7 @@ const I18N = {
     // Usage insights (local-only analytics)
     insights_title:'Insights', no_insights:'No activity yet', no_insights_sub:'Insights build up as you use the app — nothing is sent anywhere, this stays on your device.',
     insights_sessions_logged:'Sessions logged', insights_clients_added:'Clients added', insights_active_days_30:'Active days (30d)',
-    insights_feature_usage:'Feature usage', insights_pipeline_activity:'Workflow activity', insights_no_pipeline_activity:'No workflow activity yet',
+    insights_feature_usage:'Feature usage', insights_pipeline_activity:'Task Queue activity', insights_no_pipeline_activity:'No task queue activity yet',
     insights_stage_done:'Completed', insights_clear:'Clear usage data', insights_clear_confirm:'Clear all local usage data? This cannot be undone.',
     insights_cleared:'Usage data cleared', insights_unlocked:'Insights unlocked',
   },
@@ -617,14 +654,14 @@ const I18N = {
     auth_hint:'สร้างบัญชีเพื่อบันทึกข้อมูลไว้ในเครื่องนี้<br>ทุกอย่างเก็บอยู่ในเครื่อง — ไม่มีคลาวด์ ไม่มีการติดตาม<br>โหมดผู้เยี่ยมชมใช้งานได้ชั่วคราวเท่านั้น',
     tagline:'จองคิวได้ ได้งาน ได้รับเงิน',
     // nav
-    nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_pipeline:'ขั้นตอนการทำงาน', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
-    pipeline_title:'ขั้นตอนการทำงาน', workflow_title:'ลำดับขั้นตอน', pipeline_glance_title:'ภาพรวมขั้นตอนการทำงาน',
+    nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_pipeline:'คิวงาน', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
+    pipeline_title:'คิวงาน', workflow_title:'ลำดับขั้นตอน', pipeline_glance_title:'ภาพรวมคิวงาน',
     skip_stage:'ข้าม', mark_finished:'เสร็จสิ้น',
     // dashboard
     earned_this_month:'รายได้เดือนนี้', net_after_expenses:'สุทธิหลังหักค่าใช้จ่าย',
     stat_jobs:'เซสชัน', stat_avg:'เฉลี่ย/เซสชัน', stat_expenses:'ค่าใช้จ่าย',
     todays_goal:'เป้าหมายวันนี้', goal_reached:'ถึงเป้าหมายแล้ว! 🎉', goal_of:'จาก',
-    incoming_pipeline:'ขั้นตอนการทำงานที่กำลังเข้ามา', incoming_pipeline_empty:'ขั้นตอนการทำงานว่างอยู่', incoming_pipeline_empty_sub:'งานใหม่จะปรากฏที่นี่เมื่อคุณบันทึกเซสชัน',
+    incoming_pipeline:'คิวงานที่กำลังเข้ามา', incoming_pipeline_empty:'คิวงานว่างอยู่', incoming_pipeline_empty_sub:'งานใหม่จะปรากฏที่นี่เมื่อคุณบันทึกเซสชัน',
     coming_m2:'ใบแจ้งหนี้จะเปิดใช้งานใน M2',
     // job form
     add_job:'เพิ่มเซสชัน', edit_job:'แก้ไขเซสชัน', save_job:'บันทึกเซสชัน', delete_job:'ลบเซสชัน',
@@ -689,6 +726,11 @@ const I18N = {
     no_services:'ยังไม่มีบริการ', no_services_sub:'เพิ่มบริการเพื่อกรอกค่าธรรมเนียมล่วงหน้าเมื่อบันทึกงาน',
     service_saved:'บันทึกบริการแล้ว', service_deleted:'ลบบริการแล้ว',
     field_rate:'อัตราค่าบริการเริ่มต้น', field_unit:'หน่วย', field_unit_ph:'เช่น เซสชัน, ชั่วโมง, โปรเจกต์',
+    field_service_type:'ประเภท', svc_type_onetime:'ครั้งเดียว', svc_type_multitime:'หลายครั้ง (จำนวนคงที่)',
+    svc_type_multiusage:'หลายการใช้งาน (จำนวนไม่คงที่)', field_default_qty:'จำนวนเริ่มต้น',
+    svc_type_multitime_badge:'แพ็กเกจ', svc_type_multiusage_badge:'ตามการใช้งาน',
+    biz_type_title:'ธุรกิจของคุณคือประเภทใด?',
+    biz_type_sub:'ใช้เลือกชุดบริการเริ่มต้นให้คุณ — แก้ไขหรือเพิ่มได้ทุกเมื่อ',
     // M1.5 — job form links
     field_customer:'ลูกค้า', field_service:'บริการ', none_option:'— ไม่มี —',
     add_new_client_option:'+ เพิ่มลูกค้าใหม่…',
@@ -697,7 +739,7 @@ const I18N = {
     // Usage insights
     insights_title:'ข้อมูลเชิงลึก', no_insights:'ยังไม่มีกิจกรรม', no_insights_sub:'ข้อมูลเชิงลึกจะสะสมเมื่อคุณใช้งานแอป — ไม่มีการส่งข้อมูลออกไปที่ใด เก็บอยู่ในเครื่องนี้เท่านั้น',
     insights_sessions_logged:'เซสชันที่บันทึก', insights_clients_added:'ลูกค้าที่เพิ่ม', insights_active_days_30:'วันที่ใช้งาน (30 วัน)',
-    insights_feature_usage:'การใช้งานฟีเจอร์', insights_pipeline_activity:'กิจกรรมขั้นตอนการทำงาน', insights_no_pipeline_activity:'ยังไม่มีกิจกรรมขั้นตอนการทำงาน',
+    insights_feature_usage:'การใช้งานฟีเจอร์', insights_pipeline_activity:'กิจกรรมคิวงาน', insights_no_pipeline_activity:'ยังไม่มีกิจกรรมคิวงาน',
     insights_stage_done:'เสร็จสมบูรณ์', insights_clear:'ล้างข้อมูลการใช้งาน', insights_clear_confirm:'ล้างข้อมูลการใช้งานทั้งหมดในเครื่องหรือไม่? ไม่สามารถย้อนกลับได้',
     insights_cleared:'ล้างข้อมูลการใช้งานแล้ว', insights_unlocked:'ปลดล็อกข้อมูลเชิงลึกแล้ว',
   },
@@ -832,10 +874,15 @@ async function enterApp() {
   }
   renderPaymentChannels();
 
-  // Personal Gym Trainer edition: single fixed work type, no onboarding picker.
-  if (!settings.workType) await saveSetting('workType', 'gym');
-  document.body.setAttribute('data-work-type', 'gym');
-  await seedServicesIfEmpty();
+  // First run: ask which business the user runs so the right starter
+  // services get seeded (openBusinessTypePicker / chooseBusinessType below).
+  // Existing accounts already have a workType and skip straight through.
+  if (settings.workType) {
+    document.body.setAttribute('data-work-type', settings.workType);
+    await seedServicesIfEmpty();
+  } else {
+    openBusinessTypePicker();
+  }
   switchScreen('home');
 
   // App-triggered OS notifications: only fire while this tab stays open (no
@@ -951,7 +998,7 @@ function applyInsightsVisibility() {
   if (row) row.style.display = settings.insightsUnlocked ? 'flex' : 'none';
 }
 const SCREEN_LABELS = {
-  home:'Home', pipeline:'Workflow', customers:'Clients', book:'Calendar', more:'Settings',
+  home:'Home', pipeline:'Task Queue', customers:'Clients', book:'Calendar', more:'Settings',
   services:'Services', invoices:'Invoices', tax:'Tax', docs:'Documents',
   followups:'Follow-ups', portfolio:'Portfolio', research:'Research', insights:'Insights',
 };
@@ -986,10 +1033,13 @@ function renderInsights() {
       stageCounts[s] = (stageCounts[s]||0) + 1;
     }
   });
-  const stageOrderForDisplay = (typeof getStageOrder === 'function') ? getStageOrder().concat(['extended', 'finished', 'done']) : Object.keys(stageCounts);
-  const STAGE_DISPLAY_LABELS = { done: t('insights_stage_done'), extended: STAGE_META.extend && STAGE_META.extend.done, finished: t('mark_finished') };
+  const stageOrderForDisplay = (typeof getStageOrder === 'function') ? getStageOrder().concat(['extended', 'renewed', 'finished', 'done']) : Object.keys(stageCounts);
+  // 'extended' (legacy outcome value, pre-rename) and 'renewed' (current) both
+  // display as the stage's current "Renewed" done-text — old and new data
+  // read identically, no backfill needed.
+  const STAGE_DISPLAY_LABELS = { done: t('insights_stage_done'), extended: STAGE_META.extend && STAGE_META.extend.done, renewed: STAGE_META.extend && STAGE_META.extend.done, finished: t('mark_finished') };
   const stageRows = stageOrderForDisplay.filter(s => stageCounts[s]).map(s => {
-    const label = STAGE_DISPLAY_LABELS[s] || (STAGE_META[s] && STAGE_META[s].label) || s;
+    const label = STAGE_DISPLAY_LABELS[s] || metaFor(s).label || s;
     return {label, count: stageCounts[s]};
   });
 
@@ -1163,7 +1213,7 @@ async function checkAndFireNotifications() {
     const st = (typeof jobStage === 'function') ? jobStage(j) : '';
     const k = notifyConditionKey('job', j.id, st);
     nextNotified[k] = true;
-    if (!notified[k]) toFire.push({ title: 'Engagement needs attention', body: `${j.client || 'Client'} has been in ${(STAGE_META[st] || {}).label || st} for a few days`, tag: k });
+    if (!notified[k]) toFire.push({ title: 'Engagement needs attention', body: `${j.client || 'Client'} has been in ${metaFor(st).label || st} for a few days`, tag: k });
   });
 
   for (const n of toFire) await showOsNotification(n.title, n.body, n.tag);
@@ -1209,7 +1259,7 @@ async function renderHome() {
 const INCOMING_PIPELINE_LIMIT = 6;
 function incomingPipelineRowHtml(j) {
   const stage = jobStage(j);
-  const meta = STAGE_META[stage] || {};
+  const meta = metaFor(stage);
   return `<div class="list-row" onclick="openPipelineAt('${stage}')">
       <div class="list-icon" style="background:${meta.dot}22;color:${meta.dot}">${meta.icon || ''}</div>
       <div class="list-main">
@@ -1258,7 +1308,7 @@ function renderPipelineGlance() {
     if (counts[s] != null) counts[s]++;
   });
   wrap.innerHTML = order.map(stage => {
-    const meta = STAGE_META[stage] || {};
+    const meta = metaFor(stage);
     const n = counts[stage] || 0;
     return `<button type="button" class="pg-pill" onclick="openPipelineAt('${stage}')">
       <span class="pg-pill-main">
@@ -1321,25 +1371,35 @@ function onJobCustomerChange(v) {
     openAddCustomer();
     return;
   }
-  refreshJobPackageRow(v, null);
+  const sid = document.getElementById('j-service')?.value;
+  refreshJobPackageRow(v, null, sid);
 }
 // Shows/hides the job form's "Apply to package" row depending on whether the
-// selected client has a session package with sessions left. `existingPackageId`
-// (a job's own stored packageId, on edit) takes precedence over whatever's
-// currently active, so editing a session already linked to a now-exhausted
-// package still shows that same package rather than silently switching it.
-function refreshJobPackageRow(clientId, existingPackageId) {
+// selected client has a session package with sessions left FOR THE SELECTED
+// SERVICE (a client's gym package should never show up as applicable to a
+// laundry job). `existingPackageId` (a job's own stored packageId, on edit)
+// takes precedence over whatever's currently active, so editing a session
+// already linked to a now-exhausted package still shows that same package
+// rather than silently switching it.
+function refreshJobPackageRow(clientId, existingPackageId, serviceId) {
   const row = document.getElementById('j-package-row');
   const checkbox = document.getElementById('j-apply-package');
   const label = document.getElementById('j-package-label');
   const hidden = document.getElementById('j-package-id');
   if (!row || !checkbox || !label || !hidden) return;
   const cid = clientId ? parseInt(clientId) : null;
+  const sid = serviceId ? parseInt(serviceId) : null;
   let pkg = null;
   if (cid != null) {
     if (existingPackageId != null) pkg = packages.find(p => p.id === existingPackageId) || null;
-    if (!pkg) pkg = activePackageFor(cid);
+    if (!pkg) pkg = activePackageFor(cid, sid);
   }
+  // Packages tracked through their own dedicated card (trackerJobId set) are
+  // only ever consumed via that card's Deliver action / quick check-in —
+  // offering this checkbox here too (even when editing the tracker job
+  // itself) would risk double-counting or silently unlinking it. saveJob()
+  // separately guards against that unlinking regardless of this row's state.
+  if (pkg && pkg.trackerJobId != null) pkg = null;
   if (!pkg) {
     row.style.display = 'none';
     hidden.value = '';
@@ -1355,6 +1415,8 @@ function onJobServiceChange(v) {
   if (!v) return;
   const s = services.find(x => x.id === parseInt(v));
   if (s) { document.getElementById('j-amount').value = s.rate; calcNet(); }
+  const cid = document.getElementById('j-customer').value;
+  refreshJobPackageRow(cid, null, v);
 }
 function openAddJob(dateISO) {
   document.getElementById('modal-title').textContent = t('add_job');
@@ -1378,7 +1440,7 @@ function openEditJob(id) {
   set('j-amount', j.amount); set('j-tip', j.tip);
   set('j-expense', j.expense); set('j-count', j.count); set('j-notes', j.notes);
   populateJobSelects(j.clientId != null ? j.clientId : '', j.serviceId != null ? j.serviceId : '');
-  refreshJobPackageRow(j.clientId, j.packageId != null ? j.packageId : null);
+  refreshJobPackageRow(j.clientId, j.packageId != null ? j.packageId : null, j.serviceId);
   document.getElementById('j-delete').style.display = 'block';
   clearFieldErrors();
   calcNet();
@@ -1442,9 +1504,10 @@ async function saveJob() {
     jobType: settings.workType || '',
     amount, tip, expense, count, notes, netAmount: amount + tip - expense};
   const editId = document.getElementById('j-edit-id').value;
+  let prev = null;
   if (editId) {
     const id = parseInt(editId);
-    const prev = jobs.find(j => j.id === id);
+    prev = jobs.find(j => j.id === id);
     if (!prev) return;
     obj.id = id; obj.cuid = prev.cuid || cuid();
     obj.jobType = prev.jobType || settings.workType || '';   // preserve the job's original work type on edit
@@ -1464,9 +1527,20 @@ async function saveJob() {
     obj.invoiceId = null;
     obj.quoteDocId = null;
   }
-  const applyPkgEl = document.getElementById('j-apply-package');
-  const pkgIdEl = document.getElementById('j-package-id');
-  obj.packageId = (applyPkgEl && applyPkgEl.checked && pkgIdEl && pkgIdEl.value) ? parseInt(pkgIdEl.value) : null;
+  // A package-tracker card (see packageTrackerInfo) IS the package link — its
+  // packageId/consumedQty are managed exclusively by deliverPackageUnit(), so
+  // editing session details must never re-derive them from this form's
+  // checkbox (that row is hidden for tracker jobs — see refreshJobPackageRow —
+  // but the checkbox/hidden input still exist in the DOM either way).
+  const prevPkg = prev && prev.packageId != null ? packages.find(p => p.id === prev.packageId) : null;
+  if (prevPkg && prevPkg.trackerJobId === prev.id) {
+    obj.packageId = prev.packageId;
+    obj.consumedQty = prev.consumedQty || 0;
+  } else {
+    const applyPkgEl = document.getElementById('j-apply-package');
+    const pkgIdEl = document.getElementById('j-package-id');
+    obj.packageId = (applyPkgEl && applyPkgEl.checked && pkgIdEl && pkgIdEl.value) ? parseInt(pkgIdEl.value) : null;
+  }
   obj.updatedAt = nowISO();
   const isNew = !editId;
   const key = await dbPut('jobs', obj);
@@ -1479,8 +1553,17 @@ async function saveJob() {
 async function deleteJob() {
   const editId = document.getElementById('j-edit-id').value;
   if (!editId) return;
+  const id = parseInt(editId);
+  // A package-tracker card IS the only record of how much of that package has
+  // been used (its consumedQty) — deleting it would silently reset the
+  // package to "fully remaining" with no way to recover the real usage.
+  // Guide the user to delete the package itself instead, if that's the intent.
+  if (packages.some(p => p.trackerJobId === id)) {
+    toast('This card tracks a package’s usage and can’t be deleted directly — delete the package instead, from the client’s Session package section.');
+    return;
+  }
   if (!confirm(t('delete_job_confirm'))) return;
-  await dbDel('jobs', parseInt(editId));
+  await dbDel('jobs', id);
   closeJobModal();
   await reload();
   toast(t('job_deleted'));
@@ -1514,11 +1597,11 @@ function renderPipeline() {
 
   if (!_pipelineActiveStage || !order.includes(_pipelineActiveStage)) _pipelineActiveStage = order[0];
   const activeStage = _pipelineActiveStage;
-  const activeMeta = STAGE_META[activeStage] || {};
+  const activeMeta = metaFor(activeStage);
   const activeItems = groups[activeStage] || [];
 
   const rail = order.map(stage => {
-    const meta = STAGE_META[stage] || {};
+    const meta = metaFor(stage);
     const isActive = stage === activeStage;
     return `<button type="button" class="pl-rail-item${isActive ? ' active' : ''}" onclick="selectPipelineStage('${stage}')" aria-current="${isActive ? 'true' : 'false'}">
       <span class="pl-rail-ico">${meta.icon || ''}</span>
@@ -1532,7 +1615,7 @@ function renderPipeline() {
     : '<div class="kb-empty">Nothing here yet</div>';
 
   el.innerHTML = `<div class="pl-layout">
-    <div class="pl-rail" role="tablist" aria-label="Workflow stages">${rail}</div>
+    <div class="pl-rail" role="tablist" aria-label="Task Queue stages">${rail}</div>
     <div class="pl-main">
       <div class="pl-main-head">
         <span class="pl-rail-ico">${activeMeta.icon || ''}</span>
@@ -1546,8 +1629,21 @@ function renderPipeline() {
 }
 window.renderPipeline = renderPipeline;
 
+// A Delivery-stage job whose linked package is for a Multiple-time/Multiple-
+// usage service: this card doesn't advance on delivery — it stays parked at
+// Delivery, consumedQty is deducted instead (see deliverPackageUnit below),
+// until the package balance is used up.
+function packageTrackerInfo(j) {
+  if (j.packageId == null) return null;
+  const pkg = packages.find(p => p.id === j.packageId);
+  if (!pkg) return null;
+  const svc = services.find(s => s.id === pkg.serviceId);
+  if (!svc || (svc.type !== 'multitime' && svc.type !== 'multiusage')) return null;
+  return { pkg, svc };
+}
+
 function pipelineCard(j, stage) {
-  const meta = STAGE_META[stage] || {};
+  const meta = metaFor(stage);
   const complete = jobComplete(j);
   const who = j.client || t('field_client');
   const svc = j.serviceName || unitWord();
@@ -1556,9 +1652,18 @@ function pipelineCard(j, stage) {
   const canBack = complete || order.indexOf(jobStage(j)) > 0;
   const enter = (window.__kbMoved === j.id) ? ' kb-enter' : '';
   const doneLabel = j.outcome === 'finished' ? t('mark_finished') : (meta.done || 'Done');
-  const foot = complete
-    ? `<span class="pl-done">✓ ${htmlEsc(doneLabel)}</span>`
-    : `<button type="button" class="pl-action" onclick="event.stopPropagation();pipelineAction(${j.id})">${htmlEsc(meta.action || 'Advance')} →</button>`;
+  const tracker = (!complete && stage === 'delivery') ? packageTrackerInfo(j) : null;
+  let foot, pkgLine = '';
+  if (complete) {
+    foot = `<span class="pl-done">✓ ${htmlEsc(doneLabel)}</span>`;
+  } else if (tracker) {
+    const remaining = packageRemaining(tracker.pkg);
+    const unit = tracker.svc.unit || 'units';
+    pkgLine = `<div class="kb-card-sub">${remaining} of ${htmlEsc(tracker.pkg.totalSessions)} ${htmlEsc(unit)} left</div>`;
+    foot = `<button type="button" class="pl-action" onclick="event.stopPropagation();deliverPackageUnit(${j.id})">Deliver →</button>`;
+  } else {
+    foot = `<button type="button" class="pl-action" onclick="event.stopPropagation();pipelineAction(${j.id})">${htmlEsc(meta.action || 'Advance')} →</button>`;
+  }
   const skip = (!complete && meta.skippable)
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();skipJobStage(${j.id})">${htmlEsc(t('skip_stage'))}</button>`
     : '';
@@ -1573,6 +1678,7 @@ function pipelineCard(j, stage) {
       <div class="kb-card-main">
         <div class="kb-card-title">${htmlEsc(who)}</div>
         <div class="kb-card-sub">${htmlEsc(svc)} · ${htmlEsc(amt)}${fmtDate(j.date) ? ' · ' + htmlEsc(fmtDate(j.date)) : ''}</div>
+        ${pkgLine}
       </div>
       <button type="button" class="pl-edit" aria-label="Edit engagement" onclick="event.stopPropagation();openEditJob(${j.id})">✎</button>
     </div>
@@ -1606,16 +1712,35 @@ function pipelineAction(jobId) {
 }
 window.pipelineAction = pipelineAction;
 
+// Shared tail for every way a card can finish: set complete + a specific
+// outcome, rail-follow, persist, re-render. Used by advanceJobStage's
+// terminal branch, finishJobStage, and deliverPackageUnit()'s auto-renew
+// popup (below) — one place to get this right instead of three.
+async function completeJobWithOutcome(jobId, outcome) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  j.complete = true;
+  j.outcome = outcome;
+  j.updatedAt = nowISO();
+  logEvent('pipeline_stage:' + outcome);
+  _pipelineActiveStage = j.stage;
+  window.__kbMoved = jobId;
+  await dbPut('jobs', j);
+  await reload();
+  renderPipeline();
+}
+window.completeJobWithOutcome = completeJobWithOutcome;
+
 async function advanceJobStage(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
   const order = jobOrder(j);
   const idx = order.indexOf(jobStage(j));
-  if (idx < 0) { j.stage = order[0]; j.complete = false; }
-  else if (idx >= order.length - 1) { j.stage = order[idx]; j.complete = true; j.outcome = 'extended'; }
-  else { j.stage = order[idx + 1]; j.complete = false; }
+  if (idx >= 0 && idx >= order.length - 1) { await completeJobWithOutcome(jobId, 'renewed'); return; }
+  j.stage = idx < 0 ? order[0] : order[idx + 1];
+  j.complete = false;
   j.updatedAt = nowISO();
-  logEvent('pipeline_stage:' + (j.complete ? (j.outcome || 'done') : j.stage));
+  logEvent('pipeline_stage:' + j.stage);
   _pipelineActiveStage = j.stage;   // rail follows the card to wherever it just landed
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
@@ -1635,24 +1760,100 @@ async function skipJobStage(jobId) {
 }
 window.skipJobStage = skipJobStage;
 
-// Alt completion for the Extend stage: the engagement is over without a renewal.
-// Distinct from the primary "Mark extended" action so the completed badge (and
-// the Insights pipeline-activity breakdown) can tell "extended" and "finished"
+// Alt completion for the Renew stage: the engagement is over without a renewal.
+// Distinct from the primary "Mark renewed" action so the completed badge (and
+// the Insights pipeline-activity breakdown) can tell "renewed" and "finished"
 // engagements apart.
 async function finishJobStage(jobId) {
-  const j = jobs.find(x => x.id === jobId);
-  if (!j) return;
-  j.complete = true;
-  j.outcome = 'finished';
-  j.updatedAt = nowISO();
-  logEvent('pipeline_stage:finished');
-  _pipelineActiveStage = j.stage;
-  window.__kbMoved = jobId;
-  await dbPut('jobs', j);
-  await reload();
-  renderPipeline();
+  await completeJobWithOutcome(jobId, 'finished');
 }
 window.finishJobStage = finishJobStage;
+
+// ─── PACKAGE DELIVERY (Multiple-time/Multiple-usage tracker cards) ──────
+// The Delivery-stage action for a package-tracker card (see
+// packageTrackerInfo/pipelineCard above): deducts from the linked package
+// instead of advancing the stage. Multiple-usage services ask how many units
+// this visit consumed (a laundry drop-off might be 16 clothes); multiple-time
+// services always deduct exactly 1 (a gym visit is always one session).
+async function deliverPackageUnit(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  const info = j && packageTrackerInfo(j);
+  if (!info) { await advanceJobStage(jobId); return; }   // safety net — shouldn't be reachable from the UI
+  if (info.svc.type === 'multiusage') {
+    window.__deliverJobId = jobId;
+    openQuantityModal(info.svc.unit || 'units');
+    return;   // continues in confirmQuantityModal() once the user submits
+  }
+  await applyPackageDelivery(jobId, 1);
+}
+window.deliverPackageUnit = deliverPackageUnit;
+
+// Applies a delivered quantity to a tracker card's package, then — if that
+// was the last unit — auto-fires the renew/finish decision (the "does the
+// app ask the client if they need to renew" behavior).
+async function applyPackageDelivery(jobId, qty) {
+  const j = jobs.find(x => x.id === jobId);
+  const info = j && packageTrackerInfo(j);
+  if (!info) return;
+  j.consumedQty = (j.consumedQty || 0) + qty;
+  j.updatedAt = nowISO();
+  // packageRemaining() reads the live `jobs` array, which already holds this
+  // same (mutated-in-place) object — no reload needed to see the update yet.
+  const remaining = packageRemaining(info.pkg);
+  if (remaining > 0) {
+    await dbPut('jobs', j);
+    await reload();
+    renderPipeline();
+    return;
+  }
+  // Exhausted: don't persist here — completeJobWithOutcome() below re-fetches
+  // this same job (jobs.find returns the live, already-mutated reference)
+  // and persists it in one write; an extra dbPut/reload here would just be a
+  // second full write + IndexedDB table sweep for the same user action.
+  const unit = info.svc.unit || 'units';
+  const wantsRenew = confirm(
+    `${j.client || 'This client'} has used all ${info.pkg.totalSessions} ${unit} of ${info.svc.name}. Does the client want to renew?`
+  );
+  if (wantsRenew) {
+    await completeJobWithOutcome(jobId, 'renewed');
+    // Spin off the renewal: land in the client's package section, pre-filled
+    // to the same service — saving a new package there creates a fresh
+    // tracker card via savePackage()/createTrackerJob(), closing the loop.
+    // openEditCustomer() itself resets __pkgFormOpen to false, so the
+    // pre-open + re-render has to happen AFTER it, not before.
+    openEditCustomer(j.clientId);
+    window.__pkgFormOpen = true;
+    window.__pkgFormPreselectService = j.serviceId;
+    renderCustomerPackages(j.clientId);
+  } else {
+    await completeJobWithOutcome(jobId, 'finished');
+  }
+}
+window.applyPackageDelivery = applyPackageDelivery;
+
+function openQuantityModal(unit) {
+  const title = document.getElementById('qty-modal-title');
+  if (title) title.textContent = `How many ${unit}?`;
+  const input = document.getElementById('qty-input');
+  if (input) input.value = '1';
+  document.getElementById('modal-qty')?.classList.add('open');
+}
+window.openQuantityModal = openQuantityModal;
+function closeQuantityModal() {
+  document.getElementById('modal-qty')?.classList.remove('open');
+  window.__deliverJobId = null;
+}
+window.closeQuantityModal = closeQuantityModal;
+async function confirmQuantityModal() {
+  const qty = parseInt(document.getElementById('qty-input').value) || 0;
+  const jobId = window.__deliverJobId;
+  document.getElementById('modal-qty')?.classList.remove('open');
+  window.__deliverJobId = null;
+  if (!jobId || qty <= 0) { if (qty <= 0) toast('Enter a quantity of 1 or more'); return; }
+  await applyPackageDelivery(jobId, qty);
+  toast('Delivery recorded');
+}
+window.confirmQuantityModal = confirmQuantityModal;
 
 // Move a card back one stage (or re-open a completed engagement at its final stage).
 async function moveJobStageBack(jobId) {
@@ -1750,27 +1951,86 @@ window.onEngagementQuoteCreated = async function (docId, jobId) {
   renderPipeline();
 };
 
-// ─── WORKFLOW SETTINGS (reorder only) ───────────────────────────────────
-// All 6 stages are mandatory and always present, so this is just a reorder
-// list — no add/remove toggle (there's no optional stage anymore).
+// ─── WORKFLOW SETTINGS (reorder + custom stages) ────────────────────────
+// The 6 built-in stages are mandatory and always present (reorder only, no
+// delete). Stages the user adds themselves (settings.customStages) can be
+// reordered the same way and deleted again.
 function renderWorkflowControls() {
   const wrap = document.getElementById('workflow-body');
   if (!wrap) return;
   const order = getStageOrder();
   const rows = order.map((stage, i) => {
-    const meta = STAGE_META[stage] || {};
+    const meta = metaFor(stage);
+    const isCustom = stage.startsWith('custom:');
+    const skipBadge = meta.skippable ? `<span class="wf-skip-badge">Skippable</span>` : '';
+    const del = isCustom
+      ? `<button type="button" class="wf-move wf-rm" aria-label="Delete ${htmlEsc(meta.label || stage)}" onclick="wfDeleteStage('${stage}')">✕</button>`
+      : '';
     return `<div class="wf-row">
       <span class="wf-ico">${meta.icon || ''}</span>
-      <span class="wf-name">${htmlEsc(meta.label || stage)}</span>
+      <span class="wf-name">${htmlEsc(meta.label || stage)}</span>${skipBadge}
       <span class="wf-btns">
         <button type="button" class="wf-move" aria-label="Move ${htmlEsc(meta.label || stage)} up" ${i === 0 ? 'disabled' : ''} onclick="wfMove(${i},-1)">↑</button>
         <button type="button" class="wf-move" aria-label="Move ${htmlEsc(meta.label || stage)} down" ${i === order.length - 1 ? 'disabled' : ''} onclick="wfMove(${i},1)">↓</button>
+        ${del}
       </span>
     </div>`;
   }).join('');
-  wrap.innerHTML = `<div class="wf-list">${rows}</div>`;
+  const addForm = window.__wfAddFormOpen
+    ? `<div class="form-row" style="margin-top:10px">
+        <input type="text" id="wf-new-stage-name" placeholder="e.g. Consultation" style="flex:1">
+        <button type="button" class="btn-submit" style="width:auto" onclick="wfAddStage()">Add</button>
+      </div>`
+    : `<button type="button" class="wf-add" onclick="toggleWfAddForm(true)">+ Add stage</button>`;
+  wrap.innerHTML = `<div class="wf-list">${rows}</div>${addForm}`;
+  if (window.__wfAddFormOpen) document.getElementById('wf-new-stage-name')?.focus();
 }
 window.renderWorkflowControls = renderWorkflowControls;
+
+function toggleWfAddForm(open) {
+  window.__wfAddFormOpen = open;
+  renderWorkflowControls();
+}
+window.toggleWfAddForm = toggleWfAddForm;
+
+async function wfAddStage() {
+  const input = document.getElementById('wf-new-stage-name');
+  const label = (input && input.value || '').trim();
+  if (!label) { toast('Enter a name for the new stage'); return; }
+  const stage = { id: 'custom:' + cuid(), label };
+  // Capture the order BEFORE adding to customStages — same reasoning as
+  // wfDeleteStage below: getStageOrder() validates the stored order against
+  // allStageIds(), so adding the stage there first would make the stored
+  // order look "one short," falling back to a freshly-derived default that
+  // already includes every custom stage — then appending stage.id here would
+  // add it a SECOND time, producing a duplicate that permanently fails the
+  // uniqueness check on every future getStageOrder() call.
+  const order = getStageOrder().concat(stage.id);
+  await saveSetting('customStages', customStages().concat(stage));
+  await saveSetting('stageOrder', order);
+  window.__wfAddFormOpen = false;
+  renderWorkflowControls();
+  renderPipeline();
+}
+window.wfAddStage = wfAddStage;
+
+// Removing a stage a job is currently sitting in is safe without extra
+// bookkeeping: jobStage()'s existing "stage removed from order → restart at
+// first" fallback (app.js) already handles that case.
+async function wfDeleteStage(stageId) {
+  if (!confirm('Delete this stage? Any engagements sitting in it will move back to the first stage.')) return;
+  // Capture the order BEFORE removing the customStages entry — getStageOrder()
+  // validates the stored order against allStageIds(), so deleting the custom
+  // stage first would make the stored order look "invalid" (still containing
+  // the now-gone id) and fall back to a freshly-derived default, silently
+  // discarding any reordering the user had done for the remaining stages.
+  const order = getStageOrder().filter(s => s !== stageId);
+  await saveSetting('customStages', customStages().filter(s => s.id !== stageId));
+  await saveSetting('stageOrder', order);
+  renderWorkflowControls();
+  renderPipeline();
+}
+window.wfDeleteStage = wfDeleteStage;
 
 async function wfMove(i, delta) {
   const order = getStageOrder();
@@ -1872,47 +2132,59 @@ function renderIntakeFields(c) {
 }
 
 // ─── SESSION PACKAGES — shown within the Customer modal (edit mode only) ──
+// Packages are per-service (pkg.serviceId) — a client can hold independent
+// concurrent packages for different services (a gym bundle and a laundry
+// bundle are never the same balance). Buying a package for a Multiple-time/
+// Multiple-usage service also creates the one Pipeline card that package is
+// tracked through (see savePackage/createTrackerJob below).
 window.__pkgFormOpen = false;
+window.__pkgFormPreselectService = null;   // set by deliverPackageUnit()'s renewal flow
+function packageableServices() {
+  return services.filter(s => s.type === 'multitime' || s.type === 'multiusage');
+}
 function renderCustomerPackages(clientId) {
   const wrap = document.getElementById('cust-package-body');
   if (!wrap) return;
   const list = clientPackages(clientId);
-  const active = activePackageFor(clientId);
+  const svcName = id => (services.find(s => s.id === id) || {}).name || '';
   let html = '';
-  if (active) {
-    const remaining = packageRemaining(active);
-    const pct = active.totalSessions > 0 ? Math.round((remaining / active.totalSessions) * 100) : 0;
-    html += `<div class="pkg-status">
-        <div class="pkg-status-row"><span>${remaining} of ${htmlEsc(active.totalSessions)} sessions left</span><span class="pkg-status-date">Since ${htmlEsc(fmtDate(active.purchasedDate))}</span></div>
-        <div class="pkg-status-track"><div class="pkg-status-fill" style="width:${pct}%"></div></div>
-      </div>`;
-  } else if (list.length) {
-    html += `<div class="pkg-status"><span>No sessions left on the last package.</span></div>`;
-  } else {
-    html += `<div class="pkg-status"><span>No package yet.</span></div>`;
-  }
-  if (list.length > 1 || (list.length === 1 && !active)) {
-    html += '<div class="list-card" style="margin-top:8px">' + list.map(p => {
+  if (list.length) {
+    html += '<div class="list-card">' + list.map(p => {
       const rem = packageRemaining(p);
+      const svc = services.find(s => s.id === p.serviceId);
+      const unit = (svc && svc.unit) || 'units';
       return `<div class="list-row" style="cursor:default">
-          <div class="list-main"><div class="list-title">${htmlEsc(p.totalSessions)} sessions</div>
-          <div class="list-sub">Purchased ${htmlEsc(fmtDate(p.purchasedDate))}</div></div>
+          <div class="list-main"><div class="list-title">${htmlEsc(svcName(p.serviceId) || 'Package')}</div>
+          <div class="list-sub">${htmlEsc(p.totalSessions)} ${htmlEsc(unit)} · Purchased ${htmlEsc(fmtDate(p.purchasedDate))}</div></div>
           <div class="list-right"><span class="list-amt tnum">${rem} left</span></div>
         </div>`;
     }).join('') + '</div>';
+  } else {
+    html += `<div class="pkg-status"><span>No package yet.</span></div>`;
   }
+  const options = packageableServices();
   html += window.__pkgFormOpen ? `
-      <div class="form-row" style="margin-top:10px">
-        <div class="field-half"><label for="pkg-total">Sessions</label><input type="number" id="pkg-total" class="tnum" inputmode="numeric" min="1" placeholder="10"></div>
+      <div class="field" style="margin-top:10px">
+        <label for="pkg-service">Service</label>
+        <select id="pkg-service">${options.length ? options.map(s =>
+          `<option value="${s.id}">${htmlEsc(s.name)}</option>`).join('') : `<option value="">No package services yet — add one under Services first</option>`}</select>
+      </div>
+      <div class="form-row">
+        <div class="field-half"><label for="pkg-total">Quantity</label><input type="number" id="pkg-total" class="tnum" inputmode="numeric" min="1" placeholder="10"></div>
         <div class="field-half"><label for="pkg-price">Price</label><input type="number" id="pkg-price" class="tnum" inputmode="decimal" min="0" placeholder="0"></div>
       </div>
       <div class="field"><label for="pkg-date">Purchased</label><input type="date" id="pkg-date"></div>
       <button type="button" class="btn-submit" style="margin-top:6px" onclick="savePackage(${clientId})">Save package</button>
-    ` : `<button type="button" class="btn-submit" style="margin-top:10px" onclick="togglePackageForm(true, ${clientId})">${active ? '+ Renew package' : '+ New package'}</button>`;
+    ` : `<button type="button" class="btn-submit" style="margin-top:10px" onclick="togglePackageForm(true, ${clientId})">+ New/renew package</button>`;
   wrap.innerHTML = html;
   if (window.__pkgFormOpen) {
     const dateEl = document.getElementById('pkg-date');
     if (dateEl && !dateEl.value) dateEl.value = todayISO();
+    const svcEl = document.getElementById('pkg-service');
+    if (svcEl && window.__pkgFormPreselectService != null) svcEl.value = String(window.__pkgFormPreselectService);
+    const svc = options.find(s => String(s.id) === (svcEl && svcEl.value));
+    if (svc && svc.defaultQty) document.getElementById('pkg-total').value = svc.defaultQty;
+    window.__pkgFormPreselectService = null;
   }
 }
 function togglePackageForm(open, clientId) {
@@ -1920,14 +2192,39 @@ function togglePackageForm(open, clientId) {
   renderCustomerPackages(clientId);
 }
 window.togglePackageForm = togglePackageForm;
+// Constructs the one Pipeline card a Multiple-time/Multiple-usage package is
+// tracked through — same shape saveJob()'s new-job branch builds, but built
+// directly since there's no open job form to read from here.
+async function createTrackerJob(clientId, serviceId, packageId) {
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const custRec = customers.find(c => c.id === clientId);
+  const svc = services.find(s => s.id === serviceId);
+  const order = getStageOrder();
+  const obj = {
+    uid, date: todayISO(), client: (custRec && custRec.name) || '', clientId,
+    serviceId, serviceName: svc ? svc.name : '', jobType: settings.workType || '',
+    amount: svc ? svc.rate : 0, tip: 0, expense: 0, count: 0, notes: '',
+    netAmount: svc ? svc.rate : 0, packageId, consumedQty: 0,
+    cuid: cuid(), stageOrder: order.slice(), stage: order[0],
+    complete: false, invoiceId: null, quoteDocId: null, updatedAt: nowISO(),
+  };
+  return dbPut('jobs', obj);
+}
 async function savePackage(clientId) {
+  const svcEl = document.getElementById('pkg-service');
+  const serviceId = svcEl && svcEl.value ? parseInt(svcEl.value) : null;
+  if (!serviceId) { toast('Choose which service this package is for'); return; }
   const total = parseInt(document.getElementById('pkg-total').value) || 0;
   const price = parseFloat(document.getElementById('pkg-price').value) || 0;
   const date = document.getElementById('pkg-date').value || todayISO();
   if (total <= 0) { toast('Enter how many sessions this package includes'); return; }
   const uid = isGuest ? 'guest' : currentUser.id;
-  const obj = { uid, clientId, totalSessions: total, price, purchasedDate: date, notes: '', cuid: cuid(), updatedAt: nowISO() };
-  await dbAdd('packages', obj);
+  const obj = { uid, clientId, serviceId, totalSessions: total, price, purchasedDate: date, notes: '', cuid: cuid(), updatedAt: nowISO() };
+  const pkgId = await dbAdd('packages', obj);
+  // The purchased service is always multitime/multiusage (packageableServices()
+  // is the only source for the select), so it always gets a tracker card.
+  const jobId = await createTrackerJob(clientId, serviceId, pkgId);
+  await dbPut('packages', { ...obj, id: pkgId, trackerJobId: jobId });
   window.__pkgFormOpen = false;
   await reload();
   renderCustomerPackages(clientId);
@@ -2010,12 +2307,32 @@ window.deleteProgressEntry = deleteProgressEntry;
 async function quickCheckIn(clientId) {
   const c = customers.find(x => x.id === clientId);
   if (!c) return;
-  const uid = isGuest ? 'guest' : currentUser.id;
   const priorJobs = jobs.filter(j => j.clientId === clientId)
     .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
   const last = priorJobs[0];
+  // If the client's active package is tracked through its own card (a
+  // Multiple-time/Multiple-usage service — see packageTrackerInfo), a
+  // check-in just delivers a unit against that existing card, same as
+  // tapping Deliver on the Pipeline. Creating a second, separate job here
+  // would double-count against the package. Scoped to the client's last-used
+  // service (same guess the fallback job below already makes) so a client
+  // with concurrent packages for two different services doesn't have a
+  // gym check-in silently resolve to their laundry bundle.
+  const pkg = activePackageFor(clientId, last ? last.serviceId : null);
+  const trackerJob = pkg && pkg.trackerJobId ? jobs.find(j => j.id === pkg.trackerJobId && !jobComplete(j)) : null;
+  if (trackerJob) {
+    await deliverPackageUnit(trackerJob.id);
+    // deliverPackageUnit() only OPENS the quantity modal for a Multiple-usage
+    // service and returns immediately — the real delivery (and its own
+    // confirmation) happens later in confirmQuantityModal(), so don't claim
+    // success yet or a cancelled/unconfirmed modal would leave a false
+    // "Checked in" toast with nothing actually recorded.
+    const svc = services.find(s => s.id === trackerJob.serviceId);
+    if (!svc || svc.type !== 'multiusage') toast(`Checked in ${c.name}`);
+    return;
+  }
+  const uid = isGuest ? 'guest' : currentUser.id;
   const order = getStageOrder();
-  const pkg = activePackageFor(clientId);
   const job = {
     uid, date: todayISO(), client: c.name, clientId: c.id,
     serviceId: last ? last.serviceId : null, serviceName: last ? last.serviceName : '',
@@ -2024,7 +2341,7 @@ async function quickCheckIn(clientId) {
     netAmount: last ? last.amount : 0,
     cuid: cuid(), stageOrder: order, stage: 'delivery', complete: false,
     invoiceId: null, quoteDocId: null,
-    packageId: pkg ? pkg.id : null,
+    packageId: pkg ? pkg.id : null,   // legacy packages (no trackerJobId) keep the old per-visit counting
     updatedAt: nowISO(),
   };
   await dbAdd('jobs', job);
@@ -2122,20 +2439,77 @@ async function deleteCustomer() {
 }
 
 // ─── SERVICES (catalog + default rates) ───────────────────────────────
-// Example gym services seeded once (editable/deletable). Numbers are currency-agnostic.
-const SEED_SERVICES = [['1-on-1 session',800,'session'],['Group class',400,'session'],['Nutrition plan',2000,'plan']];
+// Example services seeded once per business type (editable/deletable
+// afterward), chosen at onboarding via openBusinessTypePicker(). Numbers are
+// currency-agnostic. Tuple: [name, rate, unit, type, defaultQty] — type is
+// 'onetime' | 'multitime' (fixed-quantity package, e.g. an 8-session bundle,
+// deducted 1 per delivery) | 'multiusage' (variable quantity, e.g. a
+// 50-piece laundry bundle, deducted by however much is used per delivery).
+// Each business's seed list demonstrates at least one multi- type so the
+// package-tracking feature is discoverable, not just told about.
+const SEED_SERVICES_BY_TYPE = {
+  gym: [
+    ['1-on-1 session', 800, 'session', 'onetime', 0],
+    ['Group class', 400, 'session', 'onetime', 0],
+    ['8-session package', 5600, 'session', 'multitime', 8],
+  ],
+  laundry: [
+    ['Wash & fold', 60, 'piece', 'onetime', 0],
+    ['Dry cleaning', 150, 'piece', 'onetime', 0],
+    ['50-piece bundle', 2200, 'piece', 'multiusage', 50],
+  ],
+  photography: [
+    ['Portrait session', 1500, 'session', 'onetime', 0],
+    ['Event coverage (per hour)', 800, 'hour', 'onetime', 0],
+  ],
+  consulting: [
+    ['Consultation call', 1000, 'hour', 'onetime', 0],
+    ['10-hour retainer', 9000, 'hour', 'multitime', 10],
+  ],
+  general: [],   // "Other / General" — no assumptions, user builds their own catalog
+};
 async function seedServicesIfEmpty() {
-  const flag = 'servicesSeeded_gym';
+  const flag = 'servicesSeeded';
   if (settings[flag]) return;                       // already seeded
   const uid = isGuest ? 'guest' : currentUser.id;
   const existing = (await dbAll('services')).filter(s => s.uid === uid);
   if (existing.length) { await saveSetting(flag, true); return; }   // never overwrite user data
-  for (const [name, rate, unit] of SEED_SERVICES) {
-    await dbAdd('services', {uid, name, rate, unit, cuid: cuid(), updatedAt: nowISO()});
+  const seed = SEED_SERVICES_BY_TYPE[settings.workType] || [];
+  for (const [name, rate, unit, type, defaultQty] of seed) {
+    await dbAdd('services', {uid, name, rate, unit, type, defaultQty, cuid: cuid(), updatedAt: nowISO()});
   }
   await saveSetting(flag, true);
   await reload();
 }
+
+// ─── ONBOARDING: business type picker (first run only) ─────────────────
+const BUSINESS_TYPES = [
+  {id: 'gym', label: 'Gym / Personal training', icon: '🏋️'},
+  {id: 'laundry', label: 'Laundry', icon: '🧺'},
+  {id: 'photography', label: 'Photography', icon: '📷'},
+  {id: 'consulting', label: 'Consulting', icon: '💼'},
+  {id: 'general', label: 'Other / General', icon: '✨'},
+];
+function openBusinessTypePicker() {
+  const wrap = document.getElementById('biz-type-body');
+  if (wrap) {
+    wrap.innerHTML = BUSINESS_TYPES.map(b => `
+      <button type="button" class="biz-type-btn" onclick="chooseBusinessType('${b.id}')">
+        <span class="biz-type-icon">${b.icon}</span>
+        <span>${htmlEsc(b.label)}</span>
+      </button>`).join('');
+  }
+  document.getElementById('modal-business-type')?.classList.add('open');
+}
+window.openBusinessTypePicker = openBusinessTypePicker;
+async function chooseBusinessType(type) {
+  await saveSetting('workType', type);
+  document.body.setAttribute('data-work-type', type);
+  await seedServicesIfEmpty();
+  document.getElementById('modal-business-type')?.classList.remove('open');
+  await reload();
+}
+window.chooseBusinessType = chooseBusinessType;
 function renderServices() {
   const wrap = document.getElementById('services-body');
   if (!wrap) return;
@@ -2144,11 +2518,12 @@ function renderServices() {
       <p>${htmlEsc(t('no_services'))}</p><span>${htmlEsc(t('no_services_sub'))}</span></div>`;
     return;
   }
+  const typeLabel = { onetime: '', multitime: t('svc_type_multitime_badge'), multiusage: t('svc_type_multiusage_badge') };
   wrap.innerHTML = '<div class="list-card">' + services.map(s => `
     <div class="list-row" onclick="openEditService(${s.id})">
       <div class="list-icon">🏷️</div>
       <div class="list-main">
-        <div class="list-title">${htmlEsc(s.name)}</div>
+        <div class="list-title">${htmlEsc(s.name)}${s.type && s.type !== 'onetime' ? ` <span class="svc-type-badge">${htmlEsc(typeLabel[s.type] || '')}</span>` : ''}</div>
         <div class="list-sub">${htmlEsc(s.unit || '')}</div>
       </div>
       <div class="list-right"><div class="list-amt tnum">${htmlEsc(money(s.rate))}</div></div>
@@ -2156,10 +2531,19 @@ function renderServices() {
 }
 function openServiceModal() { document.getElementById('modal-service').classList.add('open'); }
 function closeServiceModal() { document.getElementById('modal-service').classList.remove('open'); }
+// Shows the "Default quantity" field only for the two multi- types (a
+// one-time service has no quantity to track).
+function onServiceTypeChange(v) {
+  const row = document.getElementById('sv-qty-row');
+  if (row) row.style.display = (v === 'multitime' || v === 'multiusage') ? 'block' : 'none';
+}
+window.onServiceTypeChange = onServiceTypeChange;
 function openAddService() {
   document.getElementById('svc-modal-title').textContent = t('add_service');
   document.getElementById('sv-edit-id').value = '';
-  ['sv-name','sv-rate','sv-unit'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  ['sv-name','sv-rate','sv-unit','sv-default-qty'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('sv-type').value = 'onetime';
+  onServiceTypeChange('onetime');
   document.getElementById('sv-delete').style.display = 'none';
   clearFieldErrors();
   openServiceModal();
@@ -2171,6 +2555,10 @@ function openEditService(id) {
   document.getElementById('sv-edit-id').value = String(id);
   const set = (i,v)=>{ const el=document.getElementById(i); if(el) el.value = (v==null?'':v); };
   set('sv-name', s.name); set('sv-rate', s.rate); set('sv-unit', s.unit);
+  const type = s.type || 'onetime';
+  document.getElementById('sv-type').value = type;
+  set('sv-default-qty', s.defaultQty);
+  onServiceTypeChange(type);
   document.getElementById('sv-delete').style.display = 'block';
   clearFieldErrors();
   openServiceModal();
@@ -2181,8 +2569,11 @@ async function saveService() {
   if (!name) { markFieldError('sv-name', 'err_name_required'); return; }
   const rate = parseFloat(document.getElementById('sv-rate').value) || 0;
   const unit = (document.getElementById('sv-unit').value || '').trim();
+  const type = document.getElementById('sv-type').value || 'onetime';
+  const defaultQty = (type === 'multitime' || type === 'multiusage')
+    ? (parseInt(document.getElementById('sv-default-qty').value) || 0) : 0;
   const uid = isGuest ? 'guest' : currentUser.id;
-  const obj = {uid, name, rate, unit};
+  const obj = {uid, name, rate, unit, type, defaultQty};
   const editId = document.getElementById('sv-edit-id').value;
   if (editId) {
     const id = parseInt(editId);

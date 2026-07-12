@@ -191,6 +191,8 @@ details.settings-section:not([open]) summary.section-title::after{transform:rota
 .wf-add{margin:0 0 16px;width:100%;padding:12px;border:1.5px dashed var(--border);border-radius:var(--radius-sm);
   background:none;color:var(--brand);font-weight:700;font-size:13px;font-family:inherit;cursor:pointer;}
 .wf-add:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
+.wf-skip-badge{font-size:11px;font-weight:700;color:var(--text3);background:var(--brand-tint);border-radius:999px;padding:2px 8px;}
+.svc-type-badge{font-size:11px;font-weight:700;color:var(--brand);background:var(--brand-tint);border-radius:999px;padding:1px 7px;vertical-align:middle;}
 
 /* Pipeline: a left-hand stage rail + a single-column list for just the active
    stage. A 6-column horizontal-scroll board reads as "too long" on mobile —
@@ -302,6 +304,13 @@ details.settings-section:not([open]) summary.section-title::after{transform:rota
   max-height:92vh;overflow-y:auto;padding-bottom:env(safe-area-inset-bottom,16px);}
 .modal-handle{width:42px;height:4px;background:var(--border-mid);border-radius:2px;margin:12px auto 14px;}
 .modal-title{font-size:18px;font-weight:800;padding:0 20px 14px;color:var(--text);}
+.modal-sub{font-size:13px;color:var(--text3);padding:0 20px 16px;line-height:1.4;margin-top:-8px;}
+.biz-type-list{display:flex;flex-direction:column;gap:8px;padding:0 16px 20px;}
+.biz-type-btn{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;border:1.5px solid var(--border);
+  border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-size:15px;font-weight:700;font-family:inherit;
+  cursor:pointer;text-align:left;}
+.biz-type-btn:active{background:var(--brand-tint);border-color:var(--brand);}
+.biz-type-icon{font-size:22px;}
 .form-section{background:var(--card);border-radius:var(--radius-sm);overflow:hidden;border:0.5px solid var(--border);margin:0 16px 16px;}
 .form-header{padding:11px 16px;border-bottom:0.5px solid var(--border);font-size:11px;font-weight:800;color:var(--text3);
   text-transform:uppercase;letter-spacing:.5px;background:var(--bg);}

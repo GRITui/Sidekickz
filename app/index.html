@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>(function(){var K='sidekick_ui_theme',M='sidekick_dark_default_migrated_v1';if(!localStorage.getItem(M)){if(localStorage.getItem(K)==='light')localStorage.setItem(K,'dark');localStorage.setItem(M,'1');}var t=localStorage.getItem(K);if(t==='light')document.documentElement.dataset.theme='light';else if(t!=='auto')document.documentElement.dataset.theme='dark';})();</script><!-- dark by default (2026 rebrand): set before CSS paints to avoid a flash of the wrong theme -->
-<link rel="stylesheet" href="styles.css?v=0.9.10">
+<link rel="stylesheet" href="styles.css?v=0.9.11">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -47,22 +47,22 @@
   </div>
 
   <div class="content" style="padding-bottom:0">
-    <div class="section-title" data-i18n="pipeline_glance_title">Workflow at a glance</div>
+    <div class="section-title" data-i18n="pipeline_glance_title">Task Queue at a glance</div>
     <div class="pg-row" id="pipeline-glance"></div>
   </div>
 
   <div class="content">
-    <div class="section-title" data-i18n="incoming_pipeline">Incoming workflow</div>
+    <div class="section-title" data-i18n="incoming_pipeline">Incoming Task Queue</div>
     <div id="incoming-pipeline-body"></div>
   </div>
 </section>
 
-<!-- ══ PIPELINE (primary engagement view; user-facing label is "Workflow" — see i18n) ══ -->
+<!-- ══ PIPELINE (primary engagement view; user-facing label is "Task Queue" — see i18n) ══ -->
 <section class="screen" id="s-pipeline">
   <div class="hdr-plain">
     <div class="hdr-row">
       <div style="display:flex;align-items:center;gap:12px">
-        <h1 data-i18n="pipeline_title">Workflow</h1>
+        <h1 data-i18n="pipeline_title">Task Queue</h1>
       </div>
     </div>
   </div>
@@ -297,7 +297,7 @@
 
     <div class="settings-list" style="margin-top:16px">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.10</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.11</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
@@ -342,8 +342,8 @@
     <span data-i18n="nav_home">Home</span>
   </button>
   <button class="nav-btn" id="nav-pipeline" onclick="switchScreen('pipeline')">
-    <svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M7 21v-7"/><path d="M12 21V6"/><path d="M17 21v-4"/></svg>
-    <span data-i18n="nav_pipeline">Workflow</span>
+    <svg viewBox="0 0 24 24"><path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="M4 6l1 1 2-2"/><path d="M4 12l1 1 2-2"/><path d="M4 18l1 1 2-2"/></svg>
+    <span data-i18n="nav_pipeline">Task Queue</span>
   </button>
   <button class="nav-btn" id="nav-customers" onclick="switchScreen('customers')">
     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -463,10 +463,45 @@
         <div class="field-half"><label for="sv-rate" data-i18n="field_rate">Default rate</label><input type="number" id="sv-rate" class="tnum" inputmode="decimal" min="0" placeholder="0"></div>
         <div class="field-half"><label for="sv-unit" data-i18n="field_unit">Unit</label><input type="text" id="sv-unit" data-i18n-ph="field_unit_ph" placeholder="e.g. session, hour"></div>
       </div>
+      <div class="field">
+        <label for="sv-type" data-i18n="field_service_type">Type</label>
+        <select id="sv-type" onchange="onServiceTypeChange(this.value)">
+          <option value="onetime" data-i18n="svc_type_onetime">One-time</option>
+          <option value="multitime" data-i18n="svc_type_multitime">Multiple-time (fixed quantity)</option>
+          <option value="multiusage" data-i18n="svc_type_multiusage">Multiple-usage (variable quantity)</option>
+        </select>
+      </div>
+      <div class="field" id="sv-qty-row" style="display:none">
+        <label for="sv-default-qty" data-i18n="field_default_qty">Default quantity</label>
+        <input type="number" id="sv-default-qty" class="tnum" inputmode="numeric" min="1" placeholder="e.g. 8">
+      </div>
     </div>
     <button class="btn-submit" onclick="saveService()" data-i18n="save_service">Save service</button>
     <button class="btn-danger" id="sv-delete" style="display:none" onclick="deleteService()" data-i18n="delete_service">Delete service</button>
     <button class="btn-danger" style="border-color:var(--border-mid);color:var(--text3)" onclick="closeServiceModal()" data-i18n="cancel">Cancel</button>
+  </div>
+</div>
+
+<!-- ══ QUANTITY MODAL (Multiple-usage package delivery, e.g. "how many clothes?") ══ -->
+<div class="modal-overlay" id="modal-qty">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="qty-modal-title">How many?</div>
+    <div class="form-section">
+      <div class="field"><input type="number" id="qty-input" class="tnum" inputmode="numeric" min="1" value="1"></div>
+    </div>
+    <button class="btn-submit" onclick="confirmQuantityModal()">Confirm</button>
+    <button class="btn-danger" style="border-color:var(--border-mid);color:var(--text3)" onclick="closeQuantityModal()" data-i18n="cancel">Cancel</button>
+  </div>
+</div>
+
+<!-- ══ BUSINESS TYPE PICKER (first-run onboarding, not user-dismissible) ══ -->
+<div class="modal-overlay" id="modal-business-type">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-handle"></div>
+    <div class="modal-title" data-i18n="biz_type_title">What kind of business do you run?</div>
+    <div class="modal-sub" data-i18n="biz_type_sub">This picks a starter set of services for you — you can edit or add to it any time.</div>
+    <div id="biz-type-body" class="biz-type-list"></div>
   </div>
 </div>
 
@@ -484,17 +519,17 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.9.10"></script>
+<script src="app.js?v=0.9.11"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.9.10"></script>
-<script src="invoices.js?v=0.9.10"></script>
-<script src="docgen.js?v=0.9.10"></script>
+<script src="tax.js?v=0.9.11"></script>
+<script src="invoices.js?v=0.9.11"></script>
+<script src="docgen.js?v=0.9.11"></script>
 <!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
      the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
-<script src="bookings.js?v=0.9.10"></script>
-<script src="followups.js?v=0.9.10"></script>
-<script src="portfolio.js?v=0.9.10"></script>
+<script src="bookings.js?v=0.9.11"></script>
+<script src="followups.js?v=0.9.11"></script>
+<script src="portfolio.js?v=0.9.11"></script>
 <!-- M5: research.js (content library, subscription UI stubbed open — no
      payment verification yet; see project-changelog-handshake.md). -->
-<script src="research.js?v=0.9.10"></script>
+<script src="research.js?v=0.9.11"></script>
