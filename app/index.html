@@ -436,18 +436,18 @@
     </div>
 
     <div class="form-section" id="job-tracking-section" style="display:none">
-      <div class="section-title" style="margin:0 0 8px">Sub-tasks</div>
+      <div class="section-title" style="margin:0 0 8px" data-i18n="subtasks_title">Sub-tasks</div>
       <div id="job-subtasks-body"></div>
       <div class="form-row" style="margin-top:8px">
-        <input type="text" id="job-subtask-new" placeholder="Add a sub-task…" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
-        <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addSubTask(document.getElementById('j-edit-id').value)">+ Add</button>
+        <input type="text" id="job-subtask-new" data-i18n-ph="subtask_add_ph" placeholder="Add a sub-task…" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+        <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addSubTask(document.getElementById('j-edit-id').value)" data-i18n="btn_add">+ Add</button>
       </div>
 
-      <div class="section-title" style="margin:18px 0 8px">Milestone payments</div>
+      <div class="section-title" style="margin:18px 0 8px" data-i18n="milestones_title">Milestone payments</div>
       <div id="job-milestones-body"></div>
-      <button type="button" class="btn-submit" style="margin-top:8px" onclick="addMilestone(document.getElementById('j-edit-id').value)">+ Add milestone</button>
+      <button type="button" class="btn-submit" style="margin-top:8px" onclick="addMilestone(document.getElementById('j-edit-id').value)" data-i18n="add_milestone">+ Add milestone</button>
 
-      <div class="section-title" style="margin:18px 0 8px">Time tracking</div>
+      <div class="section-title" style="margin:18px 0 8px" data-i18n="time_tracking_title">Time tracking</div>
       <div id="job-timer-body"></div>
     </div>
 
@@ -536,10 +536,10 @@
   <div class="focus-ring" id="focus-ring">
     <span class="focus-ring-time tnum" id="focus-ring-time">25:00</span>
   </div>
-  <div class="focus-billable">Billable this session: <span class="tnum" id="focus-billable-time">0:00</span></div>
+  <div class="focus-billable"><span data-i18n="billable_session">Billable this session:</span> <span class="tnum" id="focus-billable-time">0:00</span></div>
   <div class="focus-controls">
-    <button type="button" class="focus-btn" id="focus-pause-btn" onclick="toggleFocusPause()">Pause</button>
-    <button type="button" class="focus-btn focus-btn-stop" onclick="stopFocusMode()">Stop</button>
+    <button type="button" class="focus-btn" id="focus-pause-btn" onclick="toggleFocusPause()" data-i18n="focus_pause">Pause</button>
+    <button type="button" class="focus-btn focus-btn-stop" onclick="stopFocusMode()" data-i18n="focus_stop">Stop</button>
   </div>
 </div>
 

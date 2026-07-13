@@ -557,6 +557,21 @@ const I18N = {
     daily_goal:'Daily income goal', goal_target_month:'Monthly income goal', goal_target_quarter:'Quarterly income goal', goal_target_year:'Yearly income goal',
     business_type_label:'Business type', business_type_trainer:'Personal trainer', business_type_realestate:'Real estate agent',
     business_type_laundry:'Laundry service', business_type_insurance:'Insurance agent', business_type_garage:'Car garage',
+    subtasks_title:'Sub-tasks', subtask_add_ph:'Add a sub-task…', btn_add:'+ Add', no_subtasks:'No sub-tasks yet.',
+    milestones_title:'Milestone payments', add_milestone:'+ Add milestone', save_milestone:'Save milestone',
+    draft_invoice:'Draft invoice', milestone_locked:'Locked', no_milestones:'No milestones yet.',
+    unlocks_with:'Unlocks with: ', no_gating_subtask:'No gating sub-task',
+    ms_amount_label:'Amount', ms_gate_label:'Gating sub-task (optional)', ms_gate_none:'None',
+    time_tracking_title:'Time tracking', unbilled_time:'Unbilled time', start_timer:'▶ Start timer', stop_timer:'■ Stop timer',
+    focus_mode_btn:'Focus mode', add_unbilled_to_invoice:'+ Add unbilled time to invoice', time_invoiced_label:'Invoiced',
+    billable_session:'Billable this session:', focus_pause:'Pause', focus_resume:'Resume', focus_stop:'Stop',
+    tracker_deal_title:'Deal tracker', tracker_order_title:'Order tracker', tracker_policy_title:'Policy tracker', tracker_vehicle_title:'Vehicle tracker',
+    field_search_brief:'Budget / areas / needs', field_offer_status:'Offer status', field_est_commission:'Est. commission',
+    field_order_status:'Order status', order_step_received:'Received', order_step_washing:'Washing', order_step_drying:'Drying', order_step_ready:'Ready',
+    field_monthly_kg_plan:'Monthly kg plan', field_preferences:'Preferences',
+    field_policy_name:'Policy name', field_renewal_date:'Renewal date',
+    field_plate:'Plate', field_mileage:'Mileage', field_next_service_due:'Next service due',
+    day_singular:'day', day_plural:'days', overdue_for_renewal:'overdue for renewal', until_renewal:'until renewal',
     data:'Data', export_csv:'Export CSV', backup_json:'Backup JSON', restore_json:'Restore JSON',
     total_jobs:'Total jobs', app_word:'App', version:'Version', logout:'Log out', exit_guest:'Exit guest mode',
     // placeholder modules
@@ -667,6 +682,21 @@ const I18N = {
     daily_goal:'เป้าหมายรายได้ต่อวัน', goal_target_month:'เป้าหมายรายได้ต่อเดือน', goal_target_quarter:'เป้าหมายรายได้ต่อไตรมาส', goal_target_year:'เป้าหมายรายได้ต่อปี',
     business_type_label:'ประเภทธุรกิจ', business_type_trainer:'เทรนเนอร์ส่วนตัว', business_type_realestate:'นายหน้าอสังหาริมทรัพย์',
     business_type_laundry:'ร้านซักรีด', business_type_insurance:'ตัวแทนประกันภัย', business_type_garage:'อู่ซ่อมรถ',
+    subtasks_title:'งานย่อย', subtask_add_ph:'เพิ่มงานย่อย…', btn_add:'+ เพิ่ม', no_subtasks:'ยังไม่มีงานย่อย',
+    milestones_title:'การจ่ายเงินตามช่วงงาน', add_milestone:'+ เพิ่มช่วงงาน', save_milestone:'บันทึกช่วงงาน',
+    draft_invoice:'ร่างใบแจ้งหนี้', milestone_locked:'ล็อกอยู่', no_milestones:'ยังไม่มีช่วงงาน',
+    unlocks_with:'ปลดล็อกเมื่อ: ', no_gating_subtask:'ไม่มีงานย่อยที่ต้องรอ',
+    ms_amount_label:'จำนวนเงิน', ms_gate_label:'งานย่อยที่ต้องรอ (ไม่บังคับ)', ms_gate_none:'ไม่มี',
+    time_tracking_title:'บันทึกเวลา', unbilled_time:'เวลาที่ยังไม่เรียกเก็บเงิน', start_timer:'▶ เริ่มจับเวลา', stop_timer:'■ หยุดจับเวลา',
+    focus_mode_btn:'โหมดโฟกัส', add_unbilled_to_invoice:'+ เพิ่มเวลาที่ยังไม่เรียกเก็บเงินลงใบแจ้งหนี้', time_invoiced_label:'ออกใบแจ้งหนี้แล้ว',
+    billable_session:'เวลาที่เรียกเก็บเงินได้ในเซสชันนี้:', focus_pause:'หยุดชั่วคราว', focus_resume:'ดำเนินการต่อ', focus_stop:'หยุด',
+    tracker_deal_title:'ติดตามดีล', tracker_order_title:'ติดตามออเดอร์', tracker_policy_title:'ติดตามกรมธรรม์', tracker_vehicle_title:'ติดตามรถ',
+    field_search_brief:'งบประมาณ / ทำเล / ความต้องการ', field_offer_status:'สถานะข้อเสนอ', field_est_commission:'ค่าคอมมิชชั่นโดยประมาณ',
+    field_order_status:'สถานะออเดอร์', order_step_received:'รับผ้าแล้ว', order_step_washing:'กำลังซัก', order_step_drying:'กำลังตาก', order_step_ready:'พร้อมรับ',
+    field_monthly_kg_plan:'แผนกิโลกรัมต่อเดือน', field_preferences:'ความต้องการเฉพาะ',
+    field_policy_name:'ชื่อกรมธรรม์', field_renewal_date:'วันต่ออายุ',
+    field_plate:'ทะเบียนรถ', field_mileage:'เลขไมล์', field_next_service_due:'กำหนดเข้าศูนย์ครั้งถัดไป',
+    day_singular:'วัน', day_plural:'วัน', overdue_for_renewal:'เลยกำหนดต่ออายุ', until_renewal:'ก่อนถึงกำหนดต่ออายุ',
     data:'ข้อมูล', export_csv:'ส่งออก CSV', backup_json:'สำรองข้อมูล JSON', restore_json:'กู้คืนข้อมูล JSON',
     total_jobs:'จำนวนเซสชันทั้งหมด', app_word:'แอป', version:'เวอร์ชัน', logout:'ออกจากระบบ', exit_guest:'ออกจากโหมดผู้เยี่ยมชม',
     // placeholder modules
@@ -2188,10 +2218,10 @@ async function saveClientField(clientId, field, value) {
 window.saveClientField = saveClientField;
 
 const PERSONA_TRACKER_TITLES = {
-  realestate: 'Deal tracker',
-  laundry: 'Order tracker',
-  insurance: 'Policy tracker',
-  garage: 'Vehicle tracker',
+  realestate: 'tracker_deal_title',
+  laundry: 'tracker_order_title',
+  insurance: 'tracker_policy_title',
+  garage: 'tracker_vehicle_title',
 };
 function renderClientPersonaTracker(clientId) {
   const wrap = document.getElementById('cust-persona-body');
@@ -2200,43 +2230,43 @@ function renderClientPersonaTracker(clientId) {
   const c = customers.find(x => x.id === clientId);
   if (!c) return;
   const bt = businessType();
-  if (titleEl) titleEl.textContent = PERSONA_TRACKER_TITLES[bt] || '';
+  if (titleEl) titleEl.textContent = PERSONA_TRACKER_TITLES[bt] ? t(PERSONA_TRACKER_TITLES[bt]) : '';
 
   if (bt === 'realestate') {
     wrap.innerHTML = `
-      <div class="field"><label>Budget / areas / needs</label><textarea rows="2" onchange="saveClientField(${clientId},'searchBrief',this.value)">${htmlEsc(c.searchBrief || '')}</textarea></div>
-      <div class="field"><label>Offer status</label><input type="text" value="${attrEsc(c.offerStatus || '')}" placeholder="e.g. Offer submitted, awaiting reply" onchange="saveClientField(${clientId},'offerStatus',this.value)"></div>
-      <div class="field"><label>Est. commission</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.estCommission || ''}" onchange="saveClientField(${clientId},'estCommission',parseFloat(this.value)||0)"></div>
+      <div class="field"><label>${htmlEsc(t('field_search_brief'))}</label><textarea rows="2" onchange="saveClientField(${clientId},'searchBrief',this.value)">${htmlEsc(c.searchBrief || '')}</textarea></div>
+      <div class="field"><label>${htmlEsc(t('field_offer_status'))}</label><input type="text" value="${attrEsc(c.offerStatus || '')}" placeholder="e.g. Offer submitted, awaiting reply" onchange="saveClientField(${clientId},'offerStatus',this.value)"></div>
+      <div class="field"><label>${htmlEsc(t('field_est_commission'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.estCommission || ''}" onchange="saveClientField(${clientId},'estCommission',parseFloat(this.value)||0)"></div>
     `;
   } else if (bt === 'laundry') {
     const steps = ['received', 'washing', 'drying', 'ready'];
     const cur = steps.includes(c.orderStatus) ? c.orderStatus : 'received';
     wrap.innerHTML = `
-      <div class="field"><label>Order status</label><select onchange="saveClientField(${clientId},'orderStatus',this.value)">
-        ${steps.map(s => `<option value="${s}"${s === cur ? ' selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`).join('')}
+      <div class="field"><label>${htmlEsc(t('field_order_status'))}</label><select onchange="saveClientField(${clientId},'orderStatus',this.value)">
+        ${steps.map(s => `<option value="${s}"${s === cur ? ' selected' : ''}>${htmlEsc(t('order_step_' + s))}</option>`).join('')}
       </select></div>
-      <div class="field"><label>Monthly kg plan</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.monthlyKgPlan || ''}" onchange="saveClientField(${clientId},'monthlyKgPlan',parseFloat(this.value)||0)"></div>
-      <div class="field"><label>Preferences</label><textarea rows="2" onchange="saveClientField(${clientId},'preferences',this.value)">${htmlEsc(c.preferences || '')}</textarea></div>
+      <div class="field"><label>${htmlEsc(t('field_monthly_kg_plan'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.monthlyKgPlan || ''}" onchange="saveClientField(${clientId},'monthlyKgPlan',parseFloat(this.value)||0)"></div>
+      <div class="field"><label>${htmlEsc(t('field_preferences'))}</label><textarea rows="2" onchange="saveClientField(${clientId},'preferences',this.value)">${htmlEsc(c.preferences || '')}</textarea></div>
     `;
   } else if (bt === 'insurance') {
     const days = c.policyRenewalDate ? daysSinceISO(c.policyRenewalDate) : null;
     const countdown = (days != null)
       ? (days > 0
-          ? `<div class="pkg-status"><span style="color:var(--overdue)">${days} day${days === 1 ? '' : 's'} overdue for renewal</span></div>`
-          : `<div class="pkg-status"><span>${-days} day${-days === 1 ? '' : 's'} until renewal</span></div>`)
+          ? `<div class="pkg-status"><span style="color:var(--overdue)">${days} ${days === 1 ? t('day_singular') : t('day_plural')} ${t('overdue_for_renewal')}</span></div>`
+          : `<div class="pkg-status"><span>${-days} ${-days === 1 ? t('day_singular') : t('day_plural')} ${t('until_renewal')}</span></div>`)
       : '';
     wrap.innerHTML = `
-      <div class="field"><label>Policy name</label><input type="text" value="${attrEsc(c.policyName || '')}" onchange="saveClientField(${clientId},'policyName',this.value)"></div>
-      <div class="field"><label>Renewal date</label><input type="date" value="${attrEsc(c.policyRenewalDate || '')}" onchange="saveClientField(${clientId},'policyRenewalDate',this.value)"></div>
+      <div class="field"><label>${htmlEsc(t('field_policy_name'))}</label><input type="text" value="${attrEsc(c.policyName || '')}" onchange="saveClientField(${clientId},'policyName',this.value)"></div>
+      <div class="field"><label>${htmlEsc(t('field_renewal_date'))}</label><input type="date" value="${attrEsc(c.policyRenewalDate || '')}" onchange="saveClientField(${clientId},'policyRenewalDate',this.value)"></div>
       ${countdown}
     `;
   } else if (bt === 'garage') {
     wrap.innerHTML = `
       <div class="form-row">
-        <div class="field-half"><label>Plate</label><input type="text" value="${attrEsc(c.vehiclePlate || '')}" onchange="saveClientField(${clientId},'vehiclePlate',this.value)"></div>
-        <div class="field-half"><label>Mileage</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.vehicleMileage || ''}" onchange="saveClientField(${clientId},'vehicleMileage',parseFloat(this.value)||0)"></div>
+        <div class="field-half"><label>${htmlEsc(t('field_plate'))}</label><input type="text" value="${attrEsc(c.vehiclePlate || '')}" onchange="saveClientField(${clientId},'vehiclePlate',this.value)"></div>
+        <div class="field-half"><label>${htmlEsc(t('field_mileage'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.vehicleMileage || ''}" onchange="saveClientField(${clientId},'vehicleMileage',parseFloat(this.value)||0)"></div>
       </div>
-      <div class="field"><label>Next service due</label><input type="date" value="${attrEsc(c.nextServiceDate || '')}" onchange="saveClientField(${clientId},'nextServiceDate',this.value)"></div>
+      <div class="field"><label>${htmlEsc(t('field_next_service_due'))}</label><input type="date" value="${attrEsc(c.nextServiceDate || '')}" onchange="saveClientField(${clientId},'nextServiceDate',this.value)"></div>
     `;
   } else {
     wrap.innerHTML = '';
@@ -2263,7 +2293,7 @@ function renderSubTasks(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
   const subs = j.subTasks || [];
-  if (!subs.length) { wrap.innerHTML = `<div class="pkg-status"><span>No sub-tasks yet.</span></div>`; return; }
+  if (!subs.length) { wrap.innerHTML = `<div class="pkg-status"><span>${htmlEsc(t('no_subtasks'))}</span></div>`; return; }
   const done = subs.filter(s => s.done).length;
   wrap.innerHTML = `
     <div class="pkg-status-row" style="margin-bottom:8px"><span>${done} of ${subs.length} done</span></div>
@@ -2331,27 +2361,27 @@ function renderMilestones(jobId) {
     return `<div class="list-row" style="cursor:default">
         <div class="list-main">
           <div class="list-title">${fmt(m.pct, 0)}% · ${htmlEsc(money(m.amount))}</div>
-          <div class="list-sub">${gate ? 'Unlocks with: ' + htmlEsc(gate.text) : 'No gating sub-task'}</div>
+          <div class="list-sub">${gate ? htmlEsc(t('unlocks_with')) + htmlEsc(gate.text) : htmlEsc(t('no_gating_subtask'))}</div>
         </div>
         <div class="list-right">
           ${ready
-            ? `<button type="button" class="qc-btn" style="width:auto;padding:0 10px;color:var(--brand)" onclick="draftMilestoneInvoice(${jobId},'${m.id}')">Draft invoice</button>`
-            : `<span class="chip" style="background:var(--border);color:var(--text3)">Locked</span>`}
+            ? `<button type="button" class="qc-btn" style="width:auto;padding:0 10px;color:var(--brand)" onclick="draftMilestoneInvoice(${jobId},'${m.id}')">${htmlEsc(t('draft_invoice'))}</button>`
+            : `<span class="chip" style="background:var(--border);color:var(--text3)">${htmlEsc(t('milestone_locked'))}</span>`}
           <button type="button" class="qc-btn" aria-label="Delete milestone" onclick="deleteMilestone(${jobId},'${m.id}')">✕</button>
         </div>
       </div>`;
-  }).join('') + '</div>' : `<div class="pkg-status"><span>No milestones yet.</span></div>`;
+  }).join('') + '</div>' : `<div class="pkg-status"><span>${htmlEsc(t('no_milestones'))}</span></div>`;
 
   if (window.__milestoneFormOpen) {
     html += `
       <div class="form-row" style="margin-top:10px">
         <div class="field-half"><label for="ms-pct">%</label><input type="number" id="ms-pct" class="tnum" inputmode="decimal" min="0" max="100" placeholder="50"></div>
-        <div class="field-half"><label for="ms-amount">Amount</label><input type="number" id="ms-amount" class="tnum" inputmode="decimal" min="0" placeholder="0"></div>
+        <div class="field-half"><label for="ms-amount">${htmlEsc(t('ms_amount_label'))}</label><input type="number" id="ms-amount" class="tnum" inputmode="decimal" min="0" placeholder="0"></div>
       </div>
-      <div class="field"><label for="ms-gate">Gating sub-task (optional)</label>
-        <select id="ms-gate"><option value="">None</option>${subs.map(s => `<option value="${s.id}">${htmlEsc(s.text)}</option>`).join('')}</select>
+      <div class="field"><label for="ms-gate">${htmlEsc(t('ms_gate_label'))}</label>
+        <select id="ms-gate"><option value="">${htmlEsc(t('ms_gate_none'))}</option>${subs.map(s => `<option value="${s.id}">${htmlEsc(s.text)}</option>`).join('')}</select>
       </div>
-      <button type="button" class="btn-submit" style="margin-top:6px" onclick="saveMilestone(${jobId})">Save milestone</button>
+      <button type="button" class="btn-submit" style="margin-top:6px" onclick="saveMilestone(${jobId})">${htmlEsc(t('save_milestone'))}</button>
     `;
   }
   wrap.innerHTML = html;
@@ -2431,17 +2461,17 @@ function renderJobTimer(jobId) {
 
   wrap.innerHTML = `
     <div class="pkg-status">
-      <div class="pkg-status-row"><span>Unbilled time</span><span class="tnum" id="job-timer-live">${fmt(unbilled, 2)}</span></div>
+      <div class="pkg-status-row"><span>${htmlEsc(t('unbilled_time'))}</span><span class="tnum" id="job-timer-live">${fmt(unbilled, 2)}</span></div>
     </div>
     <div class="form-row" style="margin-top:10px">
-      <button type="button" class="btn-submit" style="flex:1" onclick="${running ? `stopJobTimer(${jobId})` : `startJobTimer(${jobId})`}">${running ? '■ Stop timer' : '▶ Start timer'}</button>
-      ${running ? `<button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="openFocusMode(${jobId})">Focus mode</button>` : ''}
+      <button type="button" class="btn-submit" style="flex:1" onclick="${running ? `stopJobTimer(${jobId})` : `startJobTimer(${jobId})`}">${htmlEsc(running ? t('stop_timer') : t('start_timer'))}</button>
+      ${running ? `<button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="openFocusMode(${jobId})">${htmlEsc(t('focus_mode_btn'))}</button>` : ''}
     </div>
-    ${unbilled > 0 ? `<button type="button" class="btn-submit" style="margin-top:8px;background:var(--card);color:var(--brand);border:1.5px solid var(--border)" onclick="convertUnbilledToInvoice(${jobId})">+ Add unbilled time to invoice</button>` : ''}
+    ${unbilled > 0 ? `<button type="button" class="btn-submit" style="margin-top:8px;background:var(--card);color:var(--brand);border:1.5px solid var(--border)" onclick="convertUnbilledToInvoice(${jobId})">${htmlEsc(t('add_unbilled_to_invoice'))}</button>` : ''}
     ${entries.length ? `<div class="list-card" style="margin-top:10px">${entries.slice().reverse().map(e => `
       <div class="list-row" style="cursor:default">
         <div class="list-main"><div class="list-title">${fmt((e.minutes||0)/60, 2)} h</div>
-        <div class="list-sub">${htmlEsc(fmtDate((e.endedAt||'').slice(0,10)))}${e.invoiced ? ' · Invoiced' : ''}</div></div>
+        <div class="list-sub">${htmlEsc(fmtDate((e.endedAt||'').slice(0,10)))}${e.invoiced ? ' · ' + htmlEsc(t('time_invoiced_label')) : ''}</div></div>
       </div>`).join('')}</div>` : ''}
   `;
   if (running) {
@@ -2503,7 +2533,7 @@ function openFocusMode(jobId) {
   _focusPaused = false;
   _focusRingStartedAt = Date.now();
   document.getElementById('focus-overlay').classList.add('open');
-  document.getElementById('focus-pause-btn').textContent = 'Pause';
+  document.getElementById('focus-pause-btn').textContent = t('focus_pause');
   _focusTickHandle = setInterval(focusTick, 250);
   focusTick();
 }
@@ -2528,7 +2558,7 @@ function fmtMinSec(totalSeconds) {
 }
 function toggleFocusPause() {
   _focusPaused = !_focusPaused;
-  document.getElementById('focus-pause-btn').textContent = _focusPaused ? 'Resume' : 'Pause';
+  document.getElementById('focus-pause-btn').textContent = _focusPaused ? t('focus_resume') : t('focus_pause');
   if (!_focusPaused) _focusRingStartedAt = Date.now(); // resume ring pacing from here, not where it left off
 }
 window.toggleFocusPause = toggleFocusPause;
