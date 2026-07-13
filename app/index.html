@@ -216,6 +216,11 @@
           </select>
         </div>
         <div class="settings-row">
+          <label class="settings-label" for="set-package-unit" data-i18n="package_unit_label">Package unit</label>
+          <input class="settings-input" id="set-package-unit" type="text" data-i18n-ph="package_unit_ph" placeholder="Sessions" onchange="onPackageUnitLabelChange(this.value)">
+        </div>
+        <p style="font-size:12px;color:var(--text3);margin:-4px 16px 4px" data-i18n="package_unit_sub">What one unit of a package is called — "Pieces," "Sessions," "Policies," whatever fits.</p>
+        <div class="settings-row">
           <label class="settings-label" for="set-theme" data-i18n="theme">Theme</label>
           <select id="set-theme" onchange="onThemeChange(this.value)">
             <option value="dark" data-i18n="theme_dark">Dark</option>
@@ -428,7 +433,7 @@
       </div>
       <div class="form-row">
         <div class="field-half"><label for="j-expense" data-i18n="field_expense">Expense</label><input type="number" id="j-expense" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
-        <div class="field-half"><label for="j-count" data-i18n="field_count">Sessions</label><input type="number" id="j-count" class="tnum" inputmode="numeric" min="0" placeholder="0"></div>
+        <div class="field-half"><label id="j-count-label" for="j-count" data-i18n="field_count">Sessions</label><input type="number" id="j-count" class="tnum" inputmode="numeric" min="0" placeholder="0"></div>
       </div>
       <div class="field">
         <label for="j-notes" data-i18n="field_notes">Notes</label>
@@ -482,7 +487,7 @@
     </div>
     <div class="form-section" id="cust-intake"></div>
     <div class="form-section" id="cust-package-section" style="display:none">
-      <div class="section-title" style="margin:0 0 8px">Session package</div>
+      <div class="section-title" style="margin:0 0 8px" data-i18n="package_section_title">Package</div>
       <div id="cust-package-body"></div>
     </div>
     <div class="form-section" id="cust-progress-section" style="display:none">

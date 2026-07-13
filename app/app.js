@@ -420,6 +420,18 @@ const BUSINESS_TYPES = {
 function businessType() { return BUSINESS_TYPES[settings && settings.businessType] ? settings.businessType : 'trainer'; }
 function unitWord() { return BUSINESS_TYPES[businessType()].unitWord; }
 
+// Sensible per-persona starting point for a package's unit — "50 pieces of
+// laundry," "10 training sessions," "5 policy reviews." Kept as a free-text
+// setting (packageUnitLabel), not a fixed list, so a future business type
+// this registry doesn't know about yet still works with zero code changes —
+// the user just types whatever word fits.
+const PACKAGE_UNIT_DEFAULTS = {
+  trainer: 'Sessions', realestate: 'Deals', laundry: 'Pieces', insurance: 'Policies', garage: 'Jobs',
+};
+function packageUnitLabel() {
+  return (settings && settings.packageUnitLabel) || PACKAGE_UNIT_DEFAULTS[businessType()] || 'Units';
+}
+
 // ─── ENGAGEMENT PIPELINE (user-facing label: "Workflow" — see i18n) ─────
 // A session IS an engagement moving through a fixed 6-stage lifecycle. The
 // internal stage id stays `pitch` even though its display label is now
@@ -488,13 +500,29 @@ function jobDelivered(j) {
   const idx = order.indexOf(jobStage(j));
   return deliveryIdx >= 0 && idx >= deliveryIdx;
 }
+// True exactly when the single next stage-advance would cross this job into
+// "delivered" for the first time (not already there) — the one moment a
+// package-linked job needs its quantity confirmed, since that's when it
+// first counts against the package (see jobDelivered() above).
+function entersDeliveryOnAdvance(j) {
+  const order = jobOrder(j);
+  const idx = order.indexOf(jobStage(j));
+  const deliveryIdx = order.indexOf('delivery');
+  if (idx < 0 || deliveryIdx < 0) return false;
+  return idx < deliveryIdx && (idx + 1) >= deliveryIdx;
+}
 
-// ─── SESSION PACKAGES (N-session bundles, e.g. "buy 10, track remaining") ──
+// ─── PACKAGES (N-unit bundles, e.g. "buy 10 sessions" / "50 pieces of laundry") ──
 // Remaining is always computed live from `jobs` rather than decremented and
 // stored, so it can never drift out of sync with a session being
-// re-opened/un-delivered later.
+// re-opened/un-delivered later. Sums each delivered job's own `count` (how
+// many units THAT delivery used — e.g. 12 pieces this drop-off), falling
+// back to 1 per job when count isn't set, so existing trainer packages
+// (always 1 session per job) behave exactly as before with no migration.
 function packageUsed(pkg) {
-  return jobs.filter(j => j.packageId === pkg.id && jobDelivered(j)).length;
+  return jobs
+    .filter(j => j.packageId === pkg.id && jobDelivered(j))
+    .reduce((sum, j) => sum + (Number(j.count) > 0 ? Number(j.count) : 1), 0);
 }
 function packageRemaining(pkg) {
   return Math.max(0, (Number(pkg.totalSessions) || 0) - packageUsed(pkg));
@@ -578,6 +606,16 @@ const I18N = {
     field_birthday:'Birthday', field_referred_by:'Referred by',
     lifetime_spend_label:'Lifetime spend', service_history_title:'Service history', no_service_history:'No service history yet.',
     field_service_note:'Service note',
+    package_unit_label:'Package unit', package_unit_ph:'Sessions',
+    package_unit_sub:'What one unit of a package is called — "Pieces," "Sessions," "Policies," whatever fits.',
+    apply_to_package:'Apply to package', of_label:'of', left_label:'left', purchased_label:'Purchased',
+    field_price:'Price', save_package:'Save package', renew_package:'+ Renew package', new_package:'+ New package',
+    no_units_left:'No {unit} left on the last package.', no_package_yet:'No package yet.',
+    enter_package_total:'Enter how many {unit} this package includes', package_saved:'Package saved',
+    confirm_delivered_title:'Confirm {unit} delivered', confirm_delivered_context:'{n} of {total} {unit} left on this package',
+    confirm_cancel:'Cancel', confirm_and_advance:'Confirm & advance',
+    confirm_overdraft_error:'Only {n} left on this package. Enter {n} or fewer, or start a new package first.',
+    package_section_title:'Package',
     data:'Data', export_csv:'Export CSV', backup_json:'Backup JSON', restore_json:'Restore JSON',
     total_jobs:'Total jobs', app_word:'App', version:'Version', logout:'Log out', exit_guest:'Exit guest mode',
     // placeholder modules
@@ -709,6 +747,16 @@ const I18N = {
     field_birthday:'วันเกิด', field_referred_by:'แนะนำโดย',
     lifetime_spend_label:'ยอดใช้จ่ายสะสม', service_history_title:'ประวัติการซ่อมบำรุง', no_service_history:'ยังไม่มีประวัติการซ่อมบำรุง',
     field_service_note:'บันทึกการซ่อมบำรุง',
+    package_unit_label:'หน่วยแพ็กเกจ', package_unit_ph:'เซสชัน',
+    package_unit_sub:'หน่วยของแพ็กเกจเรียกว่าอะไร — "ชิ้น" "เซสชัน" "กรมธรรม์" หรือคำที่เหมาะกับธุรกิจของคุณ',
+    apply_to_package:'ใช้กับแพ็กเกจ', of_label:'จาก', left_label:'เหลือ', purchased_label:'ซื้อเมื่อ',
+    field_price:'ราคา', save_package:'บันทึกแพ็กเกจ', renew_package:'+ ต่ออายุแพ็กเกจ', new_package:'+ แพ็กเกจใหม่',
+    no_units_left:'ไม่มี{unit}เหลือในแพ็กเกจล่าสุด', no_package_yet:'ยังไม่มีแพ็กเกจ',
+    enter_package_total:'ระบุจำนวน{unit}ที่รวมอยู่ในแพ็กเกจนี้', package_saved:'บันทึกแพ็กเกจแล้ว',
+    confirm_delivered_title:'ยืนยันจำนวน{unit}ที่ส่งมอบ', confirm_delivered_context:'เหลือ {n} จาก {total} {unit} ในแพ็กเกจนี้',
+    confirm_cancel:'ยกเลิก', confirm_and_advance:'ยืนยันและดำเนินการต่อ',
+    confirm_overdraft_error:'เหลือเพียง {n} ในแพ็กเกจนี้ กรุณาใส่ {n} หรือน้อยกว่า หรือเริ่มแพ็กเกจใหม่',
+    package_section_title:'แพ็กเกจ',
     data:'ข้อมูล', export_csv:'ส่งออก CSV', backup_json:'สำรองข้อมูล JSON', restore_json:'กู้คืนข้อมูล JSON',
     total_jobs:'จำนวนเซสชันทั้งหมด', app_word:'แอป', version:'เวอร์ชัน', logout:'ออกจากระบบ', exit_guest:'ออกจากโหมดผู้เยี่ยมชม',
     // placeholder modules
@@ -921,6 +969,8 @@ async function enterApp() {
   if (!settings.businessType) await saveSetting('businessType', 'trainer');
   document.body.setAttribute('data-work-type', businessType());
   set('set-business-type', businessType());
+  if (!settings.packageUnitLabel) await saveSetting('packageUnitLabel', PACKAGE_UNIT_DEFAULTS[businessType()] || 'Units');
+  set('set-package-unit', packageUnitLabel());
 
   // One-time migration: the client-facing ID format changes from "M-xxxx"
   // to "SK-xxxx" per the 2026 redesign spec. Rewrites existing records in
@@ -1489,8 +1539,10 @@ function refreshJobPackageRow(clientId, existingPackageId) {
   }
   row.style.display = 'flex';
   hidden.value = pkg.id;
-  label.textContent = `Apply to package (${packageRemaining(pkg)} of ${pkg.totalSessions} left)`;
+  label.textContent = `${t('apply_to_package')} (${packageRemaining(pkg)} ${t('of_label')} ${pkg.totalSessions} ${t('left_label')})`;
   checkbox.checked = existingPackageId != null ? existingPackageId === pkg.id : true;
+  const countLabel = document.getElementById('j-count-label');
+  if (countLabel) countLabel.textContent = packageUnitLabel();
 }
 function onJobServiceChange(v) {
   if (!v) return;
@@ -1735,6 +1787,13 @@ function pipelineCard(j, stage) {
   const back = canBack
     ? `<button type="button" class="kb-back" aria-label="Move back a stage" title="Move back" onclick="event.stopPropagation();moveJobStageBack(${j.id})">←</button>`
     : '';
+  // Mid-confirm: swap the whole foot row for the quantity-confirm card so
+  // there's no ambiguity about what state the card is in — Cancel is the
+  // only way back to the normal actions.
+  const confirming = window.__packageConfirmJobId === j.id;
+  const footRow = confirming
+    ? packageConfirmCardHtml(j)
+    : `<div class="kb-card-foot">${back}${skip}${finish}${cashJob}${foot}${reschedule}</div>`;
   return `<div class="kb-card${enter}" onclick="openEditJob(${j.id})">
     <div class="kb-card-top">
       <div class="kb-card-main">
@@ -1743,7 +1802,7 @@ function pipelineCard(j, stage) {
       </div>
       <button type="button" class="pl-edit" aria-label="Edit engagement" onclick="event.stopPropagation();openEditJob(${j.id})">✎</button>
     </div>
-    <div class="kb-card-foot">${back}${skip}${finish}${cashJob}${foot}${reschedule}</div>
+    ${footRow}
   </div>`;
 }
 
@@ -1767,11 +1826,80 @@ function pipelineAction(jobId) {
     }
   } else if (stage === 'paid') {
     markJobPaid(jobId);
+  } else if (j.packageId != null && entersDeliveryOnAdvance(j)) {
+    // Stop for a required quantity confirmation instead of advancing
+    // immediately — this is the moment the job first counts against its
+    // package, and a fixed "1 unit per job" assumption doesn't hold once
+    // packages apply to every business type (12 pieces this drop-off, not
+    // always 1). Cancelling leaves the stage exactly where it was, same as
+    // the quote/invoice hooks above.
+    window.__packageConfirmJobId = jobId;
+    renderPipeline();
   } else {
     advanceJobStage(jobId);   // 'pitch', 'delivery', 'extend': just advance, no linked record
   }
 }
 window.pipelineAction = pipelineAction;
+
+// ── Package quantity confirmation (required before a package-linked job
+// can advance into Delivery) ──
+window.__packageConfirmJobId = null;
+function validatePackageConfirmQty(jobId, remaining) {
+  const input = document.getElementById('pkg-confirm-qty-' + jobId);
+  const errEl = document.getElementById('pkg-confirm-error-' + jobId);
+  const saveBtn = document.getElementById('pkg-confirm-save-' + jobId);
+  if (!input) return;
+  const val = parseInt(input.value, 10);
+  const over = isFinite(val) && val > remaining;
+  const invalid = !(val > 0) || over;
+  input.classList.toggle('blocked', over);
+  if (errEl) {
+    errEl.style.display = over ? 'flex' : 'none';
+    if (over) errEl.textContent = t('confirm_overdraft_error').replace(/\{n\}/g, remaining);
+  }
+  if (saveBtn) saveBtn.classList.toggle('disabled', invalid);
+}
+window.validatePackageConfirmQty = validatePackageConfirmQty;
+function cancelPackageConfirm() {
+  window.__packageConfirmJobId = null;
+  renderPipeline();
+}
+window.cancelPackageConfirm = cancelPackageConfirm;
+async function confirmPackageDelivery(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || j.packageId == null) return;
+  const pkg = packages.find(p => p.id === j.packageId);
+  const remaining = pkg ? packageRemaining(pkg) : 0;
+  const input = document.getElementById('pkg-confirm-qty-' + jobId);
+  const val = input ? parseInt(input.value, 10) : NaN;
+  if (!(val > 0) || val > remaining) { validatePackageConfirmQty(jobId, remaining); return; }
+  j.count = val;
+  await dbPut('jobs', j);
+  window.__packageConfirmJobId = null;
+  await advanceJobStage(jobId);
+}
+window.confirmPackageDelivery = confirmPackageDelivery;
+function packageConfirmCardHtml(j) {
+  const pkg = packages.find(p => p.id === j.packageId);
+  if (!pkg) return '';
+  const remaining = packageRemaining(pkg);
+  const unit = packageUnitLabel();
+  const prefill = j.count > 0 ? j.count : '';
+  const prefillValid = prefill > 0 && prefill <= remaining;
+  return `<div class="confirm-card" onclick="event.stopPropagation()">
+      <div class="confirm-title">${htmlEsc(t('confirm_delivered_title').replace('{unit}', unit))}</div>
+      <div class="confirm-context tnum">${htmlEsc(t('confirm_delivered_context').replace('{n}', remaining).replace('{total}', pkg.totalSessions).replace('{unit}', unit))}</div>
+      <div class="confirm-input-row">
+        <input type="number" class="confirm-input tnum" id="pkg-confirm-qty-${j.id}" min="1" value="${prefill}" oninput="event.stopPropagation();validatePackageConfirmQty(${j.id},${remaining})" onclick="event.stopPropagation()">
+        <span class="confirm-unit">${htmlEsc(unit)}</span>
+      </div>
+      <div class="confirm-error" id="pkg-confirm-error-${j.id}" style="display:none"></div>
+      <div class="confirm-btns">
+        <button type="button" class="confirm-btn-cancel" onclick="event.stopPropagation();cancelPackageConfirm()">${htmlEsc(t('confirm_cancel'))}</button>
+        <button type="button" class="confirm-btn-save${prefillValid ? '' : ' disabled'}" id="pkg-confirm-save-${j.id}" onclick="event.stopPropagation();confirmPackageDelivery(${j.id})">${htmlEsc(t('confirm_and_advance'))}</button>
+      </div>
+    </div>`;
+}
 
 async function advanceJobStage(jobId) {
   const j = jobs.find(x => x.id === jobId);
@@ -1873,6 +2001,18 @@ async function markJobPaid(jobId) {
       if (inv) { inv.status = 'paid'; inv.updatedAt = nowISO(); await dbPut('invoices', inv); }
     } catch (e) { /* non-fatal */ }
   }
+  if (typeof renderInvoices === 'function') renderInvoices();
+  toast('Marked paid');
+  // Paid -> Delivery is exactly the transition that first counts a job
+  // against its package (see jobDelivered()/entersDeliveryOnAdvance()) — the
+  // invoice side effect above always happens, but the stage advance itself
+  // routes through the same required-confirm check as every other path
+  // into Delivery, instead of duplicating the advance here unconditionally.
+  if (j.packageId != null && entersDeliveryOnAdvance(j)) {
+    window.__packageConfirmJobId = jobId;
+    renderPipeline();
+    return;
+  }
   const order = jobOrder(j);
   const idx = order.indexOf(jobStage(j));
   if (idx >= order.length - 1) { j.complete = true; }
@@ -1883,8 +2023,6 @@ async function markJobPaid(jobId) {
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
-  if (typeof renderInvoices === 'function') renderInvoices();
-  toast('Marked paid');
 }
 
 // Open the doc-gen quote flow prefilled from this session's customer + service.
@@ -2033,15 +2171,13 @@ async function backfillMemberNumbers() {
 }
 // "Needs attention" — an overdue invoice takes priority over a nearly-used
 // package if a client somehow has both, since money owed is more urgent than
-// a renewal offer. Trainer-only for the package half (packages are a
-// trainer-specific feature); the overdue-invoice half applies to any
-// business type since invoices aren't persona-gated.
+// a renewal offer. Packages apply to every business type now, same as the
+// overdue-invoice half.
 const PACKAGE_ALMOST_DONE_THRESHOLD = 2;
 async function computeClientsNeedingAttention() {
   const uid = isGuest ? 'guest' : currentUser.id;
   const todayStr = todayISO();
   const allInvoices = (await dbAll('invoices')).filter(i => i.uid === uid);
-  const isTrainer = businessType() === 'trainer';
   const items = [];
   customers.forEach(c => {
     const overdue = allInvoices
@@ -2058,14 +2194,14 @@ async function computeClientsNeedingAttention() {
       });
       return; // one attention item per client — overdue takes priority
     }
-    if (isTrainer) {
+    {
       const pkg = activePackageFor(c.id);
       if (pkg) {
         const remaining = packageRemaining(pkg);
         if (remaining > 0 && remaining <= PACKAGE_ALMOST_DONE_THRESHOLD) {
           items.push({
             client: c,
-            reason: `Package almost done · ${remaining} session${remaining === 1 ? '' : 's'} left`,
+            reason: `Package almost done · ${remaining} ${packageUnitLabel()} left`,
             actionLabel: t('offer_renewal_action'),
             action: () => offerRenewalForClient(c.id),
           });
@@ -2146,37 +2282,38 @@ function renderCustomerPackages(clientId) {
   if (!wrap) return;
   const list = clientPackages(clientId);
   const active = activePackageFor(clientId);
+  const unit = packageUnitLabel();
   let html = '';
   if (active) {
     const remaining = packageRemaining(active);
     const pct = active.totalSessions > 0 ? Math.round((remaining / active.totalSessions) * 100) : 0;
     html += `<div class="pkg-status">
-        <div class="pkg-status-row"><span>${remaining} of ${htmlEsc(active.totalSessions)} sessions left</span><span class="pkg-status-date">Since ${htmlEsc(fmtDate(active.purchasedDate))}</span></div>
+        <div class="pkg-status-row"><span>${remaining} ${htmlEsc(t('of_label'))} ${htmlEsc(active.totalSessions)} ${htmlEsc(unit)} ${htmlEsc(t('left_label'))}</span><span class="pkg-status-date">${htmlEsc(t('purchased_label'))} ${htmlEsc(fmtDate(active.purchasedDate))}</span></div>
         <div class="pkg-status-track"><div class="pkg-status-fill" style="width:${pct}%"></div></div>
       </div>`;
   } else if (list.length) {
-    html += `<div class="pkg-status"><span>No sessions left on the last package.</span></div>`;
+    html += `<div class="pkg-status"><span>${htmlEsc(t('no_units_left').replace('{unit}', unit))}</span></div>`;
   } else {
-    html += `<div class="pkg-status"><span>No package yet.</span></div>`;
+    html += `<div class="pkg-status"><span>${htmlEsc(t('no_package_yet'))}</span></div>`;
   }
   if (list.length > 1 || (list.length === 1 && !active)) {
     html += '<div class="list-card" style="margin-top:8px">' + list.map(p => {
       const rem = packageRemaining(p);
       return `<div class="list-row" style="cursor:default">
-          <div class="list-main"><div class="list-title">${htmlEsc(p.totalSessions)} sessions</div>
-          <div class="list-sub">Purchased ${htmlEsc(fmtDate(p.purchasedDate))}</div></div>
-          <div class="list-right"><span class="list-amt tnum">${rem} left</span></div>
+          <div class="list-main"><div class="list-title">${htmlEsc(p.totalSessions)} ${htmlEsc(unit)}</div>
+          <div class="list-sub">${htmlEsc(t('purchased_label'))} ${htmlEsc(fmtDate(p.purchasedDate))}</div></div>
+          <div class="list-right"><span class="list-amt tnum">${rem} ${htmlEsc(t('left_label'))}</span></div>
         </div>`;
     }).join('') + '</div>';
   }
   html += window.__pkgFormOpen ? `
       <div class="form-row" style="margin-top:10px">
-        <div class="field-half"><label for="pkg-total">Sessions</label><input type="number" id="pkg-total" class="tnum" inputmode="numeric" min="1" placeholder="10"></div>
-        <div class="field-half"><label for="pkg-price">Price</label><input type="number" id="pkg-price" class="tnum" inputmode="decimal" min="0" placeholder="0"></div>
+        <div class="field-half"><label for="pkg-total">${htmlEsc(unit)}</label><input type="number" id="pkg-total" class="tnum" inputmode="numeric" min="1" placeholder="10"></div>
+        <div class="field-half"><label for="pkg-price">${htmlEsc(t('field_price'))}</label><input type="number" id="pkg-price" class="tnum" inputmode="decimal" min="0" placeholder="0"></div>
       </div>
-      <div class="field"><label for="pkg-date">Purchased</label><input type="date" id="pkg-date"></div>
-      <button type="button" class="btn-submit" style="margin-top:6px" onclick="savePackage(${clientId})">Save package</button>
-    ` : `<button type="button" class="btn-submit" style="margin-top:10px" onclick="togglePackageForm(true, ${clientId})">${active ? '+ Renew package' : '+ New package'}</button>`;
+      <div class="field"><label for="pkg-date">${htmlEsc(t('purchased_label'))}</label><input type="date" id="pkg-date"></div>
+      <button type="button" class="btn-submit" style="margin-top:6px" onclick="savePackage(${clientId})">${htmlEsc(t('save_package'))}</button>
+    ` : `<button type="button" class="btn-submit" style="margin-top:10px" onclick="togglePackageForm(true, ${clientId})">${active ? htmlEsc(t('renew_package')) : htmlEsc(t('new_package'))}</button>`;
   wrap.innerHTML = html;
   if (window.__pkgFormOpen) {
     const dateEl = document.getElementById('pkg-date');
@@ -2192,14 +2329,14 @@ async function savePackage(clientId) {
   const total = parseInt(document.getElementById('pkg-total').value) || 0;
   const price = parseFloat(document.getElementById('pkg-price').value) || 0;
   const date = document.getElementById('pkg-date').value || todayISO();
-  if (total <= 0) { toast('Enter how many sessions this package includes'); return; }
+  if (total <= 0) { toast(t('enter_package_total').replace('{unit}', packageUnitLabel())); return; }
   const uid = isGuest ? 'guest' : currentUser.id;
   const obj = { uid, clientId, totalSessions: total, price, purchasedDate: date, notes: '', cuid: cuid(), updatedAt: nowISO() };
   await dbAdd('packages', obj);
   window.__pkgFormOpen = false;
   await reload();
   renderCustomerPackages(clientId);
-  toast('Package saved');
+  toast(t('package_saved'));
 }
 window.savePackage = savePackage;
 
@@ -2824,15 +2961,18 @@ function openEditCustomer(id) {
   set('c-memberno', c.memberNo || t('assigned_on_save'));
   renderIntakeFields(c);
   window.__pkgFormOpen = false; window.__progressFormOpen = false;
-  // Trainer keeps the existing package + progress-log sections AND now also
-  // gets the persona tracker section (meal-plan rows) below them; every
-  // other business type only gets the persona tracker (see the registry
+  // Packages apply to every business type (any persona can sell "N units"
+  // up front — sessions, pieces, policies, whatever packageUnitLabel() is
+  // set to). The weight/measurement progress log stays trainer-only — a
+  // different, unrelated feature this generalization doesn't touch. Every
+  // persona also gets its own tracker section below (see the registry
   // above renderClientPersonaTracker()).
   const isTrainer = businessType() === 'trainer';
-  document.getElementById('cust-package-section').style.display = isTrainer ? 'block' : 'none';
+  document.getElementById('cust-package-section').style.display = 'block';
   document.getElementById('cust-progress-section').style.display = isTrainer ? 'block' : 'none';
   document.getElementById('cust-persona-section').style.display = 'block';
-  if (isTrainer) { renderCustomerPackages(id); renderCustomerProgress(id); }
+  renderCustomerPackages(id);
+  if (isTrainer) renderCustomerProgress(id);
   renderClientPersonaTracker(id);
   document.getElementById('c-delete').style.display = 'block';
   clearFieldErrors();
@@ -2987,11 +3127,24 @@ async function onCurrencyChange(v) { await saveSetting('currency', v); applyLang
 // services at all yet, and swaps which tracker card renders on a client.
 async function onBusinessTypeChange(v) {
   if (!BUSINESS_TYPES[v]) return;
+  // Re-seed the package unit label to the new type's default, but only if it
+  // was never customized away from the old type's default — an explicit
+  // "Pieces" a laundry account typed in shouldn't silently flip back on a
+  // later persona switch.
+  const oldDefault = PACKAGE_UNIT_DEFAULTS[businessType()];
+  if (!settings.packageUnitLabel || settings.packageUnitLabel === oldDefault) {
+    await saveSetting('packageUnitLabel', PACKAGE_UNIT_DEFAULTS[v] || 'Units');
+    const el = document.getElementById('set-package-unit');
+    if (el) el.value = packageUnitLabel();
+  }
   await saveSetting('businessType', v);
   document.body.setAttribute('data-work-type', v);
   await seedServicesIfEmpty();
   applyLang();
   renderHome();
+}
+async function onPackageUnitLabelChange(v) {
+  await saveSetting('packageUnitLabel', (v || '').trim() || PACKAGE_UNIT_DEFAULTS[businessType()] || 'Units');
 }
 async function onLangChange(v) { await saveSetting('lang', v === 'th' ? 'th' : 'en'); applyLang(); }
 async function onWhtChange(v) { const n = parseFloat(v); await saveSetting('wht', isNaN(n)?null:n); }
