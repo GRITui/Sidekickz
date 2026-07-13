@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.18';          // <-> sw.js SW_VERSION 'sidekick-v0.9.18'
+const APP_VERSION = '0.9.19';          // <-> sw.js SW_VERSION 'sidekick-v0.9.19'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -2161,6 +2161,9 @@ async function saveJob() {
   const key = await dbPut('jobs', obj);
   if (obj.id == null) obj.id = key;
   if (isNew) logEvent('session_logged');
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorJobSave(obj).catch(() => {});
+  }
   closeJobModal();
   await reload();
   toast(t('job_saved'));
@@ -2169,7 +2172,12 @@ async function deleteJob() {
   const editId = document.getElementById('j-edit-id').value;
   if (!editId) return;
   if (!confirm(t('delete_job_confirm'))) return;
-  await dbDel('jobs', parseInt(editId));
+  const id = parseInt(editId);
+  const prev = jobs.find(j => j.id === id);
+  await dbDel('jobs', id);
+  if (!isGuest && prev && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorJobDelete(prev.cuid).catch(() => {});
+  }
   closeJobModal();
   await reload();
   toast(t('job_deleted'));
@@ -2851,6 +2859,9 @@ async function savePackage(clientId) {
   const uid = isGuest ? 'guest' : currentUser.id;
   const obj = { uid, clientId, totalSessions: total, price, purchasedDate: date, expiresAt, notes: '', cuid: cuid(), updatedAt: nowISO() };
   await dbAdd('packages', obj);
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorPackageSave(obj).catch(() => {});
+  }
   window.__pkgFormOpen = false;
   await reload();
   renderCustomerPackages(clientId);
@@ -3606,6 +3617,9 @@ async function saveProgressEntry(clientId) {
   const uid = isGuest ? 'guest' : currentUser.id;
   const obj = { uid, clientId, date, weight, notes, cuid: cuid(), updatedAt: nowISO() };
   await dbAdd('progressLogs', obj);
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorProgressLogSave(obj).catch(() => {});
+  }
   window.__progressFormOpen = false;
   await renderCustomerProgress(clientId);
   toast('Entry saved');
@@ -3613,7 +3627,11 @@ async function saveProgressEntry(clientId) {
 window.saveProgressEntry = saveProgressEntry;
 async function deleteProgressEntry(id, clientId) {
   if (!confirm('Delete this entry?')) return;
+  const prev = await dbGet('progressLogs', id);
   await dbDel('progressLogs', id);
+  if (!isGuest && prev && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorProgressLogDelete(prev.cuid).catch(() => {});
+  }
   await renderCustomerProgress(clientId);
 }
 window.deleteProgressEntry = deleteProgressEntry;
@@ -3838,6 +3856,9 @@ async function saveService() {
   const linkToJob = !!window.__pendingJobServiceLink && !editId;
   const key = await dbPut('services', obj);
   if (obj.id == null) obj.id = key;
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorServiceSave(obj).catch(() => {});
+  }
   closeServiceModal();
   await reload();
   toast(t('service_saved'));
@@ -3850,7 +3871,12 @@ async function deleteService() {
   const editId = document.getElementById('sv-edit-id').value;
   if (!editId) return;
   if (!confirm(t('delete_service_confirm'))) return;
-  await dbDel('services', parseInt(editId));
+  const id = parseInt(editId);
+  const prev = services.find(s => s.id === id);
+  await dbDel('services', id);
+  if (!isGuest && prev && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorServiceDelete(prev.cuid).catch(() => {});
+  }
   closeServiceModal();
   await reload();
   toast(t('service_deleted'));
@@ -3861,6 +3887,9 @@ async function saveSetting(key, val) {
   settings[key] = val;
   const prefix = isGuest ? 'guest:' : (currentUser.id + ':');
   await dbPut('settings', {key: prefix + key, value: val});
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorSettingSave(prefix + key, val).catch(() => {});
+  }
   if (key === 'lang') localStorage.setItem('sidekick_ui_lang', val);
 }
 async function onCurrencyChange(v) { await saveSetting('currency', v); applyLang(); }

@@ -825,16 +825,19 @@
 
     let extraCount = 0;
     try {
+      const mirrorEnabled = !isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled();
       if (isEdit) {
         base.id = editing.id;
         base.cuid = editing.cuid || cuid();
         base.createdAt = editing.createdAt || nowISO();
         await dbPut(STORE, base);
+        if (mirrorEnabled) SidekickBackend.mirrorBookingSave(base).catch(() => {});
         toast(t('booking_updated'));
       } else {
         base.cuid = cuid();
         base.createdAt = nowISO();
         await dbAdd(STORE, base);
+        if (mirrorEnabled) SidekickBackend.mirrorBookingSave(base).catch(() => {});
 
         if (repeat) {
           const stepDays = repeat === 'biweekly' ? 14 : 7;
@@ -843,6 +846,7 @@
             const row = { ...base, date: nextDate, cuid: cuid(), createdAt: nowISO(), updatedAt: nowISO() };
             delete row.id;
             await dbAdd(STORE, row);
+            if (mirrorEnabled) SidekickBackend.mirrorBookingSave(row).catch(() => {});
             extraCount++;
             nextDate = addDays(nextDate, stepDays);
           }
@@ -883,7 +887,13 @@
 
   async function deleteBooking(id) {
     if (!confirm(t('delete_booking_confirm'))) return;
-    try { await dbDel(STORE, id); } catch (e) { console.error(e); }
+    try {
+      const prev = await dbGet(STORE, id);
+      await dbDel(STORE, id);
+      if (!isGuest && prev && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+        SidekickBackend.mirrorBookingDelete(prev.cuid).catch(() => {});
+      }
+    } catch (e) { console.error(e); }
     closeModal('bk-form-modal');
     toast(t('booking_deleted'));
     renderBookings();

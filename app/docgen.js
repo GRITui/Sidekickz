@@ -683,16 +683,19 @@ async function saveDocumentFromForm() {
     updatedAt: nowISO(),
   };
   try {
+    const mirrorEnabled = !isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled();
     if (dgEditId) {
       const existing = await dbGet('documents', dgEditId);
       rec.id = dgEditId;
       rec.cuid = (existing && existing.cuid) || cuid();
       await dbPut('documents', rec);
+      if (mirrorEnabled) SidekickBackend.mirrorDocumentSave(rec).catch(() => {});
       toast('Document updated.');
     } else {
       rec.cuid = cuid();
       const newId = await dbAdd('documents', rec);
       rec.id = newId;
+      if (mirrorEnabled) SidekickBackend.mirrorDocumentSave(rec).catch(() => {});
       toast('Document saved.');
       // Engagement linking: a quote saved from the pipeline links back to its
       // session and advances the stage. Any other save leaves __pendingQuoteJobId unset.
@@ -804,7 +807,11 @@ async function deleteSavedDocument() {
   if (id == null) return;
   if (!confirm('Delete this document? This cannot be undone.')) return;
   try {
+    const prev = await dbGet('documents', id);
     await dbDel('documents', id);
+    if (!isGuest && prev && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+      SidekickBackend.mirrorDocumentDelete(prev.cuid).catch(() => {});
+    }
     closeDgViewModal();
     toast('Document deleted.');
     renderDocgen();

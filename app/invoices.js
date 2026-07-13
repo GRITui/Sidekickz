@@ -516,12 +516,18 @@
         base.cuid = editing.cuid || cuid();
         if (editing.paymentChannels) base.paymentChannels = editing.paymentChannels; // preserve issue-time snapshot
         await dbPut(STORE, base);
+        if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+          SidekickBackend.mirrorInvoiceSave(base).catch(() => {});
+        }
         toast(t('invoice_updated'));
       } else {
         base.cuid = cuid();
         const newId = await dbAdd(STORE, base);
         base.id = newId;
         toast(t('invoice_created_with_number').replace('{number}', base.number));
+        if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+          SidekickBackend.mirrorInvoiceSave(base).catch(() => {});
+        }
         // Engagement linking: let app.js link invoiceId onto the session + advance.
         if (formFromJobId != null && typeof window.onEngagementInvoiceCreated === 'function') {
           try { window.onEngagementInvoiceCreated(newId, formFromJobId); } catch (e) { /* non-fatal */ }
@@ -569,7 +575,13 @@
 
   async function deleteInvoice(id) {
     if (!confirm(t('delete_invoice_confirm'))) return;
-    try { await dbDel(STORE, id); } catch (e) { console.error(e); }
+    try {
+      const prev = await dbGet(STORE, id);
+      await dbDel(STORE, id);
+      if (!isGuest && prev && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+        SidekickBackend.mirrorInvoiceDelete(prev.cuid).catch(() => {});
+      }
+    } catch (e) { console.error(e); }
     closeModal('inv-form-modal');
     closeModal('inv-detail-modal');
     toast(t('invoice_deleted'));

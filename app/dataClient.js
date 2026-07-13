@@ -1,11 +1,23 @@
 /* Sidekick — app/dataClient.js
  *
- * Phase 1 of the local-first -> backend migration. Deliberately a MIRROR,
- * not a replacement: local IndexedDB stays every registered account's one
- * source of truth for reads AND writes in this phase (exactly as it is for
- * guest mode, unchanged) — this file only pushes a best-effort copy of
- * `clients` writes to the new backend alongside the existing local write,
- * plus the one-time bulk upload of whatever already exists locally.
+ * Phase 1 of the local-first -> backend migration, extended in Phase 2b to
+ * the 11 more stores Phase 2 fanned crudHandler out to server-side. Still
+ * deliberately a MIRROR, not a replacement: local IndexedDB stays every
+ * registered account's one source of truth for reads AND writes in this
+ * phase (exactly as it is for guest mode, unchanged) — this file only
+ * pushes a best-effort copy of writes to the new backend alongside the
+ * existing local write, plus the one-time bulk upload of whatever already
+ * exists locally (clients only, so far).
+ *
+ * Phase 2b's mirror calls are wired into each store's main Save/Delete
+ * action only (saveJob/deleteJob, saveInvoice/deleteInvoice, ...) — NOT
+ * into every granular in-place mutation a record can go through (a job's
+ * Pipeline stage move, a milestone/sub-task/timer edit, a persona-tracker
+ * field tweak on a client, ...). That's the same scope boundary Phase 1
+ * already drew for `clients` (saveCustomer/deleteCustomer mirror; the
+ * persona-tracker helpers that edit a client in place, e.g.
+ * saveClientListItemField(), do not) — the mirror covers the record as it
+ * stood at its last full save, not a live replica of every subsequent edit.
  *
  * Why mirror instead of cutting reads over now: every other IndexedDB
  * store (jobs, packages, progressLogs, ...) references a client by its
@@ -106,8 +118,118 @@
     return apiFetch('/api/migrate-upload', { method: 'POST', body: { clients: clients.map(toClientPayload) } });
   }
 
+  // ── Phase 2b: mirror wiring for the 11 stores Phase 2 fanned crudHandler
+  // out to (schema + API only, no client-side wiring) ───────────────────
+  // Same create-then-fallback-to-update shape as mirrorClientSave/
+  // mirrorClientDelete above, generalized so each of the 9 more cuid-keyed
+  // stores below doesn't hand-roll the same fetch dance. `packages` gets a
+  // save mirror even though nothing in app.js currently deletes a package
+  // (no delete call site exists yet) — for parity/future use, harmless
+  // either way since mirrorDelete is simply never called for it today.
+  function createMirror(apiPath, toPayload) {
+    async function mirrorSave(record) {
+      if (!isEnabled() || !record || !record.cuid) return;
+      const payload = toPayload(record);
+      const created = await apiFetch(`/api/${apiPath}`, { method: 'POST', body: payload });
+      if (created.ok || created.status !== 409) return;
+      await apiFetch(`/api/${apiPath}?cuid=${encodeURIComponent(record.cuid)}`, { method: 'PUT', body: payload });
+    }
+    async function mirrorDelete(recordCuid) {
+      if (!isEnabled() || !recordCuid) return;
+      await apiFetch(`/api/${apiPath}?cuid=${encodeURIComponent(recordCuid)}`, { method: 'DELETE' });
+    }
+    return { mirrorSave, mirrorDelete };
+  }
+
+  const jobsMirror = createMirror('jobs', j => ({
+    cuid: j.cuid, date: j.date, client_name: j.client, client_id: j.clientId,
+    service_id: j.serviceId, service_name: j.serviceName, job_type: j.jobType,
+    amount: j.amount, tip: j.tip, expense: j.expense, count: j.count, notes: j.notes,
+    net_amount: j.netAmount, stage_order: j.stageOrder, stage: j.stage, complete: j.complete,
+    invoice_id: j.invoiceId, quote_doc_id: j.quoteDocId, package_id: j.packageId,
+    sub_tasks: j.subTasks, milestones: j.milestones, time_entries: j.timeEntries,
+    timer_started_at: j.timerStartedAt,
+  }));
+
+  const servicesMirror = createMirror('services', s => ({
+    cuid: s.cuid, name: s.name, rate: s.rate, unit: s.unit, usage_qty: s.usageQty,
+  }));
+
+  const invoicesMirror = createMirror('invoices', i => ({
+    cuid: i.cuid, number: i.number, issue_date: i.issueDate, due_date: i.dueDate,
+    client_id: i.clientId, client_name: i.clientName, client_tax_id: i.clientTaxId,
+    client_address: i.clientAddress, line_items: i.lineItems, subtotal: i.subtotal,
+    wht_pct: i.whtPct, vat_pct: i.vatPct, vat: i.vat, wht: i.wht,
+    client_pays: i.clientPays, you_receive: i.youReceive, deposit_pct: i.depositPct,
+    status: i.status, payment_channels: i.paymentChannels, notes: i.notes,
+  }));
+
+  const documentsMirror = createMirror('documents', d => ({
+    cuid: d.cuid, type: d.type, title: d.title, client_id: d.clientId,
+    client_name: d.clientName, invoice_id: d.invoiceId, fields: d.fields,
+    content: d.content, number: d.number, issue_date: d.issueDate,
+  }));
+
+  // Local IndexedDB store is still named 'bookings' (app/bookings.js) — the
+  // api-path/table rename to app_bookings/app-bookings.js is a backend-only
+  // detail to avoid colliding with the LINE pilot's own `bookings` table
+  // (see sql/schema-core.sql), not something the client needs to know about.
+  const bookingsMirror = createMirror('app-bookings', b => ({
+    cuid: b.cuid, customer_id: b.customerId, title: b.title, date: b.date,
+    start_time: b.startTime, duration_min: b.durationMin, travel_buffer_min: b.travelBufferMin,
+    location: b.location, notes: b.notes, status: b.status,
+  }));
+
+  const followupsMirror = createMirror('followups', f => ({
+    cuid: f.cuid, key: f.key, dismissed: f.dismissed, snoozed_until: f.snoozedUntil,
+  }));
+
+  // Local field is `order` (app/portfolio.js), not `orderIndex` — mapped to
+  // the schema's `order_index` column name here, at the boundary.
+  const portfolioMirror = createMirror('portfolio', p => ({
+    cuid: p.cuid, title: p.title, description: p.description, tags: p.tags,
+    image_data_url: p.imageDataUrl, order_index: p.order,
+  }));
+
+  const researchMirror = createMirror('research', r => ({
+    cuid: r.cuid, title: r.title, category: r.category, body: r.body, is_premium: r.isPremium,
+  }));
+
+  const packagesMirror = createMirror('packages', p => ({
+    cuid: p.cuid, client_id: p.clientId, total_sessions: p.totalSessions, price: p.price,
+    purchased_date: p.purchasedDate, expires_at: p.expiresAt, notes: p.notes,
+  }));
+
+  const progressLogsMirror = createMirror('progress-logs', p => ({
+    cuid: p.cuid, client_id: p.clientId, date: p.date, weight: p.weight, notes: p.notes,
+  }));
+
+  // Bespoke, not createMirror(): api/settings.js's row key is (user_cuid,
+  // key), no cuid at all (see that file's own header for why). The local
+  // IndexedDB 'settings' store multiplexes every local account's rows in
+  // one store via a uid-prefixed key (e.g. 'guest:lang' or '3:lang') — the
+  // server row is already scoped per-account by the bearer session, so the
+  // prefix is stripped before mirroring rather than sent verbatim.
+  async function mirrorSettingSave(prefixedKey, value) {
+    if (!isEnabled()) return;
+    const sep = prefixedKey.indexOf(':');
+    const bareKey = sep >= 0 ? prefixedKey.slice(sep + 1) : prefixedKey;
+    await apiFetch(`/api/settings?key=${encodeURIComponent(bareKey)}`, { method: 'PUT', body: { value } });
+  }
+
   window.SidekickBackend = {
     isEnabled, register, login, session, logout, migrateUpload,
     mirrorClientSave, mirrorClientDelete,
+    mirrorJobSave: jobsMirror.mirrorSave, mirrorJobDelete: jobsMirror.mirrorDelete,
+    mirrorServiceSave: servicesMirror.mirrorSave, mirrorServiceDelete: servicesMirror.mirrorDelete,
+    mirrorInvoiceSave: invoicesMirror.mirrorSave, mirrorInvoiceDelete: invoicesMirror.mirrorDelete,
+    mirrorDocumentSave: documentsMirror.mirrorSave, mirrorDocumentDelete: documentsMirror.mirrorDelete,
+    mirrorBookingSave: bookingsMirror.mirrorSave, mirrorBookingDelete: bookingsMirror.mirrorDelete,
+    mirrorFollowupSave: followupsMirror.mirrorSave,
+    mirrorPortfolioSave: portfolioMirror.mirrorSave, mirrorPortfolioDelete: portfolioMirror.mirrorDelete,
+    mirrorResearchSave: researchMirror.mirrorSave, mirrorResearchDelete: researchMirror.mirrorDelete,
+    mirrorPackageSave: packagesMirror.mirrorSave,
+    mirrorProgressLogSave: progressLogsMirror.mirrorSave, mirrorProgressLogDelete: progressLogsMirror.mirrorDelete,
+    mirrorSettingSave,
   };
 })();

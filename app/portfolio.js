@@ -225,12 +225,14 @@
     };
 
     try {
+      const mirrorEnabled = !isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled();
       if (isEdit) {
         base.id = editing.id;
         base.cuid = editing.cuid || cuid();
         base.order = (editing.order != null) ? editing.order : 1;
         base.createdAt = editing.createdAt || nowISO();
         await dbPut(STORE, base);
+        if (mirrorEnabled) SidekickBackend.mirrorPortfolioSave(base).catch(() => {});
         toast('Item updated');
       } else {
         const rows = await loadItems();
@@ -239,6 +241,7 @@
         base.cuid = cuid();
         base.createdAt = nowISO();
         await dbAdd(STORE, base);
+        if (mirrorEnabled) SidekickBackend.mirrorPortfolioSave(base).catch(() => {});
         toast('Item added');
       }
     } catch (err) {
@@ -270,7 +273,13 @@
 
   async function deleteItem(id) {
     if (!confirm('Delete this item? This cannot be undone.')) return;
-    try { await dbDel(STORE, id); } catch (e) { console.error(e); }
+    try {
+      const prev = await dbGet(STORE, id);
+      await dbDel(STORE, id);
+      if (!isGuest && prev && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+        SidekickBackend.mirrorPortfolioDelete(prev.cuid).catch(() => {});
+      }
+    } catch (e) { console.error(e); }
     closeModal('pf-form-modal');
     toast('Item deleted');
     renderPortfolio();
