@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.10';          // <-> sw.js SW_VERSION 'sidekick-v0.9.10'
+const APP_VERSION = '0.9.11';          // <-> sw.js SW_VERSION 'sidekick-v0.9.11'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -653,6 +653,12 @@ const I18N = {
     restore_failed:'Restore failed — your existing data was kept.',
     backup_reminder_title:'Back up your data', backup_reminder_sub:'Everything lives only on this device. Last backup: {date}.',
     backup_now:'Back up now', remind_later:'Remind me later', backup_snoozed:'Reminder snoozed for 2 weeks', backup_never:'never',
+    cloud_backup_title:'Cloud backup (beta)', cloud_backup_disabled_sub:'Your clients only live on this device. Turn this on to also keep a copy in your account.',
+    cloud_backup_enabled_sub:'Your clients are backed up to your account.', cloud_backup_enable_btn:'Enable cloud backup',
+    cloud_backup_reenter_password:'Enter your password to finish enabling cloud backup:',
+    cloud_backup_failed:'Could not enable cloud backup — try again in a moment.',
+    cloud_backup_upload_failed:'Enabled, but the first backup failed — it will retry next time you save a client.',
+    cloud_backup_enabled_toast:'Cloud backup enabled — {n} client(s) backed up.',
     delete_job_confirm:'Delete this job?', name_saved:'Name saved',
     err_id_min3:'Enter an email or username (3+ characters).', err_pw_min4:'Password must be at least 8 characters.',
     err_pw_mismatch:'Passwords do not match.', err_account_exists:'That account already exists on this device.',
@@ -800,6 +806,12 @@ const I18N = {
     restore_failed:'กู้คืนข้อมูลไม่สำเร็จ — ข้อมูลเดิมของคุณยังคงอยู่',
     backup_reminder_title:'สำรองข้อมูลของคุณ', backup_reminder_sub:'ข้อมูลทั้งหมดเก็บอยู่ในเครื่องนี้เท่านั้น สำรองข้อมูลล่าสุด: {date}',
     backup_now:'สำรองข้อมูลตอนนี้', remind_later:'เตือนภายหลัง', backup_snoozed:'เลื่อนการแจ้งเตือนออกไป 2 สัปดาห์', backup_never:'ไม่เคย',
+    cloud_backup_title:'สำรองข้อมูลบนคลาวด์ (ทดลอง)', cloud_backup_disabled_sub:'ข้อมูลลูกค้าของคุณอยู่ในเครื่องนี้เท่านั้น เปิดใช้งานเพื่อเก็บสำเนาไว้ในบัญชีของคุณด้วย',
+    cloud_backup_enabled_sub:'ข้อมูลลูกค้าของคุณสำรองไว้ในบัญชีแล้ว', cloud_backup_enable_btn:'เปิดใช้งานสำรองข้อมูลบนคลาวด์',
+    cloud_backup_reenter_password:'กรอกรหัสผ่านของคุณเพื่อเปิดใช้งานสำรองข้อมูลบนคลาวด์:',
+    cloud_backup_failed:'ไม่สามารถเปิดใช้งานสำรองข้อมูลบนคลาวด์ได้ — ลองใหม่อีกครั้ง',
+    cloud_backup_upload_failed:'เปิดใช้งานแล้ว แต่การสำรองข้อมูลครั้งแรกล้มเหลว — ระบบจะลองใหม่เมื่อคุณบันทึกข้อมูลลูกค้าครั้งถัดไป',
+    cloud_backup_enabled_toast:'เปิดใช้งานสำรองข้อมูลบนคลาวด์แล้ว — สำรองข้อมูลลูกค้า {n} รายการ',
     delete_job_confirm:'ลบเซสชันนี้หรือไม่?', name_saved:'บันทึกชื่อแล้ว',
     err_id_min3:'กรอกอีเมลหรือชื่อผู้ใช้ (อย่างน้อย 3 ตัวอักษร)', err_pw_min4:'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',
     err_pw_mismatch:'รหัสผ่านไม่ตรงกัน', err_account_exists:'มีบัญชีนี้อยู่แล้วในเครื่องนี้',
@@ -1279,6 +1291,66 @@ function updateMoreNavBadge() {
   if (!badge) return;
   badge.style.display = backupReminderDue() ? 'flex' : 'none';
 }
+
+// ─── Cloud backup (beta) — Phase 1 of the local-first -> backend migration
+// ─────────────────────────────────────────────────────────────────────────
+// Deliberately opt-in and additive, not a replacement: enabling this mirrors
+// `clients` (only) to the new backend API (window.SidekickBackend, see
+// dataClient.js) alongside the existing local IndexedDB save, which stays
+// authoritative for reads. Guest mode is out of scope on purpose — it stays
+// exactly local-only, zero network calls, matching its whole reason to
+// exist (see the project plan for the full reasoning).
+function renderCloudBackupSection() {
+  const el = document.getElementById('cloud-backup-body');
+  if (!el || typeof SidekickBackend === 'undefined') return;
+  if (isGuest) { el.innerHTML = ''; return; }
+  const enabled = SidekickBackend.isEnabled();
+  el.innerHTML = `<div class="list-card">
+      <div class="list-row" style="cursor:default">
+        <div class="list-icon">${enabled ? '☁️' : '🔒'}</div>
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(t('cloud_backup_title'))}</div>
+          <div class="list-sub">${htmlEsc(enabled ? t('cloud_backup_enabled_sub') : t('cloud_backup_disabled_sub'))}</div>
+        </div>
+      </div>
+      ${enabled ? '' : `<div style="padding:0 16px 14px">
+        <button type="button" onclick="enableCloudBackup()" style="width:100%;padding:10px;border:none;background:var(--brand);color:#fff;border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('cloud_backup_enable_btn'))}</button>
+      </div>`}
+    </div>`;
+}
+// Re-hashes nothing: reuses this account's already-computed {salt, hash,
+// iters} straight from the local `users` record (the same triple
+// hashPassword() produced at local registration/login), so enabling this
+// never needs the user to re-enter their password — mirroring exactly how
+// the one-time local->server migration upload is meant to work (see
+// api/migrate-upload.js's header).
+async function enableCloudBackup() {
+  if (isGuest || typeof SidekickBackend === 'undefined') return;
+  const localUser = await dbGet('users', currentUser.id);
+  if (!localUser) return;
+  let result = await SidekickBackend.register({
+    username: localUser.username, salt: localUser.salt, hash: localUser.hash,
+    iters: localUser.iters, firstName: localUser.firstName,
+  });
+  if (!result.ok && result.status === 409) {
+    // This account already exists server-side (a previous attempt, or
+    // already enabled on another device) — the register endpoint never
+    // sees a plaintext password, so there's no hash to "log in" with here;
+    // ask for it once, this one time, same as any normal login would.
+    const password = prompt(t('cloud_backup_reenter_password'));
+    if (!password) return;
+    result = await SidekickBackend.login({ username: localUser.username, password });
+  }
+  if (!result.ok) { toast(t('cloud_backup_failed')); return; }
+
+  const uid = currentUser.id;
+  const myClients = (await dbAll('clients')).filter(c => c.uid === uid);
+  const upload = await SidekickBackend.migrateUpload(myClients);
+  if (!upload.ok) { toast(t('cloud_backup_upload_failed')); renderCloudBackupSection(); return; }
+  toast(t('cloud_backup_enabled_toast').replace('{n}', upload.data.inserted));
+  renderCloudBackupSection();
+}
+window.enableCloudBackup = enableCloudBackup;
 
 // ─── Notifications (in-app Action Queue + OS-level, app-triggered) ─────
 // App-triggered, not server-triggered: everything here only fires while
@@ -3179,6 +3251,12 @@ async function saveCustomer() {
   const linkToJob = !!window.__pendingJobCustomerLink && !prev;
   const newId = await dbPut('clients', obj);
   if (!prev) logEvent('client_added');
+  // Best-effort cloud-backup mirror (Phase 1 of the local->backend
+  // migration) — local IndexedDB above is already the write of record by
+  // this point, so a mirror failure here never blocks or reverts the save.
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorClientSave(obj).catch(() => {});
+  }
   closeCustomerModal();
   await reload();
   toast(t('customer_saved'));
@@ -3191,7 +3269,11 @@ async function deleteCustomer() {
   const editId = document.getElementById('c-edit-id').value;
   if (!editId) return;
   if (!confirm(t('delete_customer_confirm'))) return;
+  const prev = customers.find(c => c.id === parseInt(editId));
   await dbDel('clients', parseInt(editId));
+  if (prev && prev.cuid && !isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorClientDelete(prev.cuid).catch(() => {});
+  }
   closeCustomerModal();
   await reload();
   toast(t('customer_deleted'));
@@ -3648,6 +3730,7 @@ function switchScreen(name) {
   if (name === 'more' && typeof renderWorkflowControls === 'function') renderWorkflowControls();
   if (name === 'more') applyInsightsVisibility();
   if (name === 'more') renderBackupReminder();
+  if (name === 'more') renderCloudBackupSection();
   if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.
