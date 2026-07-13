@@ -418,26 +418,34 @@
         <label for="j-customer" data-i18n="field_customer">Client</label>
         <select id="j-customer" onchange="onJobCustomerChange(this.value)"></select>
       </div>
-      <div class="field">
-        <label for="j-service" data-i18n="field_service">Service</label>
-        <select id="j-service" onchange="onJobServiceChange(this.value)"></select>
+
+      <div class="field" id="j-package-fastpath" style="display:none">
+        <button type="button" class="btn-submit" id="j-fastpath-btn" style="background:var(--card);color:var(--brand);border:1.5px solid var(--brand)" onclick="startPackageFastPath()">Log delivery</button>
       </div>
-      <div class="field" id="j-package-row" style="display:none;flex-direction:row;align-items:center;justify-content:space-between;gap:10px">
-        <label id="j-package-label" for="j-apply-package" style="margin:0">Apply to package</label>
-        <input type="checkbox" id="j-apply-package" style="width:20px;height:20px;flex-shrink:0">
-        <input type="hidden" id="j-package-id">
-      </div>
-      <div class="form-row">
-        <div class="field-half"><label for="j-amount" data-i18n="field_amount">Fee</label><input type="number" id="j-amount" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
-        <div class="field-half"><label for="j-tip" data-i18n="field_tip">Tip</label><input type="number" id="j-tip" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
-      </div>
-      <div class="form-row">
-        <div class="field-half"><label for="j-expense" data-i18n="field_expense">Expense</label><input type="number" id="j-expense" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
-        <div class="field-half"><label id="j-count-label" for="j-count" data-i18n="field_count">Sessions</label><input type="number" id="j-count" class="tnum" inputmode="numeric" min="0" placeholder="0"></div>
-      </div>
-      <div class="field">
-        <label for="j-notes" data-i18n="field_notes">Notes</label>
-        <textarea id="j-notes" rows="2" data-i18n-ph="field_notes_ph" placeholder="Anything to remember…"></textarea>
+      <div id="j-fastpath-confirm" style="display:none"></div>
+
+      <div id="j-standard-fields">
+        <div class="field">
+          <label for="j-service" data-i18n="field_service">Service</label>
+          <select id="j-service" onchange="onJobServiceChange(this.value)"></select>
+        </div>
+        <div class="field" id="j-package-row" style="display:none;flex-direction:row;align-items:center;justify-content:space-between;gap:10px">
+          <label id="j-package-label" for="j-apply-package" style="margin:0">Apply to package</label>
+          <input type="checkbox" id="j-apply-package" style="width:20px;height:20px;flex-shrink:0">
+          <input type="hidden" id="j-package-id">
+        </div>
+        <div class="form-row">
+          <div class="field-half"><label for="j-amount" data-i18n="field_amount">Fee</label><input type="number" id="j-amount" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
+          <div class="field-half"><label for="j-tip" data-i18n="field_tip">Tip</label><input type="number" id="j-tip" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
+        </div>
+        <div class="form-row">
+          <div class="field-half"><label for="j-expense" data-i18n="field_expense">Expense</label><input type="number" id="j-expense" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
+          <div class="field-half"><label id="j-count-label" for="j-count" data-i18n="field_count">Sessions</label><input type="number" id="j-count" class="tnum" inputmode="numeric" min="0" placeholder="0"></div>
+        </div>
+        <div class="field">
+          <label for="j-notes" data-i18n="field_notes">Notes</label>
+          <textarea id="j-notes" rows="2" data-i18n-ph="field_notes_ph" placeholder="Anything to remember…"></textarea>
+        </div>
       </div>
     </div>
 
