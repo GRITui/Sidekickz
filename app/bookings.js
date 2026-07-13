@@ -12,7 +12,8 @@
  *
  * Self-contained day-view agenda over the 'bookings' IndexedDB store: prev/today/
  * next date nav, per-day list sorted by start time, and travel-buffer gap strips
- * between adjacent bookings. English-only, light-mode.
+ * between adjacent bookings. Fully localized (en/th) via app.js's t()/I18N;
+ * light-mode.
  */
 'use strict';
 
@@ -55,14 +56,18 @@
     return pad2(Math.floor(m / 60)) + ':' + pad2(m % 60);
   }
 
+  // Full weekday name, localized — indexed by Date#getDay() (0=Sunday..6=Saturday).
+  const WD_FULL_KEYS = ['wd_full_sun', 'wd_full_mon', 'wd_full_tue', 'wd_full_wed', 'wd_full_thu', 'wd_full_fri', 'wd_full_sat'];
+  function wdFullLabel(dayIdx) { return t(WD_FULL_KEYS[dayIdx]); }
+
   // Readable header label: reuse app.js's fmtDate, prefix with a relative word.
   function dayLabel(iso) {
     const base = (typeof fmtDate === 'function') ? fmtDate(iso) : iso;
-    if (iso === todayISO()) return 'Today · ' + base;
-    if (iso === addDays(todayISO(), 1)) return 'Tomorrow · ' + base;
-    if (iso === addDays(todayISO(), -1)) return 'Yesterday · ' + base;
+    if (iso === todayISO()) return t('cal_today') + ' · ' + base;
+    if (iso === addDays(todayISO(), 1)) return t('cal_tomorrow') + ' · ' + base;
+    if (iso === addDays(todayISO(), -1)) return t('cal_yesterday') + ' · ' + base;
     const d = new Date(iso + 'T12:00:00');
-    const wd = isNaN(d) ? '' : d.toLocaleDateString('en-GB', { weekday: 'long' }) + ' · ';
+    const wd = isNaN(d) ? '' : wdFullLabel(d.getDay()) + ' · ';
     return wd + base;
   }
 
@@ -216,7 +221,7 @@
     return Array.from({ length: info.count }).map(() => `<span class="cal-dot" style="background:${color}"></span>`).join('');
   }
   function buildWeekStrip(dates, activity, selected) {
-    const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const WD = [t('wd_mon'), t('wd_tue'), t('wd_wed'), t('wd_thu'), t('wd_fri'), t('wd_sat'), t('wd_sun')];
     return `<div class="cal-week-strip">${dates.map((iso, i) => {
       const d = new Date(iso + 'T12:00:00');
       const isToday = iso === todayISO();
@@ -261,7 +266,7 @@
       blocks.push(`<div class="cal-tl-block" data-bk="${r.id}" tabindex="0" role="button"
           style="top:${px(start - rangeStart)}px;height:${Math.max(px(dur), 24)}px">
           <div class="cal-tl-time tnum">${esc(fmtMin(start))}-${esc(fmtMin(start + dur))}</div>
-          <div class="cal-tl-title">${esc(r.title || 'Booking')}${cust ? ' · ' + esc(cust) : ''}</div>
+          <div class="cal-tl-title">${esc(r.title || t('booking_word'))}${cust ? ' · ' + esc(cust) : ''}</div>
         </div>`);
       cursor = Math.max(cursor, start + dur);
     });
@@ -277,7 +282,7 @@
     if (dur < 15) return ''; // too thin to usefully show or tap
     return `<button type="button" class="cal-tl-gap" data-gap-date="${aesc(dateISO)}" data-gap-start="${fmtMin(fromMin)}"
         style="top:${px(fromMin - rangeStart)}px;height:${px(dur)}px">
-        Free ${esc(fmtMin(fromMin))}–${esc(fmtMin(toMinVal))} · + add
+        ${esc(t('cal_gap_free_word'))} ${esc(fmtMin(fromMin))}–${esc(fmtMin(toMinVal))} · ${esc(t('cal_gap_add_word'))}
       </button>`;
   }
 
@@ -316,8 +321,8 @@
   function emptyDayHtml(dateISO) {
     return `<div class="empty" style="padding:28px 16px">
         <div class="empty-icon" style="font-size:44px;color:var(--brand)">${CAL_SVG}</div>
-        <p>Nothing on ${esc(fmtDate(dateISO))}</p>
-        <span>Tap “+ New session” above to log work.</span>
+        <p>${esc(t('cal_nothing_on').replace('{date}', fmtDate(dateISO)))}</p>
+        <span>${esc(t('cal_tap_new_session_hint'))}</span>
         ${scheduleBookingLinkHtml(dateISO)}
       </div>`;
   }
@@ -328,7 +333,7 @@
   // slot on the calendar" use case, without it competing with session-
   // logging for the primary call-to-action.
   function scheduleBookingLinkHtml(dateISO) {
-    return `<button type="button" class="cal-schedule-link" onclick="openBookingForm('${aesc(dateISO)}')">+ Schedule a booking</button>`;
+    return `<button type="button" class="cal-schedule-link" onclick="openBookingForm('${aesc(dateISO)}')">${esc(t('cal_schedule_booking_link'))}</button>`;
   }
 
   // A day's pipeline dot only says "something's here" — this row is what makes
@@ -341,7 +346,7 @@
     return `<div class="list-row" data-pipe-stage="${aesc(stage || '')}" tabindex="0" role="button">
         <div class="list-icon" style="background:${meta.dot}22;color:${meta.dot}">${meta.icon || ''}</div>
         <div class="list-main">
-          <div class="list-title">${esc(j.client || 'Client')}</div>
+          <div class="list-title">${esc(j.client || t('field_customer'))}</div>
           <div class="list-sub">${esc((meta.label && t(meta.label)) || stage || '')}${j.serviceName ? ' · ' + esc(j.serviceName) : ''}</div>
         </div>
         <div class="list-right">
@@ -369,11 +374,11 @@
     const dayJobs = (typeof jobs !== 'undefined' ? jobs : []).filter(j => j.date === dateISO);
     const both = dayJobs.length > 0 && rows.length > 0;
     const pipelineSection = dayJobs.length
-      ? (both ? `<div class="section-title" style="font-size:12px;margin:0 0 6px">Pipeline</div>` : '') +
+      ? (both ? `<div class="section-title" style="font-size:12px;margin:0 0 6px">${esc(t('pipeline_section_label'))}</div>` : '') +
         `<div class="list-card" style="margin-bottom:${both ? '14px' : '0'}">${dayJobs.map(pipelineDayRowHtml).join('')}</div>`
       : '';
     const bookingSection = rows.length
-      ? (both ? `<div class="section-title" style="font-size:12px;margin:0 0 6px">Bookings</div>` : '') + buildDayList(rows, nextDayFirst)
+      ? (both ? `<div class="section-title" style="font-size:12px;margin:0 0 6px">${esc(t('bookings_section_label'))}</div>` : '') + buildDayList(rows, nextDayFirst)
       : '';
     const body = (pipelineSection || bookingSection)
       ? (pipelineSection + bookingSection + scheduleBookingLinkHtml(dateISO))
@@ -388,8 +393,8 @@
   // changes shape, only which render function runs underneath it.
   function calModeToggleHtml() {
     return `<div class="cal-mode-switch">
-        <button type="button" class="cal-mode-btn${calMode === 'week' ? ' active' : ''}" data-cal-mode="week">Week</button>
-        <button type="button" class="cal-mode-btn${calMode === 'month' ? ' active' : ''}" data-cal-mode="month">Month</button>
+        <button type="button" class="cal-mode-btn${calMode === 'week' ? ' active' : ''}" data-cal-mode="week">${esc(t('cal_mode_week'))}</button>
+        <button type="button" class="cal-mode-btn${calMode === 'month' ? ' active' : ''}" data-cal-mode="month">${esc(t('cal_mode_month'))}</button>
       </div>`;
   }
   function wireCalModeToggle(el) {
@@ -422,20 +427,20 @@
       rows = await loadBookings(selectedDate);
     } catch (err) {
       console.error('renderWeekView', err);
-      el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>Could not load bookings.</p></div>`;
+      el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>${esc(t('bookings_load_error'))}</p></div>`;
       return;
     }
     const weekNav = `<div class="cal-topnav">
-        <button type="button" id="cal-prev" class="cal-navbtn" aria-label="Previous week">‹</button>
+        <button type="button" id="cal-prev" class="cal-navbtn" aria-label="${aesc(t('cal_prev_week_aria'))}">‹</button>
         <button type="button" id="cal-label" class="cal-monthlabel">${esc(monthLabel(selectedDate.slice(0, 7)))}</button>
-        <button type="button" id="cal-next" class="cal-navbtn" aria-label="Next week">›</button>
-        <button type="button" id="cal-today-btn" class="cal-todaybtn">Today</button>
+        <button type="button" id="cal-next" class="cal-navbtn" aria-label="${aesc(t('cal_next_week_aria'))}">›</button>
+        <button type="button" id="cal-today-btn" class="cal-todaybtn">${esc(t('cal_today'))}</button>
         <input type="date" id="bk-jump" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
       </div>`;
     const strip = buildWeekStrip(dates, activity, selectedDate);
     const dayTotal = (activity[selectedDate] && activity[selectedDate].count) || 0;
     const sumLabel = dayTotal
-      ? `<div class="cal-day-summary"><span>${esc(dayLabel(selectedDate))}</span><span class="tnum">${dayTotal} session${dayTotal === 1 ? '' : 's'}</span></div>`
+      ? `<div class="cal-day-summary"><span>${esc(dayLabel(selectedDate))}</span><span class="tnum">${dayTotal} ${esc(dayTotal === 1 ? t('session_singular') : t('session_plural'))}</span></div>`
       : `<div class="cal-day-summary"><span>${esc(dayLabel(selectedDate))}</span></div>`;
     const timeline = buildHourTimeline(selectedDate, rows);
 
@@ -473,19 +478,19 @@
       if (expandedDate) dayPanelHtml = await buildDayPanel(expandedDate);
     } catch (err) {
       console.error('renderBookings', err);
-      el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>Could not load bookings.</p></div>`;
+      el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>${esc(t('bookings_load_error'))}</p></div>`;
       return;
     }
 
     const monthNav = `<div class="cal-topnav">
-        <button type="button" id="cal-prev" class="cal-navbtn" aria-label="Previous month">‹</button>
+        <button type="button" id="cal-prev" class="cal-navbtn" aria-label="${aesc(t('cal_prev_month_aria'))}">‹</button>
         <button type="button" id="cal-label" class="cal-monthlabel">${esc(monthLabel(calMonth))}</button>
-        <button type="button" id="cal-next" class="cal-navbtn" aria-label="Next month">›</button>
-        <button type="button" id="cal-today-btn" class="cal-todaybtn">Today</button>
+        <button type="button" id="cal-next" class="cal-navbtn" aria-label="${aesc(t('cal_next_month_aria'))}">›</button>
+        <button type="button" id="cal-today-btn" class="cal-todaybtn">${esc(t('cal_today'))}</button>
         <input type="date" id="bk-jump" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
       </div>`;
 
-    const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const WD = [t('wd_mon'), t('wd_tue'), t('wd_wed'), t('wd_thu'), t('wd_fri'), t('wd_sat'), t('wd_sun')];
     const wdRow = `<div class="cal-wd-row">${WD.map(w => `<div class="cal-wd">${w}</div>`).join('')}</div>`;
     const gridDates = monthGridDates(calMonth);
     const grid = `<div class="cal-grid">${buildMonthGrid(gridDates, bookingDates, stagesByDate)}</div>`;
@@ -498,7 +503,7 @@
       .filter(s => stageDates[s] && isos.some(iso => stageDates[s].has(iso)))
       .map(s => `<span class="cal-legend-item"><span class="cal-dot" style="background:${STAGE_META[s].dot}"></span> ${esc(t(STAGE_META[s].label))}</span>`).join('');
     const bookingLegendItem = isos.some(iso => bookingDates.has(iso))
-      ? `<span class="cal-legend-item"><span class="cal-dot cal-dot-book"></span> Booking</span>` : '';
+      ? `<span class="cal-legend-item"><span class="cal-dot cal-dot-book"></span> ${esc(t('booking_word'))}</span>` : '';
     const legend = (stageLegendItems || bookingLegendItem)
       ? `<div class="cal-legend">${stageLegendItems}${bookingLegendItem}</div>` : '';
     const addLabel = expandedDate ? ' · ' + fmtDate(expandedDate) : '';
@@ -506,13 +511,13 @@
     // form/modal used from Home/Pipeline's FAB, pre-filled with the selected
     // date), not a separate booking — a calendar day's primary action is
     // logging the work itself, not scheduling a time slot for it.
-    const btn = `<button type="button" id="bk-new-btn" class="btn-submit" style="width:100%;margin:14px 0 16px">+ New session${esc(addLabel)}</button>`;
+    const btn = `<button type="button" id="bk-new-btn" class="btn-submit" style="width:100%;margin:14px 0 16px">${esc(t('cal_new_session_btn'))}${esc(addLabel)}</button>`;
 
     // Two visual columns on desktop (`.cal-layout` grid, see styles.css) so
     // the day panel sits beside the month grid instead of below it — no
     // scrolling needed to see what's on a day after tapping it. On mobile
     // the grid rule doesn't apply and this just stacks top-to-bottom as before.
-    const rightPanel = dayPanelHtml || `<div class="empty cal-daypanel-placeholder"><p>Tap a day to see what's on it.</p></div>`;
+    const rightPanel = dayPanelHtml || `<div class="empty cal-daypanel-placeholder"><p>${esc(t('cal_tap_day_hint'))}</p></div>`;
     el.innerHTML = `${calModeToggleHtml()}<div class="cal-layout">
         <div class="cal-left">${monthNav}${wdRow}${grid}${legend}${btn}</div>
         <div class="cal-right">${rightPanel}</div>
@@ -601,7 +606,7 @@
       const gap = (toMin(nextDayFirst.startTime) + 1440) - lastEnd;
       const buf = n(last.travelBufferMin);
       if (!(buf === 0 && gap >= 0)) {
-        const ref = `tomorrow's "${nextDayFirst.title || 'booking'}"`;
+        const ref = t('cal_tomorrows_booking_ref').replace('{title}', nextDayFirst.title || t('booking_word'));
         html += (gap < buf) ? stripHtml(true, gap, buf, ref) : stripHtml(false, gap, buf, ref);
       }
     }
@@ -610,14 +615,15 @@
   }
 
   function stripHtml(warn, gap, buf, refLabel) {
-    const suffix = refLabel ? ` before ${refLabel}` : '';
+    const suffix = refLabel ? ' ' + t('cal_before_ref').replace('{ref}', refLabel) : '';
     if (warn) {
       const msg = gap < 0
-        ? (buf === 0 ? `⚠ Overlaps by ${-gap} min${suffix}` : `⚠ Overlaps by ${-gap} min${suffix} — need ${buf} min buffer`)
-        : `⚠ Only ${gap} min${suffix} — need ${buf} min`;
-      return `<div style="padding:7px 16px;font-size:11px;font-weight:700;color:var(--overdue);background:color-mix(in srgb,var(--overdue) 8%,var(--card));border-bottom:0.5px solid var(--border)">${esc(msg)}</div>`;
+        ? (buf === 0 ? t('cal_overlap_msg').replace('{n}', -gap).replace('{suffix}', suffix)
+                     : t('cal_overlap_buffer_msg').replace('{n}', -gap).replace('{suffix}', suffix).replace('{buf}', buf))
+        : t('cal_short_gap_msg').replace('{n}', gap).replace('{suffix}', suffix).replace('{buf}', buf);
+      return `<div style="padding:7px 16px;font-size:11px;font-weight:700;color:var(--overdue);background:color-mix(in srgb,var(--overdue) 8%,var(--card));border-bottom:0.5px solid var(--border)">${esc('⚠ ' + msg)}</div>`;
     }
-    return `<div style="padding:6px 16px;font-size:11px;font-weight:600;color:var(--text3);border-bottom:0.5px solid var(--border)">${esc(gap + ' min free' + suffix)}</div>`;
+    return `<div style="padding:6px 16px;font-size:11px;font-weight:600;color:var(--text3);border-bottom:0.5px solid var(--border)">${esc(t('cal_free_gap_msg').replace('{n}', gap).replace('{suffix}', suffix))}</div>`;
   }
 
   function rowHtml(r) {
@@ -629,13 +635,13 @@
     const subParts = [];
     if (cust) subParts.push(esc(cust));
     if (r.location) subParts.push(esc(r.location));
-    if (r.status === 'done') subParts.push('Done');
-    if (r.status === 'cancelled') subParts.push('Cancelled');
+    if (r.status === 'done') subParts.push(esc(t('status_done')));
+    if (r.status === 'cancelled') subParts.push(esc(t('status_cancelled')));
     const titleStyle = dim ? ' style="text-decoration:line-through"' : '';
     return `<div class="list-row" data-bk="${r.id}" tabindex="0" role="button"${dim ? ' style="opacity:.55"' : ''}>
         <div class="list-icon" style="font-size:19px;color:var(--brand)">${CAL_SVG}</div>
         <div class="list-main">
-          <div class="list-title"${titleStyle}>${esc(r.title || 'Booking')}</div>
+          <div class="list-title"${titleStyle}>${esc(r.title || t('booking_word'))}</div>
           <div class="list-sub">${subParts.join(' · ')}</div>
         </div>
         <div class="list-right">
@@ -652,7 +658,7 @@
     editing = null;
     const date = dateISO || selectedDate || todayISO();
     buildFormModal({
-      title: 'New booking',
+      title: t('new_booking_title'),
       customerId: '',
       bkTitle: '',
       date: date,
@@ -668,10 +674,10 @@
 
   async function openBookingEdit(id) {
     const b = await dbGet(STORE, id);
-    if (!b || b.uid !== uidNow()) { toast('Booking not found'); return; }
+    if (!b || b.uid !== uidNow()) { toast(t('booking_not_found')); return; }
     editing = b;
     buildFormModal({
-      title: 'Edit booking',
+      title: t('edit_booking_title'),
       customerId: b.customerId != null ? b.customerId : '',
       bkTitle: b.title || '',
       date: b.date || todayISO(),
@@ -690,72 +696,73 @@
     overlay.className = 'modal-overlay';
     overlay.id = 'bk-form-modal';
 
-    const custOpts = `<option value="">No client</option>` +
+    const custOpts = `<option value="">${esc(t('no_client_option'))}</option>` +
       (typeof customers !== 'undefined' ? customers : []).map(c =>
         `<option value="${c.id}"${String(c.id) === String(v.customerId) ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
 
+    const STATUS_LABEL_KEYS = { scheduled: 'status_scheduled', done: 'status_done', cancelled: 'status_cancelled' };
     const statusOpts = ['scheduled', 'done', 'cancelled'].map(s =>
-      `<option value="${s}"${s === v.status ? ' selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`).join('');
+      `<option value="${s}"${s === v.status ? ' selected' : ''}>${esc(t(STATUS_LABEL_KEYS[s]))}</option>`).join('');
 
     overlay.innerHTML = `
-      <div class="modal" role="dialog" aria-modal="true" aria-label="Booking form">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="${aesc(t('booking_form_aria'))}">
         <div class="modal-handle"></div>
         <div class="modal-title">${esc(v.title)}</div>
         <div class="form-body">
           <div class="field">
-            <label for="bk-cust">Client</label>
+            <label for="bk-cust">${esc(t('field_customer'))}</label>
             <select id="bk-cust">${custOpts}</select>
           </div>
           <div class="field">
-            <label for="bk-title">Title</label>
-            <input type="text" id="bk-title" value="${aesc(v.bkTitle)}" placeholder="e.g. Portrait shoot">
+            <label for="bk-title">${esc(t('field_title'))}</label>
+            <input type="text" id="bk-title" value="${aesc(v.bkTitle)}" placeholder="${aesc(t('bk_title_ph'))}">
           </div>
 
-          <div class="form-header">When</div>
+          <div class="form-header">${esc(t('when_header'))}</div>
           <div class="field">
-            <label for="bk-date">Date</label>
+            <label for="bk-date">${esc(t('field_date'))}</label>
             <input type="date" id="bk-date" value="${aesc(v.date)}">
           </div>
           <div class="field-row" style="display:flex">
-            <div class="field-half"><label for="bk-start">Start time</label><input type="time" id="bk-start" value="${aesc(v.startTime)}"></div>
-            <div class="field-half"><label for="bk-dur">Duration (min)</label><input type="number" id="bk-dur" class="tnum" inputmode="numeric" min="1" step="1" value="${aesc(v.durationMin)}"></div>
+            <div class="field-half"><label for="bk-start">${esc(t('start_time_label'))}</label><input type="time" id="bk-start" value="${aesc(v.startTime)}"></div>
+            <div class="field-half"><label for="bk-dur">${esc(t('duration_min_label'))}</label><input type="number" id="bk-dur" class="tnum" inputmode="numeric" min="1" step="1" value="${aesc(v.durationMin)}"></div>
           </div>
           <div class="field">
-            <label for="bk-buffer">Travel buffer after (min)</label>
+            <label for="bk-buffer">${esc(t('travel_buffer_label'))}</label>
             <input type="number" id="bk-buffer" class="tnum" inputmode="numeric" min="0" step="1" value="${aesc(v.travelBufferMin)}">
           </div>
 
-          <div class="form-header">Details</div>
+          <div class="form-header">${esc(t('details_header'))}</div>
           <div class="field">
-            <label for="bk-loc">Location</label>
-            <input type="text" id="bk-loc" value="${aesc(v.location)}" placeholder="Address or place (optional)">
+            <label for="bk-loc">${esc(t('location_label'))}</label>
+            <input type="text" id="bk-loc" value="${aesc(v.location)}" placeholder="${aesc(t('location_ph'))}">
           </div>
           <div class="field">
-            <label for="bk-status">Status</label>
+            <label for="bk-status">${esc(t('status_label'))}</label>
             <select id="bk-status">${statusOpts}</select>
           </div>
           <div class="field">
-            <label for="bk-notes">Notes</label>
+            <label for="bk-notes">${esc(t('field_notes'))}</label>
             <textarea id="bk-notes" rows="2">${esc(v.notes)}</textarea>
           </div>
           ${!isEdit ? `
-          <div class="form-header">Repeat</div>
+          <div class="form-header">${esc(t('repeat_header'))}</div>
           <div class="field">
-            <label for="bk-repeat">Repeat</label>
+            <label for="bk-repeat">${esc(t('repeat_header'))}</label>
             <select id="bk-repeat">
-              <option value="">Does not repeat</option>
-              <option value="weekly">Weekly</option>
-              <option value="biweekly">Every 2 weeks</option>
+              <option value="">${esc(t('repeat_none_option'))}</option>
+              <option value="weekly">${esc(t('repeat_weekly_option'))}</option>
+              <option value="biweekly">${esc(t('repeat_biweekly_option'))}</option>
             </select>
           </div>
           <div class="field" id="bk-repeat-until-wrap" style="display:none">
-            <label for="bk-repeat-until">Repeat until</label>
+            <label for="bk-repeat-until">${esc(t('repeat_until_label'))}</label>
             <input type="date" id="bk-repeat-until">
           </div>` : ''}
         </div>
-        <button type="button" class="btn-submit" id="bk-save">${isEdit ? 'Save changes' : 'Create booking'}</button>
-        ${isEdit ? `<button type="button" class="btn-danger" id="bk-del">Delete booking</button>` : ''}
-        <button type="button" class="btn-danger" id="bk-cancel" style="border-color:var(--border-mid);color:var(--text3)">Cancel</button>
+        <button type="button" class="btn-submit" id="bk-save">${isEdit ? esc(t('save_changes_btn')) : esc(t('create_booking_btn'))}</button>
+        ${isEdit ? `<button type="button" class="btn-danger" id="bk-del">${esc(t('delete_booking_btn'))}</button>` : ''}
+        <button type="button" class="btn-danger" id="bk-cancel" style="border-color:var(--border-mid);color:var(--text3)">${esc(t('cancel'))}</button>
       </div>`;
 
     document.body.appendChild(overlay);
@@ -790,13 +797,13 @@
     const repeatUntil = repeat ? (repeatUntilEl ? repeatUntilEl.value : '') : '';
 
     let bad = false;
-    if (!title) { markErr('bk-title', 'Enter a title for this booking'); bad = true; }
-    if (!date) { markErr('bk-date', 'Pick a date'); bad = true; }
-    if (!startTime) { markErr('bk-start', 'Pick a start time'); bad = true; }
-    if (!(durationMin > 0)) { markErr('bk-dur', 'Duration must be at least 1 minute'); bad = true; }
+    if (!title) { markErr('bk-title', t('err_enter_booking_title')); bad = true; }
+    if (!date) { markErr('bk-date', t('err_pick_date')); bad = true; }
+    if (!startTime) { markErr('bk-start', t('err_pick_start_time')); bad = true; }
+    if (!(durationMin > 0)) { markErr('bk-dur', t('err_duration_min')); bad = true; }
     if (repeat) {
-      if (!repeatUntil) { markErr('bk-repeat-until', 'Pick an end date for the repeat'); bad = true; }
-      else if (repeatUntil < date) { markErr('bk-repeat-until', 'Repeat end date must be after the booking date'); bad = true; }
+      if (!repeatUntil) { markErr('bk-repeat-until', t('err_repeat_end_date')); bad = true; }
+      else if (repeatUntil < date) { markErr('bk-repeat-until', t('err_repeat_end_after')); bad = true; }
     }
     if (bad) return;
 
@@ -823,7 +830,7 @@
         base.cuid = editing.cuid || cuid();
         base.createdAt = editing.createdAt || nowISO();
         await dbPut(STORE, base);
-        toast('Booking updated');
+        toast(t('booking_updated'));
       } else {
         base.cuid = cuid();
         base.createdAt = nowISO();
@@ -840,11 +847,11 @@
             nextDate = addDays(nextDate, stepDays);
           }
         }
-        toast(extraCount > 0 ? `Booking created (+${extraCount} more in the series)` : 'Booking created');
+        toast(extraCount > 0 ? t('booking_created_series').replace('{n}', extraCount) : t('booking_created'));
       }
     } catch (err) {
       console.error(err);
-      toast('Could not save booking');
+      toast(t('booking_save_failed'));
       return;
     }
     // Follow the booking to its (possibly changed) day: expand that date's
@@ -875,10 +882,10 @@
   }
 
   async function deleteBooking(id) {
-    if (!confirm('Delete this booking? This cannot be undone.')) return;
+    if (!confirm(t('delete_booking_confirm'))) return;
     try { await dbDel(STORE, id); } catch (e) { console.error(e); }
     closeModal('bk-form-modal');
-    toast('Booking deleted');
+    toast(t('booking_deleted'));
     renderBookings();
   }
 
