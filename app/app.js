@@ -2459,10 +2459,10 @@ function renderSubTasks(jobId) {
     <div class="pkg-status-row" style="margin-bottom:8px"><span>${done} of ${subs.length} done</span></div>
     <div class="pkg-status-track" style="margin-bottom:10px"><div class="pkg-status-fill" style="width:${subs.length ? Math.round(done / subs.length * 100) : 0}%"></div></div>
     <div class="list-card">${subs.map(s => `
-      <div class="list-row" style="cursor:default">
-        <input type="checkbox" style="width:20px;height:20px;flex-shrink:0" ${s.done ? 'checked' : ''} onchange="toggleSubTask(${jobId},'${s.id}')">
+      <div class="list-row" style="cursor:pointer" onclick="toggleSubTask(${jobId},'${s.id}')">
+        <input type="checkbox" style="width:20px;height:20px;flex-shrink:0;pointer-events:none" ${s.done ? 'checked' : ''}>
         <div class="list-main"><div class="list-title" style="${s.done ? 'text-decoration:line-through;color:var(--text3)' : ''}">${htmlEsc(s.text)}</div></div>
-        <button type="button" class="qc-btn" aria-label="Delete sub-task" onclick="deleteSubTask(${jobId},'${s.id}')">✕</button>
+        <button type="button" class="qc-btn" aria-label="Delete sub-task" onclick="event.stopPropagation();deleteSubTask(${jobId},'${s.id}')">✕</button>
       </div>`).join('')}</div>
   `;
 }
@@ -2477,6 +2477,7 @@ async function addSubTask(jobId) {
   j.subTasks.push({ id: cuid(), text, done: false });
   await dbPut('jobs', j);
   input.value = '';
+  input.focus();   // stay focused so adding several in a row doesn't need re-tapping the field
   renderJobTracking(jobId);
 }
 window.addSubTask = addSubTask;

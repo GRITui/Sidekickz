@@ -445,7 +445,7 @@
       <div class="section-title" style="margin:0 0 8px" data-i18n="subtasks_title">Sub-tasks</div>
       <div id="job-subtasks-body"></div>
       <div class="form-row" style="margin-top:8px">
-        <input type="text" id="job-subtask-new" data-i18n-ph="subtask_add_ph" placeholder="Add a sub-task…" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+        <input type="text" id="job-subtask-new" data-i18n-ph="subtask_add_ph" placeholder="Add a sub-task…" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubTask(document.getElementById('j-edit-id').value);}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
         <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addSubTask(document.getElementById('j-edit-id').value)" data-i18n="btn_add">+ Add</button>
       </div>
 
