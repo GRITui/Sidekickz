@@ -686,7 +686,8 @@ const I18N = {
     delete_service:'Delete service', delete_service_confirm:'Delete this service?',
     no_services:'No services yet', no_services_sub:'Add services to prefill fees when logging work.',
     service_saved:'Service saved', service_deleted:'Service deleted',
-    field_rate:'Default rate', field_unit:'Unit', field_unit_ph:'e.g. session, hour, project',
+    field_rate:'Package Price', field_unit:'Unit', field_unit_ph:'e.g. session, hour, project',
+    field_usage_qty:'Service usage qty', add_new_service_option:'+ Add a new service',
     // M1.5 — job form links
     field_customer:'Client', field_service:'Service', none_option:'— None —',
     add_new_client_option:'+ Add a new client…',
@@ -829,7 +830,8 @@ const I18N = {
     delete_service:'ลบบริการ', delete_service_confirm:'ลบบริการนี้หรือไม่?',
     no_services:'ยังไม่มีบริการ', no_services_sub:'เพิ่มบริการเพื่อกรอกค่าธรรมเนียมล่วงหน้าเมื่อบันทึกงาน',
     service_saved:'บันทึกบริการแล้ว', service_deleted:'ลบบริการแล้ว',
-    field_rate:'อัตราค่าบริการเริ่มต้น', field_unit:'หน่วย', field_unit_ph:'เช่น เซสชัน, ชั่วโมง, โปรเจกต์',
+    field_rate:'ราคาแพ็กเกจ', field_unit:'หน่วย', field_unit_ph:'เช่น เซสชัน, ชั่วโมง, โปรเจกต์',
+    field_usage_qty:'จำนวนการใช้งานต่อครั้ง', add_new_service_option:'+ เพิ่มบริการใหม่',
     // M1.5 — job form links
     field_customer:'ลูกค้า', field_service:'บริการ', none_option:'— ไม่มี —',
     add_new_client_option:'+ เพิ่มลูกค้าใหม่…',
@@ -1522,7 +1524,8 @@ function populateJobSelects(selCustomerId, selServiceId) {
   const ss = document.getElementById('j-service');
   if (ss) {
     ss.innerHTML = `<option value="">${htmlEsc(t('none_option'))}</option>` +
-      services.map(s => `<option value="${s.id}">${htmlEsc(s.name)} · ${htmlEsc(money(s.rate))}</option>`).join('');
+      services.map(s => `<option value="${s.id}">${htmlEsc(s.name)} · ${htmlEsc(money(s.rate))}</option>`).join('') +
+      `<option value="__new__">${htmlEsc(t('add_new_service_option'))}</option>`;
     ss.value = selServiceId != null ? String(selServiceId) : '';
   }
 }
@@ -1670,7 +1673,18 @@ async function saveFastPathDelivery() {
   toast(t('delivery_logged').replace('{n}', val).replace('{unit}', unit));
 }
 window.saveFastPathDelivery = saveFastPathDelivery;
+// Picking "+ Add a new service" opens the Service modal stacked on top of
+// the job form (never closed underneath); saveService() links the new
+// record back into this form once it's created — see
+// __pendingJobServiceLink below, mirroring onJobCustomerChange() above.
 function onJobServiceChange(v) {
+  const ss = document.getElementById('j-service');
+  if (v === '__new__') {
+    if (ss) ss.value = '';
+    window.__pendingJobServiceLink = true;
+    openAddService();
+    return;
+  }
   if (!v) return;
   const s = services.find(x => x.id === parseInt(v));
   if (s) { document.getElementById('j-amount').value = s.rate; calcNet(); }
@@ -3220,11 +3234,12 @@ function renderServices() {
     </div>`).join('') + '</div>';
 }
 function openServiceModal() { document.getElementById('modal-service').classList.add('open'); }
-function closeServiceModal() { document.getElementById('modal-service').classList.remove('open'); }
+function closeServiceModal() { window.__pendingJobServiceLink = false; document.getElementById('modal-service').classList.remove('open'); }
 function openAddService() {
   document.getElementById('svc-modal-title').textContent = t('add_service');
   document.getElementById('sv-edit-id').value = '';
   ['sv-name','sv-rate','sv-unit'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('sv-usage-qty').value = '1';
   document.getElementById('sv-delete').style.display = 'none';
   clearFieldErrors();
   openServiceModal();
@@ -3236,6 +3251,7 @@ function openEditService(id) {
   document.getElementById('sv-edit-id').value = String(id);
   const set = (i,v)=>{ const el=document.getElementById(i); if(el) el.value = (v==null?'':v); };
   set('sv-name', s.name); set('sv-rate', s.rate); set('sv-unit', s.unit);
+  set('sv-usage-qty', s.usageQty > 0 ? s.usageQty : 1);
   document.getElementById('sv-delete').style.display = 'block';
   clearFieldErrors();
   openServiceModal();
@@ -3246,8 +3262,9 @@ async function saveService() {
   if (!name) { markFieldError('sv-name', 'err_name_required'); return; }
   const rate = parseFloat(document.getElementById('sv-rate').value) || 0;
   const unit = (document.getElementById('sv-unit').value || '').trim();
+  const usageQty = parseInt(document.getElementById('sv-usage-qty').value, 10) || 1;
   const uid = isGuest ? 'guest' : currentUser.id;
-  const obj = {uid, name, rate, unit};
+  const obj = {uid, name, rate, unit, usageQty};
   const editId = document.getElementById('sv-edit-id').value;
   if (editId) {
     const id = parseInt(editId);
@@ -3256,10 +3273,16 @@ async function saveService() {
     obj.id = id; obj.cuid = prev.cuid || cuid();
   } else { obj.cuid = cuid(); }
   obj.updatedAt = nowISO();
-  await dbPut('services', obj);
+  const linkToJob = !!window.__pendingJobServiceLink && !editId;
+  const key = await dbPut('services', obj);
+  if (obj.id == null) obj.id = key;
   closeServiceModal();
   await reload();
   toast(t('service_saved'));
+  if (linkToJob) {
+    populateJobSelects(document.getElementById('j-customer')?.value || '', obj.id);
+    onJobServiceChange(String(obj.id));
+  }
 }
 async function deleteService() {
   const editId = document.getElementById('sv-edit-id').value;
