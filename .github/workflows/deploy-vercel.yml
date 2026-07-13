@@ -8,11 +8,16 @@ name: Deploy to Vercel
 # fresh prod build+deploy from the Actions tab, without a throwaway commit —
 # these are prebuilt deploys, so "Redeploy" in Vercel just re-serves the old
 # build and won't pick up new env vars.
+#
+# pull_request is scoped to `opened` only: the preview builds once when a PR
+# is first opened, not on every subsequent push to the branch. Production
+# still deploys on every push to main (i.e. every merge).
 
 on:
   push:
     branches: [main]
   pull_request:
+    types: [opened]
   workflow_dispatch:
 
 concurrency:
