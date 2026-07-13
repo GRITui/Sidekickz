@@ -2464,7 +2464,7 @@ function renderCustomerPackages(clientId) {
       </div>
       <div class="form-row">
         <div class="field-half"><label for="pkg-date">${htmlEsc(t('purchased_label'))}</label><input type="date" id="pkg-date"></div>
-        <div class="field-half"><label for="pkg-expires">${htmlEsc(t('expires_label'))}</label><input type="date" id="pkg-expires" placeholder="${htmlEsc(t('expires_ph'))}"></div>
+        <div class="field-half"><label for="pkg-expires">${htmlEsc(t('expires_label'))}</label><input type="date" id="pkg-expires" placeholder="${attrEsc(t('expires_ph'))}"></div>
       </div>
       <button type="button" class="btn-submit" style="margin-top:6px" onclick="savePackage(${clientId})">${htmlEsc(t('save_package'))}</button>
     ` : `<button type="button" class="btn-submit" style="margin-top:10px" onclick="togglePackageForm(true, ${clientId})">${active ? htmlEsc(t('renew_package')) : htmlEsc(t('new_package'))}</button>`;
