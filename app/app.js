@@ -572,6 +572,12 @@ const I18N = {
     field_policy_name:'Policy name', field_renewal_date:'Renewal date',
     field_plate:'Plate', field_mileage:'Mileage', field_next_service_due:'Next service due',
     day_singular:'day', day_plural:'days', overdue_for_renewal:'overdue for renewal', until_renewal:'until renewal',
+    tracker_mealplan_title:'Meal plan', no_meal_plan_rows:'No meal plan rows yet.', meal_plan_add_ph:'Add a meal plan row…',
+    viewing_log_title:'Viewing log', no_viewings:'No viewings logged yet.', field_viewing_property:'Property',
+    viewing_verdict_interested:'Interested', viewing_verdict_maybe:'Maybe', viewing_verdict_passed:'Passed',
+    field_birthday:'Birthday', field_referred_by:'Referred by',
+    lifetime_spend_label:'Lifetime spend', service_history_title:'Service history', no_service_history:'No service history yet.',
+    field_service_note:'Service note',
     data:'Data', export_csv:'Export CSV', backup_json:'Backup JSON', restore_json:'Restore JSON',
     total_jobs:'Total jobs', app_word:'App', version:'Version', logout:'Log out', exit_guest:'Exit guest mode',
     // placeholder modules
@@ -697,6 +703,12 @@ const I18N = {
     field_policy_name:'ชื่อกรมธรรม์', field_renewal_date:'วันต่ออายุ',
     field_plate:'ทะเบียนรถ', field_mileage:'เลขไมล์', field_next_service_due:'กำหนดเข้าศูนย์ครั้งถัดไป',
     day_singular:'วัน', day_plural:'วัน', overdue_for_renewal:'เลยกำหนดต่ออายุ', until_renewal:'ก่อนถึงกำหนดต่ออายุ',
+    tracker_mealplan_title:'แผนมื้ออาหาร', no_meal_plan_rows:'ยังไม่มีแผนมื้ออาหาร', meal_plan_add_ph:'เพิ่มรายการแผนมื้ออาหาร…',
+    viewing_log_title:'บันทึกการดูสถานที่', no_viewings:'ยังไม่มีบันทึกการดูสถานที่', field_viewing_property:'ทรัพย์สิน',
+    viewing_verdict_interested:'สนใจ', viewing_verdict_maybe:'อาจจะ', viewing_verdict_passed:'ไม่สนใจ',
+    field_birthday:'วันเกิด', field_referred_by:'แนะนำโดย',
+    lifetime_spend_label:'ยอดใช้จ่ายสะสม', service_history_title:'ประวัติการซ่อมบำรุง', no_service_history:'ยังไม่มีประวัติการซ่อมบำรุง',
+    field_service_note:'บันทึกการซ่อมบำรุง',
     data:'ข้อมูล', export_csv:'ส่งออก CSV', backup_json:'สำรองข้อมูล JSON', restore_json:'กู้คืนข้อมูล JSON',
     total_jobs:'จำนวนเซสชันทั้งหมด', app_word:'แอป', version:'เวอร์ชัน', logout:'ออกจากระบบ', exit_guest:'ออกจากโหมดผู้เยี่ยมชม',
     // placeholder modules
@@ -909,6 +921,20 @@ async function enterApp() {
   if (!settings.businessType) await saveSetting('businessType', 'trainer');
   document.body.setAttribute('data-work-type', businessType());
   set('set-business-type', businessType());
+
+  // One-time migration: the client-facing ID format changes from "M-xxxx"
+  // to "SK-xxxx" per the 2026 redesign spec. Rewrites existing records in
+  // place (preserving the numeric sequence) rather than leaving old and new
+  // clients on two different-looking ID formats forever.
+  if (!settings.memberNoSkMigrated) {
+    for (const c of customers) {
+      if (typeof c.memberNo === 'string' && c.memberNo.indexOf('M-') === 0) {
+        c.memberNo = 'SK-' + c.memberNo.slice(2);
+        await dbPut('clients', c);
+      }
+    }
+    await saveSetting('memberNoSkMigrated', true);
+  }
   await seedServicesIfEmpty();
   switchScreen('home');
 
@@ -1281,8 +1307,27 @@ async function renderHome() {
   setTxt('stat-exp-val', money(exp));
 
   renderGoal();
+  renderHomeAlert();
   updateMoreNavBadge();
   renderIncomingPipeline();
+}
+// Amber alert card — surfaces the single highest-priority "needs attention"
+// item (same computeClientsNeedingAttention() source as the Clients screen's
+// own list) right on Home, with one action button, instead of making the
+// user go find it. Tapping the card body (not the button) jumps to Clients
+// to see the rest.
+async function renderHomeAlert() {
+  const card = document.getElementById('home-alert-card');
+  if (!card) return;
+  const items = await computeClientsNeedingAttention();
+  if (!items.length) { card.style.display = 'none'; return; }
+  card.style.display = 'flex';
+  const top = items[0];
+  const extra = items.length - 1;
+  document.getElementById('home-alert-text').textContent = `${top.client.name} — ${top.reason}` + (extra > 0 ? ` (+${extra} more)` : '');
+  const btn = document.getElementById('home-alert-btn');
+  btn.textContent = top.actionLabel;
+  btn.onclick = (e) => { e.stopPropagation(); top.action(); };
 }
 // Incoming pipeline: replaces the old Action Queue nudge list with a direct
 // preview of active engagements, so Home shows what's actually moving through
@@ -1944,13 +1989,17 @@ function intakeFields() { return CUSTOMER_INTAKE; }
 // this uid's whole customer list, never reset (unlike invoice numbers, which
 // reset per year).
 function nextMemberNo() {
-  const prefix = 'M-';
+  const prefix = 'SK-';
   let max = 0;
   customers.forEach(c => {
-    if (typeof c.memberNo === 'string' && c.memberNo.indexOf(prefix) === 0) {
-      const seq = parseInt(c.memberNo.slice(prefix.length), 10);
-      if (isFinite(seq) && seq > max) max = seq;
-    }
+    if (typeof c.memberNo !== 'string') return;
+    // Legacy 'M-' records are migrated to 'SK-' on boot (see enterApp()), but
+    // backfillMemberNumbers() runs before that migration in the same boot —
+    // scanning both prefixes here keeps the sequence collision-free either way.
+    let seq = null;
+    if (c.memberNo.indexOf(prefix) === 0) seq = parseInt(c.memberNo.slice(prefix.length), 10);
+    else if (c.memberNo.indexOf('M-') === 0) seq = parseInt(c.memberNo.slice(2), 10);
+    if (seq != null && isFinite(seq) && seq > max) max = seq;
   });
   return prefix + String(max + 1).padStart(4, '0');
 }
@@ -2063,7 +2112,8 @@ async function renderCustomers() {
        <div class="section-title" style="font-size:12px;margin-bottom:8px">${htmlEsc(t('all_clients_title'))}</div>`
     : '';
   wrap.innerHTML = attentionHtml + '<div class="list-card">' + customers.map(c => {
-    const sub = [c.memberNo, c.company || c.phone || c.email || ''].filter(Boolean).join(' · ');
+    const rest = c.company || c.phone || c.email || '';
+    const sub = (c.memberNo ? `<span class="tnum">${htmlEsc(c.memberNo)}</span>` : '') + (c.memberNo && rest ? ' · ' : '') + htmlEsc(rest);
     const pkg = activePackageFor(c.id);
     const pkgBadge = pkg
       ? `<span class="pkg-badge">${packageRemaining(pkg)}/${htmlEsc(pkg.totalSessions)} left</span>` : '';
@@ -2071,7 +2121,7 @@ async function renderCustomers() {
       <div class="list-icon">👤</div>
       <div class="list-main">
         <div class="list-title">${htmlEsc(c.name)}</div>
-        <div class="list-sub">${htmlEsc(sub)}</div>
+        <div class="list-sub">${sub}</div>
       </div>
       <div class="list-right">
         ${pkgBadge}
@@ -2218,11 +2268,85 @@ async function saveClientField(clientId, field, value) {
 window.saveClientField = saveClientField;
 
 const PERSONA_TRACKER_TITLES = {
+  trainer: 'tracker_mealplan_title',
   realestate: 'tracker_deal_title',
   laundry: 'tracker_order_title',
   insurance: 'tracker_policy_title',
   garage: 'tracker_vehicle_title',
 };
+// Generic list CRUD shared by every persona tracker's repeatable rows (meal
+// plan, viewing log, service history) — each item just an object with its
+// own cuid(), stored as an array field directly on the client record (no
+// new IndexedDB store).
+function addClientListItem(clientId, field, item) {
+  const c = customers.find(x => x.id === clientId);
+  if (!c) return;
+  c[field] = c[field] || [];
+  c[field].push({ id: cuid(), ...item });
+  c.updatedAt = nowISO();
+  return dbPut('clients', c).then(() => renderClientPersonaTracker(clientId));
+}
+window.addClientListItem = addClientListItem;
+function deleteClientListItem(clientId, field, itemId) {
+  const c = customers.find(x => x.id === clientId);
+  if (!c) return;
+  c[field] = (c[field] || []).filter(r => r.id !== itemId);
+  c.updatedAt = nowISO();
+  return dbPut('clients', c).then(() => renderClientPersonaTracker(clientId));
+}
+window.deleteClientListItem = deleteClientListItem;
+
+function addMealPlanRow(clientId) {
+  const input = document.getElementById('meal-plan-new-' + clientId);
+  const text = ((input && input.value) || '').trim();
+  if (!text) return;
+  addClientListItem(clientId, 'mealPlan', { text });
+  if (input) input.value = '';
+}
+window.addMealPlanRow = addMealPlanRow;
+
+const VIEWING_VERDICTS = ['interested', 'maybe', 'passed'];
+function addViewingRow(clientId) {
+  const date = (document.getElementById('viewing-date-' + clientId) || {}).value || '';
+  const propertyEl = document.getElementById('viewing-property-' + clientId);
+  const property = ((propertyEl && propertyEl.value) || '').trim();
+  const verdict = (document.getElementById('viewing-verdict-' + clientId) || {}).value || 'interested';
+  if (!property) return;
+  addClientListItem(clientId, 'viewings', { date, property, verdict });
+  if (propertyEl) propertyEl.value = '';
+}
+window.addViewingRow = addViewingRow;
+
+function addServiceHistoryRow(clientId) {
+  const date = (document.getElementById('svc-date-' + clientId) || {}).value || '';
+  const noteEl = document.getElementById('svc-note-' + clientId);
+  const note = ((noteEl && noteEl.value) || '').trim();
+  if (!note) return;
+  addClientListItem(clientId, 'serviceHistory', { date, note });
+  if (noteEl) noteEl.value = '';
+}
+window.addServiceHistoryRow = addServiceHistoryRow;
+
+// Sum of what a garage client has actually paid (amount+tip on jobs that
+// reached the 'paid' stage or later) — a computed display stat, not stored,
+// so it always reflects the live job list.
+function clientLifetimeSpend(clientId) {
+  const order = getStageOrder();
+  const paidIdx = order.indexOf('paid');
+  return jobs
+    .filter(j => j.clientId === clientId && order.indexOf(jobStage(j)) >= paidIdx && paidIdx >= 0)
+    .reduce((s, j) => s + (Number(j.amount) || 0) + (Number(j.tip) || 0), 0);
+}
+
+function listRowsHtml(rows, clientId, field, lineFn) {
+  if (!rows || !rows.length) return '';
+  return '<div class="list-card" style="margin-bottom:8px">' + rows.map(r => `
+      <div class="list-row" style="cursor:default">
+        <div class="list-main">${lineFn(r)}</div>
+        <div class="list-right"><button type="button" class="qc-btn" aria-label="Delete" onclick="deleteClientListItem(${clientId},'${field}','${r.id}')">✕</button></div>
+      </div>`).join('') + '</div>';
+}
+
 function renderClientPersonaTracker(clientId) {
   const wrap = document.getElementById('cust-persona-body');
   const titleEl = document.getElementById('cust-persona-title');
@@ -2232,11 +2356,33 @@ function renderClientPersonaTracker(clientId) {
   const bt = businessType();
   if (titleEl) titleEl.textContent = PERSONA_TRACKER_TITLES[bt] ? t(PERSONA_TRACKER_TITLES[bt]) : '';
 
-  if (bt === 'realestate') {
+  if (bt === 'trainer') {
+    const rows = c.mealPlan || [];
+    wrap.innerHTML = `
+      ${listRowsHtml(rows, clientId, 'mealPlan', r => `<div class="list-title">${htmlEsc(r.text)}</div>`) || `<div class="pkg-status"><span>${htmlEsc(t('no_meal_plan_rows'))}</span></div>`}
+      <div class="form-row" style="margin-top:8px">
+        <input type="text" id="meal-plan-new-${clientId}" placeholder="${attrEsc(t('meal_plan_add_ph'))}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+        <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addMealPlanRow(${clientId})">${htmlEsc(t('btn_add'))}</button>
+      </div>
+    `;
+  } else if (bt === 'realestate') {
+    const rows = (c.viewings || []).slice().reverse();
     wrap.innerHTML = `
       <div class="field"><label>${htmlEsc(t('field_search_brief'))}</label><textarea rows="2" onchange="saveClientField(${clientId},'searchBrief',this.value)">${htmlEsc(c.searchBrief || '')}</textarea></div>
       <div class="field"><label>${htmlEsc(t('field_offer_status'))}</label><input type="text" value="${attrEsc(c.offerStatus || '')}" placeholder="e.g. Offer submitted, awaiting reply" onchange="saveClientField(${clientId},'offerStatus',this.value)"></div>
       <div class="field"><label>${htmlEsc(t('field_est_commission'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.estCommission || ''}" onchange="saveClientField(${clientId},'estCommission',parseFloat(this.value)||0)"></div>
+      <div class="section-title" style="font-size:12px;margin:14px 0 8px">${htmlEsc(t('viewing_log_title'))}</div>
+      ${listRowsHtml(rows, clientId, 'viewings', r => `<div class="list-title">${htmlEsc(r.property)}</div><div class="list-sub">${r.date ? htmlEsc(fmtDate(r.date)) + ' · ' : ''}${htmlEsc(t('viewing_verdict_' + (r.verdict || 'interested')))}</div>`) || `<div class="pkg-status"><span>${htmlEsc(t('no_viewings'))}</span></div>`}
+      <div class="form-row" style="margin-top:8px">
+        <input type="date" id="viewing-date-${clientId}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+        <select id="viewing-verdict-${clientId}" style="padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+          ${VIEWING_VERDICTS.map(v => `<option value="${v}">${htmlEsc(t('viewing_verdict_' + v))}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-row" style="margin-top:8px">
+        <input type="text" id="viewing-property-${clientId}" placeholder="${attrEsc(t('field_viewing_property'))}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+        <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addViewingRow(${clientId})">${htmlEsc(t('btn_add'))}</button>
+      </div>
     `;
   } else if (bt === 'laundry') {
     const steps = ['received', 'washing', 'drying', 'ready'];
@@ -2259,14 +2405,28 @@ function renderClientPersonaTracker(clientId) {
       <div class="field"><label>${htmlEsc(t('field_policy_name'))}</label><input type="text" value="${attrEsc(c.policyName || '')}" onchange="saveClientField(${clientId},'policyName',this.value)"></div>
       <div class="field"><label>${htmlEsc(t('field_renewal_date'))}</label><input type="date" value="${attrEsc(c.policyRenewalDate || '')}" onchange="saveClientField(${clientId},'policyRenewalDate',this.value)"></div>
       ${countdown}
+      <div class="field"><label>${htmlEsc(t('field_birthday'))}</label><input type="date" value="${attrEsc(c.birthday || '')}" onchange="saveClientField(${clientId},'birthday',this.value)"></div>
+      <div class="field"><label>${htmlEsc(t('field_referred_by'))}</label><input type="text" value="${attrEsc(c.referredBy || '')}" onchange="saveClientField(${clientId},'referredBy',this.value)"></div>
     `;
   } else if (bt === 'garage') {
+    const rows = (c.serviceHistory || []).slice().reverse();
+    const spend = clientLifetimeSpend(clientId);
     wrap.innerHTML = `
       <div class="form-row">
         <div class="field-half"><label>${htmlEsc(t('field_plate'))}</label><input type="text" value="${attrEsc(c.vehiclePlate || '')}" onchange="saveClientField(${clientId},'vehiclePlate',this.value)"></div>
         <div class="field-half"><label>${htmlEsc(t('field_mileage'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.vehicleMileage || ''}" onchange="saveClientField(${clientId},'vehicleMileage',parseFloat(this.value)||0)"></div>
       </div>
       <div class="field"><label>${htmlEsc(t('field_next_service_due'))}</label><input type="date" value="${attrEsc(c.nextServiceDate || '')}" onchange="saveClientField(${clientId},'nextServiceDate',this.value)"></div>
+      <div class="pkg-status-row"><span>${htmlEsc(t('lifetime_spend_label'))}</span><span class="tnum">${htmlEsc(money(spend))}</span></div>
+      <div class="section-title" style="font-size:12px;margin:14px 0 8px">${htmlEsc(t('service_history_title'))}</div>
+      ${listRowsHtml(rows, clientId, 'serviceHistory', r => `<div class="list-title">${htmlEsc(r.note)}</div>${r.date ? `<div class="list-sub">${htmlEsc(fmtDate(r.date))}</div>` : ''}`) || `<div class="pkg-status"><span>${htmlEsc(t('no_service_history'))}</span></div>`}
+      <div class="form-row" style="margin-top:8px">
+        <input type="date" id="svc-date-${clientId}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+      </div>
+      <div class="form-row" style="margin-top:8px">
+        <input type="text" id="svc-note-${clientId}" placeholder="${attrEsc(t('field_service_note'))}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+        <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addServiceHistoryRow(${clientId})">${htmlEsc(t('btn_add'))}</button>
+      </div>
     `;
   } else {
     wrap.innerHTML = '';
@@ -2663,15 +2823,16 @@ function openEditCustomer(id) {
   set('c-memberno', c.memberNo || t('assigned_on_save'));
   renderIntakeFields(c);
   window.__pkgFormOpen = false; window.__progressFormOpen = false;
-  // Trainer keeps the existing package + progress-log sections; every other
-  // business type gets the persona tracker section instead (see the
-  // registry above renderClientPersonaTracker()).
+  // Trainer keeps the existing package + progress-log sections AND now also
+  // gets the persona tracker section (meal-plan rows) below them; every
+  // other business type only gets the persona tracker (see the registry
+  // above renderClientPersonaTracker()).
   const isTrainer = businessType() === 'trainer';
   document.getElementById('cust-package-section').style.display = isTrainer ? 'block' : 'none';
   document.getElementById('cust-progress-section').style.display = isTrainer ? 'block' : 'none';
-  document.getElementById('cust-persona-section').style.display = isTrainer ? 'none' : 'block';
+  document.getElementById('cust-persona-section').style.display = 'block';
   if (isTrainer) { renderCustomerPackages(id); renderCustomerProgress(id); }
-  else renderClientPersonaTracker(id);
+  renderClientPersonaTracker(id);
   document.getElementById('c-delete').style.display = 'block';
   clearFieldErrors();
   openCustomerModal();

@@ -281,16 +281,17 @@
       </button>`;
   }
 
-  // A single engagement that day still renders as a small stage-colored dot
-  // (matches the legend). Two or more render as one number badge instead —
-  // stacking dots doesn't scale for "how many," and the exact breakdown is
-  // one tap away in the day panel anyway. The badge is stage-colored when
-  // every engagement that day shares one stage, otherwise a neutral brand
-  // color (a single dot can't represent a mix of colors).
+  // Up to 3 engagements that day render as individual stage-colored dots
+  // (matches the legend). More than 3 render as one number badge instead —
+  // stacking that many dots doesn't scale for "how many," and the exact
+  // breakdown is one tap away in the day panel anyway. The badge is
+  // stage-colored when every engagement that day shares one stage,
+  // otherwise a neutral brand color (a single dot can't represent a mix).
+  const CAL_DOT_MAX = 3;
   function pipelineMarkerHtml(stagesHere) {
     if (!stagesHere || !stagesHere.length) return '';
-    if (stagesHere.length === 1) {
-      return `<span class="cal-dot" style="background:${STAGE_META[stagesHere[0]].dot}"></span>`;
+    if (stagesHere.length <= CAL_DOT_MAX) {
+      return stagesHere.map(s => `<span class="cal-dot" style="background:${STAGE_META[s].dot}"></span>`).join('');
     }
     const uniq = Array.from(new Set(stagesHere));
     const color = uniq.length === 1 ? STAGE_META[uniq[0]].dot : 'var(--brand)';

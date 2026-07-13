@@ -111,6 +111,14 @@ details.settings-section:not([open]) summary.section-title::after{transform:rota
 .goal-amt-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;}
 .goal-amt{font-size:13px;color:var(--text3);font-weight:600;}
 .goal-pct{font-size:16px;font-weight:800;color:var(--brand);letter-spacing:-.3px;}
+
+.home-alert-card{display:flex;align-items:center;gap:10px;margin:0 16px 16px;padding:13px 14px;
+  border-radius:var(--radius-sm);background:var(--marigold-tint);border:1px solid var(--marigold);cursor:pointer;}
+.home-alert-icon{font-size:19px;flex-shrink:0;}
+.home-alert-body{flex:1;min-width:0;}
+.home-alert-text{font-size:13px;font-weight:700;color:var(--marigold-ink);}
+.home-alert-btn{flex-shrink:0;background:var(--marigold-ink);color:#fff;border:none;border-radius:999px;
+  padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;}
 .goal-track{height:10px;background:var(--border);border-radius:6px;overflow:hidden;}
 .goal-fill{height:100%;width:0;background:var(--brand-bright);border-radius:6px;transition:width .45s ease;}
 .goal-fill.reached{background:var(--paid);}
