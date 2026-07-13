@@ -524,7 +524,22 @@ function packageUsed(pkg) {
     .filter(j => j.packageId === pkg.id && jobDelivered(j))
     .reduce((sum, j) => sum + (Number(j.count) > 0 ? Number(j.count) : 1), 0);
 }
+// A single check point for expiry: once expiresAt passes, any unused
+// balance is forfeited (not carried over) — this is the only place that
+// needs to know about expiry, since activePackageFor()'s own
+// `packageRemaining(p) > 0` filter then naturally excludes an expired
+// package with no further changes needed there.
+function packageIsExpired(pkg) {
+  return !!(pkg.expiresAt && pkg.expiresAt < todayISO());
+}
 function packageRemaining(pkg) {
+  if (packageIsExpired(pkg)) return 0;
+  return Math.max(0, (Number(pkg.totalSessions) || 0) - packageUsed(pkg));
+}
+// Remaining ignoring expiry — only used to tell "expired with balance
+// forfeited" apart from "genuinely used up," so the status message can say
+// which actually happened instead of showing the same generic empty state.
+function packageRemainingIgnoringExpiry(pkg) {
   return Math.max(0, (Number(pkg.totalSessions) || 0) - packageUsed(pkg));
 }
 // The package a new session should offer to apply to: the client's most
@@ -616,6 +631,11 @@ const I18N = {
     confirm_cancel:'Cancel', confirm_and_advance:'Confirm & advance',
     confirm_overdraft_error:'Only {n} left on this package. Enter {n} or fewer, or start a new package first.',
     package_section_title:'Package',
+    expires_label:'Expires', expires_ph:'Optional',
+    package_expired_forfeited:'Expired {date} — {n} {unit} forfeited.',
+    expiry_before_purchase:'Expiry date can’t be before the purchase date',
+    log_delivery_btn:'Log delivery — {n} of {total} {unit} left',
+    delivery_logged:'Delivered — {n} {unit} logged',
     data:'Data', export_csv:'Export CSV', backup_json:'Backup JSON', restore_json:'Restore JSON',
     total_jobs:'Total jobs', app_word:'App', version:'Version', logout:'Log out', exit_guest:'Exit guest mode',
     // placeholder modules
@@ -757,6 +777,11 @@ const I18N = {
     confirm_cancel:'ยกเลิก', confirm_and_advance:'ยืนยันและดำเนินการต่อ',
     confirm_overdraft_error:'เหลือเพียง {n} ในแพ็กเกจนี้ กรุณาใส่ {n} หรือน้อยกว่า หรือเริ่มแพ็กเกจใหม่',
     package_section_title:'แพ็กเกจ',
+    expires_label:'วันหมดอายุ', expires_ph:'ไม่บังคับ',
+    package_expired_forfeited:'หมดอายุเมื่อ {date} — {n} {unit} ถูกยกเลิก',
+    expiry_before_purchase:'วันหมดอายุต้องไม่ก่อนวันที่ซื้อ',
+    log_delivery_btn:'บันทึกการส่งมอบ — เหลือ {n} จาก {total} {unit}',
+    delivery_logged:'ส่งมอบแล้ว — บันทึก {n} {unit}',
     data:'ข้อมูล', export_csv:'ส่งออก CSV', backup_json:'สำรองข้อมูล JSON', restore_json:'กู้คืนข้อมูล JSON',
     total_jobs:'จำนวนเซสชันทั้งหมด', app_word:'แอป', version:'เวอร์ชัน', logout:'ออกจากระบบ', exit_guest:'ออกจากโหมดผู้เยี่ยมชม',
     // placeholder modules
@@ -1543,7 +1568,108 @@ function refreshJobPackageRow(clientId, existingPackageId) {
   checkbox.checked = existingPackageId != null ? existingPackageId === pkg.id : true;
   const countLabel = document.getElementById('j-count-label');
   if (countLabel) countLabel.textContent = packageUnitLabel();
+  refreshPackageFastPathButton(cid);
 }
+// "Ship remaining service" fast path — for a client who already has an
+// active package, redeeming today's visit shouldn't require re-entering a
+// service/fee that isn't relevant (it was paid for up front). Add-mode
+// only: editing an existing job already has its own path into Delivery via
+// Task flow's confirm card, and jumping an in-flight job's stage here too
+// would let two different mechanisms disagree about where it is.
+function refreshPackageFastPathButton(cid) {
+  const wrap = document.getElementById('j-package-fastpath');
+  if (!wrap) return;
+  const isAddMode = !document.getElementById('j-edit-id').value;
+  const pkg = isAddMode && cid != null ? activePackageFor(cid) : null;
+  if (!pkg) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  const remaining = packageRemaining(pkg);
+  const btn = document.getElementById('j-fastpath-btn');
+  if (btn) btn.textContent = t('log_delivery_btn').replace('{n}', remaining).replace('{total}', pkg.totalSessions).replace('{unit}', packageUnitLabel());
+}
+function resetPackageFastPath() {
+  const standard = document.getElementById('j-standard-fields');
+  const btnWrap = document.getElementById('j-package-fastpath');
+  const confirmWrap = document.getElementById('j-fastpath-confirm');
+  if (standard) standard.style.display = '';
+  if (btnWrap) btnWrap.style.display = 'none';
+  if (confirmWrap) { confirmWrap.style.display = 'none'; confirmWrap.innerHTML = ''; }
+}
+function startPackageFastPath() {
+  const cid = parseInt(document.getElementById('j-customer').value);
+  const pkg = activePackageFor(cid);
+  if (!pkg) return;
+  const remaining = packageRemaining(pkg);
+  const unit = packageUnitLabel();
+  document.getElementById('j-standard-fields').style.display = 'none';
+  document.getElementById('j-package-fastpath').style.display = 'none';
+  const confirmWrap = document.getElementById('j-fastpath-confirm');
+  confirmWrap.style.display = 'block';
+  confirmWrap.innerHTML = `
+    <div class="confirm-card">
+      <div class="confirm-title">${htmlEsc(t('confirm_delivered_title').replace('{unit}', unit))}</div>
+      <div class="confirm-context tnum">${htmlEsc(t('confirm_delivered_context').replace('{n}', remaining).replace('{total}', pkg.totalSessions).replace('{unit}', unit))}</div>
+      <div class="confirm-input-row">
+        <input type="number" class="confirm-input tnum" id="jfp-qty" min="1" oninput="validateFastPathQty(${remaining})">
+        <span class="confirm-unit">${htmlEsc(unit)}</span>
+      </div>
+      <div class="confirm-error" id="jfp-error" style="display:none"></div>
+      <div class="confirm-btns">
+        <button type="button" class="confirm-btn-cancel" onclick="cancelPackageFastPath()">${htmlEsc(t('confirm_cancel'))}</button>
+        <button type="button" class="confirm-btn-save disabled" id="jfp-save" onclick="saveFastPathDelivery()">${htmlEsc(t('confirm_and_advance'))}</button>
+      </div>
+    </div>
+  `;
+}
+window.startPackageFastPath = startPackageFastPath;
+function cancelPackageFastPath() {
+  resetPackageFastPath();
+  refreshPackageFastPathButton(parseInt(document.getElementById('j-customer').value) || null);
+}
+window.cancelPackageFastPath = cancelPackageFastPath;
+function validateFastPathQty(remaining) {
+  const input = document.getElementById('jfp-qty');
+  const errEl = document.getElementById('jfp-error');
+  const saveBtn = document.getElementById('jfp-save');
+  if (!input) return;
+  const val = parseInt(input.value, 10);
+  const over = isFinite(val) && val > remaining;
+  const invalid = !(val > 0) || over;
+  input.classList.toggle('blocked', over);
+  if (errEl) {
+    errEl.style.display = over ? 'flex' : 'none';
+    if (over) errEl.textContent = t('confirm_overdraft_error').replace(/\{n\}/g, remaining);
+  }
+  if (saveBtn) saveBtn.classList.toggle('disabled', invalid);
+}
+window.validateFastPathQty = validateFastPathQty;
+async function saveFastPathDelivery() {
+  const cid = parseInt(document.getElementById('j-customer').value);
+  const pkg = activePackageFor(cid);
+  if (!pkg) return;
+  const remaining = packageRemaining(pkg);
+  const input = document.getElementById('jfp-qty');
+  const val = input ? parseInt(input.value, 10) : NaN;
+  if (!(val > 0) || val > remaining) { validateFastPathQty(remaining); return; }
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const custRec = customers.find(c => c.id === cid);
+  const client = (custRec && custRec.name) || '';
+  const date = document.getElementById('j-date').value || todayISO();
+  const unit = packageUnitLabel();
+  const obj = {
+    uid, date, client, clientId: cid, serviceId: null, serviceName: '',
+    jobType: settings.workType || '',
+    amount: 0, tip: 0, expense: 0, count: val, notes: '', netAmount: 0,
+    cuid: cuid(), stageOrder: getStageOrder().slice(), stage: 'delivery', complete: false,
+    invoiceId: null, quoteDocId: null, packageId: pkg.id, updatedAt: nowISO(),
+  };
+  await dbPut('jobs', obj);
+  logEvent('session_logged');
+  closeJobModal();
+  await reload();
+  toast(t('delivery_logged').replace('{n}', val).replace('{unit}', unit));
+}
+window.saveFastPathDelivery = saveFastPathDelivery;
 function onJobServiceChange(v) {
   if (!v) return;
   const s = services.find(x => x.id === parseInt(v));
@@ -1555,6 +1681,7 @@ function openAddJob(dateISO) {
   document.getElementById('j-date').value = dateISO || todayISO();
   ['j-amount','j-tip','j-expense','j-count','j-notes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   populateJobSelects('', '');
+  resetPackageFastPath();
   refreshJobPackageRow(null, null);
   document.getElementById('j-delete').style.display = 'none';
   // Sub-tasks/milestones/time tracking all need a saved job id to attach to.
@@ -1568,6 +1695,7 @@ function openEditJob(id) {
   if (!j) return;
   document.getElementById('modal-title').textContent = t('edit_job');
   document.getElementById('j-edit-id').value = String(id);
+  resetPackageFastPath();
   const set = (i,v)=>{ const el=document.getElementById(i); if(el) el.value = (v==null?'':v); };
   set('j-date', j.date);
   set('j-amount', j.amount); set('j-tip', j.tip);
@@ -2174,6 +2302,7 @@ async function backfillMemberNumbers() {
 // a renewal offer. Packages apply to every business type now, same as the
 // overdue-invoice half.
 const PACKAGE_ALMOST_DONE_THRESHOLD = 2;
+const PACKAGE_EXPIRY_WARNING_DAYS = 7;
 async function computeClientsNeedingAttention() {
   const uid = isGuest ? 'guest' : currentUser.id;
   const todayStr = todayISO();
@@ -2198,7 +2327,18 @@ async function computeClientsNeedingAttention() {
       const pkg = activePackageFor(c.id);
       if (pkg) {
         const remaining = packageRemaining(pkg);
-        if (remaining > 0 && remaining <= PACKAGE_ALMOST_DONE_THRESHOLD) {
+        const daysToExpiry = pkg.expiresAt ? -daysSinceISO(pkg.expiresAt) : null;
+        // Expiring soon takes priority over merely "almost done" — a package
+        // with plenty left that's about to be forfeited is the bigger risk
+        // (real money about to be lost), not just a heads-up to plan ahead.
+        if (remaining > 0 && daysToExpiry != null && daysToExpiry >= 0 && daysToExpiry <= PACKAGE_EXPIRY_WARNING_DAYS) {
+          items.push({
+            client: c,
+            reason: `Package expires in ${daysToExpiry} day${daysToExpiry === 1 ? '' : 's'} · ${remaining} ${packageUnitLabel()} left`,
+            actionLabel: t('offer_renewal_action'),
+            action: () => offerRenewalForClient(c.id),
+          });
+        } else if (remaining > 0 && remaining <= PACKAGE_ALMOST_DONE_THRESHOLD) {
           items.push({
             client: c,
             reason: `Package almost done · ${remaining} ${packageUnitLabel()} left`,
@@ -2287,21 +2427,32 @@ function renderCustomerPackages(clientId) {
   if (active) {
     const remaining = packageRemaining(active);
     const pct = active.totalSessions > 0 ? Math.round((remaining / active.totalSessions) * 100) : 0;
+    const expiryLine = active.expiresAt ? `<div class="pkg-status-date">${htmlEsc(t('expires_label'))} ${htmlEsc(fmtDate(active.expiresAt))}</div>` : '';
     html += `<div class="pkg-status">
         <div class="pkg-status-row"><span>${remaining} ${htmlEsc(t('of_label'))} ${htmlEsc(active.totalSessions)} ${htmlEsc(unit)} ${htmlEsc(t('left_label'))}</span><span class="pkg-status-date">${htmlEsc(t('purchased_label'))} ${htmlEsc(fmtDate(active.purchasedDate))}</span></div>
         <div class="pkg-status-track"><div class="pkg-status-fill" style="width:${pct}%"></div></div>
+        ${expiryLine}
       </div>`;
   } else if (list.length) {
-    html += `<div class="pkg-status"><span>${htmlEsc(t('no_units_left').replace('{unit}', unit))}</span></div>`;
+    // "No units left" covers two different situations worth telling apart:
+    // genuinely used up, vs. expired with a real balance forfeited — the
+    // latter is confusing to read as "you used it all" when you didn't.
+    const last = list[0];
+    const rawRemaining = packageRemainingIgnoringExpiry(last);
+    const msg = (packageIsExpired(last) && rawRemaining > 0)
+      ? t('package_expired_forfeited').replace('{date}', fmtDate(last.expiresAt)).replace('{n}', rawRemaining).replace('{unit}', unit)
+      : t('no_units_left').replace('{unit}', unit);
+    html += `<div class="pkg-status"><span>${htmlEsc(msg)}</span></div>`;
   } else {
     html += `<div class="pkg-status"><span>${htmlEsc(t('no_package_yet'))}</span></div>`;
   }
   if (list.length > 1 || (list.length === 1 && !active)) {
     html += '<div class="list-card" style="margin-top:8px">' + list.map(p => {
       const rem = packageRemaining(p);
+      const expSub = p.expiresAt ? ` · ${htmlEsc(t('expires_label'))} ${htmlEsc(fmtDate(p.expiresAt))}` : '';
       return `<div class="list-row" style="cursor:default">
           <div class="list-main"><div class="list-title">${htmlEsc(p.totalSessions)} ${htmlEsc(unit)}</div>
-          <div class="list-sub">${htmlEsc(t('purchased_label'))} ${htmlEsc(fmtDate(p.purchasedDate))}</div></div>
+          <div class="list-sub">${htmlEsc(t('purchased_label'))} ${htmlEsc(fmtDate(p.purchasedDate))}${expSub}</div></div>
           <div class="list-right"><span class="list-amt tnum">${rem} ${htmlEsc(t('left_label'))}</span></div>
         </div>`;
     }).join('') + '</div>';
@@ -2311,7 +2462,10 @@ function renderCustomerPackages(clientId) {
         <div class="field-half"><label for="pkg-total">${htmlEsc(unit)}</label><input type="number" id="pkg-total" class="tnum" inputmode="numeric" min="1" placeholder="10"></div>
         <div class="field-half"><label for="pkg-price">${htmlEsc(t('field_price'))}</label><input type="number" id="pkg-price" class="tnum" inputmode="decimal" min="0" placeholder="0"></div>
       </div>
-      <div class="field"><label for="pkg-date">${htmlEsc(t('purchased_label'))}</label><input type="date" id="pkg-date"></div>
+      <div class="form-row">
+        <div class="field-half"><label for="pkg-date">${htmlEsc(t('purchased_label'))}</label><input type="date" id="pkg-date"></div>
+        <div class="field-half"><label for="pkg-expires">${htmlEsc(t('expires_label'))}</label><input type="date" id="pkg-expires" placeholder="${htmlEsc(t('expires_ph'))}"></div>
+      </div>
       <button type="button" class="btn-submit" style="margin-top:6px" onclick="savePackage(${clientId})">${htmlEsc(t('save_package'))}</button>
     ` : `<button type="button" class="btn-submit" style="margin-top:10px" onclick="togglePackageForm(true, ${clientId})">${active ? htmlEsc(t('renew_package')) : htmlEsc(t('new_package'))}</button>`;
   wrap.innerHTML = html;
@@ -2329,9 +2483,12 @@ async function savePackage(clientId) {
   const total = parseInt(document.getElementById('pkg-total').value) || 0;
   const price = parseFloat(document.getElementById('pkg-price').value) || 0;
   const date = document.getElementById('pkg-date').value || todayISO();
+  const expiresEl = document.getElementById('pkg-expires');
+  const expiresAt = (expiresEl && expiresEl.value) || null;
   if (total <= 0) { toast(t('enter_package_total').replace('{unit}', packageUnitLabel())); return; }
+  if (expiresAt && expiresAt < date) { toast(t('expiry_before_purchase')); return; }
   const uid = isGuest ? 'guest' : currentUser.id;
-  const obj = { uid, clientId, totalSessions: total, price, purchasedDate: date, notes: '', cuid: cuid(), updatedAt: nowISO() };
+  const obj = { uid, clientId, totalSessions: total, price, purchasedDate: date, expiresAt, notes: '', cuid: cuid(), updatedAt: nowISO() };
   await dbAdd('packages', obj);
   window.__pkgFormOpen = false;
   await reload();
