@@ -39,20 +39,23 @@
 
   <div class="goal-card" id="goal-card" style="display:none">
     <div class="goal-row">
-      <span class="goal-label" data-i18n="todays_goal">Today's goal</span>
+      <span class="goal-label" data-i18n="my_task_goal">My Task Goal</span>
+      <div class="goal-period-switch" id="goal-period-switch">
+        <button type="button" class="goal-period-btn" data-period="month" onclick="onGoalPeriodChange('month')" data-i18n="period_month">Month</button>
+        <button type="button" class="goal-period-btn" data-period="quarter" onclick="onGoalPeriodChange('quarter')" data-i18n="period_quarter">Quarter</button>
+        <button type="button" class="goal-period-btn" data-period="year" onclick="onGoalPeriodChange('year')" data-i18n="period_year">Year</button>
+      </div>
+    </div>
+    <div class="goal-amt-row">
+      <span class="goal-amt tnum" id="goal-amt-of"></span>
       <span class="goal-pct tnum" id="goal-pct">0%</span>
     </div>
     <div class="goal-track"><div class="goal-fill" id="goal-fill"></div></div>
     <div class="goal-sub" id="goal-sub"></div>
   </div>
 
-  <div class="content" style="padding-bottom:0">
-    <div class="section-title" data-i18n="pipeline_glance_title">Workflow at a glance</div>
-    <div class="pg-row" id="pipeline-glance"></div>
-  </div>
-
   <div class="content">
-    <div class="section-title" data-i18n="incoming_pipeline">Incoming workflow</div>
+    <div class="section-title" data-i18n="incoming_pipeline">Up next</div>
     <div id="incoming-pipeline-body"></div>
   </div>
 </section>
@@ -62,7 +65,7 @@
   <div class="hdr-plain">
     <div class="hdr-row">
       <div style="display:flex;align-items:center;gap:12px">
-        <h1 data-i18n="pipeline_title">Workflow</h1>
+        <h1 data-i18n="pipeline_title">Task flow</h1>
       </div>
     </div>
   </div>
@@ -219,8 +222,16 @@
           </select>
         </div>
         <div class="settings-row">
-          <label class="settings-label" for="set-goal" data-i18n="daily_goal">Daily income goal</label>
-          <input class="settings-input tnum" id="set-goal" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalChange(this.value)">
+          <label class="settings-label" for="set-goal-month" data-i18n="goal_target_month">Monthly income goal</label>
+          <input class="settings-input tnum" id="set-goal-month" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalTargetChange('month', this.value)">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-goal-quarter" data-i18n="goal_target_quarter">Quarterly income goal</label>
+          <input class="settings-input tnum" id="set-goal-quarter" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalTargetChange('quarter', this.value)">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-goal-year" data-i18n="goal_target_year">Yearly income goal</label>
+          <input class="settings-input tnum" id="set-goal-year" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalTargetChange('year', this.value)">
         </div>
         <div class="settings-row">
           <label class="settings-label" for="set-page-size" data-i18n="page_size_label">Document page size</label>
@@ -342,8 +353,8 @@
     <span data-i18n="nav_home">Home</span>
   </button>
   <button class="nav-btn" id="nav-pipeline" onclick="switchScreen('pipeline')">
-    <svg viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M7 21v-7"/><path d="M12 21V6"/><path d="M17 21v-4"/></svg>
-    <span data-i18n="nav_pipeline">Workflow</span>
+    <svg viewBox="0 0 24 24"><path d="M4 6l2 2 3-3"/><path d="M11 6h9"/><path d="M4 13l2 2 3-3"/><path d="M11 13h9"/><path d="M4 20h6"/><path d="M15 20h4M17 18l2 2-2 2"/></svg>
+    <span data-i18n="nav_pipeline">Task flow</span>
   </button>
   <button class="nav-btn" id="nav-customers" onclick="switchScreen('customers')">
     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
