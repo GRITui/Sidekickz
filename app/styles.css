@@ -420,6 +420,22 @@ select option{background:var(--select-option-bg);color:var(--select-option-fg);}
   align-items:center;justify-content:center;padding:0 8px;text-align:center;}
 .cal-tl-gap:hover{border-color:var(--brand);color:var(--brand);}
 
+/* Focus mode — full-screen Pomodoro overlay (redesign handoff, design 9b) */
+.focus-overlay{position:fixed;inset:0;background:#121715;color:#EFEDE6;z-index:900;display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:28px;}
+.focus-overlay.open{display:flex;}
+.focus-close{position:absolute;top:calc(env(safe-area-inset-top,0) + 16px);right:16px;width:40px;height:40px;
+  border:none;background:none;color:#8A8579;font-size:20px;cursor:pointer;}
+.focus-ring{position:relative;width:220px;height:220px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:conic-gradient(var(--marigold) 0deg, color-mix(in srgb, var(--marigold) 18%, transparent) 0);}
+.focus-ring::before{content:'';position:absolute;width:196px;height:196px;border-radius:50%;background:#121715;}
+.focus-ring-time{position:relative;z-index:1;font-size:40px;font-weight:800;letter-spacing:-1px;}
+.focus-billable{font-size:14px;color:#8A8579;}
+.focus-controls{display:flex;gap:12px;}
+.focus-btn{padding:13px 26px;border-radius:999px;border:1.5px solid #3A403A;background:none;color:#EFEDE6;
+  font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;}
+.focus-btn-stop{border-color:var(--overdue);color:var(--overdue);}
+
 /* Toast */
 .toast{position:fixed;bottom:calc(var(--nav) + 20px);left:50%;transform:translateX(-50%) translateY(20px);
   background:var(--ink);color:var(--bg);padding:11px 20px;border-radius:22px;font-size:14px;font-weight:600;

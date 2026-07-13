@@ -435,6 +435,22 @@
       <span class="net-box-val tnum" id="j-net">฿0</span>
     </div>
 
+    <div class="form-section" id="job-tracking-section" style="display:none">
+      <div class="section-title" style="margin:0 0 8px">Sub-tasks</div>
+      <div id="job-subtasks-body"></div>
+      <div class="form-row" style="margin-top:8px">
+        <input type="text" id="job-subtask-new" placeholder="Add a sub-task…" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+        <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addSubTask(document.getElementById('j-edit-id').value)">+ Add</button>
+      </div>
+
+      <div class="section-title" style="margin:18px 0 8px">Milestone payments</div>
+      <div id="job-milestones-body"></div>
+      <button type="button" class="btn-submit" style="margin-top:8px" onclick="addMilestone(document.getElementById('j-edit-id').value)">+ Add milestone</button>
+
+      <div class="section-title" style="margin:18px 0 8px">Time tracking</div>
+      <div id="job-timer-body"></div>
+    </div>
+
     <button class="btn-submit" onclick="saveJob()" data-i18n="save_job">Save session</button>
     <button class="btn-danger" id="j-delete" style="display:none" onclick="deleteJob()" data-i18n="delete_job">Delete session</button>
     <button class="btn-danger" style="border-color:var(--border-mid);color:var(--text3)" onclick="closeJobModal()" data-i18n="cancel">Cancel</button>
@@ -508,6 +524,22 @@
     </div>
     <button class="btn-submit" onclick="saveAccountName()" data-i18n="save_name">Save name</button>
     <button class="btn-danger" style="border-color:var(--border-mid);color:var(--text3)" onclick="closeAccountNameModal()" data-i18n="cancel">Cancel</button>
+  </div>
+</div>
+
+<!-- Focus mode: full-screen Pomodoro overlay launched from a job's time
+     tracker. The ring is a purely visual 25-min pacing aid — it never force-
+     stops the underlying timer, since cutting off real billable client work
+     at 25:00 would be a bad default. -->
+<div class="focus-overlay" id="focus-overlay">
+  <button type="button" class="focus-close" onclick="closeFocusMode()" aria-label="Close Focus mode">✕</button>
+  <div class="focus-ring" id="focus-ring">
+    <span class="focus-ring-time tnum" id="focus-ring-time">25:00</span>
+  </div>
+  <div class="focus-billable">Billable this session: <span class="tnum" id="focus-billable-time">0:00</span></div>
+  <div class="focus-controls">
+    <button type="button" class="focus-btn" id="focus-pause-btn" onclick="toggleFocusPause()">Pause</button>
+    <button type="button" class="focus-btn focus-btn-stop" onclick="stopFocusMode()">Stop</button>
   </div>
 </div>
 
