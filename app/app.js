@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.13';          // <-> sw.js SW_VERSION 'sidekick-v0.9.13'
+const APP_VERSION = '0.9.14';          // <-> sw.js SW_VERSION 'sidekick-v0.9.14'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -791,6 +791,8 @@ const I18N = {
     cloud_backup_failed:'Could not enable cloud backup — try again in a moment.',
     cloud_backup_upload_failed:'Enabled, but the first backup failed — it will retry next time you save a client.',
     cloud_backup_enabled_toast:'Cloud backup enabled — {n} client(s) backed up.',
+    cloud_backup_modal_body:'Right now your clients only live on this device — if it\'s lost or reset, they\'re gone. Turn on cloud backup to also keep a copy in your account. You can always do this later from Settings.',
+    cloud_backup_later_btn:'Not now',
     delete_job_confirm:'Delete this job?', name_saved:'Name saved',
     err_id_min3:'Enter an email or username (3+ characters).', err_pw_min4:'Password must be at least 8 characters.',
     err_pw_mismatch:'Passwords do not match.', err_account_exists:'That account already exists on this device.',
@@ -1025,6 +1027,8 @@ const I18N = {
     cloud_backup_failed:'ไม่สามารถเปิดใช้งานสำรองข้อมูลบนคลาวด์ได้ — ลองใหม่อีกครั้ง',
     cloud_backup_upload_failed:'เปิดใช้งานแล้ว แต่การสำรองข้อมูลครั้งแรกล้มเหลว — ระบบจะลองใหม่เมื่อคุณบันทึกข้อมูลลูกค้าครั้งถัดไป',
     cloud_backup_enabled_toast:'เปิดใช้งานสำรองข้อมูลบนคลาวด์แล้ว — สำรองข้อมูลลูกค้า {n} รายการ',
+    cloud_backup_modal_body:'ตอนนี้ข้อมูลลูกค้าของคุณอยู่ในเครื่องนี้เท่านั้น — หากเครื่องหายหรือถูกรีเซ็ต ข้อมูลจะหายไปด้วย เปิดใช้งานสำรองข้อมูลบนคลาวด์เพื่อเก็บสำเนาไว้ในบัญชีของคุณด้วย คุณสามารถทำภายหลังได้จากหน้าตั้งค่า',
+    cloud_backup_later_btn:'ไว้ทีหลัง',
     delete_job_confirm:'ลบเซสชันนี้หรือไม่?', name_saved:'บันทึกชื่อแล้ว',
     err_id_min3:'กรอกอีเมลหรือชื่อผู้ใช้ (อย่างน้อย 3 ตัวอักษร)', err_pw_min4:'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',
     err_pw_mismatch:'รหัสผ่านไม่ตรงกัน', err_account_exists:'มีบัญชีนี้อยู่แล้วในเครื่องนี้',
@@ -1239,6 +1243,7 @@ async function enterApp() {
   }
   await seedServicesIfEmpty();
   switchScreen('home');
+  await maybeShowCloudBackupModal();
 
   // App-triggered OS notifications: only fire while this tab stays open (no
   // backend to check conditions while fully closed — see the comment above
@@ -1564,6 +1569,44 @@ async function enableCloudBackup() {
   renderCloudBackupSection();
 }
 window.enableCloudBackup = enableCloudBackup;
+
+// The migration plan's actual "back up your existing data" first-login
+// prompt — surfaced proactively instead of requiring a user to notice the
+// Settings row above on their own. Shown at most once per local account
+// (localStorage flag, not the server's users.migrated_at — this account may
+// not even exist server-side yet), and never blocks app use either way:
+// "Not now" and "Enable" both dismiss it for good, Settings still has the
+// same row for anyone who changes their mind later.
+async function maybeShowCloudBackupModal() {
+  if (isGuest || typeof SidekickBackend === 'undefined' || SidekickBackend.isEnabled()) return;
+  const seenKey = 'sidekick_backup_modal_seen_' + currentUser.id;
+  if (localStorage.getItem(seenKey)) return;
+  localStorage.setItem(seenKey, '1');
+  const localUser = await dbGet('users', currentUser.id);
+  // LINE-only accounts have no password hash to register with server-side
+  // (Phase 1's register endpoint requires one) — an "Enable" button that's
+  // guaranteed to fail would be worse than no prompt at all.
+  if (!localUser || !localUser.hash) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'cloud-backup-modal';
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-label="${attrEsc(t('cloud_backup_title'))}">
+      <div class="modal-handle"></div>
+      <div class="modal-title">${htmlEsc(t('cloud_backup_title'))}</div>
+      <div class="form-body" style="padding:0 20px 4px">
+        <p style="color:var(--text2);font-size:14px;line-height:1.5;margin:0 0 16px">${htmlEsc(t('cloud_backup_modal_body'))}</p>
+      </div>
+      <button type="button" class="btn-submit" id="cloud-backup-modal-enable">${htmlEsc(t('cloud_backup_enable_btn'))}</button>
+      <button type="button" class="btn-danger" id="cloud-backup-modal-later" style="border-color:var(--border-mid);color:var(--text3)">${htmlEsc(t('cloud_backup_later_btn'))}</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('cloud-backup-modal-later').addEventListener('click', () => overlay.remove());
+  document.getElementById('cloud-backup-modal-enable').addEventListener('click', async () => {
+    overlay.remove();
+    await enableCloudBackup();
+  });
+}
 
 // ─── Notifications (in-app Action Queue + OS-level, app-triggered) ─────
 // App-triggered, not server-triggered: everything here only fires while
