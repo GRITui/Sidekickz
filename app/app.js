@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.16';          // <-> sw.js SW_VERSION 'sidekick-v0.9.16'
+const APP_VERSION = '0.9.17';          // <-> sw.js SW_VERSION 'sidekick-v0.9.17'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -685,6 +685,7 @@ const I18N = {
     field_order_date:'Order date', field_order_kg:'Weight (kg)', field_order_notes:'Notes',
     mark_picked_up_btn:'Mark picked up', order_history_title:'Order history', no_order_history:'No completed orders yet.',
     field_policy_name:'Policy name', field_renewal_date:'Renewal date',
+    policies_title:'Policies', no_policies:'No policies yet.', add_policy_btn:'+ Add policy', delete_policy_btn:'Delete policy',
     field_plate:'Plate', field_mileage:'Mileage', field_next_service_due:'Next service due',
     day_singular:'day', day_plural:'days', overdue_for_renewal:'overdue for renewal', until_renewal:'until renewal',
     tracker_mealplan_title:'Meal plan', no_meal_plan_rows:'No meal plan rows yet.', meal_plan_add_ph:'Add a meal plan row…',
@@ -926,6 +927,7 @@ const I18N = {
     field_order_date:'วันที่รับออเดอร์', field_order_kg:'น้ำหนัก (กก.)', field_order_notes:'หมายเหตุ',
     mark_picked_up_btn:'ทำเครื่องหมายว่ารับแล้ว', order_history_title:'ประวัติออเดอร์', no_order_history:'ยังไม่มีออเดอร์ที่เสร็จสมบูรณ์',
     field_policy_name:'ชื่อกรมธรรม์', field_renewal_date:'วันต่ออายุ',
+    policies_title:'กรมธรรม์', no_policies:'ยังไม่มีกรมธรรม์', add_policy_btn:'+ เพิ่มกรมธรรม์', delete_policy_btn:'ลบกรมธรรม์',
     field_plate:'ทะเบียนรถ', field_mileage:'เลขไมล์', field_next_service_due:'กำหนดเข้าศูนย์ครั้งถัดไป',
     day_singular:'วัน', day_plural:'วัน', overdue_for_renewal:'เลยกำหนดต่ออายุ', until_renewal:'ก่อนถึงกำหนดต่ออายุ',
     tracker_mealplan_title:'แผนมื้ออาหาร', no_meal_plan_rows:'ยังไม่มีแผนมื้ออาหาร', meal_plan_add_ph:'เพิ่มรายการแผนมื้ออาหาร…',
@@ -3009,6 +3011,21 @@ function listRowsHtml(rows, clientId, field, lineFn) {
       </div>`).join('') + '</div>';
 }
 
+// One-time, non-destructive: pre-multi-policy insurance clients had one flat
+// policyName/policyRenewalDate per client (no second policy possible).
+// Folds them into policies[0] the first time this client's tracker renders,
+// then drops the flat fields so they can never drift out of sync with the
+// new array — same treatment as migrateGarageVehiclesIfNeeded() below.
+function migrateInsurancePoliciesIfNeeded(c) {
+  if (Array.isArray(c.policies)) return c.policies;
+  const hadFlatFields = c.policyName || c.policyRenewalDate;
+  c.policies = hadFlatFields
+    ? [{ id: cuid(), name: c.policyName || '', renewalDate: c.policyRenewalDate || '' }]
+    : [];
+  delete c.policyName; delete c.policyRenewalDate;
+  dbPut('clients', c);
+  return c.policies;
+}
 // One-time, non-destructive: pre-multi-vehicle garage clients had one flat
 // vehiclePlate/vehicleMileage/nextServiceDate per client instead of a
 // vehicles[] array. Folds them into vehicles[0] the first time this
@@ -3111,16 +3128,26 @@ function renderClientPersonaTracker(clientId) {
       ${listRowsHtml(history, clientId, 'orders', r => `<div class="list-title">${htmlEsc(fmt(r.kg, 1))} kg</div><div class="list-sub">${[r.date ? htmlEsc(fmtDate(r.date)) : '', htmlEsc(r.notes || '')].filter(Boolean).join(' · ')}</div>`) || `<div class="pkg-status"><span>${htmlEsc(t('no_order_history'))}</span></div>`}
     `;
   } else if (bt === 'insurance') {
-    const days = c.policyRenewalDate ? daysSinceISO(c.policyRenewalDate) : null;
-    const countdown = (days != null)
-      ? (days > 0
-          ? `<div class="pkg-status"><span style="color:var(--overdue)">${days} ${days === 1 ? t('day_singular') : t('day_plural')} ${t('overdue_for_renewal')}</span></div>`
-          : `<div class="pkg-status"><span>${-days} ${-days === 1 ? t('day_singular') : t('day_plural')} ${t('until_renewal')}</span></div>`)
-      : '';
+    const policies = migrateInsurancePoliciesIfNeeded(c);
+    const countdownHtml = p => {
+      if (!p.renewalDate) return '';
+      const days = daysSinceISO(p.renewalDate);
+      return days > 0
+        ? `<div class="pkg-status"><span style="color:var(--overdue)">${days} ${days === 1 ? t('day_singular') : t('day_plural')} ${t('overdue_for_renewal')}</span></div>`
+        : `<div class="pkg-status"><span>${-days} ${-days === 1 ? t('day_singular') : t('day_plural')} ${t('until_renewal')}</span></div>`;
+    };
     wrap.innerHTML = `
-      <div class="field"><label>${htmlEsc(t('field_policy_name'))}</label><input type="text" value="${attrEsc(c.policyName || '')}" onchange="saveClientField(${clientId},'policyName',this.value)"></div>
-      <div class="field"><label>${htmlEsc(t('field_renewal_date'))}</label><input type="date" value="${attrEsc(c.policyRenewalDate || '')}" onchange="saveClientField(${clientId},'policyRenewalDate',this.value)"></div>
-      ${countdown}
+      <div class="section-title" style="font-size:12px;margin:0 0 8px">${htmlEsc(t('policies_title'))}</div>
+      ${policies.length ? policies.map(p => `
+        <div class="list-card" style="margin-bottom:8px;padding:10px 14px">
+          <div class="field"><label>${htmlEsc(t('field_policy_name'))}</label><input type="text" value="${attrEsc(p.name || '')}" onchange="saveClientListItemField(${clientId},'policies','${p.id}','name',this.value)"></div>
+          <div class="field"><label>${htmlEsc(t('field_renewal_date'))}</label><input type="date" value="${attrEsc(p.renewalDate || '')}" onchange="saveClientListItemField(${clientId},'policies','${p.id}','renewalDate',this.value)"></div>
+          ${countdownHtml(p)}
+          <button type="button" class="qc-btn" style="width:100%;margin-top:6px;color:var(--overdue)" onclick="deleteClientListItem(${clientId},'policies','${p.id}')">${htmlEsc(t('delete_policy_btn'))}</button>
+        </div>
+      `).join('') : `<div class="pkg-status"><span>${htmlEsc(t('no_policies'))}</span></div>`}
+      <button type="button" class="qc-btn" style="width:100%;margin-bottom:14px" onclick="addClientListItem(${clientId},'policies',{name:'',renewalDate:''})">${htmlEsc(t('add_policy_btn'))}</button>
+
       <div class="field"><label>${htmlEsc(t('field_birthday'))}</label><input type="date" value="${attrEsc(c.birthday || '')}" onchange="saveClientField(${clientId},'birthday',this.value)"></div>
       <div class="field"><label>${htmlEsc(t('field_referred_by'))}</label><input type="text" value="${attrEsc(c.referredBy || '')}" onchange="saveClientField(${clientId},'referredBy',this.value)"></div>
     `;
