@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.12';          // <-> sw.js SW_VERSION 'sidekick-v0.9.12'
+const APP_VERSION = '0.9.13';          // <-> sw.js SW_VERSION 'sidekick-v0.9.13'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -227,12 +227,59 @@ function guestUsername() {
   }
   return u;
 }
+// Guest data lives under one fixed uid ('guest') per device, so a shared
+// device's second guest sees the first guest's data by default — asking
+// "resume or start fresh?" only when there's actually something to choose
+// between (a brand-new guest on this device skips straight through, no
+// extra tap for the common case).
 async function loginGuest() {
+  if (await guestDataExists()) {
+    document.getElementById('s-auth').classList.remove('active');
+    document.getElementById('s-guest-choice').classList.add('active');
+    const nameEl = document.getElementById('guest-choice-name');
+    if (nameEl) nameEl.textContent = guestUsername();
+    return;
+  }
+  await proceedAsGuest();
+}
+function cancelGuestChoice() {
+  document.getElementById('s-guest-choice').classList.remove('active');
+  document.getElementById('s-auth').classList.add('active');
+}
+async function resumeGuest() { await proceedAsGuest(); }
+async function startFreshGuest() {
+  if (!confirm(t('guest_fresh_confirm'))) return;
+  await wipeGuestData();
+  await proceedAsGuest();
+}
+async function proceedAsGuest() {
   isGuest = true;
   currentUser = {id: 0, username: guestUsername()};
   localStorage.setItem(SESSION_KEY, 'guest');
   sessionStorage.setItem('sidekick_post_login_toast', t('welcome') + ', ' + t('guest_name') + '!');
   location.href = './';
+}
+// Cheap existence check reusing BACKUP_STORES (every uid-scoped store) —
+// true the moment any of them holds a guest-uid row.
+async function guestDataExists() {
+  const lists = await Promise.all(BACKUP_STORES.map(s => dbAll(s)));
+  return lists.some(rows => rows.some(r => r.uid === 'guest'));
+}
+// Erases every guest-uid row across every uid-scoped store, guest-prefixed
+// settings, and local usage-analytics events (excluded from BACKUP_STORES
+// since backups never carry it, but it's still this guest's data on this
+// device) — then drops the remembered guest username/counter so the next
+// guestUsername() call mints a genuinely new label, not the erased one's.
+async function wipeGuestData() {
+  for (const s of BACKUP_STORES) {
+    const rows = (await dbAll(s)).filter(r => r.uid === 'guest');
+    for (const row of rows) await dbDel(s, row.id);
+  }
+  const settingsRows = (await dbAll('settings')).filter(r => r.key.startsWith('guest:'));
+  for (const row of settingsRows) await dbDel('settings', row.key);
+  const events = (await dbAll('usageEvents')).filter(r => r.uid === 'guest');
+  for (const row of events) await dbDel('usageEvents', row.id);
+  localStorage.removeItem('sidekick_guest_username');
 }
 
 // ─── LINE LOGIN ───────────────────────────────────────────────────────
@@ -569,6 +616,9 @@ const I18N = {
     // auth
     login:'Log in', create_account:'Create account', email:'Email or username', password:'Password',
     confirm_password:'Confirm password', your_name:'Your name', login_guest:'Continue as guest', login_line:'Continue with LINE',
+    guest_choice_title:'Welcome back', guest_choice_sub:'This device already has guest data saved on it.',
+    guest_resume_btn:'Resume as', guest_fresh_btn:"Start fresh (erase this guest's data)",
+    guest_fresh_confirm:'This permanently deletes all guest data on this device. This cannot be undone. Continue?',
     err_line_login:'LINE login didn’t go through — please try again.',
     err_reserved_username:'That username is reserved. Please choose a different one.',
     err_auth_name_required:'Please enter your name.',
@@ -800,6 +850,9 @@ const I18N = {
     // auth
     login:'เข้าสู่ระบบ', create_account:'สร้างบัญชี', email:'อีเมลหรือชื่อผู้ใช้', password:'รหัสผ่าน',
     confirm_password:'ยืนยันรหัสผ่าน', your_name:'ชื่อของคุณ', login_guest:'เข้าใช้แบบผู้เยี่ยมชม', login_line:'เข้าสู่ระบบด้วย LINE',
+    guest_choice_title:'ยินดีต้อนรับกลับมา', guest_choice_sub:'อุปกรณ์นี้มีข้อมูลผู้เยี่ยมชมที่บันทึกไว้อยู่แล้ว',
+    guest_resume_btn:'ดำเนินการต่อในชื่อ', guest_fresh_btn:'เริ่มต้นใหม่ (ลบข้อมูลผู้เยี่ยมชมนี้)',
+    guest_fresh_confirm:'การทำเช่นนี้จะลบข้อมูลผู้เยี่ยมชมทั้งหมดบนอุปกรณ์นี้อย่างถาวร ไม่สามารถย้อนกลับได้ ดำเนินการต่อหรือไม่?',
     err_line_login:'เข้าสู่ระบบด้วย LINE ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
     err_reserved_username:'ชื่อผู้ใช้นี้ถูกสงวนไว้ กรุณาเลือกชื่ออื่น',
     err_auth_name_required:'กรุณากรอกชื่อของคุณ',

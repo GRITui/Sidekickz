@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>(function(){var K='sidekick_ui_theme',M='sidekick_dark_default_migrated_v1';if(!localStorage.getItem(M)){if(localStorage.getItem(K)==='light')localStorage.setItem(K,'dark');localStorage.setItem(M,'1');}var t=localStorage.getItem(K);if(t==='light')document.documentElement.dataset.theme='light';else if(t!=='auto')document.documentElement.dataset.theme='dark';})();</script><!-- dark by default (2026 rebrand): set before CSS paints to avoid a flash of the wrong theme -->
-<link rel="stylesheet" href="styles.css?v=0.9.12">
+<link rel="stylesheet" href="styles.css?v=0.9.13">
 <!-- data-page drives boot(): 'login' → bootLogin() (redirects to ./ when already signed in) -->
 <body data-page="login">
 
@@ -66,6 +66,20 @@
   </div>
 </div>
 
+
+<div class="auth" id="s-guest-choice">
+  <div class="auth-hero">
+    <img class="auth-logo" src="icons/icon.svg" alt="">
+    <h1 data-i18n="guest_choice_title">Welcome back</h1>
+    <p data-i18n="guest_choice_sub">This device already has guest data saved on it.</p>
+  </div>
+  <div class="auth-card">
+    <button class="auth-btn" onclick="resumeGuest()"><span data-i18n="guest_resume_btn">Resume as</span> <span id="guest-choice-name"></span></button>
+    <button class="auth-btn guest" onclick="startFreshGuest()" data-i18n="guest_fresh_btn">Start fresh (erase this guest's data)</button>
+    <button class="auth-btn guest" onclick="cancelGuestChoice()" data-i18n="cancel">Cancel</button>
+  </div>
+</div>
+
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.9.12"></script>
+<script src="app.js?v=0.9.13"></script>
