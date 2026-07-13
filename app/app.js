@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.15';          // <-> sw.js SW_VERSION 'sidekick-v0.9.15'
+const APP_VERSION = '0.9.16';          // <-> sw.js SW_VERSION 'sidekick-v0.9.16'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -681,6 +681,9 @@ const I18N = {
     field_search_brief:'Budget / areas / needs', field_offer_status:'Offer status', field_est_commission:'Est. commission',
     field_order_status:'Order status', order_step_received:'Received', order_step_washing:'Washing', order_step_drying:'Drying', order_step_ready:'Ready',
     field_monthly_kg_plan:'Monthly kg plan', field_preferences:'Preferences',
+    current_order_title:'Current order', no_active_order:'No active order.', start_new_order_btn:'+ Start new order',
+    field_order_date:'Order date', field_order_kg:'Weight (kg)', field_order_notes:'Notes',
+    mark_picked_up_btn:'Mark picked up', order_history_title:'Order history', no_order_history:'No completed orders yet.',
     field_policy_name:'Policy name', field_renewal_date:'Renewal date',
     field_plate:'Plate', field_mileage:'Mileage', field_next_service_due:'Next service due',
     day_singular:'day', day_plural:'days', overdue_for_renewal:'overdue for renewal', until_renewal:'until renewal',
@@ -919,6 +922,9 @@ const I18N = {
     field_search_brief:'งบประมาณ / ทำเล / ความต้องการ', field_offer_status:'สถานะข้อเสนอ', field_est_commission:'ค่าคอมมิชชั่นโดยประมาณ',
     field_order_status:'สถานะออเดอร์', order_step_received:'รับผ้าแล้ว', order_step_washing:'กำลังซัก', order_step_drying:'กำลังตาก', order_step_ready:'พร้อมรับ',
     field_monthly_kg_plan:'แผนกิโลกรัมต่อเดือน', field_preferences:'ความต้องการเฉพาะ',
+    current_order_title:'ออเดอร์ปัจจุบัน', no_active_order:'ไม่มีออเดอร์ที่กำลังดำเนินการ', start_new_order_btn:'+ เริ่มออเดอร์ใหม่',
+    field_order_date:'วันที่รับออเดอร์', field_order_kg:'น้ำหนัก (กก.)', field_order_notes:'หมายเหตุ',
+    mark_picked_up_btn:'ทำเครื่องหมายว่ารับแล้ว', order_history_title:'ประวัติออเดอร์', no_order_history:'ยังไม่มีออเดอร์ที่เสร็จสมบูรณ์',
     field_policy_name:'ชื่อกรมธรรม์', field_renewal_date:'วันต่ออายุ',
     field_plate:'ทะเบียนรถ', field_mileage:'เลขไมล์', field_next_service_due:'กำหนดเข้าศูนย์ครั้งถัดไป',
     day_singular:'วัน', day_plural:'วัน', overdue_for_renewal:'เลยกำหนดต่ออายุ', until_renewal:'ก่อนถึงกำหนดต่ออายุ',
@@ -3018,6 +3024,29 @@ function migrateGarageVehiclesIfNeeded(c) {
   dbPut('clients', c);
   return c.vehicles;
 }
+// One-time, non-destructive: pre-order-history laundry clients had one live
+// orderStatus scalar and no history at all. Folds it into a single active
+// order the first time this client's tracker renders, then drops the flat
+// field so it can never drift out of sync with the new array.
+function migrateLaundryOrdersIfNeeded(c) {
+  if (Array.isArray(c.orders)) return c.orders;
+  c.orders = c.orderStatus
+    ? [{ id: cuid(), date: '', kg: 0, status: c.orderStatus, notes: '' }]
+    : [];
+  delete c.orderStatus;
+  dbPut('clients', c);
+  return c.orders;
+}
+// Closes out the current active order into history — a dedicated function
+// (not an inline saveClientListItemField() call) because, unlike every
+// other field edit on an order, this one needs the tracker to actually
+// re-render: the "current order" editor disappears and the order moves
+// into the read-only history list below it.
+async function completeLaundryOrder(clientId, orderId) {
+  await saveClientListItemField(clientId, 'orders', orderId, 'status', 'completed');
+  renderClientPersonaTracker(clientId);
+}
+window.completeLaundryOrder = completeLaundryOrder;
 function renderClientPersonaTracker(clientId) {
   const wrap = document.getElementById('cust-persona-body');
   const titleEl = document.getElementById('cust-persona-title');
@@ -3056,14 +3085,30 @@ function renderClientPersonaTracker(clientId) {
       </div>
     `;
   } else if (bt === 'laundry') {
+    const orders = migrateLaundryOrdersIfNeeded(c);
     const steps = ['received', 'washing', 'drying', 'ready'];
-    const cur = steps.includes(c.orderStatus) ? c.orderStatus : 'received';
+    const active = orders.find(o => o.status !== 'completed');
+    const history = orders.filter(o => o.status === 'completed').slice().reverse();
     wrap.innerHTML = `
-      <div class="field"><label>${htmlEsc(t('field_order_status'))}</label><select onchange="saveClientField(${clientId},'orderStatus',this.value)">
-        ${steps.map(s => `<option value="${s}"${s === cur ? ' selected' : ''}>${htmlEsc(t('order_step_' + s))}</option>`).join('')}
-      </select></div>
-      <div class="field"><label>${htmlEsc(t('field_monthly_kg_plan'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.monthlyKgPlan || ''}" onchange="saveClientField(${clientId},'monthlyKgPlan',parseFloat(this.value)||0)"></div>
+      <div class="section-title" style="font-size:12px;margin:0 0 8px">${htmlEsc(t('current_order_title'))}</div>
+      ${active ? `
+        <div class="pkg-status">
+          <div class="field"><label>${htmlEsc(t('field_order_status'))}</label><select onchange="saveClientListItemField(${clientId},'orders','${active.id}','status',this.value)">
+            ${steps.map(s => `<option value="${s}"${s === active.status ? ' selected' : ''}>${htmlEsc(t('order_step_' + s))}</option>`).join('')}
+          </select></div>
+          <div class="field"><label>${htmlEsc(t('field_order_date'))}</label><input type="date" value="${attrEsc(active.date || '')}" onchange="saveClientListItemField(${clientId},'orders','${active.id}','date',this.value)"></div>
+          <div class="field"><label>${htmlEsc(t('field_order_kg'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${active.kg || ''}" onchange="saveClientListItemField(${clientId},'orders','${active.id}','kg',parseFloat(this.value)||0)"></div>
+          <div class="field"><label>${htmlEsc(t('field_order_notes'))}</label><textarea rows="2" onchange="saveClientListItemField(${clientId},'orders','${active.id}','notes',this.value)">${htmlEsc(active.notes || '')}</textarea></div>
+        </div>
+        <button type="button" class="qc-btn" style="width:100%;margin-top:8px" onclick="completeLaundryOrder(${clientId},'${active.id}')">${htmlEsc(t('mark_picked_up_btn'))}</button>
+      ` : `
+        <div class="pkg-status"><span>${htmlEsc(t('no_active_order'))}</span></div>
+        <button type="button" class="qc-btn" style="width:100%;margin-top:8px" onclick="addClientListItem(${clientId},'orders',{date:todayISO(),kg:0,status:'received',notes:''})">${htmlEsc(t('start_new_order_btn'))}</button>
+      `}
+      <div class="field" style="margin-top:14px"><label>${htmlEsc(t('field_monthly_kg_plan'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.monthlyKgPlan || ''}" onchange="saveClientField(${clientId},'monthlyKgPlan',parseFloat(this.value)||0)"></div>
       <div class="field"><label>${htmlEsc(t('field_preferences'))}</label><textarea rows="2" onchange="saveClientField(${clientId},'preferences',this.value)">${htmlEsc(c.preferences || '')}</textarea></div>
+      <div class="section-title" style="font-size:12px;margin:14px 0 8px">${htmlEsc(t('order_history_title'))}</div>
+      ${listRowsHtml(history, clientId, 'orders', r => `<div class="list-title">${htmlEsc(fmt(r.kg, 1))} kg</div><div class="list-sub">${[r.date ? htmlEsc(fmtDate(r.date)) : '', htmlEsc(r.notes || '')].filter(Boolean).join(' · ')}</div>`) || `<div class="pkg-status"><span>${htmlEsc(t('no_order_history'))}</span></div>`}
     `;
   } else if (bt === 'insurance') {
     const days = c.policyRenewalDate ? daysSinceISO(c.policyRenewalDate) : null;
