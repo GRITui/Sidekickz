@@ -403,8 +403,22 @@ function attrEsc(s) { return htmlEsc(s).replace(/"/g,'&quot;'); }
 const CURRENCY_SYM = {THB:'฿', USD:'$', EUR:'€', GBP:'£', SGD:'S$', MYR:'RM'};
 function curSym() { return CURRENCY_SYM[(settings && settings.currency) || 'THB'] || '฿'; }
 
-// Sidekick: single work type, no persona picker.
-function unitWord() { return 'Session'; }
+// ─── BUSINESS TYPES (persona reintroduced per the 2026 redesign handoff) ──
+// Reverses the earlier "Persona strip" decision (commit 848c4e8) on explicit
+// user instruction — settings.businessType now genuinely drives seed
+// services and the unit word, not just which tracker card renders on a
+// client (see clientTrackerHtml()). Existing installs migrate to 'trainer'
+// in enterApp() (this app's actual base case up to now), so nobody already
+// using it sees any behavior change.
+const BUSINESS_TYPES = {
+  trainer:    { label:'Personal trainer', unitWord:'Session', seedServices:[['1-on-1 session',800,'session'],['Group class',400,'session'],['Nutrition plan',2000,'plan']] },
+  realestate: { label:'Real estate agent', unitWord:'Deal',    seedServices:[['Property viewing',0,'viewing'],['Listing consultation',0,'consult']] },
+  laundry:    { label:'Laundry service',   unitWord:'Order',   seedServices:[['Wash & fold',150,'kg'],['Dry cleaning',80,'item']] },
+  insurance:  { label:'Insurance agent',   unitWord:'Policy',  seedServices:[['Policy review',0,'review'],['Claim assistance',0,'case']] },
+  garage:     { label:'Car garage',        unitWord:'Job',     seedServices:[['Oil change',600,'job'],['Full service',2500,'job']] },
+};
+function businessType() { return BUSINESS_TYPES[settings && settings.businessType] ? settings.businessType : 'trainer'; }
+function unitWord() { return BUSINESS_TYPES[businessType()].unitWord; }
 
 // ─── ENGAGEMENT PIPELINE (user-facing label: "Workflow" — see i18n) ─────
 // A session IS an engagement moving through a fixed 6-stage lifecycle. The
@@ -427,12 +441,12 @@ const STAGES = ['pitch', 'quote', 'invoice', 'paid', 'delivery', 'extend'];
 // chosen to read clearly at a few px each, separate from the semantically-
 // loaded --paid/--due/--overdue vars used elsewhere for invoice status.
 const STAGE_META = {
-  pitch:    {label:'Inquiry',  dot:'#64748B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'Log inquiry',     done:'Inquired'},
-  quote:    {label:'Quote',    dot:'#8B5CF6', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent', skippable:true},
-  invoice:  {label:'Invoice',  dot:'#F59E0B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent', skippable:true},
-  paid:     {label:'Paid',     dot:'#2F9E5B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid'},
-  delivery: {label:'Delivery', dot:'#22554B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark delivered',  done:'Delivered'},
-  extend:   {label:'Extend',   dot:'#0EA5E9', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'Mark extended',    done:'Extended'},
+  pitch:    {label:'Inquiry',  dot:'#64748B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'Log inquiry',     done:'Inquired', hint:'Inquiry — a prospective client reached out, not booked yet.'},
+  quote:    {label:'Quote',    dot:'#8B5CF6', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent', skippable:true, hint:'Quote — waiting on a price quote to go out.'},
+  invoice:  {label:'Invoice',  dot:'#F59E0B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent', skippable:true, hint:'Invoice — quote accepted, waiting on the invoice to go out.'},
+  paid:     {label:'Paid',     dot:'#2F9E5B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid', hint:'Paid — invoiced, waiting on payment to come in.'},
+  delivery: {label:'Delivery', dot:'#22554B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark delivered',  done:'Delivered', hint:'Delivery — sessions scheduled, not yet delivered.'},
+  extend:   {label:'Renew',    dot:'#0EA5E9', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'Renew',           done:'Renewed', hint:'Renew — delivered, offer a renewal or wrap up.'},
 };
 const DEFAULT_STAGE_ORDER = STAGES.slice();
 function getStageOrder() {
@@ -477,8 +491,8 @@ function jobDelivered(j) {
 
 // ─── SESSION PACKAGES (N-session bundles, e.g. "buy 10, track remaining") ──
 // Remaining is always computed live from `jobs` rather than decremented and
-// stored — same pattern as renderPipelineGlance()'s stage counts — so it can
-// never drift out of sync with a session being re-opened/un-delivered later.
+// stored, so it can never drift out of sync with a session being
+// re-opened/un-delivered later.
 function packageUsed(pkg) {
   return jobs.filter(j => j.packageId === pkg.id && jobDelivered(j)).length;
 }
@@ -513,14 +527,16 @@ const I18N = {
     auth_hint:'Create an account to save your work on this device.<br>Everything stays local — no cloud, no tracking.<br>Guest mode is temporary.',
     tagline:'Get booked. Get hired. Get paid.',
     // nav
-    nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Workflow', nav_book:'Calendar', nav_more:'More',
-    pipeline_title:'Workflow', workflow_title:'Stage order', pipeline_glance_title:'Workflow at a glance',
-    skip_stage:'Skip', mark_finished:'Finished',
+    nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Task flow', nav_book:'Calendar', nav_more:'More',
+    pipeline_title:'Task flow', workflow_title:'Stage order', pipeline_glance_title:'Task flow at a glance',
+    skip_stage:'Skip', mark_finished:'Finished', reschedule:'Reschedule', cash_job:'Cash job', active_count:'active',
     // dashboard
     earned_this_month:'Earned this month', net_after_expenses:'net after expenses',
     stat_jobs:'Sessions', stat_avg:'Avg / session', stat_expenses:'Expenses',
     todays_goal:"Today's goal", goal_reached:'Goal reached! 🎉', goal_of:'of',
-    incoming_pipeline:'Incoming workflow', incoming_pipeline_empty:'Workflow is clear.', incoming_pipeline_empty_sub:'New engagements will appear here as you log sessions.',
+    my_task_goal:'My Task Goal', period_month:'Month', period_quarter:'Quarter', period_year:'Year',
+    goal_pace_on:'On pace — ', goal_to_go_month:' to go this month', goal_to_go_quarter:' to go this quarter', goal_to_go_year:' to go this year',
+    incoming_pipeline:'Up next', incoming_pipeline_empty:'Nothing scheduled.', incoming_pipeline_empty_sub:'New engagements will appear here as you log sessions.',
     coming_m2:'Invoices ship in M2',
     // job form
     add_job:'Add session', edit_job:'Edit session', save_job:'Save session', delete_job:'Delete session',
@@ -538,7 +554,25 @@ const I18N = {
     business_info_title:'Business info (optional)', business_info_sub:'Fill these in to have them show up automatically on your quotes, invoices, and receipts — none of them are required.',
     business_name:'Business name', business_taxid:'Tax ID', business_address:'Address',
     tax_defaults:'Tax defaults (for M2)', wht:'Withholding tax %', vat:'VAT %',
-    daily_goal:'Daily income goal', data:'Data', export_csv:'Export CSV', backup_json:'Backup JSON', restore_json:'Restore JSON',
+    daily_goal:'Daily income goal', goal_target_month:'Monthly income goal', goal_target_quarter:'Quarterly income goal', goal_target_year:'Yearly income goal',
+    business_type_label:'Business type', business_type_trainer:'Personal trainer', business_type_realestate:'Real estate agent',
+    business_type_laundry:'Laundry service', business_type_insurance:'Insurance agent', business_type_garage:'Car garage',
+    subtasks_title:'Sub-tasks', subtask_add_ph:'Add a sub-task…', btn_add:'+ Add', no_subtasks:'No sub-tasks yet.',
+    milestones_title:'Milestone payments', add_milestone:'+ Add milestone', save_milestone:'Save milestone',
+    draft_invoice:'Draft invoice', milestone_locked:'Locked', no_milestones:'No milestones yet.',
+    unlocks_with:'Unlocks with: ', no_gating_subtask:'No gating sub-task',
+    ms_amount_label:'Amount', ms_gate_label:'Gating sub-task (optional)', ms_gate_none:'None',
+    time_tracking_title:'Time tracking', unbilled_time:'Unbilled time', start_timer:'▶ Start timer', stop_timer:'■ Stop timer',
+    focus_mode_btn:'Focus mode', add_unbilled_to_invoice:'+ Add unbilled time to invoice', time_invoiced_label:'Invoiced',
+    billable_session:'Billable this session:', focus_pause:'Pause', focus_resume:'Resume', focus_stop:'Stop',
+    tracker_deal_title:'Deal tracker', tracker_order_title:'Order tracker', tracker_policy_title:'Policy tracker', tracker_vehicle_title:'Vehicle tracker',
+    field_search_brief:'Budget / areas / needs', field_offer_status:'Offer status', field_est_commission:'Est. commission',
+    field_order_status:'Order status', order_step_received:'Received', order_step_washing:'Washing', order_step_drying:'Drying', order_step_ready:'Ready',
+    field_monthly_kg_plan:'Monthly kg plan', field_preferences:'Preferences',
+    field_policy_name:'Policy name', field_renewal_date:'Renewal date',
+    field_plate:'Plate', field_mileage:'Mileage', field_next_service_due:'Next service due',
+    day_singular:'day', day_plural:'days', overdue_for_renewal:'overdue for renewal', until_renewal:'until renewal',
+    data:'Data', export_csv:'Export CSV', backup_json:'Backup JSON', restore_json:'Restore JSON',
     total_jobs:'Total jobs', app_word:'App', version:'Version', logout:'Log out', exit_guest:'Exit guest mode',
     // placeholder modules
     invoices_title:'Invoices', docs_title:'Documents', book_title:'Calendar',
@@ -568,13 +602,14 @@ const I18N = {
     notifications_sub:'Overdue invoices, bookings starting soon, and stuck engagements — only while this app is open or recently open in the background.',
     payment_channels_title:'Payment channels',
     payment_channels_sub:'Add PromptPay, bank transfer, cash, or another method so clients know how to pay you. PromptPay shows a scannable QR on invoices; the rest show as reference text.',
-    add_payment_channel:'+ Add payment channel', export_invoices_csv:'Export invoices CSV',
+    add_payment_channel:'+ Add payment channel', export_invoices_csv:'Export invoices CSV', export_pnd_summary:'Export P.N.D. summary CSV',
     no_payment_channels:'No payment channels yet', no_payment_channels_sub:'Add PromptPay, bank transfer, cash, or another method so clients know how to pay you.',
     business_name_ph:'Defaults to your account name',
     // M1.5 — customers (displayed as "client" throughout — the gym-trainer term)
     manage:'Manage', customers_title:'Clients', add_customer:'Add client', edit_customer:'Edit client',
     save_customer:'Save client', delete_customer:'Delete client', delete_customer_confirm:'Delete this client?',
     no_customers:'No clients yet', no_customers_sub:'Add your first client to reuse their details.',
+    needs_attention_title:'Needs attention', all_clients_title:'All clients', remind_action:'Remind', offer_renewal_action:'Offer renewal',
     customer_saved:'Client saved', customer_deleted:'Client deleted',
     field_name:'Name', field_phone:'Phone', field_email:'Email', field_tags:'Tags (comma-separated)',
     field_taxid:'Tax ID', field_billing:'Billing address', field_member_no:'Member ID',
@@ -596,7 +631,7 @@ const I18N = {
     // Usage insights (local-only analytics)
     insights_title:'Insights', no_insights:'No activity yet', no_insights_sub:'Insights build up as you use the app — nothing is sent anywhere, this stays on your device.',
     insights_sessions_logged:'Sessions logged', insights_clients_added:'Clients added', insights_active_days_30:'Active days (30d)',
-    insights_feature_usage:'Feature usage', insights_pipeline_activity:'Workflow activity', insights_no_pipeline_activity:'No workflow activity yet',
+    insights_feature_usage:'Feature usage', insights_pipeline_activity:'Task flow activity', insights_no_pipeline_activity:'No task flow activity yet',
     insights_stage_done:'Completed', insights_clear:'Clear usage data', insights_clear_confirm:'Clear all local usage data? This cannot be undone.',
     insights_cleared:'Usage data cleared', insights_unlocked:'Insights unlocked',
   },
@@ -617,14 +652,16 @@ const I18N = {
     auth_hint:'สร้างบัญชีเพื่อบันทึกข้อมูลไว้ในเครื่องนี้<br>ทุกอย่างเก็บอยู่ในเครื่อง — ไม่มีคลาวด์ ไม่มีการติดตาม<br>โหมดผู้เยี่ยมชมใช้งานได้ชั่วคราวเท่านั้น',
     tagline:'จองคิวได้ ได้งาน ได้รับเงิน',
     // nav
-    nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_pipeline:'ขั้นตอนการทำงาน', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
-    pipeline_title:'ขั้นตอนการทำงาน', workflow_title:'ลำดับขั้นตอน', pipeline_glance_title:'ภาพรวมขั้นตอนการทำงาน',
-    skip_stage:'ข้าม', mark_finished:'เสร็จสิ้น',
+    nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_pipeline:'แผนงาน', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
+    pipeline_title:'แผนงาน', workflow_title:'ลำดับขั้นตอน', pipeline_glance_title:'ภาพรวมแผนงาน',
+    skip_stage:'ข้าม', mark_finished:'เสร็จสิ้น', reschedule:'เลื่อนนัด', cash_job:'จ่ายสด', active_count:'กำลังดำเนินการ',
     // dashboard
     earned_this_month:'รายได้เดือนนี้', net_after_expenses:'สุทธิหลังหักค่าใช้จ่าย',
     stat_jobs:'เซสชัน', stat_avg:'เฉลี่ย/เซสชัน', stat_expenses:'ค่าใช้จ่าย',
     todays_goal:'เป้าหมายวันนี้', goal_reached:'ถึงเป้าหมายแล้ว! 🎉', goal_of:'จาก',
-    incoming_pipeline:'ขั้นตอนการทำงานที่กำลังเข้ามา', incoming_pipeline_empty:'ขั้นตอนการทำงานว่างอยู่', incoming_pipeline_empty_sub:'งานใหม่จะปรากฏที่นี่เมื่อคุณบันทึกเซสชัน',
+    my_task_goal:'เป้าหมายงานของฉัน', period_month:'เดือน', period_quarter:'ไตรมาส', period_year:'ปี',
+    goal_pace_on:'ตามเป้า — เหลืออีก ', goal_to_go_month:' ในเดือนนี้', goal_to_go_quarter:' ในไตรมาสนี้', goal_to_go_year:' ในปีนี้',
+    incoming_pipeline:'ถัดไป', incoming_pipeline_empty:'ยังไม่มีนัดหมาย', incoming_pipeline_empty_sub:'งานใหม่จะปรากฏที่นี่เมื่อคุณบันทึกเซสชัน',
     coming_m2:'ใบแจ้งหนี้จะเปิดใช้งานใน M2',
     // job form
     add_job:'เพิ่มเซสชัน', edit_job:'แก้ไขเซสชัน', save_job:'บันทึกเซสชัน', delete_job:'ลบเซสชัน',
@@ -642,7 +679,25 @@ const I18N = {
     business_info_title:'ข้อมูลธุรกิจ (ไม่บังคับ)', business_info_sub:'กรอกข้อมูลนี้เพื่อให้แสดงอัตโนมัติในใบเสนอราคา ใบแจ้งหนี้ และใบเสร็จ — ไม่บังคับกรอก',
     business_name:'ชื่อธุรกิจ', business_taxid:'เลขประจำตัวผู้เสียภาษี', business_address:'ที่อยู่',
     tax_defaults:'ค่าเริ่มต้นภาษี', wht:'ภาษีหัก ณ ที่จ่าย %', vat:'ภาษีมูลค่าเพิ่ม %',
-    daily_goal:'เป้าหมายรายได้ต่อวัน', data:'ข้อมูล', export_csv:'ส่งออก CSV', backup_json:'สำรองข้อมูล JSON', restore_json:'กู้คืนข้อมูล JSON',
+    daily_goal:'เป้าหมายรายได้ต่อวัน', goal_target_month:'เป้าหมายรายได้ต่อเดือน', goal_target_quarter:'เป้าหมายรายได้ต่อไตรมาส', goal_target_year:'เป้าหมายรายได้ต่อปี',
+    business_type_label:'ประเภทธุรกิจ', business_type_trainer:'เทรนเนอร์ส่วนตัว', business_type_realestate:'นายหน้าอสังหาริมทรัพย์',
+    business_type_laundry:'ร้านซักรีด', business_type_insurance:'ตัวแทนประกันภัย', business_type_garage:'อู่ซ่อมรถ',
+    subtasks_title:'งานย่อย', subtask_add_ph:'เพิ่มงานย่อย…', btn_add:'+ เพิ่ม', no_subtasks:'ยังไม่มีงานย่อย',
+    milestones_title:'การจ่ายเงินตามช่วงงาน', add_milestone:'+ เพิ่มช่วงงาน', save_milestone:'บันทึกช่วงงาน',
+    draft_invoice:'ร่างใบแจ้งหนี้', milestone_locked:'ล็อกอยู่', no_milestones:'ยังไม่มีช่วงงาน',
+    unlocks_with:'ปลดล็อกเมื่อ: ', no_gating_subtask:'ไม่มีงานย่อยที่ต้องรอ',
+    ms_amount_label:'จำนวนเงิน', ms_gate_label:'งานย่อยที่ต้องรอ (ไม่บังคับ)', ms_gate_none:'ไม่มี',
+    time_tracking_title:'บันทึกเวลา', unbilled_time:'เวลาที่ยังไม่เรียกเก็บเงิน', start_timer:'▶ เริ่มจับเวลา', stop_timer:'■ หยุดจับเวลา',
+    focus_mode_btn:'โหมดโฟกัส', add_unbilled_to_invoice:'+ เพิ่มเวลาที่ยังไม่เรียกเก็บเงินลงใบแจ้งหนี้', time_invoiced_label:'ออกใบแจ้งหนี้แล้ว',
+    billable_session:'เวลาที่เรียกเก็บเงินได้ในเซสชันนี้:', focus_pause:'หยุดชั่วคราว', focus_resume:'ดำเนินการต่อ', focus_stop:'หยุด',
+    tracker_deal_title:'ติดตามดีล', tracker_order_title:'ติดตามออเดอร์', tracker_policy_title:'ติดตามกรมธรรม์', tracker_vehicle_title:'ติดตามรถ',
+    field_search_brief:'งบประมาณ / ทำเล / ความต้องการ', field_offer_status:'สถานะข้อเสนอ', field_est_commission:'ค่าคอมมิชชั่นโดยประมาณ',
+    field_order_status:'สถานะออเดอร์', order_step_received:'รับผ้าแล้ว', order_step_washing:'กำลังซัก', order_step_drying:'กำลังตาก', order_step_ready:'พร้อมรับ',
+    field_monthly_kg_plan:'แผนกิโลกรัมต่อเดือน', field_preferences:'ความต้องการเฉพาะ',
+    field_policy_name:'ชื่อกรมธรรม์', field_renewal_date:'วันต่ออายุ',
+    field_plate:'ทะเบียนรถ', field_mileage:'เลขไมล์', field_next_service_due:'กำหนดเข้าศูนย์ครั้งถัดไป',
+    day_singular:'วัน', day_plural:'วัน', overdue_for_renewal:'เลยกำหนดต่ออายุ', until_renewal:'ก่อนถึงกำหนดต่ออายุ',
+    data:'ข้อมูล', export_csv:'ส่งออก CSV', backup_json:'สำรองข้อมูล JSON', restore_json:'กู้คืนข้อมูล JSON',
     total_jobs:'จำนวนเซสชันทั้งหมด', app_word:'แอป', version:'เวอร์ชัน', logout:'ออกจากระบบ', exit_guest:'ออกจากโหมดผู้เยี่ยมชม',
     // placeholder modules
     invoices_title:'ใบแจ้งหนี้', docs_title:'เอกสาร', book_title:'ปฏิทิน',
@@ -669,13 +724,14 @@ const I18N = {
     notifications_sub:'ใบแจ้งหนี้ที่เกินกำหนด การนัดหมายที่ใกล้ถึง และงานที่ค้างในไปป์ไลน์ — แจ้งเตือนเฉพาะขณะเปิดแอปหรือเพิ่งใช้งานล่าสุดเท่านั้น',
     payment_channels_title:'ช่องทางการชำระเงิน',
     payment_channels_sub:'เพิ่มพร้อมเพย์ โอนผ่านธนาคาร เงินสด หรือช่องทางอื่นให้ลูกค้าทราบวิธีชำระเงิน พร้อมเพย์จะแสดง QR ให้สแกนบนใบแจ้งหนี้ ส่วนช่องทางอื่นแสดงเป็นข้อความอ้างอิง',
-    add_payment_channel:'+ เพิ่มช่องทางชำระเงิน', export_invoices_csv:'ส่งออกใบแจ้งหนี้เป็น CSV',
+    add_payment_channel:'+ เพิ่มช่องทางชำระเงิน', export_invoices_csv:'ส่งออกใบแจ้งหนี้เป็น CSV', export_pnd_summary:'ส่งออกสรุป ภ.ง.ด. เป็น CSV',
     no_payment_channels:'ยังไม่มีช่องทางชำระเงิน', no_payment_channels_sub:'เพิ่มพร้อมเพย์ โอนผ่านธนาคาร เงินสด หรือช่องทางอื่นให้ลูกค้าทราบวิธีชำระเงิน',
     business_name_ph:'ค่าเริ่มต้นตามชื่อบัญชีของคุณ',
     // M1.5 — customers
     manage:'จัดการ', customers_title:'ลูกค้า', add_customer:'เพิ่มลูกค้า', edit_customer:'แก้ไขลูกค้า',
     save_customer:'บันทึกลูกค้า', delete_customer:'ลบลูกค้า', delete_customer_confirm:'ลบลูกค้ารายนี้หรือไม่?',
     no_customers:'ยังไม่มีลูกค้า', no_customers_sub:'เพิ่มลูกค้ารายแรกเพื่อใช้ข้อมูลซ้ำได้',
+    needs_attention_title:'ต้องดำเนินการ', all_clients_title:'ลูกค้าทั้งหมด', remind_action:'เตือน', offer_renewal_action:'เสนอต่ออายุ',
     customer_saved:'บันทึกลูกค้าแล้ว', customer_deleted:'ลบลูกค้าแล้ว',
     field_name:'ชื่อ', field_phone:'เบอร์โทร', field_email:'อีเมล', field_tags:'แท็ก (คั่นด้วยจุลภาค)',
     field_taxid:'เลขประจำตัวผู้เสียภาษี', field_billing:'ที่อยู่สำหรับเรียกเก็บเงิน', field_member_no:'รหัสสมาชิก',
@@ -697,7 +753,7 @@ const I18N = {
     // Usage insights
     insights_title:'ข้อมูลเชิงลึก', no_insights:'ยังไม่มีกิจกรรม', no_insights_sub:'ข้อมูลเชิงลึกจะสะสมเมื่อคุณใช้งานแอป — ไม่มีการส่งข้อมูลออกไปที่ใด เก็บอยู่ในเครื่องนี้เท่านั้น',
     insights_sessions_logged:'เซสชันที่บันทึก', insights_clients_added:'ลูกค้าที่เพิ่ม', insights_active_days_30:'วันที่ใช้งาน (30 วัน)',
-    insights_feature_usage:'การใช้งานฟีเจอร์', insights_pipeline_activity:'กิจกรรมขั้นตอนการทำงาน', insights_no_pipeline_activity:'ยังไม่มีกิจกรรมขั้นตอนการทำงาน',
+    insights_feature_usage:'การใช้งานฟีเจอร์', insights_pipeline_activity:'กิจกรรมแผนงาน', insights_no_pipeline_activity:'ยังไม่มีกิจกรรมแผนงาน',
     insights_stage_done:'เสร็จสมบูรณ์', insights_clear:'ล้างข้อมูลการใช้งาน', insights_clear_confirm:'ล้างข้อมูลการใช้งานทั้งหมดในเครื่องหรือไม่? ไม่สามารถย้อนกลับได้',
     insights_cleared:'ล้างข้อมูลการใช้งานแล้ว', insights_unlocked:'ปลดล็อกข้อมูลเชิงลึกแล้ว',
   },
@@ -812,7 +868,6 @@ async function enterApp() {
   set('set-theme', localStorage.getItem(THEME_KEY) || 'dark');
   set('set-lang', settings.lang || 'en');
   set('set-currency', settings.currency || 'THB');
-  set('set-goal', settings.dailyGoal || '');
   set('set-page-size', settings.docPageSize || 'A4');
   set('set-wht', settings.wht != null ? settings.wht : '');
   set('set-vat', settings.vat != null ? settings.vat : '');
@@ -832,9 +887,28 @@ async function enterApp() {
   }
   renderPaymentChannels();
 
-  // Personal Gym Trainer edition: single fixed work type, no onboarding picker.
-  if (!settings.workType) await saveSetting('workType', 'gym');
-  document.body.setAttribute('data-work-type', 'gym');
+  // One-time migration: My Task Goal replaces the old single daily-income
+  // goal with Month/Quarter/Year targets. A daily figure doesn't map to a
+  // period target directly, so this seeds reasonable month/quarter/year
+  // figures from it (30x/90x/365x) rather than silently losing the old
+  // setting; leaves all three at 0 (goal card stays hidden, same as before)
+  // if no daily goal was ever set.
+  if (!settings.goalTargets) {
+    const monthGuess = (Number(settings.dailyGoal) || 0) * 30;
+    await saveSetting('goalTargets', { month: monthGuess, quarter: monthGuess * 3, year: monthGuess * 12 });
+  }
+  if (!settings.goalPeriod) await saveSetting('goalPeriod', 'month');
+  set('set-goal-month', settings.goalTargets.month || '');
+  set('set-goal-quarter', settings.goalTargets.quarter || '');
+  set('set-goal-year', settings.goalTargets.year || '');
+
+  // Business type (persona) picker — reintroduced per the 2026 redesign
+  // handoff. Migrates existing installs to 'trainer' (this app's actual base
+  // case up to now, back when it was single-persona-only) so switching over
+  // changes nothing for anyone not deliberately picking a different type.
+  if (!settings.businessType) await saveSetting('businessType', 'trainer');
+  document.body.setAttribute('data-work-type', businessType());
+  set('set-business-type', businessType());
   await seedServicesIfEmpty();
   switchScreen('home');
 
@@ -951,7 +1025,7 @@ function applyInsightsVisibility() {
   if (row) row.style.display = settings.insightsUnlocked ? 'flex' : 'none';
 }
 const SCREEN_LABELS = {
-  home:'Home', pipeline:'Workflow', customers:'Clients', book:'Calendar', more:'Settings',
+  home:'Home', pipeline:'Task flow', customers:'Clients', book:'Calendar', more:'Settings',
   services:'Services', invoices:'Invoices', tax:'Tax', docs:'Documents',
   followups:'Follow-ups', portfolio:'Portfolio', research:'Research', insights:'Insights',
 };
@@ -1027,6 +1101,17 @@ async function clearUsageEvents() {
 function monthKey() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function jobsThisMonth() { const m = monthKey(); return jobs.filter(j => (j.date||'').startsWith(m)); }
 function jobsToday() { const t0 = todayISO(); return jobs.filter(j => j.date === t0); }
+// My Task Goal's Quarter/Year periods — same date-range-filter shape as
+// jobsThisMonth(), just a wider window (a plain string-prefix match, like
+// jobsThisMonth uses, doesn't work once the window spans more than one
+// month, so these compare actual Date objects instead).
+function jobsThisQuarter() {
+  const d = new Date();
+  const qStart = new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1);
+  const qEnd = new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3 + 3, 1);
+  return jobs.filter(j => { const jd = new Date(j.date); return jd >= qStart && jd < qEnd; });
+}
+function jobsThisYear() { const y = String(new Date().getFullYear()); return jobs.filter(j => (j.date||'').startsWith(y)); }
 
 // ─── Backup reminder (data-loss protection) ────────────────────────────
 // Sidekick is local-only storage: clearing browser data or switching
@@ -1196,7 +1281,6 @@ async function renderHome() {
   setTxt('stat-exp-val', money(exp));
 
   renderGoal();
-  renderPipelineGlance();
   updateMoreNavBadge();
   renderIncomingPipeline();
 }
@@ -1210,11 +1294,15 @@ const INCOMING_PIPELINE_LIMIT = 6;
 function incomingPipelineRowHtml(j) {
   const stage = jobStage(j);
   const meta = STAGE_META[stage] || {};
+  const pkg = j.packageId != null ? packages.find(p => p.id === j.packageId) : null;
+  const subParts = [htmlEsc(meta.label || stage || '')];
+  if (pkg) subParts.push(`${packageUsed(pkg)} ${t('goal_of')} ${htmlEsc(pkg.totalSessions)}`);
+  else if (j.serviceName) subParts.push(htmlEsc(j.serviceName));
   return `<div class="list-row" onclick="openPipelineAt('${stage}')">
       <div class="list-icon" style="background:${meta.dot}22;color:${meta.dot}">${meta.icon || ''}</div>
       <div class="list-main">
         <div class="list-title">${htmlEsc(j.client || 'Client')}</div>
-        <div class="list-sub">${htmlEsc(meta.label || stage || '')}${j.serviceName ? ' · ' + htmlEsc(j.serviceName) : ''}</div>
+        <div class="list-sub">${subParts.join(' · ')}</div>
       </div>
       <div class="list-right"><div class="list-amt tnum">${htmlEsc(money(j.amount))}</div></div>
     </div>`;
@@ -1246,44 +1334,52 @@ function renderIncomingPipeline() {
   el.innerHTML = html;
 }
 window.renderIncomingPipeline = renderIncomingPipeline;
-function renderPipelineGlance() {
-  const wrap = document.getElementById('pipeline-glance');
-  if (!wrap) return;
-  const order = (typeof getStageOrder === 'function') ? getStageOrder() : [];
-  const counts = {};
-  order.forEach(s => counts[s] = 0);
-  jobs.forEach(j => {
-    if (typeof jobComplete === 'function' && jobComplete(j)) return;
-    const s = (typeof jobStage === 'function') ? jobStage(j) : null;
-    if (counts[s] != null) counts[s]++;
-  });
-  wrap.innerHTML = order.map(stage => {
-    const meta = STAGE_META[stage] || {};
-    const n = counts[stage] || 0;
-    return `<button type="button" class="pg-pill" onclick="openPipelineAt('${stage}')">
-      <span class="pg-pill-main">
-        <span class="pg-ico">${meta.icon || ''}</span>
-        <span class="pg-label">${htmlEsc(meta.label || stage)}</span>
-      </span>
-      <span class="pg-count">${n}</span>
-    </button>`;
-  }).join('');
+// My Task Goal — replaces the old single daily-goal card with a Month /
+// Quarter / Year switch, each period tracking its own target and net-income
+// progress. settings.goalTargets = {month, quarter, year} (migrated once
+// from the old single dailyGoal in enterApp()); settings.goalPeriod is the
+// persisted switch selection.
+const GOAL_PERIODS = ['month', 'quarter', 'year'];
+function goalPeriodJobs(period) {
+  return period === 'quarter' ? jobsThisQuarter() : period === 'year' ? jobsThisYear() : jobsThisMonth();
 }
 function renderGoal() {
   const card = document.getElementById('goal-card');
-  const goal = Number(settings.dailyGoal) || 0;
   if (!card) return;
+  const period = GOAL_PERIODS.includes(settings.goalPeriod) ? settings.goalPeriod : 'month';
+  const targets = settings.goalTargets || {};
+  const goal = Number(targets[period]) || 0;
+
+  const switchEl = document.getElementById('goal-period-switch');
+  if (switchEl) {
+    switchEl.querySelectorAll('.goal-period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === period));
+  }
   if (!goal) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  const todayNet = jobsToday().reduce((s,j)=> s + netOf(j), 0);
-  const pct = Math.max(0, Math.min(100, Math.round((todayNet / goal) * 100)));
-  const reached = todayNet >= goal;
+
+  const net = goalPeriodJobs(period).reduce((s, j) => s + netOf(j), 0);
+  const pct = Math.max(0, Math.min(100, Math.round((net / goal) * 100)));
+  const reached = net >= goal;
   const fill = document.getElementById('goal-fill');
   fill.style.width = pct + '%';
   fill.classList.toggle('reached', reached);
   document.getElementById('goal-pct').textContent = pct + '%';
+  document.getElementById('goal-amt-of').textContent = `${money(net)} ${t('goal_of')} ${money(goal)}`;
   document.getElementById('goal-sub').textContent = reached ? t('goal_reached')
-    : `${money(todayNet)} ${t('goal_of')} ${money(goal)}`;
+    : `${t('goal_pace_on')}${money(goal - net)}${t('goal_to_go_' + period)}`;
+}
+async function onGoalPeriodChange(period) {
+  if (!GOAL_PERIODS.includes(period)) return;
+  await saveSetting('goalPeriod', period);
+  renderGoal();
+}
+async function onGoalTargetChange(period, v) {
+  if (!GOAL_PERIODS.includes(period)) return;
+  const n = parseFloat(v);
+  const targets = { ...(settings.goalTargets || {}) };
+  targets[period] = isNaN(n) ? 0 : n;
+  await saveSetting('goalTargets', targets);
+  renderGoal();
 }
 
 // ─── JOBS LIST ────────────────────────────────────────────────────────
@@ -1364,6 +1460,8 @@ function openAddJob(dateISO) {
   populateJobSelects('', '');
   refreshJobPackageRow(null, null);
   document.getElementById('j-delete').style.display = 'none';
+  // Sub-tasks/milestones/time tracking all need a saved job id to attach to.
+  document.getElementById('job-tracking-section').style.display = 'none';
   clearFieldErrors();
   calcNet();
   openJobModal();
@@ -1380,12 +1478,18 @@ function openEditJob(id) {
   populateJobSelects(j.clientId != null ? j.clientId : '', j.serviceId != null ? j.serviceId : '');
   refreshJobPackageRow(j.clientId, j.packageId != null ? j.packageId : null);
   document.getElementById('j-delete').style.display = 'block';
+  window.__milestoneFormOpen = false;
+  document.getElementById('job-tracking-section').style.display = 'block';
+  renderJobTracking(id);
   clearFieldErrors();
   calcNet();
   openJobModal();
 }
 function openJobModal() { document.getElementById('modal-job').classList.add('open'); }
-function closeJobModal() { document.getElementById('modal-job').classList.remove('open'); }
+function closeJobModal() {
+  document.getElementById('modal-job').classList.remove('open');
+  clearInterval(_jobTimerTickHandle);
+}
 
 function calcNet() {
   const num = id => parseFloat(document.getElementById(id).value) || 0;
@@ -1516,32 +1620,40 @@ function renderPipeline() {
   const activeStage = _pipelineActiveStage;
   const activeMeta = STAGE_META[activeStage] || {};
   const activeItems = groups[activeStage] || [];
+  const activeIdx = order.indexOf(activeStage);
+  const totalActive = order.reduce((s, stg) => s + (groups[stg] || []).length, 0);
+  const countEl = document.getElementById('pl-active-count');
+  if (countEl) countEl.textContent = `${totalActive} ${t('active_count')}`;
 
-  const rail = order.map(stage => {
+  // Horizontal chip rail (was a left-hand vertical rail — see the redesign
+  // handoff's "replaces vertical pipeline") — one stage's cards render at a
+  // time, same as before, just picked from a scrollable row of pill chips.
+  const chips = order.map(stage => {
     const meta = STAGE_META[stage] || {};
     const isActive = stage === activeStage;
-    return `<button type="button" class="pl-rail-item${isActive ? ' active' : ''}" onclick="selectPipelineStage('${stage}')" aria-current="${isActive ? 'true' : 'false'}">
-      <span class="pl-rail-ico">${meta.icon || ''}</span>
-      <span class="pl-rail-label">${htmlEsc(meta.label || stage)}</span>
-      <span class="pl-rail-count">${(groups[stage] || []).length}</span>
+    return `<button type="button" class="pl-chip${isActive ? ' active' : ''}" onclick="selectPipelineStage('${stage}')" aria-current="${isActive ? 'true' : 'false'}">
+      <span>${htmlEsc(meta.label || stage)}</span>
+      <span class="pl-chip-count">${(groups[stage] || []).length}</span>
     </button>`;
   }).join('');
+
+  // Mini-map: a thin marigold-marked strip showing where the selected stage
+  // sits in the whole chain, independent of the chip rail (which can scroll
+  // out of sync on a narrow screen) — always the full, fixed-order chain.
+  const minimap = order.map((stage, i) =>
+    `<span class="pl-minimap-seg${i === activeIdx ? ' active' : i < activeIdx ? ' past' : ''}"></span>`
+  ).join('');
 
   const list = activeItems.length
     ? activeItems.map(j => pipelineCard(j, activeStage)).join('')
     : '<div class="kb-empty">Nothing here yet</div>';
 
-  el.innerHTML = `<div class="pl-layout">
-    <div class="pl-rail" role="tablist" aria-label="Workflow stages">${rail}</div>
-    <div class="pl-main">
-      <div class="pl-main-head">
-        <span class="pl-rail-ico">${activeMeta.icon || ''}</span>
-        <span>${htmlEsc(activeMeta.label || activeStage)}</span>
-        <span class="kb-count">${activeItems.length}</span>
-      </div>
-      <div class="pl-main-body">${list}</div>
-    </div>
-  </div>`;
+  el.innerHTML = `
+    <div class="pl-chip-rail" role="tablist" aria-label="Task flow stages">${chips}</div>
+    <div class="pl-minimap">${minimap}</div>
+    <p class="pl-stage-hint">${htmlEsc(activeMeta.hint || activeMeta.label || activeStage)}</p>
+    <div class="pl-main-body">${list}</div>
+  `;
   if (window.__kbMoved != null) setTimeout(() => { window.__kbMoved = null; }, 500);
 }
 window.renderPipeline = renderPipeline;
@@ -1565,6 +1677,16 @@ function pipelineCard(j, stage) {
   const finish = (!complete && stage === 'extend')
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();finishJobStage(${j.id})">${htmlEsc(t('mark_finished'))}</button>`
     : '';
+  // Cash-job path: paid on the spot, no client-facing quote/invoice needed —
+  // only offered at Inquiry (deciding this up front, before either document
+  // exists, is the natural moment) rather than on every pre-Paid stage,
+  // which would crowd this row with a 5th button.
+  const cashJob = (!complete && stage === 'pitch')
+    ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();cashJobPath(${j.id})">${htmlEsc(t('cash_job'))}</button>`
+    : '';
+  const reschedule = !complete
+    ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();openEditJob(${j.id})">${htmlEsc(t('reschedule'))}</button>`
+    : '';
   const back = canBack
     ? `<button type="button" class="kb-back" aria-label="Move back a stage" title="Move back" onclick="event.stopPropagation();moveJobStageBack(${j.id})">←</button>`
     : '';
@@ -1576,7 +1698,7 @@ function pipelineCard(j, stage) {
       </div>
       <button type="button" class="pl-edit" aria-label="Edit engagement" onclick="event.stopPropagation();openEditJob(${j.id})">✎</button>
     </div>
-    <div class="kb-card-foot">${back}${skip}${finish}${foot}</div>
+    <div class="kb-card-foot">${back}${skip}${finish}${cashJob}${foot}${reschedule}</div>
   </div>`;
 }
 
@@ -1634,6 +1756,30 @@ async function skipJobStage(jobId) {
   await advanceJobStage(jobId);
 }
 window.skipJobStage = skipJobStage;
+
+// Cash-job path: skip both Quote and Invoice in one tap and land straight on
+// Paid — for a session paid in cash on the spot, neither document is ever
+// needed. Still uses the job's own order (jobOrder(j)), same as everywhere
+// else, so a Settings reorder never strands this on a stage that doesn't
+// precede Paid in that particular job's chain.
+async function cashJobPath(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const order = jobOrder(j);
+  const paidIdx = order.indexOf('paid');
+  const curIdx = order.indexOf(jobStage(j));
+  if (paidIdx < 0 || curIdx < 0 || curIdx >= paidIdx) return;
+  logEvent('pipeline_stage_skipped:cash_job');
+  j.stage = order[paidIdx];
+  j.complete = false;
+  j.updatedAt = nowISO();
+  _pipelineActiveStage = j.stage;
+  window.__kbMoved = jobId;
+  await dbPut('jobs', j);
+  await reload();
+  renderPipeline();
+}
+window.cashJobPath = cashJobPath;
 
 // Alt completion for the Extend stage: the engagement is over without a renewal.
 // Distinct from the primary "Mark extended" action so the completed badge (and
@@ -1836,7 +1982,72 @@ async function backfillMemberNumbers() {
     await dbPut('clients', c);
   }
 }
-function renderCustomers() {
+// "Needs attention" — an overdue invoice takes priority over a nearly-used
+// package if a client somehow has both, since money owed is more urgent than
+// a renewal offer. Trainer-only for the package half (packages are a
+// trainer-specific feature); the overdue-invoice half applies to any
+// business type since invoices aren't persona-gated.
+const PACKAGE_ALMOST_DONE_THRESHOLD = 2;
+async function computeClientsNeedingAttention() {
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const todayStr = todayISO();
+  const allInvoices = (await dbAll('invoices')).filter(i => i.uid === uid);
+  const isTrainer = businessType() === 'trainer';
+  const items = [];
+  customers.forEach(c => {
+    const overdue = allInvoices
+      .filter(i => i.clientId === c.id && i.status !== 'paid' && i.dueDate && i.dueDate < todayStr)
+      .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+    if (overdue.length) {
+      const inv = overdue[0];
+      const days = daysSinceISO(inv.dueDate);
+      items.push({
+        client: c,
+        reason: `Invoice ${days} day${days === 1 ? '' : 's'} overdue · ${money(inv.clientPays)}`,
+        actionLabel: t('remind_action'),
+        action: () => remindAboutInvoice(inv.id),
+      });
+      return; // one attention item per client — overdue takes priority
+    }
+    if (isTrainer) {
+      const pkg = activePackageFor(c.id);
+      if (pkg) {
+        const remaining = packageRemaining(pkg);
+        if (remaining > 0 && remaining <= PACKAGE_ALMOST_DONE_THRESHOLD) {
+          items.push({
+            client: c,
+            reason: `Package almost done · ${remaining} session${remaining === 1 ? '' : 's'} left`,
+            actionLabel: t('offer_renewal_action'),
+            action: () => offerRenewalForClient(c.id),
+          });
+        }
+      }
+    }
+  });
+  return items;
+}
+function remindAboutInvoice(invoiceId) {
+  switchScreen('invoices');
+}
+window.remindAboutInvoice = remindAboutInvoice;
+function offerRenewalForClient(clientId) {
+  openEditCustomer(clientId);
+  togglePackageForm(true, clientId);
+}
+window.offerRenewalForClient = offerRenewalForClient;
+window.__clientAttentionActions = [];
+function needsAttentionRowHtml(item, idx) {
+  const initial = (item.client.name || '?').charAt(0).toUpperCase();
+  return `<div class="list-row" style="cursor:default">
+      <div class="list-icon" style="background:var(--marigold-tint);color:var(--marigold-ink)">${htmlEsc(initial)}</div>
+      <div class="list-main">
+        <div class="list-title">${htmlEsc(item.client.name)}</div>
+        <div class="list-sub">${item.reason}</div>
+      </div>
+      <div class="list-right"><button type="button" class="qc-btn" style="width:auto;padding:0 10px;color:var(--marigold-ink);font-size:12px;font-weight:700" onclick="window.__clientAttentionActions[${idx}]()">${htmlEsc(item.actionLabel)}</button></div>
+    </div>`;
+}
+async function renderCustomers() {
   const wrap = document.getElementById('customers-body');
   if (!wrap) return;
   if (!customers.length) {
@@ -1844,7 +2055,14 @@ function renderCustomers() {
       <p>${htmlEsc(t('no_customers'))}</p><span>${htmlEsc(t('no_customers_sub'))}</span></div>`;
     return;
   }
-  wrap.innerHTML = '<div class="list-card">' + customers.map(c => {
+  const attention = await computeClientsNeedingAttention();
+  window.__clientAttentionActions = attention.map(item => item.action);
+  const attentionHtml = attention.length
+    ? `<div class="section-title" style="font-size:12px;margin-bottom:8px">${htmlEsc(t('needs_attention_title'))}</div>
+       <div class="list-card" style="margin-bottom:16px">${attention.map(needsAttentionRowHtml).join('')}</div>
+       <div class="section-title" style="font-size:12px;margin-bottom:8px">${htmlEsc(t('all_clients_title'))}</div>`
+    : '';
+  wrap.innerHTML = attentionHtml + '<div class="list-card">' + customers.map(c => {
     const sub = [c.memberNo, c.company || c.phone || c.email || ''].filter(Boolean).join(' · ');
     const pkg = activePackageFor(c.id);
     const pkgBadge = pkg
@@ -1980,6 +2198,384 @@ function toggleProgressForm(open, clientId) {
   renderCustomerProgress(clientId);
 }
 window.toggleProgressForm = toggleProgressForm;
+
+// ─── CLIENT PERSONA TRACKER (redesign handoff, non-trainer business types) ──
+// Trainer keeps its existing package + progress-log sections above (real,
+// established features) — this is the registry for the other four. A
+// deliberately lean first pass: a handful of auto-saving fields directly on
+// the client record, not the full richness the design brief describes (a
+// structured viewing log with verdicts, a real multi-policy list, full
+// service history) — those are each their own small CRUD system, and
+// building four of them in one pass wasn't realistic alongside everything
+// else in this redesign. Real and useful, just simpler than the ideal.
+async function saveClientField(clientId, field, value) {
+  const c = customers.find(x => x.id === clientId);
+  if (!c) return;
+  c[field] = value;
+  c.updatedAt = nowISO();
+  await dbPut('clients', c);
+}
+window.saveClientField = saveClientField;
+
+const PERSONA_TRACKER_TITLES = {
+  realestate: 'tracker_deal_title',
+  laundry: 'tracker_order_title',
+  insurance: 'tracker_policy_title',
+  garage: 'tracker_vehicle_title',
+};
+function renderClientPersonaTracker(clientId) {
+  const wrap = document.getElementById('cust-persona-body');
+  const titleEl = document.getElementById('cust-persona-title');
+  if (!wrap) return;
+  const c = customers.find(x => x.id === clientId);
+  if (!c) return;
+  const bt = businessType();
+  if (titleEl) titleEl.textContent = PERSONA_TRACKER_TITLES[bt] ? t(PERSONA_TRACKER_TITLES[bt]) : '';
+
+  if (bt === 'realestate') {
+    wrap.innerHTML = `
+      <div class="field"><label>${htmlEsc(t('field_search_brief'))}</label><textarea rows="2" onchange="saveClientField(${clientId},'searchBrief',this.value)">${htmlEsc(c.searchBrief || '')}</textarea></div>
+      <div class="field"><label>${htmlEsc(t('field_offer_status'))}</label><input type="text" value="${attrEsc(c.offerStatus || '')}" placeholder="e.g. Offer submitted, awaiting reply" onchange="saveClientField(${clientId},'offerStatus',this.value)"></div>
+      <div class="field"><label>${htmlEsc(t('field_est_commission'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.estCommission || ''}" onchange="saveClientField(${clientId},'estCommission',parseFloat(this.value)||0)"></div>
+    `;
+  } else if (bt === 'laundry') {
+    const steps = ['received', 'washing', 'drying', 'ready'];
+    const cur = steps.includes(c.orderStatus) ? c.orderStatus : 'received';
+    wrap.innerHTML = `
+      <div class="field"><label>${htmlEsc(t('field_order_status'))}</label><select onchange="saveClientField(${clientId},'orderStatus',this.value)">
+        ${steps.map(s => `<option value="${s}"${s === cur ? ' selected' : ''}>${htmlEsc(t('order_step_' + s))}</option>`).join('')}
+      </select></div>
+      <div class="field"><label>${htmlEsc(t('field_monthly_kg_plan'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.monthlyKgPlan || ''}" onchange="saveClientField(${clientId},'monthlyKgPlan',parseFloat(this.value)||0)"></div>
+      <div class="field"><label>${htmlEsc(t('field_preferences'))}</label><textarea rows="2" onchange="saveClientField(${clientId},'preferences',this.value)">${htmlEsc(c.preferences || '')}</textarea></div>
+    `;
+  } else if (bt === 'insurance') {
+    const days = c.policyRenewalDate ? daysSinceISO(c.policyRenewalDate) : null;
+    const countdown = (days != null)
+      ? (days > 0
+          ? `<div class="pkg-status"><span style="color:var(--overdue)">${days} ${days === 1 ? t('day_singular') : t('day_plural')} ${t('overdue_for_renewal')}</span></div>`
+          : `<div class="pkg-status"><span>${-days} ${-days === 1 ? t('day_singular') : t('day_plural')} ${t('until_renewal')}</span></div>`)
+      : '';
+    wrap.innerHTML = `
+      <div class="field"><label>${htmlEsc(t('field_policy_name'))}</label><input type="text" value="${attrEsc(c.policyName || '')}" onchange="saveClientField(${clientId},'policyName',this.value)"></div>
+      <div class="field"><label>${htmlEsc(t('field_renewal_date'))}</label><input type="date" value="${attrEsc(c.policyRenewalDate || '')}" onchange="saveClientField(${clientId},'policyRenewalDate',this.value)"></div>
+      ${countdown}
+    `;
+  } else if (bt === 'garage') {
+    wrap.innerHTML = `
+      <div class="form-row">
+        <div class="field-half"><label>${htmlEsc(t('field_plate'))}</label><input type="text" value="${attrEsc(c.vehiclePlate || '')}" onchange="saveClientField(${clientId},'vehiclePlate',this.value)"></div>
+        <div class="field-half"><label>${htmlEsc(t('field_mileage'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.vehicleMileage || ''}" onchange="saveClientField(${clientId},'vehicleMileage',parseFloat(this.value)||0)"></div>
+      </div>
+      <div class="field"><label>${htmlEsc(t('field_next_service_due'))}</label><input type="date" value="${attrEsc(c.nextServiceDate || '')}" onchange="saveClientField(${clientId},'nextServiceDate',this.value)"></div>
+    `;
+  } else {
+    wrap.innerHTML = '';
+  }
+}
+
+// ─── SUB-TASKS, MILESTONES, TIME TRACKING (redesign handoff, client-side) ──
+// All three live directly on the job record (subTasks[]/milestones[]/
+// timeEntries[]) — no new IndexedDB store, matching "no backend needed" per
+// the handoff's BACKEND-REQUIREMENTS.md. The 6-stage Task flow stays the
+// spine; these live inside a job's own edit modal, never as extra columns.
+function renderJobTracking(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  renderSubTasks(jobId);
+  renderMilestones(jobId);
+  renderJobTimer(jobId);
+}
+
+// ── Sub-tasks ──
+function renderSubTasks(jobId) {
+  const wrap = document.getElementById('job-subtasks-body');
+  if (!wrap) return;
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const subs = j.subTasks || [];
+  if (!subs.length) { wrap.innerHTML = `<div class="pkg-status"><span>${htmlEsc(t('no_subtasks'))}</span></div>`; return; }
+  const done = subs.filter(s => s.done).length;
+  wrap.innerHTML = `
+    <div class="pkg-status-row" style="margin-bottom:8px"><span>${done} of ${subs.length} done</span></div>
+    <div class="pkg-status-track" style="margin-bottom:10px"><div class="pkg-status-fill" style="width:${subs.length ? Math.round(done / subs.length * 100) : 0}%"></div></div>
+    <div class="list-card">${subs.map(s => `
+      <div class="list-row" style="cursor:default">
+        <input type="checkbox" style="width:20px;height:20px;flex-shrink:0" ${s.done ? 'checked' : ''} onchange="toggleSubTask(${jobId},'${s.id}')">
+        <div class="list-main"><div class="list-title" style="${s.done ? 'text-decoration:line-through;color:var(--text3)' : ''}">${htmlEsc(s.text)}</div></div>
+        <button type="button" class="qc-btn" aria-label="Delete sub-task" onclick="deleteSubTask(${jobId},'${s.id}')">✕</button>
+      </div>`).join('')}</div>
+  `;
+}
+async function addSubTask(jobId) {
+  jobId = parseInt(jobId, 10);
+  const input = document.getElementById('job-subtask-new');
+  const text = (input.value || '').trim();
+  if (!text) return;
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  j.subTasks = j.subTasks || [];
+  j.subTasks.push({ id: cuid(), text, done: false });
+  await dbPut('jobs', j);
+  input.value = '';
+  renderJobTracking(jobId);
+}
+window.addSubTask = addSubTask;
+async function toggleSubTask(jobId, subId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !j.subTasks) return;
+  const s = j.subTasks.find(x => x.id === subId);
+  if (!s) return;
+  s.done = !s.done;
+  await dbPut('jobs', j);
+  renderJobTracking(jobId);
+}
+window.toggleSubTask = toggleSubTask;
+async function deleteSubTask(jobId, subId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !j.subTasks) return;
+  j.subTasks = j.subTasks.filter(x => x.id !== subId);
+  await dbPut('jobs', j);
+  renderJobTracking(jobId);
+}
+window.deleteSubTask = deleteSubTask;
+
+// ── Milestone payments ──
+// Deliberately doesn't auto-link the created invoice back to the milestone
+// (a real per-milestone invoiceId + auto-draft-on-unlock, as the design
+// brief describes) — that needs hooking into invoices.js's creation flow
+// alongside the *existing* engagement-stage-linking hook, and getting that
+// interaction wrong risks breaking Pipeline stage advancement, a feature
+// that already works today. "Draft invoice" here just opens a pre-filled
+// invoice form the user completes normally.
+window.__milestoneFormOpen = false;
+function renderMilestones(jobId) {
+  const wrap = document.getElementById('job-milestones-body');
+  if (!wrap) return;
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const subs = j.subTasks || [];
+  const miles = j.milestones || [];
+  let html = miles.length ? '<div class="list-card">' + miles.map(m => {
+    const gate = subs.find(s => s.id === m.gatingSubTaskId);
+    const ready = !gate || gate.done;
+    return `<div class="list-row" style="cursor:default">
+        <div class="list-main">
+          <div class="list-title">${fmt(m.pct, 0)}% · ${htmlEsc(money(m.amount))}</div>
+          <div class="list-sub">${gate ? htmlEsc(t('unlocks_with')) + htmlEsc(gate.text) : htmlEsc(t('no_gating_subtask'))}</div>
+        </div>
+        <div class="list-right">
+          ${ready
+            ? `<button type="button" class="qc-btn" style="width:auto;padding:0 10px;color:var(--brand)" onclick="draftMilestoneInvoice(${jobId},'${m.id}')">${htmlEsc(t('draft_invoice'))}</button>`
+            : `<span class="chip" style="background:var(--border);color:var(--text3)">${htmlEsc(t('milestone_locked'))}</span>`}
+          <button type="button" class="qc-btn" aria-label="Delete milestone" onclick="deleteMilestone(${jobId},'${m.id}')">✕</button>
+        </div>
+      </div>`;
+  }).join('') + '</div>' : `<div class="pkg-status"><span>${htmlEsc(t('no_milestones'))}</span></div>`;
+
+  if (window.__milestoneFormOpen) {
+    html += `
+      <div class="form-row" style="margin-top:10px">
+        <div class="field-half"><label for="ms-pct">%</label><input type="number" id="ms-pct" class="tnum" inputmode="decimal" min="0" max="100" placeholder="50"></div>
+        <div class="field-half"><label for="ms-amount">${htmlEsc(t('ms_amount_label'))}</label><input type="number" id="ms-amount" class="tnum" inputmode="decimal" min="0" placeholder="0"></div>
+      </div>
+      <div class="field"><label for="ms-gate">${htmlEsc(t('ms_gate_label'))}</label>
+        <select id="ms-gate"><option value="">${htmlEsc(t('ms_gate_none'))}</option>${subs.map(s => `<option value="${s.id}">${htmlEsc(s.text)}</option>`).join('')}</select>
+      </div>
+      <button type="button" class="btn-submit" style="margin-top:6px" onclick="saveMilestone(${jobId})">${htmlEsc(t('save_milestone'))}</button>
+    `;
+  }
+  wrap.innerHTML = html;
+}
+function addMilestone(jobId) {
+  window.__milestoneFormOpen = true;
+  renderMilestones(parseInt(jobId, 10));
+}
+window.addMilestone = addMilestone;
+async function saveMilestone(jobId) {
+  const pct = parseFloat(document.getElementById('ms-pct').value) || 0;
+  const amount = parseFloat(document.getElementById('ms-amount').value) || 0;
+  const gatingSubTaskId = document.getElementById('ms-gate').value || null;
+  if (amount <= 0) { toast('Enter the milestone amount'); return; }
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  j.milestones = j.milestones || [];
+  j.milestones.push({ id: cuid(), pct, amount, gatingSubTaskId });
+  await dbPut('jobs', j);
+  window.__milestoneFormOpen = false;
+  renderMilestones(jobId);
+}
+window.saveMilestone = saveMilestone;
+async function deleteMilestone(jobId, msId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !j.milestones) return;
+  j.milestones = j.milestones.filter(x => x.id !== msId);
+  await dbPut('jobs', j);
+  renderMilestones(jobId);
+}
+window.deleteMilestone = deleteMilestone;
+function draftMilestoneInvoice(jobId, msId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const m = (j.milestones || []).find(x => x.id === msId);
+  if (!m) return;
+  const client = customers.find(c => c.id === j.clientId);
+  if (typeof openInvoiceForm !== 'function') return;
+  openInvoiceForm(null, {
+    clientId: j.clientId,
+    clientName: (client && client.name) || j.client || '',
+    lineItems: [{ description: `Milestone (${fmt(m.pct, 0)}%)`, qty: 1, unitPrice: m.amount }],
+  });
+}
+window.draftMilestoneInvoice = draftMilestoneInvoice;
+
+// ── Time tracking + Focus mode ──
+// One timer per job at a time (job.timerStartedAt, an ISO timestamp — null
+// when nothing's running), persisted so it survives the modal being closed
+// and reopened. Focus mode (the full-screen Pomodoro view) shares this same
+// underlying timer state; it's a presentation, not a separate clock.
+function unbilledMinutes(j) {
+  return (j.timeEntries || []).filter(e => !e.invoiced).reduce((s, e) => s + (Number(e.minutes) || 0), 0);
+}
+function fmtHM(totalMinutes) {
+  const h = Math.floor(totalMinutes / 60), m = Math.round(totalMinutes % 60);
+  return `${h}:${String(m).padStart(2, '0')}`;
+}
+let _jobTimerTickHandle = null;
+function renderJobTimer(jobId) {
+  const wrap = document.getElementById('job-timer-body');
+  if (!wrap) return;
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  clearInterval(_jobTimerTickHandle);
+  const running = !!j.timerStartedAt;
+  const unbilled = unbilledMinutes(j);
+  const entries = j.timeEntries || [];
+
+  const liveRow = () => {
+    const el = document.getElementById('job-timer-live');
+    if (el && j.timerStartedAt) {
+      const mins = (Date.now() - new Date(j.timerStartedAt).getTime()) / 60000;
+      el.textContent = fmtHM(unbilled + mins);
+    }
+  };
+
+  wrap.innerHTML = `
+    <div class="pkg-status">
+      <div class="pkg-status-row"><span>${htmlEsc(t('unbilled_time'))}</span><span class="tnum" id="job-timer-live">${fmt(unbilled, 2)}</span></div>
+    </div>
+    <div class="form-row" style="margin-top:10px">
+      <button type="button" class="btn-submit" style="flex:1" onclick="${running ? `stopJobTimer(${jobId})` : `startJobTimer(${jobId})`}">${htmlEsc(running ? t('stop_timer') : t('start_timer'))}</button>
+      ${running ? `<button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="openFocusMode(${jobId})">${htmlEsc(t('focus_mode_btn'))}</button>` : ''}
+    </div>
+    ${unbilled > 0 ? `<button type="button" class="btn-submit" style="margin-top:8px;background:var(--card);color:var(--brand);border:1.5px solid var(--border)" onclick="convertUnbilledToInvoice(${jobId})">${htmlEsc(t('add_unbilled_to_invoice'))}</button>` : ''}
+    ${entries.length ? `<div class="list-card" style="margin-top:10px">${entries.slice().reverse().map(e => `
+      <div class="list-row" style="cursor:default">
+        <div class="list-main"><div class="list-title">${fmt((e.minutes||0)/60, 2)} h</div>
+        <div class="list-sub">${htmlEsc(fmtDate((e.endedAt||'').slice(0,10)))}${e.invoiced ? ' · ' + htmlEsc(t('time_invoiced_label')) : ''}</div></div>
+      </div>`).join('')}</div>` : ''}
+  `;
+  if (running) {
+    liveRow();
+    _jobTimerTickHandle = setInterval(liveRow, 1000);
+  }
+}
+async function startJobTimer(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || j.timerStartedAt) return;
+  j.timerStartedAt = new Date().toISOString();
+  await dbPut('jobs', j);
+  renderJobTracking(jobId);
+}
+window.startJobTimer = startJobTimer;
+async function stopJobTimer(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !j.timerStartedAt) return;
+  const minutes = (Date.now() - new Date(j.timerStartedAt).getTime()) / 60000;
+  j.timeEntries = j.timeEntries || [];
+  if (minutes >= 1) j.timeEntries.push({ id: cuid(), minutes, startedAt: j.timerStartedAt, endedAt: new Date().toISOString(), invoiced: false });
+  j.timerStartedAt = null;
+  await dbPut('jobs', j);
+  renderJobTracking(jobId);
+}
+window.stopJobTimer = stopJobTimer;
+function convertUnbilledToInvoice(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const minutes = unbilledMinutes(j);
+  if (minutes <= 0) return;
+  const client = customers.find(c => c.id === j.clientId);
+  const svc = services.find(s => s.id === j.serviceId);
+  const rate = (svc && Number(svc.rate)) || 0;
+  const hours = minutes / 60;
+  if (typeof openInvoiceForm !== 'function') return;
+  openInvoiceForm(null, {
+    clientId: j.clientId,
+    clientName: (client && client.name) || j.client || '',
+    lineItems: [{ description: 'Unbilled time', qty: Math.round(hours * 100) / 100, unitPrice: rate }],
+  });
+  // Marking entries invoiced happens only once the invoice is actually saved
+  // would need the same cross-module hook risk noted above for milestones —
+  // instead, mark them right away: the invoice form is already open with
+  // these hours as a line item, so "unbilled" has done its job either way.
+  (j.timeEntries || []).forEach(e => { if (!e.invoiced) e.invoiced = true; });
+  dbPut('jobs', j);
+  renderJobTracking(jobId);
+}
+window.convertUnbilledToInvoice = convertUnbilledToInvoice;
+
+// Focus mode — full-screen Pomodoro view over whichever job's timer is
+// running. Ring is 25:00 counting down purely for pacing; hitting 0 just
+// wraps back to 25:00 rather than doing anything to the real timer.
+const FOCUS_DURATION_SEC = 25 * 60;
+let _focusJobId = null, _focusTickHandle = null, _focusPaused = false, _focusPauseStartedAt = null, _focusRingStartedAt = null;
+function openFocusMode(jobId) {
+  _focusJobId = jobId;
+  _focusPaused = false;
+  _focusRingStartedAt = Date.now();
+  document.getElementById('focus-overlay').classList.add('open');
+  document.getElementById('focus-pause-btn').textContent = t('focus_pause');
+  _focusTickHandle = setInterval(focusTick, 250);
+  focusTick();
+}
+window.openFocusMode = openFocusMode;
+function focusTick() {
+  const j = jobs.find(x => x.id === _focusJobId);
+  if (!j || !j.timerStartedAt) { closeFocusMode(); return; }
+  if (!_focusPaused) {
+    const ringElapsed = Math.floor((Date.now() - _focusRingStartedAt) / 1000) % FOCUS_DURATION_SEC;
+    const remaining = FOCUS_DURATION_SEC - ringElapsed;
+    document.getElementById('focus-ring-time').textContent = fmtMinSec(remaining);
+    const pct = Math.round((1 - remaining / FOCUS_DURATION_SEC) * 360);
+    document.getElementById('focus-ring').style.background = `conic-gradient(var(--marigold) ${pct}deg, color-mix(in srgb, var(--marigold) 18%, transparent) 0)`;
+  }
+  const unbilled = unbilledMinutes(j);
+  const liveMin = (Date.now() - new Date(j.timerStartedAt).getTime()) / 60000;
+  document.getElementById('focus-billable-time').textContent = fmtHM(unbilled + liveMin);
+}
+function fmtMinSec(totalSeconds) {
+  const m = Math.floor(totalSeconds / 60), s = totalSeconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+function toggleFocusPause() {
+  _focusPaused = !_focusPaused;
+  document.getElementById('focus-pause-btn').textContent = _focusPaused ? t('focus_resume') : t('focus_pause');
+  if (!_focusPaused) _focusRingStartedAt = Date.now(); // resume ring pacing from here, not where it left off
+}
+window.toggleFocusPause = toggleFocusPause;
+function closeFocusMode() {
+  clearInterval(_focusTickHandle);
+  document.getElementById('focus-overlay').classList.remove('open');
+  if (_focusJobId != null) renderJobTracking(_focusJobId);
+  _focusJobId = null;
+}
+window.closeFocusMode = closeFocusMode;
+function stopFocusMode() {
+  const jobId = _focusJobId;
+  closeFocusMode();
+  if (jobId != null) stopJobTimer(jobId);
+}
+window.stopFocusMode = stopFocusMode;
+
 async function saveProgressEntry(clientId) {
   const date = document.getElementById('pl-date').value || todayISO();
   const weightVal = document.getElementById('pl-weight').value;
@@ -2046,10 +2642,12 @@ function openAddCustomer() {
   const memberNoEl = document.getElementById('c-memberno');
   if (memberNoEl) memberNoEl.value = t('assigned_on_save');
   renderIntakeFields({});
-  // Package/progress tracking needs a saved client id to attach records to —
-  // hidden on Add, shown once the client actually exists (openEditCustomer).
+  // Package/progress/persona tracking all need a saved client id to attach
+  // records to — hidden on Add, shown once the client actually exists
+  // (openEditCustomer).
   document.getElementById('cust-package-section').style.display = 'none';
   document.getElementById('cust-progress-section').style.display = 'none';
+  document.getElementById('cust-persona-section').style.display = 'none';
   document.getElementById('c-delete').style.display = 'none';
   clearFieldErrors();
   openCustomerModal();
@@ -2065,10 +2663,15 @@ function openEditCustomer(id) {
   set('c-memberno', c.memberNo || t('assigned_on_save'));
   renderIntakeFields(c);
   window.__pkgFormOpen = false; window.__progressFormOpen = false;
-  document.getElementById('cust-package-section').style.display = 'block';
-  document.getElementById('cust-progress-section').style.display = 'block';
-  renderCustomerPackages(id);
-  renderCustomerProgress(id);
+  // Trainer keeps the existing package + progress-log sections; every other
+  // business type gets the persona tracker section instead (see the
+  // registry above renderClientPersonaTracker()).
+  const isTrainer = businessType() === 'trainer';
+  document.getElementById('cust-package-section').style.display = isTrainer ? 'block' : 'none';
+  document.getElementById('cust-progress-section').style.display = isTrainer ? 'block' : 'none';
+  document.getElementById('cust-persona-section').style.display = isTrainer ? 'none' : 'block';
+  if (isTrainer) { renderCustomerPackages(id); renderCustomerProgress(id); }
+  else renderClientPersonaTracker(id);
   document.getElementById('c-delete').style.display = 'block';
   clearFieldErrors();
   openCustomerModal();
@@ -2122,15 +2725,18 @@ async function deleteCustomer() {
 }
 
 // ─── SERVICES (catalog + default rates) ───────────────────────────────
-// Example gym services seeded once (editable/deletable). Numbers are currency-agnostic.
-const SEED_SERVICES = [['1-on-1 session',800,'session'],['Group class',400,'session'],['Nutrition plan',2000,'plan']];
+// Default services seeded once per business type (editable/deletable after).
+// Numbers are currency-agnostic. Flag is keyed per type so switching
+// Settings ▸ Business type later can seed that type's defaults too, without
+// re-seeding (or touching) whatever the user already has.
 async function seedServicesIfEmpty() {
-  const flag = 'servicesSeeded_gym';
-  if (settings[flag]) return;                       // already seeded
+  const bt = businessType();
+  const flag = 'servicesSeeded_' + bt;
+  if (settings[flag]) return;                       // already seeded for this type
   const uid = isGuest ? 'guest' : currentUser.id;
   const existing = (await dbAll('services')).filter(s => s.uid === uid);
   if (existing.length) { await saveSetting(flag, true); return; }   // never overwrite user data
-  for (const [name, rate, unit] of SEED_SERVICES) {
+  for (const [name, rate, unit] of BUSINESS_TYPES[bt].seedServices) {
     await dbAdd('services', {uid, name, rate, unit, cuid: cuid(), updatedAt: nowISO()});
   }
   await saveSetting(flag, true);
@@ -2214,8 +2820,18 @@ async function saveSetting(key, val) {
   if (key === 'lang') localStorage.setItem('sidekick_ui_lang', val);
 }
 async function onCurrencyChange(v) { await saveSetting('currency', v); applyLang(); }
+// Switching business type never touches existing services/clients — only
+// changes the unit word, seeds that type's defaults if the account has no
+// services at all yet, and swaps which tracker card renders on a client.
+async function onBusinessTypeChange(v) {
+  if (!BUSINESS_TYPES[v]) return;
+  await saveSetting('businessType', v);
+  document.body.setAttribute('data-work-type', v);
+  await seedServicesIfEmpty();
+  applyLang();
+  renderHome();
+}
 async function onLangChange(v) { await saveSetting('lang', v === 'th' ? 'th' : 'en'); applyLang(); }
-async function onGoalChange(v) { const n = parseFloat(v); await saveSetting('dailyGoal', isNaN(n)?0:n); renderGoal(); }
 async function onWhtChange(v) { const n = parseFloat(v); await saveSetting('wht', isNaN(n)?null:n); }
 async function onVatChange(v) { const n = parseFloat(v); await saveSetting('vat', isNaN(n)?null:n); }
 async function onPageSizeChange(v) { await saveSetting('docPageSize', v === 'A5' ? 'A5' : 'A4'); }
@@ -2403,6 +3019,35 @@ async function exportInvoicesCSV() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `sidekick-invoices-${(currentUser&&currentUser.username)||'guest'}-${todayISO()}.csv`;
+  a.click();
+  toast(t('exported'));
+}
+// Year-end P.N.D. 90/94 filing summary: assessable income (subtotal, before
+// tax) and WHT credits withheld, grouped by the year each invoice was
+// issued. A rollup of exportInvoicesCSV()'s same per-invoice figures, not a
+// separate data source — this is a summary export to help with filing, not
+// an authoritative tax document.
+async function exportPndSummary() {
+  const sym = curSym();
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const rows = (await dbAll('invoices')).filter(r => r.uid === uid && r.status !== 'draft');
+  const byYear = {};
+  rows.forEach(inv => {
+    const y = (inv.issueDate || '').slice(0, 4) || 'Unknown';
+    if (!byYear[y]) byYear[y] = { income: 0, credits: 0, count: 0 };
+    byYear[y].income += Number(inv.subtotal) || 0;
+    byYear[y].credits += Number(inv.wht) || 0;
+    byYear[y].count++;
+  });
+  let csv = `Year,Invoices,Assessable income (${sym}),WHT credits (${sym})\n`;
+  Object.keys(byYear).sort().forEach(y => {
+    const r = byYear[y];
+    csv += `${csvCell(y)},${r.count},${r.income},${r.credits}\n`;
+  });
+  const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `sidekick-pnd-summary-${(currentUser&&currentUser.username)||'guest'}-${todayISO()}.csv`;
   a.click();
   toast(t('exported'));
 }
