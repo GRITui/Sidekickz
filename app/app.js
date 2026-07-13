@@ -427,12 +427,12 @@ const STAGES = ['pitch', 'quote', 'invoice', 'paid', 'delivery', 'extend'];
 // chosen to read clearly at a few px each, separate from the semantically-
 // loaded --paid/--due/--overdue vars used elsewhere for invoice status.
 const STAGE_META = {
-  pitch:    {label:'Inquiry',  dot:'#64748B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'Log inquiry',     done:'Inquired'},
-  quote:    {label:'Quote',    dot:'#8B5CF6', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent', skippable:true},
-  invoice:  {label:'Invoice',  dot:'#F59E0B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent', skippable:true},
-  paid:     {label:'Paid',     dot:'#2F9E5B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid'},
-  delivery: {label:'Delivery', dot:'#22554B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark delivered',  done:'Delivered'},
-  extend:   {label:'Renew',    dot:'#0EA5E9', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'Renew',           done:'Renewed'},
+  pitch:    {label:'Inquiry',  dot:'#64748B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'Log inquiry',     done:'Inquired', hint:'Inquiry — a prospective client reached out, not booked yet.'},
+  quote:    {label:'Quote',    dot:'#8B5CF6', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent', skippable:true, hint:'Quote — waiting on a price quote to go out.'},
+  invoice:  {label:'Invoice',  dot:'#F59E0B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent', skippable:true, hint:'Invoice — quote accepted, waiting on the invoice to go out.'},
+  paid:     {label:'Paid',     dot:'#2F9E5B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid', hint:'Paid — invoiced, waiting on payment to come in.'},
+  delivery: {label:'Delivery', dot:'#22554B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark delivered',  done:'Delivered', hint:'Delivery — sessions scheduled, not yet delivered.'},
+  extend:   {label:'Renew',    dot:'#0EA5E9', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'Renew',           done:'Renewed', hint:'Renew — delivered, offer a renewal or wrap up.'},
 };
 const DEFAULT_STAGE_ORDER = STAGES.slice();
 function getStageOrder() {
@@ -515,7 +515,7 @@ const I18N = {
     // nav
     nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Task flow', nav_book:'Calendar', nav_more:'More',
     pipeline_title:'Task flow', workflow_title:'Stage order', pipeline_glance_title:'Task flow at a glance',
-    skip_stage:'Skip', mark_finished:'Finished',
+    skip_stage:'Skip', mark_finished:'Finished', reschedule:'Reschedule', cash_job:'Cash job', active_count:'active',
     // dashboard
     earned_this_month:'Earned this month', net_after_expenses:'net after expenses',
     stat_jobs:'Sessions', stat_avg:'Avg / session', stat_expenses:'Expenses',
@@ -622,7 +622,7 @@ const I18N = {
     // nav
     nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_pipeline:'แผนงาน', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
     pipeline_title:'แผนงาน', workflow_title:'ลำดับขั้นตอน', pipeline_glance_title:'ภาพรวมแผนงาน',
-    skip_stage:'ข้าม', mark_finished:'เสร็จสิ้น',
+    skip_stage:'ข้าม', mark_finished:'เสร็จสิ้น', reschedule:'เลื่อนนัด', cash_job:'จ่ายสด', active_count:'กำลังดำเนินการ',
     // dashboard
     earned_this_month:'รายได้เดือนนี้', net_after_expenses:'สุทธิหลังหักค่าใช้จ่าย',
     stat_jobs:'เซสชัน', stat_avg:'เฉลี่ย/เซสชัน', stat_expenses:'ค่าใช้จ่าย',
@@ -1558,32 +1558,40 @@ function renderPipeline() {
   const activeStage = _pipelineActiveStage;
   const activeMeta = STAGE_META[activeStage] || {};
   const activeItems = groups[activeStage] || [];
+  const activeIdx = order.indexOf(activeStage);
+  const totalActive = order.reduce((s, stg) => s + (groups[stg] || []).length, 0);
+  const countEl = document.getElementById('pl-active-count');
+  if (countEl) countEl.textContent = `${totalActive} ${t('active_count')}`;
 
-  const rail = order.map(stage => {
+  // Horizontal chip rail (was a left-hand vertical rail — see the redesign
+  // handoff's "replaces vertical pipeline") — one stage's cards render at a
+  // time, same as before, just picked from a scrollable row of pill chips.
+  const chips = order.map(stage => {
     const meta = STAGE_META[stage] || {};
     const isActive = stage === activeStage;
-    return `<button type="button" class="pl-rail-item${isActive ? ' active' : ''}" onclick="selectPipelineStage('${stage}')" aria-current="${isActive ? 'true' : 'false'}">
-      <span class="pl-rail-ico">${meta.icon || ''}</span>
-      <span class="pl-rail-label">${htmlEsc(meta.label || stage)}</span>
-      <span class="pl-rail-count">${(groups[stage] || []).length}</span>
+    return `<button type="button" class="pl-chip${isActive ? ' active' : ''}" onclick="selectPipelineStage('${stage}')" aria-current="${isActive ? 'true' : 'false'}">
+      <span>${htmlEsc(meta.label || stage)}</span>
+      <span class="pl-chip-count">${(groups[stage] || []).length}</span>
     </button>`;
   }).join('');
+
+  // Mini-map: a thin marigold-marked strip showing where the selected stage
+  // sits in the whole chain, independent of the chip rail (which can scroll
+  // out of sync on a narrow screen) — always the full, fixed-order chain.
+  const minimap = order.map((stage, i) =>
+    `<span class="pl-minimap-seg${i === activeIdx ? ' active' : i < activeIdx ? ' past' : ''}"></span>`
+  ).join('');
 
   const list = activeItems.length
     ? activeItems.map(j => pipelineCard(j, activeStage)).join('')
     : '<div class="kb-empty">Nothing here yet</div>';
 
-  el.innerHTML = `<div class="pl-layout">
-    <div class="pl-rail" role="tablist" aria-label="Task flow stages">${rail}</div>
-    <div class="pl-main">
-      <div class="pl-main-head">
-        <span class="pl-rail-ico">${activeMeta.icon || ''}</span>
-        <span>${htmlEsc(activeMeta.label || activeStage)}</span>
-        <span class="kb-count">${activeItems.length}</span>
-      </div>
-      <div class="pl-main-body">${list}</div>
-    </div>
-  </div>`;
+  el.innerHTML = `
+    <div class="pl-chip-rail" role="tablist" aria-label="Task flow stages">${chips}</div>
+    <div class="pl-minimap">${minimap}</div>
+    <p class="pl-stage-hint">${htmlEsc(activeMeta.hint || activeMeta.label || activeStage)}</p>
+    <div class="pl-main-body">${list}</div>
+  `;
   if (window.__kbMoved != null) setTimeout(() => { window.__kbMoved = null; }, 500);
 }
 window.renderPipeline = renderPipeline;
@@ -1607,6 +1615,16 @@ function pipelineCard(j, stage) {
   const finish = (!complete && stage === 'extend')
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();finishJobStage(${j.id})">${htmlEsc(t('mark_finished'))}</button>`
     : '';
+  // Cash-job path: paid on the spot, no client-facing quote/invoice needed —
+  // only offered at Inquiry (deciding this up front, before either document
+  // exists, is the natural moment) rather than on every pre-Paid stage,
+  // which would crowd this row with a 5th button.
+  const cashJob = (!complete && stage === 'pitch')
+    ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();cashJobPath(${j.id})">${htmlEsc(t('cash_job'))}</button>`
+    : '';
+  const reschedule = !complete
+    ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();openEditJob(${j.id})">${htmlEsc(t('reschedule'))}</button>`
+    : '';
   const back = canBack
     ? `<button type="button" class="kb-back" aria-label="Move back a stage" title="Move back" onclick="event.stopPropagation();moveJobStageBack(${j.id})">←</button>`
     : '';
@@ -1618,7 +1636,7 @@ function pipelineCard(j, stage) {
       </div>
       <button type="button" class="pl-edit" aria-label="Edit engagement" onclick="event.stopPropagation();openEditJob(${j.id})">✎</button>
     </div>
-    <div class="kb-card-foot">${back}${skip}${finish}${foot}</div>
+    <div class="kb-card-foot">${back}${skip}${finish}${cashJob}${foot}${reschedule}</div>
   </div>`;
 }
 
@@ -1676,6 +1694,30 @@ async function skipJobStage(jobId) {
   await advanceJobStage(jobId);
 }
 window.skipJobStage = skipJobStage;
+
+// Cash-job path: skip both Quote and Invoice in one tap and land straight on
+// Paid — for a session paid in cash on the spot, neither document is ever
+// needed. Still uses the job's own order (jobOrder(j)), same as everywhere
+// else, so a Settings reorder never strands this on a stage that doesn't
+// precede Paid in that particular job's chain.
+async function cashJobPath(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const order = jobOrder(j);
+  const paidIdx = order.indexOf('paid');
+  const curIdx = order.indexOf(jobStage(j));
+  if (paidIdx < 0 || curIdx < 0 || curIdx >= paidIdx) return;
+  logEvent('pipeline_stage_skipped:cash_job');
+  j.stage = order[paidIdx];
+  j.complete = false;
+  j.updatedAt = nowISO();
+  _pipelineActiveStage = j.stage;
+  window.__kbMoved = jobId;
+  await dbPut('jobs', j);
+  await reload();
+  renderPipeline();
+}
+window.cashJobPath = cashJobPath;
 
 // Alt completion for the Extend stage: the engagement is over without a renewal.
 // Distinct from the primary "Mark extended" action so the completed badge (and
