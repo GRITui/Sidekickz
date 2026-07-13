@@ -1,0 +1,119 @@
+name: Temporary live Neon smoke test
+
+# TEMPORARY, throwaway workflow — added to run the backend-migration Phase 1
+# live smoke test from a runner with real internet access (the agent's own
+# sandbox can't reach the live production URL). Manually triggered only;
+# removed again once the test has run. Not part of the app's normal CI.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run live smoke test against production
+        run: |
+          cat > smoke-test.js <<'SCRIPT_EOF'
+          const BASE = 'https://sidekickz.vercel.app';
+          const results = [];
+          function check(name, cond, extra) {
+            results.push({ name, pass: !!cond, extra: extra || '' });
+            console.log((cond ? 'PASS' : 'FAIL') + ' - ' + name + (extra ? ' :: ' + JSON.stringify(extra) : ''));
+          }
+
+          const { subtle } = require('crypto').webcrypto;
+          async function hashPassword(password, salt, iters) {
+            const enc = new TextEncoder();
+            const key = await subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+            const bits = await subtle.deriveBits(
+              { name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode(salt), iterations: iters },
+              key, 256
+            );
+            return [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, '0')).join('');
+          }
+          function randomSalt() {
+            const bytes = require('crypto').randomBytes(16);
+            return bytes.toString('base64url');
+          }
+          function randomUuid() { return require('crypto').randomUUID(); }
+
+          async function api(path, { method = 'GET', body, token } = {}) {
+            const headers = { 'content-type': 'application/json' };
+            if (token) headers.authorization = `Bearer ${token}`;
+            const res = await fetch(BASE + path, { method, headers, body: body != null ? JSON.stringify(body) : undefined });
+            const data = await res.json().catch(() => ({}));
+            return { status: res.status, ok: res.ok, data };
+          }
+
+          (async () => {
+            const stamp = Date.now();
+            const userA = `smoketest-a-${stamp}`;
+            const userB = `smoketest-b-${stamp}`;
+            const PASSWORD = 'SmokeTest-Correct-Horse-1';
+            const ITERS = 100000;
+
+            const saltA = randomSalt();
+            const hashA = await hashPassword(PASSWORD, saltA, ITERS);
+            const regA = await api('/api/auth-register', { method: 'POST', body: { username: userA, salt: saltA, hash: hashA, iters: ITERS, firstName: 'Smoke Test A' } });
+            check('register account A succeeds (201) against the real Neon DB', regA.status === 201 && !!regA.data.token, regA);
+            const tokenA = regA.data.token;
+            const cuidA = regA.data.user && regA.data.user.cuid;
+
+            const loginA = await api('/api/auth-login', { method: 'POST', body: { username: userA, password: PASSWORD } });
+            check('login account A with the correct password succeeds', loginA.status === 200 && !!loginA.data.token, loginA);
+
+            const loginWrong = await api('/api/auth-login', { method: 'POST', body: { username: userA, password: 'wrong-password' } });
+            check('login with a wrong password is rejected (401)', loginWrong.status === 401, loginWrong);
+
+            const whoami = await api('/api/auth-session', { token: tokenA });
+            check('auth-session returns the right account for the token', whoami.status === 200 && whoami.data.user && whoami.data.user.username === userA, whoami);
+
+            const clientCuid = randomUuid();
+            const createClient = await api('/api/clients', { method: 'POST', token: tokenA, body: { cuid: clientCuid, name: 'Smoke Test Client', phone: '0812345678', email: 'smoketest@example.com', tags: '', notes: '', tax_id: '', billing_address: '', member_no: '' } });
+            check('create a client row succeeds (201)', createClient.status === 201, createClient);
+
+            const listAsA = await api('/api/clients', { token: tokenA });
+            check('listing clients as A includes the new row', listAsA.ok && listAsA.data.rows.some(r => r.cuid === clientCuid), listAsA.data && listAsA.data.rows && listAsA.data.rows.length);
+
+            const updateClient = await api(`/api/clients?cuid=${clientCuid}`, { method: 'PUT', token: tokenA, body: { name: 'Smoke Test Client (updated)' } });
+            check('updating the client row succeeds', updateClient.ok && updateClient.data.row && updateClient.data.row.name === 'Smoke Test Client (updated)', updateClient);
+
+            const saltB = randomSalt();
+            const hashB = await hashPassword(PASSWORD, saltB, ITERS);
+            const regB = await api('/api/auth-register', { method: 'POST', body: { username: userB, salt: saltB, hash: hashB, iters: ITERS, firstName: 'Smoke Test B' } });
+            check('register account B succeeds', regB.status === 201 && !!regB.data.token, regB);
+            const tokenB = regB.data.token;
+
+            const listAsB = await api('/api/clients', { token: tokenB });
+            check('account B sees ZERO clients (row-isolation from A)', listAsB.ok && Array.isArray(listAsB.data.rows) && listAsB.data.rows.length === 0, listAsB.data);
+
+            const crossDelete = await api(`/api/clients?cuid=${clientCuid}`, { method: 'DELETE', token: tokenB });
+            check("B cannot delete A's client row (404, not found under B's scope)", crossDelete.status === 404, crossDelete);
+
+            const crossUpdate = await api(`/api/clients?cuid=${clientCuid}`, { method: 'PUT', token: tokenB, body: { name: 'hijacked' } });
+            check("B cannot update A's client row either (404)", crossUpdate.status === 404, crossUpdate);
+
+            const dupReg = await api('/api/auth-register', { method: 'POST', body: { username: userA, salt: saltA, hash: hashA, iters: ITERS, firstName: 'Dup' } });
+            check('registering the same username twice is rejected (409)', dupReg.status === 409, dupReg);
+
+            const noAuth = await api('/api/clients');
+            check('clients endpoint requires auth (401 with no token)', noAuth.status === 401, noAuth);
+
+            const cleanupDelete = await api(`/api/clients?cuid=${clientCuid}`, { method: 'DELETE', token: tokenA });
+            check('cleanup: A can delete its own client row', cleanupDelete.ok, cleanupDelete);
+
+            const listAfterDelete = await api('/api/clients', { token: tokenA });
+            check('cleanup verified: client row is actually gone', listAfterDelete.ok && !listAfterDelete.data.rows.some(r => r.cuid === clientCuid));
+
+            console.log('\n--- accounts created (no delete endpoint exists for `users` — these remain in the DB) ---');
+            console.log('  ' + userA + ' (cuid ' + cuidA + ')');
+            console.log('  ' + userB);
+
+            const failed = results.filter(r => !r.pass);
+            console.log('\n=== SUMMARY: ' + (results.length - failed.length) + '/' + results.length + ' passed ===');
+            if (failed.length) failed.forEach(f => console.log(' - FAIL: ' + f.name + ' :: ' + JSON.stringify(f.extra)));
+            process.exitCode = failed.length ? 1 : 0;
+          })().catch(err => { console.error('FATAL:', err); process.exitCode = 1; });
+          SCRIPT_EOF
+          node smoke-test.js
