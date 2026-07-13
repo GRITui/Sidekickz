@@ -477,8 +477,8 @@ function jobDelivered(j) {
 
 // ─── SESSION PACKAGES (N-session bundles, e.g. "buy 10, track remaining") ──
 // Remaining is always computed live from `jobs` rather than decremented and
-// stored — same pattern as renderPipelineGlance()'s stage counts — so it can
-// never drift out of sync with a session being re-opened/un-delivered later.
+// stored, so it can never drift out of sync with a session being
+// re-opened/un-delivered later.
 function packageUsed(pkg) {
   return jobs.filter(j => j.packageId === pkg.id && jobDelivered(j)).length;
 }
@@ -818,7 +818,6 @@ async function enterApp() {
   set('set-theme', localStorage.getItem(THEME_KEY) || 'dark');
   set('set-lang', settings.lang || 'en');
   set('set-currency', settings.currency || 'THB');
-  set('set-goal', settings.dailyGoal || '');
   set('set-page-size', settings.docPageSize || 'A4');
   set('set-wht', settings.wht != null ? settings.wht : '');
   set('set-vat', settings.vat != null ? settings.vat : '');
@@ -837,6 +836,21 @@ async function enterApp() {
     await saveSetting('paymentChannels', migrated);
   }
   renderPaymentChannels();
+
+  // One-time migration: My Task Goal replaces the old single daily-income
+  // goal with Month/Quarter/Year targets. A daily figure doesn't map to a
+  // period target directly, so this seeds reasonable month/quarter/year
+  // figures from it (30x/90x/365x) rather than silently losing the old
+  // setting; leaves all three at 0 (goal card stays hidden, same as before)
+  // if no daily goal was ever set.
+  if (!settings.goalTargets) {
+    const monthGuess = (Number(settings.dailyGoal) || 0) * 30;
+    await saveSetting('goalTargets', { month: monthGuess, quarter: monthGuess * 3, year: monthGuess * 12 });
+  }
+  if (!settings.goalPeriod) await saveSetting('goalPeriod', 'month');
+  set('set-goal-month', settings.goalTargets.month || '');
+  set('set-goal-quarter', settings.goalTargets.quarter || '');
+  set('set-goal-year', settings.goalTargets.year || '');
 
   // Personal Gym Trainer edition: single fixed work type, no onboarding picker.
   if (!settings.workType) await saveSetting('workType', 'gym');
@@ -1213,7 +1227,6 @@ async function renderHome() {
   setTxt('stat-exp-val', money(exp));
 
   renderGoal();
-  renderPipelineGlance();
   updateMoreNavBadge();
   renderIncomingPipeline();
 }
@@ -1227,11 +1240,15 @@ const INCOMING_PIPELINE_LIMIT = 6;
 function incomingPipelineRowHtml(j) {
   const stage = jobStage(j);
   const meta = STAGE_META[stage] || {};
+  const pkg = j.packageId != null ? packages.find(p => p.id === j.packageId) : null;
+  const subParts = [htmlEsc(meta.label || stage || '')];
+  if (pkg) subParts.push(`${packageUsed(pkg)} ${t('goal_of')} ${htmlEsc(pkg.totalSessions)}`);
+  else if (j.serviceName) subParts.push(htmlEsc(j.serviceName));
   return `<div class="list-row" onclick="openPipelineAt('${stage}')">
       <div class="list-icon" style="background:${meta.dot}22;color:${meta.dot}">${meta.icon || ''}</div>
       <div class="list-main">
         <div class="list-title">${htmlEsc(j.client || 'Client')}</div>
-        <div class="list-sub">${htmlEsc(meta.label || stage || '')}${j.serviceName ? ' · ' + htmlEsc(j.serviceName) : ''}</div>
+        <div class="list-sub">${subParts.join(' · ')}</div>
       </div>
       <div class="list-right"><div class="list-amt tnum">${htmlEsc(money(j.amount))}</div></div>
     </div>`;
@@ -1263,44 +1280,52 @@ function renderIncomingPipeline() {
   el.innerHTML = html;
 }
 window.renderIncomingPipeline = renderIncomingPipeline;
-function renderPipelineGlance() {
-  const wrap = document.getElementById('pipeline-glance');
-  if (!wrap) return;
-  const order = (typeof getStageOrder === 'function') ? getStageOrder() : [];
-  const counts = {};
-  order.forEach(s => counts[s] = 0);
-  jobs.forEach(j => {
-    if (typeof jobComplete === 'function' && jobComplete(j)) return;
-    const s = (typeof jobStage === 'function') ? jobStage(j) : null;
-    if (counts[s] != null) counts[s]++;
-  });
-  wrap.innerHTML = order.map(stage => {
-    const meta = STAGE_META[stage] || {};
-    const n = counts[stage] || 0;
-    return `<button type="button" class="pg-pill" onclick="openPipelineAt('${stage}')">
-      <span class="pg-pill-main">
-        <span class="pg-ico">${meta.icon || ''}</span>
-        <span class="pg-label">${htmlEsc(meta.label || stage)}</span>
-      </span>
-      <span class="pg-count">${n}</span>
-    </button>`;
-  }).join('');
+// My Task Goal — replaces the old single daily-goal card with a Month /
+// Quarter / Year switch, each period tracking its own target and net-income
+// progress. settings.goalTargets = {month, quarter, year} (migrated once
+// from the old single dailyGoal in enterApp()); settings.goalPeriod is the
+// persisted switch selection.
+const GOAL_PERIODS = ['month', 'quarter', 'year'];
+function goalPeriodJobs(period) {
+  return period === 'quarter' ? jobsThisQuarter() : period === 'year' ? jobsThisYear() : jobsThisMonth();
 }
 function renderGoal() {
   const card = document.getElementById('goal-card');
-  const goal = Number(settings.dailyGoal) || 0;
   if (!card) return;
+  const period = GOAL_PERIODS.includes(settings.goalPeriod) ? settings.goalPeriod : 'month';
+  const targets = settings.goalTargets || {};
+  const goal = Number(targets[period]) || 0;
+
+  const switchEl = document.getElementById('goal-period-switch');
+  if (switchEl) {
+    switchEl.querySelectorAll('.goal-period-btn').forEach(b => b.classList.toggle('active', b.dataset.period === period));
+  }
   if (!goal) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  const todayNet = jobsToday().reduce((s,j)=> s + netOf(j), 0);
-  const pct = Math.max(0, Math.min(100, Math.round((todayNet / goal) * 100)));
-  const reached = todayNet >= goal;
+
+  const net = goalPeriodJobs(period).reduce((s, j) => s + netOf(j), 0);
+  const pct = Math.max(0, Math.min(100, Math.round((net / goal) * 100)));
+  const reached = net >= goal;
   const fill = document.getElementById('goal-fill');
   fill.style.width = pct + '%';
   fill.classList.toggle('reached', reached);
   document.getElementById('goal-pct').textContent = pct + '%';
+  document.getElementById('goal-amt-of').textContent = `${money(net)} ${t('goal_of')} ${money(goal)}`;
   document.getElementById('goal-sub').textContent = reached ? t('goal_reached')
-    : `${money(todayNet)} ${t('goal_of')} ${money(goal)}`;
+    : `${t('goal_pace_on')}${money(goal - net)}${t('goal_to_go_' + period)}`;
+}
+async function onGoalPeriodChange(period) {
+  if (!GOAL_PERIODS.includes(period)) return;
+  await saveSetting('goalPeriod', period);
+  renderGoal();
+}
+async function onGoalTargetChange(period, v) {
+  if (!GOAL_PERIODS.includes(period)) return;
+  const n = parseFloat(v);
+  const targets = { ...(settings.goalTargets || {}) };
+  targets[period] = isNaN(n) ? 0 : n;
+  await saveSetting('goalTargets', targets);
+  renderGoal();
 }
 
 // ─── JOBS LIST ────────────────────────────────────────────────────────
@@ -2232,7 +2257,6 @@ async function saveSetting(key, val) {
 }
 async function onCurrencyChange(v) { await saveSetting('currency', v); applyLang(); }
 async function onLangChange(v) { await saveSetting('lang', v === 'th' ? 'th' : 'en'); applyLang(); }
-async function onGoalChange(v) { const n = parseFloat(v); await saveSetting('dailyGoal', isNaN(n)?0:n); renderGoal(); }
 async function onWhtChange(v) { const n = parseFloat(v); await saveSetting('wht', isNaN(n)?null:n); }
 async function onVatChange(v) { const n = parseFloat(v); await saveSetting('vat', isNaN(n)?null:n); }
 async function onPageSizeChange(v) { await saveSetting('docPageSize', v === 'A5' ? 'A5' : 'A4'); }

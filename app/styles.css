@@ -102,26 +102,19 @@ details.settings-section:not([open]) summary.section-title::after{transform:rota
 
 /* Goal progress */
 .goal-card{margin:0 16px 16px;background:var(--card);border:0.5px solid var(--border);border-radius:var(--radius);padding:15px 16px;}
-.goal-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;}
-.goal-label{font-size:13px;font-weight:700;color:var(--text2);}
+.goal-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;}
+.goal-label{font-size:13px;font-weight:700;color:var(--text2);flex-shrink:0;}
+.goal-period-switch{display:flex;background:var(--border);border-radius:999px;padding:2px;flex-shrink:0;}
+.goal-period-btn{border:none;background:none;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:700;
+  color:var(--text3);font-family:inherit;cursor:pointer;}
+.goal-period-btn.active{background:var(--brand);color:#fff;}
+.goal-amt-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;}
+.goal-amt{font-size:13px;color:var(--text3);font-weight:600;}
 .goal-pct{font-size:16px;font-weight:800;color:var(--brand);letter-spacing:-.3px;}
 .goal-track{height:10px;background:var(--border);border-radius:6px;overflow:hidden;}
 .goal-fill{height:100%;width:0;background:var(--brand-bright);border-radius:6px;transition:width .45s ease;}
 .goal-fill.reached{background:var(--paid);}
 .goal-sub{margin-top:8px;font-size:12px;color:var(--text3);}
-
-/* Pipeline at a glance (home) — a fixed grid, never a scroller: every stage is
-   visible at once (no horizontal swipe to discover a hidden column). */
-.pg-row{display:grid;grid-template-columns:repeat(3, 1fr);gap:8px;margin:0 16px 18px;}
-.pg-pill{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0;padding:9px 10px;border-radius:11px;
-  border:0.5px solid var(--border);background:var(--card);color:var(--text);font-family:inherit;
-  font-size:12.5px;font-weight:700;cursor:pointer;}
-.pg-pill:active{background:var(--bg);}
-.pg-pill-main{display:flex;align-items:center;gap:5px;min-width:0;overflow:hidden;}
-.pg-ico{width:15px;height:15px;display:flex;align-items:center;justify-content:center;color:var(--brand);flex-shrink:0;}
-.pg-label{color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.pg-count{background:var(--brand-tint);color:var(--brand);border-radius:999px;min-width:18px;height:18px;flex-shrink:0;
-  padding:0 5px;display:flex;align-items:center;justify-content:center;font-size:11px;}
 
 /* Stat grid */
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 16px 18px;}
