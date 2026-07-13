@@ -66,6 +66,24 @@
     return `<span class="chip ${cls}">${label}</span>`;
   }
 
+  // 50 Tawi certificate tracker (only shown once WHT actually applies to this
+  // invoice) — the certificate is the client's proof of the tax withheld,
+  // needed to claim it as a credit at filing time. Not wired to a real "chase
+  // via LINE" send (that's the LINE Messaging backend, not built here) —
+  // this just tracks RECEIVED/MISSING and days outstanding, and the button
+  // toggles that status locally.
+  function tawiTrackerHtml(inv) {
+    const received = inv.tawiStatus === 'received';
+    const days = inv.issueDate ? Math.max(0, Math.round((Date.now() - new Date(inv.issueDate + 'T12:00:00').getTime()) / 86400000)) : 0;
+    return `<div style="margin:0 20px 10px;background:${received ? 'var(--brand-tint)' : 'var(--marigold-tint)'};border-radius:var(--radius-sm);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <div>
+          <div style="font-size:12px;font-weight:800;color:${received ? 'var(--brand)' : 'var(--marigold-ink)'}">50 Tawi certificate</div>
+          <div style="font-size:11px;color:var(--text3)">${received ? 'Received' : `Missing · ${days} day${days === 1 ? '' : 's'} outstanding`}</div>
+        </div>
+        <button type="button" id="inv-tawi-toggle" style="flex-shrink:0;padding:8px 12px;border:1px solid ${received ? 'var(--brand)' : 'var(--marigold)'};background:none;color:${received ? 'var(--brand)' : 'var(--marigold-ink)'};border-radius:9px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">${received ? 'Mark missing' : 'Mark received'}</button>
+      </div>`;
+  }
+
   // ══════════════════════════════════════════════════════════════════════
   //  LIST SCREEN  →  #invoices-body
   // ══════════════════════════════════════════════════════════════════════
@@ -86,14 +104,36 @@
       return;
     }
 
-    // Outstanding total (client-pays for non-paid invoices)
-    let outstanding = 0;
-    rows.forEach(r => { if (r.status !== 'paid') outstanding += n(r.clientPays); });
+    // Outstanding total (client-pays for non-paid invoices) and Overdue
+    // (the subset of those past their due date) — two separate figures per
+    // the redesign handoff, Overdue in the danger tint since it's the more
+    // urgent of the two, not just a warmer shade of the same number.
+    const todayStr = todayISO();
+    let outstanding = 0, overdue = 0, overdueCount = 0;
+    rows.forEach(r => {
+      if (r.status === 'paid') return;
+      outstanding += n(r.clientPays);
+      if (r.dueDate && r.dueDate < todayStr) { overdue += n(r.clientPays); overdueCount++; }
+    });
+    // Money dashboard (7c): liquid revenue (cash actually received, net of
+    // any WHT withheld) is the headline; withheld WHT is tracked separately
+    // as a tax credit — the two are never added back together, since mixing
+    // "money in hand" with "a credit to claim later" is exactly the
+    // confusion this dashboard exists to avoid.
+    let liquidRevenue = 0, taxCredits = 0;
+    rows.forEach(r => { if (r.status === 'paid') { liquidRevenue += n(r.youReceive); taxCredits += n(r.wht); } });
 
-    const summary = `<div style="background:var(--card);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin:0 0 14px">
-        <div style="font-size:11px;font-weight:600;color:var(--text3)">Outstanding</div>
-        <div class="tnum" style="font-size:22px;font-weight:800;color:var(--text)">${esc(money2(outstanding))}</div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px">${rows.length} invoice${rows.length === 1 ? '' : 's'}</div>
+    const summaryCard = (label, amt, danger) => `<div style="background:var(--card);border:0.5px solid ${danger ? 'var(--overdue)' : 'var(--border)'};border-radius:var(--radius-sm);padding:12px 14px;flex:1;min-width:0">
+        <div style="font-size:11px;font-weight:600;color:${danger ? 'var(--overdue)' : 'var(--text3)'}">${esc(label)}</div>
+        <div class="tnum" style="font-size:18px;font-weight:800;color:${danger ? 'var(--overdue)' : 'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(money2(amt))}</div>
+      </div>`;
+    const summary = `<div style="display:flex;gap:8px;margin:0 0 8px">
+        ${summaryCard('Outstanding', outstanding, false)}
+        ${summaryCard('Overdue' + (overdueCount ? ` (${overdueCount})` : ''), overdue, overdue > 0)}
+      </div>
+      <div style="display:flex;gap:8px;margin:0 0 14px">
+        ${summaryCard('Liquid revenue', liquidRevenue, false)}
+        ${summaryCard('WHT tax credits', taxCredits, false)}
       </div>`;
 
     const list = '<div class="list-card">' + rows.map(r => {
@@ -101,7 +141,7 @@
       return `<div class="list-row" data-inv="${r.id}" tabindex="0" role="button">
         <div class="list-icon">🧾</div>
         <div class="list-main">
-          <div class="list-title">${esc(r.number || 'Invoice')}</div>
+          <div class="list-title tnum">${esc(r.number || 'Invoice')}</div>
           <div class="list-sub">${sub}</div>
         </div>
         <div class="list-right">
@@ -564,6 +604,8 @@
         </div>
         ${inv.notes ? `<div style="padding:0 20px 8px;font-size:12px;color:var(--text3)">${esc(inv.notes)}</div>` : ''}
 
+        ${n(inv.whtPct) > 0 ? tawiTrackerHtml(inv) : ''}
+
         <div id="inv-qr-wrap" style="padding:6px 20px 10px;text-align:center"></div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px 10px">
@@ -588,6 +630,14 @@
     overlay.querySelector('#inv-d-edit').addEventListener('click', () => { closeModal('inv-detail-modal'); openInvoiceEdit(inv); });
     overlay.querySelector('#inv-d-print').addEventListener('click', () => printInvoice(inv));
     overlay.querySelector('#inv-d-close').addEventListener('click', () => closeModal('inv-detail-modal'));
+    const tawiBtn = overlay.querySelector('#inv-tawi-toggle');
+    if (tawiBtn) tawiBtn.addEventListener('click', async () => {
+      inv.tawiStatus = inv.tawiStatus === 'received' ? 'missing' : 'received';
+      inv.updatedAt = nowISO();
+      try { await dbPut(STORE, inv); } catch (er) { console.error(er); }
+      closeModal('inv-detail-modal');
+      openInvoiceDetail(id);
+    });
     overlay.querySelector('#inv-d-status').addEventListener('change', async (e) => {
       inv.status = e.target.value;
       inv.updatedAt = nowISO();

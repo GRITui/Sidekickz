@@ -587,7 +587,7 @@ const I18N = {
     notifications_sub:'Overdue invoices, bookings starting soon, and stuck engagements — only while this app is open or recently open in the background.',
     payment_channels_title:'Payment channels',
     payment_channels_sub:'Add PromptPay, bank transfer, cash, or another method so clients know how to pay you. PromptPay shows a scannable QR on invoices; the rest show as reference text.',
-    add_payment_channel:'+ Add payment channel', export_invoices_csv:'Export invoices CSV',
+    add_payment_channel:'+ Add payment channel', export_invoices_csv:'Export invoices CSV', export_pnd_summary:'Export P.N.D. summary CSV',
     no_payment_channels:'No payment channels yet', no_payment_channels_sub:'Add PromptPay, bank transfer, cash, or another method so clients know how to pay you.',
     business_name_ph:'Defaults to your account name',
     // M1.5 — customers (displayed as "client" throughout — the gym-trainer term)
@@ -694,7 +694,7 @@ const I18N = {
     notifications_sub:'ใบแจ้งหนี้ที่เกินกำหนด การนัดหมายที่ใกล้ถึง และงานที่ค้างในไปป์ไลน์ — แจ้งเตือนเฉพาะขณะเปิดแอปหรือเพิ่งใช้งานล่าสุดเท่านั้น',
     payment_channels_title:'ช่องทางการชำระเงิน',
     payment_channels_sub:'เพิ่มพร้อมเพย์ โอนผ่านธนาคาร เงินสด หรือช่องทางอื่นให้ลูกค้าทราบวิธีชำระเงิน พร้อมเพย์จะแสดง QR ให้สแกนบนใบแจ้งหนี้ ส่วนช่องทางอื่นแสดงเป็นข้อความอ้างอิง',
-    add_payment_channel:'+ เพิ่มช่องทางชำระเงิน', export_invoices_csv:'ส่งออกใบแจ้งหนี้เป็น CSV',
+    add_payment_channel:'+ เพิ่มช่องทางชำระเงิน', export_invoices_csv:'ส่งออกใบแจ้งหนี้เป็น CSV', export_pnd_summary:'ส่งออกสรุป ภ.ง.ด. เป็น CSV',
     no_payment_channels:'ยังไม่มีช่องทางชำระเงิน', no_payment_channels_sub:'เพิ่มพร้อมเพย์ โอนผ่านธนาคาร เงินสด หรือช่องทางอื่นให้ลูกค้าทราบวิธีชำระเงิน',
     business_name_ph:'ค่าเริ่มต้นตามชื่อบัญชีของคุณ',
     // M1.5 — customers
@@ -2677,6 +2677,35 @@ async function exportInvoicesCSV() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `sidekick-invoices-${(currentUser&&currentUser.username)||'guest'}-${todayISO()}.csv`;
+  a.click();
+  toast(t('exported'));
+}
+// Year-end P.N.D. 90/94 filing summary: assessable income (subtotal, before
+// tax) and WHT credits withheld, grouped by the year each invoice was
+// issued. A rollup of exportInvoicesCSV()'s same per-invoice figures, not a
+// separate data source — this is a summary export to help with filing, not
+// an authoritative tax document.
+async function exportPndSummary() {
+  const sym = curSym();
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const rows = (await dbAll('invoices')).filter(r => r.uid === uid && r.status !== 'draft');
+  const byYear = {};
+  rows.forEach(inv => {
+    const y = (inv.issueDate || '').slice(0, 4) || 'Unknown';
+    if (!byYear[y]) byYear[y] = { income: 0, credits: 0, count: 0 };
+    byYear[y].income += Number(inv.subtotal) || 0;
+    byYear[y].credits += Number(inv.wht) || 0;
+    byYear[y].count++;
+  });
+  let csv = `Year,Invoices,Assessable income (${sym}),WHT credits (${sym})\n`;
+  Object.keys(byYear).sort().forEach(y => {
+    const r = byYear[y];
+    csv += `${csvCell(y)},${r.count},${r.income},${r.credits}\n`;
+  });
+  const blob = new Blob(['﻿' + csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `sidekick-pnd-summary-${(currentUser&&currentUser.username)||'guest'}-${todayISO()}.csv`;
   a.click();
   toast(t('exported'));
 }
