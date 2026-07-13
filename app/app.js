@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.10';          // <-> sw.js SW_VERSION 'sidekick-v0.9.10'
+const APP_VERSION = '0.9.19';          // <-> sw.js SW_VERSION 'sidekick-v0.9.19'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -227,12 +227,59 @@ function guestUsername() {
   }
   return u;
 }
+// Guest data lives under one fixed uid ('guest') per device, so a shared
+// device's second guest sees the first guest's data by default — asking
+// "resume or start fresh?" only when there's actually something to choose
+// between (a brand-new guest on this device skips straight through, no
+// extra tap for the common case).
 async function loginGuest() {
+  if (await guestDataExists()) {
+    document.getElementById('s-auth').classList.remove('active');
+    document.getElementById('s-guest-choice').classList.add('active');
+    const nameEl = document.getElementById('guest-choice-name');
+    if (nameEl) nameEl.textContent = guestUsername();
+    return;
+  }
+  await proceedAsGuest();
+}
+function cancelGuestChoice() {
+  document.getElementById('s-guest-choice').classList.remove('active');
+  document.getElementById('s-auth').classList.add('active');
+}
+async function resumeGuest() { await proceedAsGuest(); }
+async function startFreshGuest() {
+  if (!confirm(t('guest_fresh_confirm'))) return;
+  await wipeGuestData();
+  await proceedAsGuest();
+}
+async function proceedAsGuest() {
   isGuest = true;
   currentUser = {id: 0, username: guestUsername()};
   localStorage.setItem(SESSION_KEY, 'guest');
   sessionStorage.setItem('sidekick_post_login_toast', t('welcome') + ', ' + t('guest_name') + '!');
   location.href = './';
+}
+// Cheap existence check reusing BACKUP_STORES (every uid-scoped store) —
+// true the moment any of them holds a guest-uid row.
+async function guestDataExists() {
+  const lists = await Promise.all(BACKUP_STORES.map(s => dbAll(s)));
+  return lists.some(rows => rows.some(r => r.uid === 'guest'));
+}
+// Erases every guest-uid row across every uid-scoped store, guest-prefixed
+// settings, and local usage-analytics events (excluded from BACKUP_STORES
+// since backups never carry it, but it's still this guest's data on this
+// device) — then drops the remembered guest username/counter so the next
+// guestUsername() call mints a genuinely new label, not the erased one's.
+async function wipeGuestData() {
+  for (const s of BACKUP_STORES) {
+    const rows = (await dbAll(s)).filter(r => r.uid === 'guest');
+    for (const row of rows) await dbDel(s, row.id);
+  }
+  const settingsRows = (await dbAll('settings')).filter(r => r.key.startsWith('guest:'));
+  for (const row of settingsRows) await dbDel('settings', row.key);
+  const events = (await dbAll('usageEvents')).filter(r => r.uid === 'guest');
+  for (const row of events) await dbDel('usageEvents', row.id);
+  localStorage.removeItem('sidekick_guest_username');
 }
 
 // ─── LINE LOGIN ───────────────────────────────────────────────────────
@@ -452,13 +499,19 @@ const STAGES = ['pitch', 'quote', 'invoice', 'paid', 'delivery', 'extend'];
 // legend (bookings.js) to show which stage(s) a day's engagements are in —
 // chosen to read clearly at a few px each, separate from the semantically-
 // loaded --paid/--due/--overdue vars used elsewhere for invoice status.
+// label/action/done/hint hold i18n KEYS, not display text — every consumer
+// must resolve them with t() (e.g. t(meta.label)), never read raw. Keeping
+// the field names but swapping their values to keys (rather than adding new
+// labelKey/actionKey fields) is a deliberate minimal-diff choice: every call
+// site already reads `meta.label` etc, so only the read needs a `t()`
+// wrapper, not a field rename everywhere.
 const STAGE_META = {
-  pitch:    {label:'Inquiry',  dot:'#64748B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'Log inquiry',     done:'Inquired', hint:'Inquiry — a prospective client reached out, not booked yet.'},
-  quote:    {label:'Quote',    dot:'#8B5CF6', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent', skippable:true, hint:'Quote — waiting on a price quote to go out.'},
-  invoice:  {label:'Invoice',  dot:'#F59E0B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent', skippable:true, hint:'Invoice — quote accepted, waiting on the invoice to go out.'},
-  paid:     {label:'Paid',     dot:'#2F9E5B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid', hint:'Paid — invoiced, waiting on payment to come in.'},
-  delivery: {label:'Delivery', dot:'#22554B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark delivered',  done:'Delivered', hint:'Delivery — sessions scheduled, not yet delivered.'},
-  extend:   {label:'Renew',    dot:'#0EA5E9', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'Renew',           done:'Renewed', hint:'Renew — delivered, offer a renewal or wrap up.'},
+  pitch:    {label:'stage_pitch_label',    dot:'#64748B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'stage_pitch_action',     done:'stage_pitch_done', hint:'stage_pitch_hint'},
+  quote:    {label:'stage_quote_label',    dot:'#8B5CF6', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'stage_quote_action',       done:'stage_quote_done', skippable:true, hint:'stage_quote_hint'},
+  invoice:  {label:'stage_invoice_label',  dot:'#F59E0B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'stage_invoice_action',      done:'stage_invoice_done', skippable:true, hint:'stage_invoice_hint'},
+  paid:     {label:'stage_paid_label',     dot:'#2F9E5B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'stage_paid_action',         done:'stage_paid_done', hint:'stage_paid_hint'},
+  delivery: {label:'stage_delivery_label', dot:'#22554B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'stage_delivery_action',  done:'stage_delivery_done', hint:'stage_delivery_hint'},
+  extend:   {label:'stage_extend_label',   dot:'#0EA5E9', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'stage_extend_action',           done:'stage_extend_done', hint:'stage_extend_hint'},
 };
 const DEFAULT_STAGE_ORDER = STAGES.slice();
 function getStageOrder() {
@@ -563,6 +616,9 @@ const I18N = {
     // auth
     login:'Log in', create_account:'Create account', email:'Email or username', password:'Password',
     confirm_password:'Confirm password', your_name:'Your name', login_guest:'Continue as guest', login_line:'Continue with LINE',
+    guest_choice_title:'Welcome back', guest_choice_sub:'This device already has guest data saved on it.',
+    guest_resume_btn:'Resume as', guest_fresh_btn:"Start fresh (erase this guest's data)",
+    guest_fresh_confirm:'This permanently deletes all guest data on this device. This cannot be undone. Continue?',
     err_line_login:'LINE login didn’t go through — please try again.',
     err_reserved_username:'That username is reserved. Please choose a different one.',
     err_auth_name_required:'Please enter your name.',
@@ -573,6 +629,19 @@ const I18N = {
     nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Task flow', nav_book:'Calendar', nav_more:'More',
     pipeline_title:'Task flow', workflow_title:'Stage order', pipeline_glance_title:'Task flow at a glance',
     skip_stage:'Skip', mark_finished:'Finished', reschedule:'Reschedule', cash_job:'Cash job', active_count:'active',
+    stage_pitch_label:'Inquiry', stage_pitch_action:'Log inquiry', stage_pitch_done:'Inquired',
+    stage_pitch_hint:'Inquiry — a prospective client reached out, not booked yet.',
+    stage_quote_label:'Quote', stage_quote_action:'Send quote', stage_quote_done:'Quote sent',
+    stage_quote_hint:'Quote — waiting on a price quote to go out.',
+    stage_invoice_label:'Invoice', stage_invoice_action:'Send invoice', stage_invoice_done:'Invoice sent',
+    stage_invoice_hint:'Invoice — quote accepted, waiting on the invoice to go out.',
+    stage_paid_label:'Paid', stage_paid_action:'Mark paid', stage_paid_done:'Paid',
+    stage_paid_hint:'Paid — invoiced, waiting on payment to come in.',
+    stage_delivery_label:'Delivery', stage_delivery_action:'Mark delivered', stage_delivery_done:'Delivered',
+    stage_delivery_hint:'Delivery — sessions scheduled, not yet delivered.',
+    stage_extend_label:'Renew', stage_extend_action:'Renew', stage_extend_done:'Renewed',
+    stage_extend_hint:'Renew — delivered, offer a renewal or wrap up.',
+    pl_nothing_here:'Nothing here yet',
     // dashboard
     earned_this_month:'Earned this month', net_after_expenses:'net after expenses',
     stat_jobs:'Sessions', stat_avg:'Avg / session', stat_expenses:'Expenses',
@@ -610,9 +679,16 @@ const I18N = {
     billable_session:'Billable this session:', focus_pause:'Pause', focus_resume:'Resume', focus_stop:'Stop',
     tracker_deal_title:'Deal tracker', tracker_order_title:'Order tracker', tracker_policy_title:'Policy tracker', tracker_vehicle_title:'Vehicle tracker',
     field_search_brief:'Budget / areas / needs', field_offer_status:'Offer status', field_est_commission:'Est. commission',
+    deals_title:'Deals', no_deals:'No deals yet.', add_deal_btn:'+ Add deal', delete_deal_btn:'Delete deal',
+    field_deal_stage:'Stage', deal_stage_searching:'Searching', deal_stage_viewing:'Viewing', deal_stage_offer:'Offer submitted',
+    deal_stage_negotiating:'Negotiating', deal_stage_closing:'Closing', deal_stage_closed:'Closed',
     field_order_status:'Order status', order_step_received:'Received', order_step_washing:'Washing', order_step_drying:'Drying', order_step_ready:'Ready',
     field_monthly_kg_plan:'Monthly kg plan', field_preferences:'Preferences',
+    current_order_title:'Current order', no_active_order:'No active order.', start_new_order_btn:'+ Start new order',
+    field_order_date:'Order date', field_order_kg:'Weight (kg)', field_order_notes:'Notes',
+    mark_picked_up_btn:'Mark picked up', order_history_title:'Order history', no_order_history:'No completed orders yet.',
     field_policy_name:'Policy name', field_renewal_date:'Renewal date',
+    policies_title:'Policies', no_policies:'No policies yet.', add_policy_btn:'+ Add policy', delete_policy_btn:'Delete policy',
     field_plate:'Plate', field_mileage:'Mileage', field_next_service_due:'Next service due',
     day_singular:'day', day_plural:'days', overdue_for_renewal:'overdue for renewal', until_renewal:'until renewal',
     tracker_mealplan_title:'Meal plan', no_meal_plan_rows:'No meal plan rows yet.', meal_plan_add_ph:'Add a meal plan row…',
@@ -621,6 +697,8 @@ const I18N = {
     field_birthday:'Birthday', field_referred_by:'Referred by',
     lifetime_spend_label:'Lifetime spend', service_history_title:'Service history', no_service_history:'No service history yet.',
     field_service_note:'Service note',
+    vehicles_title:'Vehicles', no_vehicles:'No vehicles yet.', add_vehicle_btn:'+ Add vehicle', delete_vehicle_btn:'Delete vehicle',
+    unnamed_vehicle:'Unnamed vehicle', svc_vehicle_none_option:'No vehicle (general)',
     package_unit_label:'Package unit', package_unit_ph:'Sessions',
     package_unit_sub:'What one unit of a package is called — "Pieces," "Sessions," "Policies," whatever fits.',
     apply_to_package:'Apply to package', of_label:'of', left_label:'left', purchased_label:'Purchased',
@@ -644,6 +722,69 @@ const I18N = {
     mod_docs_p:'Store contracts, receipts and portfolio files — all on your device. Arrives in M2.',
     mod_book_p:'Share a booking link and let clients pick a slot. Arrives in M3.',
     pill_m2:'Ships in M2', pill_m3:'Ships in M3',
+    // M3 — bookings (calendar / day agenda / booking form) — full i18n pass
+    cal_today:'Today', cal_tomorrow:'Tomorrow', cal_yesterday:'Yesterday',
+    wd_mon:'Mon', wd_tue:'Tue', wd_wed:'Wed', wd_thu:'Thu', wd_fri:'Fri', wd_sat:'Sat', wd_sun:'Sun',
+    wd_full_mon:'Monday', wd_full_tue:'Tuesday', wd_full_wed:'Wednesday', wd_full_thu:'Thursday',
+    wd_full_fri:'Friday', wd_full_sat:'Saturday', wd_full_sun:'Sunday',
+    cal_mode_week:'Week', cal_mode_month:'Month',
+    cal_prev_week_aria:'Previous week', cal_next_week_aria:'Next week',
+    cal_prev_month_aria:'Previous month', cal_next_month_aria:'Next month',
+    session_singular:'session', session_plural:'sessions',
+    booking_word:'Booking', no_client_option:'No client',
+    cal_gap_free_word:'Free', cal_gap_add_word:'+ add',
+    cal_nothing_on:'Nothing on {date}', cal_tap_new_session_hint:'Tap “+ New session” above to log work.',
+    cal_schedule_booking_link:'+ Schedule a booking', cal_new_session_btn:'+ New session',
+    cal_tap_day_hint:'Tap a day to see what’s on it.', bookings_load_error:'Could not load bookings.',
+    pipeline_section_label:'Pipeline', bookings_section_label:'Bookings',
+    cal_overlap_msg:'Overlaps by {n} min{suffix}', cal_overlap_buffer_msg:'Overlaps by {n} min{suffix} — need {buf} min buffer',
+    cal_short_gap_msg:'Only {n} min{suffix} — need {buf} min', cal_free_gap_msg:'{n} min free{suffix}',
+    cal_before_ref:'before {ref}', cal_tomorrows_booking_ref:'tomorrow’s "{title}"',
+    new_booking_title:'New booking', edit_booking_title:'Edit booking', booking_form_aria:'Booking form',
+    field_title:'Title', bk_title_ph:'e.g. Portrait shoot',
+    when_header:'When', start_time_label:'Start time', duration_min_label:'Duration (min)',
+    travel_buffer_label:'Travel buffer after (min)', details_header:'Details',
+    location_label:'Location', location_ph:'Address or place (optional)', status_label:'Status',
+    repeat_header:'Repeat', repeat_none_option:'Does not repeat', repeat_weekly_option:'Weekly',
+    repeat_biweekly_option:'Every 2 weeks', repeat_until_label:'Repeat until',
+    save_changes_btn:'Save changes', create_booking_btn:'Create booking', delete_booking_btn:'Delete booking',
+    status_scheduled:'Scheduled', status_done:'Done', status_cancelled:'Cancelled',
+    booking_not_found:'Booking not found', booking_updated:'Booking updated', booking_created:'Booking created',
+    booking_created_series:'Booking created (+{n} more in the series)', booking_save_failed:'Could not save booking',
+    err_pick_date:'Pick a date', err_pick_start_time:'Pick a start time', err_enter_booking_title:'Enter a title for this booking',
+    err_duration_min:'Duration must be at least 1 minute', err_repeat_end_date:'Pick an end date for the repeat',
+    err_repeat_end_after:'Repeat end date must be after the booking date',
+    delete_booking_confirm:'Delete this booking? This cannot be undone.', booking_deleted:'Booking deleted',
+    // M2 — invoices (list / form / detail / print / payment channels) — full i18n pass
+    inv_status_paid:'Paid', inv_status_overdue:'Overdue', inv_status_sent:'Sent', inv_status_draft:'Draft',
+    tawi_cert_title:'50 Tawi certificate', tawi_received:'Received',
+    tawi_missing_template:'Missing · {n} {unit} outstanding',
+    mark_missing_btn:'Mark missing', mark_received_btn:'Mark received',
+    new_invoice_btn:'+ New invoice', no_invoices:'No invoices yet',
+    no_invoices_sub:'Create your first invoice — add line items, snapshot tax, and share a PromptPay QR.',
+    inv_outstanding_label:'Outstanding', liquid_revenue_label:'Liquid revenue', wht_tax_credits_label:'WHT tax credits',
+    new_invoice_title:'New invoice', edit_invoice_title:'Edit invoice', invoice_form_aria:'Invoice form',
+    free_text_option:'— Free text —', add_line_from_service_option:'+ Add line from service…',
+    pick_client_label:'Pick a client', bill_to_name_label:'Bill to (name)', client_company_name_ph:'Client or company name',
+    dates_status_header:'Dates & status', issue_date_label:'Issue date', due_date_label:'Due date',
+    line_items_header:'Line items', add_from_service_label:'Add from service', add_blank_line_btn:'+ Add blank line',
+    tax_deposit_header:'Tax & deposit', wht_pct_label:'WHT %', deposit_pct_label:'Deposit % (upfront, optional)',
+    invoice_notes_label:'Notes (shown on the invoice)', create_invoice_btn:'Create invoice', delete_invoice_btn:'Delete invoice',
+    description_ph:'Description', remove_line_aria:'Remove line', qty_label:'Qty', quantity_aria:'Quantity',
+    rate_label:'Rate', unit_price_aria:'Unit price',
+    subtotal_label:'Subtotal', vat_pct_row:'VAT ({pct}%)', wht_pct_row:'WHT ({pct}%)',
+    client_pays_label:'Client pays', you_receive_label:'You receive', deposit_pct_row:'Deposit ({pct}%)',
+    err_enter_billed_to:'Enter who this invoice is billed to', err_add_line_item:'Add at least one line item',
+    err_invoice_total_zero:'Invoice total must be greater than zero',
+    invoice_updated:'Invoice updated', invoice_created_with_number:'Invoice {number} created', invoice_save_failed:'Could not save invoice',
+    delete_invoice_confirm:'Delete this invoice? This cannot be undone.', invoice_deleted:'Invoice deleted',
+    invoice_not_found:'Invoice not found', invoice_detail_aria:'Invoice detail', invoice_word:'Invoice',
+    tax_id_prefix:'Tax ID: ', issued_label:'Issued', due_label:'Due',
+    edit_btn:'Edit', print_pdf_btn:'Print / PDF', change_status_label:'Change status', close_btn:'Close',
+    add_payment_channel_hint:'Add a payment channel (PromptPay, bank transfer, etc.) in <b>More → Settings</b> to show clients how to pay.',
+    scan_promptpay_label:'Scan with any Thai banking app', promptpay_label:'PromptPay', payment_word:'Payment',
+    bill_to_label:'Bill to', amount_header:'Amount', status_toast_prefix:'Status: ',
+    service_word:'Service', qr_unavailable:'QR unavailable',
     // misc
     welcome:'Welcome', welcome_back:'Welcome back', guest_name:'Guest', logged_out:'Logged out',
     greeting_morning:'Good morning', greeting_afternoon:'Good afternoon', greeting_evening:'Good evening',
@@ -653,6 +794,14 @@ const I18N = {
     restore_failed:'Restore failed — your existing data was kept.',
     backup_reminder_title:'Back up your data', backup_reminder_sub:'Everything lives only on this device. Last backup: {date}.',
     backup_now:'Back up now', remind_later:'Remind me later', backup_snoozed:'Reminder snoozed for 2 weeks', backup_never:'never',
+    cloud_backup_title:'Cloud backup (beta)', cloud_backup_disabled_sub:'Your clients only live on this device. Turn this on to also keep a copy in your account.',
+    cloud_backup_enabled_sub:'Your clients are backed up to your account.', cloud_backup_enable_btn:'Enable cloud backup',
+    cloud_backup_reenter_password:'Enter your password to finish enabling cloud backup:',
+    cloud_backup_failed:'Could not enable cloud backup — try again in a moment.',
+    cloud_backup_upload_failed:'Enabled, but the first backup failed — it will retry next time you save a client.',
+    cloud_backup_enabled_toast:'Cloud backup enabled — {n} client(s) backed up.',
+    cloud_backup_modal_body:'Right now your clients only live on this device — if it\'s lost or reset, they\'re gone. Turn on cloud backup to also keep a copy in your account. You can always do this later from Settings.',
+    cloud_backup_later_btn:'Not now',
     delete_job_confirm:'Delete this job?', name_saved:'Name saved',
     err_id_min3:'Enter an email or username (3+ characters).', err_pw_min4:'Password must be at least 8 characters.',
     err_pw_mismatch:'Passwords do not match.', err_account_exists:'That account already exists on this device.',
@@ -701,15 +850,20 @@ const I18N = {
     insights_cleared:'Usage data cleared', insights_unlocked:'Insights unlocked',
   },
   // Thai — covers the static app chrome (nav, Settings/More menu, dashboard,
-  // forms, toasts) via the same data-i18n/t() keys as `en`. Screens built by
-  // owned modules that don't route their dynamic content through t() yet
-  // (docgen.js/invoices.js generated documents, bookings.js's day-panel text,
-  // tax.js) stay English — out of scope for a "static menu" pass; t() already
-  // falls back to `en` for any key missing here, so nothing breaks either way.
+  // forms, toasts) via the same data-i18n/t() keys as `en`, plus the full
+  // bookings.js (calendar/day agenda/booking form) and invoices.js (list/
+  // form/detail/print/payment channels) UI text added in the M2/M3 i18n
+  // pass above. Screens built by other owned modules that don't route their
+  // dynamic content through t() yet (docgen.js generated documents, tax.js)
+  // stay English — out of scope for this pass; t() already falls back to
+  // `en` for any key missing here, so nothing breaks either way.
   th: {
     // auth
     login:'เข้าสู่ระบบ', create_account:'สร้างบัญชี', email:'อีเมลหรือชื่อผู้ใช้', password:'รหัสผ่าน',
     confirm_password:'ยืนยันรหัสผ่าน', your_name:'ชื่อของคุณ', login_guest:'เข้าใช้แบบผู้เยี่ยมชม', login_line:'เข้าสู่ระบบด้วย LINE',
+    guest_choice_title:'ยินดีต้อนรับกลับมา', guest_choice_sub:'อุปกรณ์นี้มีข้อมูลผู้เยี่ยมชมที่บันทึกไว้อยู่แล้ว',
+    guest_resume_btn:'ดำเนินการต่อในชื่อ', guest_fresh_btn:'เริ่มต้นใหม่ (ลบข้อมูลผู้เยี่ยมชมนี้)',
+    guest_fresh_confirm:'การทำเช่นนี้จะลบข้อมูลผู้เยี่ยมชมทั้งหมดบนอุปกรณ์นี้อย่างถาวร ไม่สามารถย้อนกลับได้ ดำเนินการต่อหรือไม่?',
     err_line_login:'เข้าสู่ระบบด้วย LINE ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
     err_reserved_username:'ชื่อผู้ใช้นี้ถูกสงวนไว้ กรุณาเลือกชื่ออื่น',
     err_auth_name_required:'กรุณากรอกชื่อของคุณ',
@@ -720,6 +874,19 @@ const I18N = {
     nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_pipeline:'แผนงาน', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
     pipeline_title:'แผนงาน', workflow_title:'ลำดับขั้นตอน', pipeline_glance_title:'ภาพรวมแผนงาน',
     skip_stage:'ข้าม', mark_finished:'เสร็จสิ้น', reschedule:'เลื่อนนัด', cash_job:'จ่ายสด', active_count:'กำลังดำเนินการ',
+    stage_pitch_label:'สอบถาม', stage_pitch_action:'บันทึกการสอบถาม', stage_pitch_done:'สอบถามแล้ว',
+    stage_pitch_hint:'สอบถาม — ลูกค้าที่มีแนวโน้มติดต่อมา ยังไม่ได้จองงาน',
+    stage_quote_label:'เสนอราคา', stage_quote_action:'ส่งใบเสนอราคา', stage_quote_done:'ส่งใบเสนอราคาแล้ว',
+    stage_quote_hint:'เสนอราคา — รอส่งใบเสนอราคาให้ลูกค้า',
+    stage_invoice_label:'ใบแจ้งหนี้', stage_invoice_action:'ส่งใบแจ้งหนี้', stage_invoice_done:'ส่งใบแจ้งหนี้แล้ว',
+    stage_invoice_hint:'ใบแจ้งหนี้ — ลูกค้ายอมรับราคาแล้ว รอส่งใบแจ้งหนี้',
+    stage_paid_label:'ชำระแล้ว', stage_paid_action:'บันทึกว่าชำระแล้ว', stage_paid_done:'ชำระแล้ว',
+    stage_paid_hint:'ชำระแล้ว — ส่งใบแจ้งหนี้แล้ว รอรับชำระเงิน',
+    stage_delivery_label:'ส่งมอบ', stage_delivery_action:'บันทึกว่าส่งมอบแล้ว', stage_delivery_done:'ส่งมอบแล้ว',
+    stage_delivery_hint:'ส่งมอบ — นัดหมายแล้ว ยังไม่ได้ส่งมอบงาน',
+    stage_extend_label:'ต่ออายุ', stage_extend_action:'ต่ออายุ', stage_extend_done:'ต่ออายุแล้ว',
+    stage_extend_hint:'ต่ออายุ — ส่งมอบแล้ว เสนอการต่ออายุหรือปิดงาน',
+    pl_nothing_here:'ยังไม่มีงานในขั้นตอนนี้',
     // dashboard
     earned_this_month:'รายได้เดือนนี้', net_after_expenses:'สุทธิหลังหักค่าใช้จ่าย',
     stat_jobs:'เซสชัน', stat_avg:'เฉลี่ย/เซสชัน', stat_expenses:'ค่าใช้จ่าย',
@@ -757,9 +924,16 @@ const I18N = {
     billable_session:'เวลาที่เรียกเก็บเงินได้ในเซสชันนี้:', focus_pause:'หยุดชั่วคราว', focus_resume:'ดำเนินการต่อ', focus_stop:'หยุด',
     tracker_deal_title:'ติดตามดีล', tracker_order_title:'ติดตามออเดอร์', tracker_policy_title:'ติดตามกรมธรรม์', tracker_vehicle_title:'ติดตามรถ',
     field_search_brief:'งบประมาณ / ทำเล / ความต้องการ', field_offer_status:'สถานะข้อเสนอ', field_est_commission:'ค่าคอมมิชชั่นโดยประมาณ',
+    deals_title:'ดีล', no_deals:'ยังไม่มีดีล', add_deal_btn:'+ เพิ่มดีล', delete_deal_btn:'ลบดีล',
+    field_deal_stage:'ขั้นตอน', deal_stage_searching:'กำลังหา', deal_stage_viewing:'กำลังดูสถานที่', deal_stage_offer:'ยื่นข้อเสนอแล้ว',
+    deal_stage_negotiating:'กำลังต่อรอง', deal_stage_closing:'ปิดการขาย', deal_stage_closed:'ปิดแล้ว',
     field_order_status:'สถานะออเดอร์', order_step_received:'รับผ้าแล้ว', order_step_washing:'กำลังซัก', order_step_drying:'กำลังตาก', order_step_ready:'พร้อมรับ',
     field_monthly_kg_plan:'แผนกิโลกรัมต่อเดือน', field_preferences:'ความต้องการเฉพาะ',
+    current_order_title:'ออเดอร์ปัจจุบัน', no_active_order:'ไม่มีออเดอร์ที่กำลังดำเนินการ', start_new_order_btn:'+ เริ่มออเดอร์ใหม่',
+    field_order_date:'วันที่รับออเดอร์', field_order_kg:'น้ำหนัก (กก.)', field_order_notes:'หมายเหตุ',
+    mark_picked_up_btn:'ทำเครื่องหมายว่ารับแล้ว', order_history_title:'ประวัติออเดอร์', no_order_history:'ยังไม่มีออเดอร์ที่เสร็จสมบูรณ์',
     field_policy_name:'ชื่อกรมธรรม์', field_renewal_date:'วันต่ออายุ',
+    policies_title:'กรมธรรม์', no_policies:'ยังไม่มีกรมธรรม์', add_policy_btn:'+ เพิ่มกรมธรรม์', delete_policy_btn:'ลบกรมธรรม์',
     field_plate:'ทะเบียนรถ', field_mileage:'เลขไมล์', field_next_service_due:'กำหนดเข้าศูนย์ครั้งถัดไป',
     day_singular:'วัน', day_plural:'วัน', overdue_for_renewal:'เลยกำหนดต่ออายุ', until_renewal:'ก่อนถึงกำหนดต่ออายุ',
     tracker_mealplan_title:'แผนมื้ออาหาร', no_meal_plan_rows:'ยังไม่มีแผนมื้ออาหาร', meal_plan_add_ph:'เพิ่มรายการแผนมื้ออาหาร…',
@@ -768,6 +942,8 @@ const I18N = {
     field_birthday:'วันเกิด', field_referred_by:'แนะนำโดย',
     lifetime_spend_label:'ยอดใช้จ่ายสะสม', service_history_title:'ประวัติการซ่อมบำรุง', no_service_history:'ยังไม่มีประวัติการซ่อมบำรุง',
     field_service_note:'บันทึกการซ่อมบำรุง',
+    vehicles_title:'ยานพาหนะ', no_vehicles:'ยังไม่มียานพาหนะ', add_vehicle_btn:'+ เพิ่มยานพาหนะ', delete_vehicle_btn:'ลบยานพาหนะ',
+    unnamed_vehicle:'ยานพาหนะไม่มีชื่อ', svc_vehicle_none_option:'ไม่ระบุยานพาหนะ (ทั่วไป)',
     package_unit_label:'หน่วยแพ็กเกจ', package_unit_ph:'เซสชัน',
     package_unit_sub:'หน่วยของแพ็กเกจเรียกว่าอะไร — "ชิ้น" "เซสชัน" "กรมธรรม์" หรือคำที่เหมาะกับธุรกิจของคุณ',
     apply_to_package:'ใช้กับแพ็กเกจ', of_label:'จาก', left_label:'เหลือ', purchased_label:'ซื้อเมื่อ',
@@ -791,6 +967,69 @@ const I18N = {
     mod_docs_p:'เก็บสัญญา ใบเสร็จ และผลงานทั้งหมดไว้ในเครื่องของคุณ เปิดใช้งานใน M2',
     mod_book_p:'แชร์ลิงก์นัดหมายให้ลูกค้าเลือกเวลาได้เอง เปิดใช้งานใน M3',
     pill_m2:'เปิดใช้งานใน M2', pill_m3:'เปิดใช้งานใน M3',
+    // M3 — bookings (calendar / day agenda / booking form) — full i18n pass
+    cal_today:'วันนี้', cal_tomorrow:'พรุ่งนี้', cal_yesterday:'เมื่อวาน',
+    wd_mon:'จ.', wd_tue:'อ.', wd_wed:'พ.', wd_thu:'พฤ.', wd_fri:'ศ.', wd_sat:'ส.', wd_sun:'อา.',
+    wd_full_mon:'วันจันทร์', wd_full_tue:'วันอังคาร', wd_full_wed:'วันพุธ', wd_full_thu:'วันพฤหัสบดี',
+    wd_full_fri:'วันศุกร์', wd_full_sat:'วันเสาร์', wd_full_sun:'วันอาทิตย์',
+    cal_mode_week:'สัปดาห์', cal_mode_month:'เดือน',
+    cal_prev_week_aria:'สัปดาห์ก่อนหน้า', cal_next_week_aria:'สัปดาห์ถัดไป',
+    cal_prev_month_aria:'เดือนก่อนหน้า', cal_next_month_aria:'เดือนถัดไป',
+    session_singular:'เซสชัน', session_plural:'เซสชัน',
+    booking_word:'การจอง', no_client_option:'ไม่มีลูกค้า',
+    cal_gap_free_word:'ว่าง', cal_gap_add_word:'+ เพิ่ม',
+    cal_nothing_on:'ไม่มีนัดหมายวันที่ {date}', cal_tap_new_session_hint:'แตะ “+ เซสชันใหม่” ด้านบนเพื่อบันทึกงาน',
+    cal_schedule_booking_link:'+ กำหนดการจอง', cal_new_session_btn:'+ เซสชันใหม่',
+    cal_tap_day_hint:'แตะวันที่เพื่อดูรายละเอียด', bookings_load_error:'ไม่สามารถโหลดการจองได้',
+    pipeline_section_label:'แผนงาน', bookings_section_label:'การจอง',
+    cal_overlap_msg:'ทับซ้อนกัน {n} นาที{suffix}', cal_overlap_buffer_msg:'ทับซ้อนกัน {n} นาที{suffix} — ต้องการเวลาเผื่อ {buf} นาที',
+    cal_short_gap_msg:'เหลือเพียง {n} นาที{suffix} — ต้องการ {buf} นาที', cal_free_gap_msg:'ว่าง {n} นาที{suffix}',
+    cal_before_ref:'ก่อน {ref}', cal_tomorrows_booking_ref:'“{title}” ของพรุ่งนี้',
+    new_booking_title:'จองใหม่', edit_booking_title:'แก้ไขการจอง', booking_form_aria:'แบบฟอร์มการจอง',
+    field_title:'ชื่อ', bk_title_ph:'เช่น ถ่ายภาพพอร์ตเทรต',
+    when_header:'เวลานัดหมาย', start_time_label:'เวลาเริ่ม', duration_min_label:'ระยะเวลา (นาที)',
+    travel_buffer_label:'เวลาเผื่อเดินทางหลังจบงาน (นาที)', details_header:'รายละเอียด',
+    location_label:'สถานที่', location_ph:'ที่อยู่หรือสถานที่ (ไม่บังคับ)', status_label:'สถานะ',
+    repeat_header:'ทำซ้ำ', repeat_none_option:'ไม่ทำซ้ำ', repeat_weekly_option:'ทุกสัปดาห์',
+    repeat_biweekly_option:'ทุก 2 สัปดาห์', repeat_until_label:'ทำซ้ำจนถึง',
+    save_changes_btn:'บันทึกการเปลี่ยนแปลง', create_booking_btn:'สร้างการจอง', delete_booking_btn:'ลบการจอง',
+    status_scheduled:'กำหนดการแล้ว', status_done:'เสร็จสิ้น', status_cancelled:'ยกเลิกแล้ว',
+    booking_not_found:'ไม่พบการจองนี้', booking_updated:'อัปเดตการจองแล้ว', booking_created:'สร้างการจองแล้ว',
+    booking_created_series:'สร้างการจองแล้ว (+{n} รายการในชุดเดียวกัน)', booking_save_failed:'ไม่สามารถบันทึกการจองได้',
+    err_pick_date:'กรุณาเลือกวันที่', err_pick_start_time:'กรุณาเลือกเวลาเริ่ม', err_enter_booking_title:'กรุณากรอกชื่อสำหรับการจองนี้',
+    err_duration_min:'ระยะเวลาต้องอย่างน้อย 1 นาที', err_repeat_end_date:'กรุณาเลือกวันสิ้นสุดการทำซ้ำ',
+    err_repeat_end_after:'วันสิ้นสุดการทำซ้ำต้องอยู่หลังวันที่จอง',
+    delete_booking_confirm:'ลบการจองนี้หรือไม่? ไม่สามารถย้อนกลับได้', booking_deleted:'ลบการจองแล้ว',
+    // M2 — invoices (list / form / detail / print / payment channels) — full i18n pass
+    inv_status_paid:'ชำระแล้ว', inv_status_overdue:'เกินกำหนด', inv_status_sent:'ส่งแล้ว', inv_status_draft:'ร่าง',
+    tawi_cert_title:'หนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)', tawi_received:'ได้รับแล้ว',
+    tawi_missing_template:'ยังไม่ได้รับ · ค้างอยู่ {n} {unit}',
+    mark_missing_btn:'ทำเครื่องหมายว่ายังไม่ได้รับ', mark_received_btn:'ทำเครื่องหมายว่าได้รับแล้ว',
+    new_invoice_btn:'+ ใบแจ้งหนี้ใหม่', no_invoices:'ยังไม่มีใบแจ้งหนี้',
+    no_invoices_sub:'สร้างใบแจ้งหนี้ใบแรก — เพิ่มรายการ คำนวณภาษี และแชร์ QR พร้อมเพย์ให้ลูกค้า',
+    inv_outstanding_label:'ค้างชำระ', liquid_revenue_label:'รายได้สุทธิที่รับแล้ว', wht_tax_credits_label:'เครดิตภาษีหัก ณ ที่จ่าย',
+    new_invoice_title:'ใบแจ้งหนี้ใหม่', edit_invoice_title:'แก้ไขใบแจ้งหนี้', invoice_form_aria:'แบบฟอร์มใบแจ้งหนี้',
+    free_text_option:'— กรอกข้อความเอง —', add_line_from_service_option:'+ เพิ่มรายการจากบริการ…',
+    pick_client_label:'เลือกลูกค้า', bill_to_name_label:'เรียกเก็บเงินจาก (ชื่อ)', client_company_name_ph:'ชื่อลูกค้าหรือบริษัท',
+    dates_status_header:'วันที่และสถานะ', issue_date_label:'วันที่ออกใบแจ้งหนี้', due_date_label:'วันครบกำหนด',
+    line_items_header:'รายการ', add_from_service_label:'เพิ่มจากบริการ', add_blank_line_btn:'+ เพิ่มรายการว่าง',
+    tax_deposit_header:'ภาษีและเงินมัดจำ', wht_pct_label:'ภาษีหัก ณ ที่จ่าย %', deposit_pct_label:'เงินมัดจำ % (จ่ายล่วงหน้า ไม่บังคับ)',
+    invoice_notes_label:'หมายเหตุ (แสดงบนใบแจ้งหนี้)', create_invoice_btn:'สร้างใบแจ้งหนี้', delete_invoice_btn:'ลบใบแจ้งหนี้',
+    description_ph:'รายละเอียด', remove_line_aria:'ลบรายการนี้', qty_label:'จำนวน', quantity_aria:'จำนวน',
+    rate_label:'ราคาต่อหน่วย', unit_price_aria:'ราคาต่อหน่วย',
+    subtotal_label:'ยอดรวมก่อนภาษี', vat_pct_row:'ภาษีมูลค่าเพิ่ม ({pct}%)', wht_pct_row:'ภาษีหัก ณ ที่จ่าย ({pct}%)',
+    client_pays_label:'ลูกค้าชำระ', you_receive_label:'คุณได้รับ', deposit_pct_row:'เงินมัดจำ ({pct}%)',
+    err_enter_billed_to:'กรุณากรอกชื่อผู้รับใบแจ้งหนี้', err_add_line_item:'กรุณาเพิ่มรายการอย่างน้อยหนึ่งรายการ',
+    err_invoice_total_zero:'ยอดรวมใบแจ้งหนี้ต้องมากกว่าศูนย์',
+    invoice_updated:'อัปเดตใบแจ้งหนี้แล้ว', invoice_created_with_number:'สร้างใบแจ้งหนี้ {number} แล้ว', invoice_save_failed:'ไม่สามารถบันทึกใบแจ้งหนี้ได้',
+    delete_invoice_confirm:'ลบใบแจ้งหนี้นี้หรือไม่? ไม่สามารถย้อนกลับได้', invoice_deleted:'ลบใบแจ้งหนี้แล้ว',
+    invoice_not_found:'ไม่พบใบแจ้งหนี้นี้', invoice_detail_aria:'รายละเอียดใบแจ้งหนี้', invoice_word:'ใบแจ้งหนี้',
+    tax_id_prefix:'เลขประจำตัวผู้เสียภาษี: ', issued_label:'ออกเมื่อ', due_label:'ครบกำหนด',
+    edit_btn:'แก้ไข', print_pdf_btn:'พิมพ์ / PDF', change_status_label:'เปลี่ยนสถานะ', close_btn:'ปิด',
+    add_payment_channel_hint:'เพิ่มช่องทางชำระเงิน (พร้อมเพย์ โอนผ่านธนาคาร ฯลฯ) ใน <b>เพิ่มเติม → ตั้งค่า</b> เพื่อให้ลูกค้าทราบวิธีชำระเงิน',
+    scan_promptpay_label:'สแกนด้วยแอปธนาคารไทยได้ทุกแอป', promptpay_label:'พร้อมเพย์', payment_word:'การชำระเงิน',
+    bill_to_label:'เรียกเก็บเงินจาก', amount_header:'จำนวนเงิน', status_toast_prefix:'สถานะ: ',
+    service_word:'บริการ', qr_unavailable:'ไม่สามารถแสดง QR ได้',
     // misc
     welcome:'ยินดีต้อนรับ', welcome_back:'ยินดีต้อนรับกลับมา', guest_name:'ผู้เยี่ยมชม', logged_out:'ออกจากระบบแล้ว',
     greeting_morning:'สวัสดีตอนเช้า', greeting_afternoon:'สวัสดีตอนบ่าย', greeting_evening:'สวัสดีตอนเย็น',
@@ -800,6 +1039,14 @@ const I18N = {
     restore_failed:'กู้คืนข้อมูลไม่สำเร็จ — ข้อมูลเดิมของคุณยังคงอยู่',
     backup_reminder_title:'สำรองข้อมูลของคุณ', backup_reminder_sub:'ข้อมูลทั้งหมดเก็บอยู่ในเครื่องนี้เท่านั้น สำรองข้อมูลล่าสุด: {date}',
     backup_now:'สำรองข้อมูลตอนนี้', remind_later:'เตือนภายหลัง', backup_snoozed:'เลื่อนการแจ้งเตือนออกไป 2 สัปดาห์', backup_never:'ไม่เคย',
+    cloud_backup_title:'สำรองข้อมูลบนคลาวด์ (ทดลอง)', cloud_backup_disabled_sub:'ข้อมูลลูกค้าของคุณอยู่ในเครื่องนี้เท่านั้น เปิดใช้งานเพื่อเก็บสำเนาไว้ในบัญชีของคุณด้วย',
+    cloud_backup_enabled_sub:'ข้อมูลลูกค้าของคุณสำรองไว้ในบัญชีแล้ว', cloud_backup_enable_btn:'เปิดใช้งานสำรองข้อมูลบนคลาวด์',
+    cloud_backup_reenter_password:'กรอกรหัสผ่านของคุณเพื่อเปิดใช้งานสำรองข้อมูลบนคลาวด์:',
+    cloud_backup_failed:'ไม่สามารถเปิดใช้งานสำรองข้อมูลบนคลาวด์ได้ — ลองใหม่อีกครั้ง',
+    cloud_backup_upload_failed:'เปิดใช้งานแล้ว แต่การสำรองข้อมูลครั้งแรกล้มเหลว — ระบบจะลองใหม่เมื่อคุณบันทึกข้อมูลลูกค้าครั้งถัดไป',
+    cloud_backup_enabled_toast:'เปิดใช้งานสำรองข้อมูลบนคลาวด์แล้ว — สำรองข้อมูลลูกค้า {n} รายการ',
+    cloud_backup_modal_body:'ตอนนี้ข้อมูลลูกค้าของคุณอยู่ในเครื่องนี้เท่านั้น — หากเครื่องหายหรือถูกรีเซ็ต ข้อมูลจะหายไปด้วย เปิดใช้งานสำรองข้อมูลบนคลาวด์เพื่อเก็บสำเนาไว้ในบัญชีของคุณด้วย คุณสามารถทำภายหลังได้จากหน้าตั้งค่า',
+    cloud_backup_later_btn:'ไว้ทีหลัง',
     delete_job_confirm:'ลบเซสชันนี้หรือไม่?', name_saved:'บันทึกชื่อแล้ว',
     err_id_min3:'กรอกอีเมลหรือชื่อผู้ใช้ (อย่างน้อย 3 ตัวอักษร)', err_pw_min4:'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',
     err_pw_mismatch:'รหัสผ่านไม่ตรงกัน', err_account_exists:'มีบัญชีนี้อยู่แล้วในเครื่องนี้',
@@ -1014,6 +1261,7 @@ async function enterApp() {
   }
   await seedServicesIfEmpty();
   switchScreen('home');
+  await maybeShowCloudBackupModal();
 
   // App-triggered OS notifications: only fire while this tab stays open (no
   // backend to check conditions while fully closed — see the comment above
@@ -1164,9 +1412,9 @@ function renderInsights() {
     }
   });
   const stageOrderForDisplay = (typeof getStageOrder === 'function') ? getStageOrder().concat(['extended', 'finished', 'done']) : Object.keys(stageCounts);
-  const STAGE_DISPLAY_LABELS = { done: t('insights_stage_done'), extended: STAGE_META.extend && STAGE_META.extend.done, finished: t('mark_finished') };
+  const STAGE_DISPLAY_LABELS = { done: t('insights_stage_done'), extended: STAGE_META.extend && t(STAGE_META.extend.done), finished: t('mark_finished') };
   const stageRows = stageOrderForDisplay.filter(s => stageCounts[s]).map(s => {
-    const label = STAGE_DISPLAY_LABELS[s] || (STAGE_META[s] && STAGE_META[s].label) || s;
+    const label = STAGE_DISPLAY_LABELS[s] || (STAGE_META[s] && t(STAGE_META[s].label)) || s;
     return {label, count: stageCounts[s]};
   });
 
@@ -1280,6 +1528,104 @@ function updateMoreNavBadge() {
   badge.style.display = backupReminderDue() ? 'flex' : 'none';
 }
 
+// ─── Cloud backup (beta) — Phase 1 of the local-first -> backend migration
+// ─────────────────────────────────────────────────────────────────────────
+// Deliberately opt-in and additive, not a replacement: enabling this mirrors
+// `clients` (only) to the new backend API (window.SidekickBackend, see
+// dataClient.js) alongside the existing local IndexedDB save, which stays
+// authoritative for reads. Guest mode is out of scope on purpose — it stays
+// exactly local-only, zero network calls, matching its whole reason to
+// exist (see the project plan for the full reasoning).
+function renderCloudBackupSection() {
+  const el = document.getElementById('cloud-backup-body');
+  if (!el || typeof SidekickBackend === 'undefined') return;
+  if (isGuest) { el.innerHTML = ''; return; }
+  const enabled = SidekickBackend.isEnabled();
+  el.innerHTML = `<div class="list-card">
+      <div class="list-row" style="cursor:default">
+        <div class="list-icon">${enabled ? '☁️' : '🔒'}</div>
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(t('cloud_backup_title'))}</div>
+          <div class="list-sub">${htmlEsc(enabled ? t('cloud_backup_enabled_sub') : t('cloud_backup_disabled_sub'))}</div>
+        </div>
+      </div>
+      ${enabled ? '' : `<div style="padding:0 16px 14px">
+        <button type="button" onclick="enableCloudBackup()" style="width:100%;padding:10px;border:none;background:var(--brand);color:#fff;border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('cloud_backup_enable_btn'))}</button>
+      </div>`}
+    </div>`;
+}
+// Re-hashes nothing: reuses this account's already-computed {salt, hash,
+// iters} straight from the local `users` record (the same triple
+// hashPassword() produced at local registration/login), so enabling this
+// never needs the user to re-enter their password — mirroring exactly how
+// the one-time local->server migration upload is meant to work (see
+// api/migrate-upload.js's header).
+async function enableCloudBackup() {
+  if (isGuest || typeof SidekickBackend === 'undefined') return;
+  const localUser = await dbGet('users', currentUser.id);
+  if (!localUser) return;
+  let result = await SidekickBackend.register({
+    username: localUser.username, salt: localUser.salt, hash: localUser.hash,
+    iters: localUser.iters, firstName: localUser.firstName,
+  });
+  if (!result.ok && result.status === 409) {
+    // This account already exists server-side (a previous attempt, or
+    // already enabled on another device) — the register endpoint never
+    // sees a plaintext password, so there's no hash to "log in" with here;
+    // ask for it once, this one time, same as any normal login would.
+    const password = prompt(t('cloud_backup_reenter_password'));
+    if (!password) return;
+    result = await SidekickBackend.login({ username: localUser.username, password });
+  }
+  if (!result.ok) { toast(t('cloud_backup_failed')); return; }
+
+  const uid = currentUser.id;
+  const myClients = (await dbAll('clients')).filter(c => c.uid === uid);
+  const upload = await SidekickBackend.migrateUpload(myClients);
+  if (!upload.ok) { toast(t('cloud_backup_upload_failed')); renderCloudBackupSection(); return; }
+  toast(t('cloud_backup_enabled_toast').replace('{n}', upload.data.inserted));
+  renderCloudBackupSection();
+}
+window.enableCloudBackup = enableCloudBackup;
+
+// The migration plan's actual "back up your existing data" first-login
+// prompt — surfaced proactively instead of requiring a user to notice the
+// Settings row above on their own. Shown at most once per local account
+// (localStorage flag, not the server's users.migrated_at — this account may
+// not even exist server-side yet), and never blocks app use either way:
+// "Not now" and "Enable" both dismiss it for good, Settings still has the
+// same row for anyone who changes their mind later.
+async function maybeShowCloudBackupModal() {
+  if (isGuest || typeof SidekickBackend === 'undefined' || SidekickBackend.isEnabled()) return;
+  const seenKey = 'sidekick_backup_modal_seen_' + currentUser.id;
+  if (localStorage.getItem(seenKey)) return;
+  localStorage.setItem(seenKey, '1');
+  const localUser = await dbGet('users', currentUser.id);
+  // LINE-only accounts have no password hash to register with server-side
+  // (Phase 1's register endpoint requires one) — an "Enable" button that's
+  // guaranteed to fail would be worse than no prompt at all.
+  if (!localUser || !localUser.hash) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'cloud-backup-modal';
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-label="${attrEsc(t('cloud_backup_title'))}">
+      <div class="modal-handle"></div>
+      <div class="modal-title">${htmlEsc(t('cloud_backup_title'))}</div>
+      <div class="form-body" style="padding:0 20px 4px">
+        <p style="color:var(--text2);font-size:14px;line-height:1.5;margin:0 0 16px">${htmlEsc(t('cloud_backup_modal_body'))}</p>
+      </div>
+      <button type="button" class="btn-submit" id="cloud-backup-modal-enable">${htmlEsc(t('cloud_backup_enable_btn'))}</button>
+      <button type="button" class="btn-danger" id="cloud-backup-modal-later" style="border-color:var(--border-mid);color:var(--text3)">${htmlEsc(t('cloud_backup_later_btn'))}</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('cloud-backup-modal-later').addEventListener('click', () => overlay.remove());
+  document.getElementById('cloud-backup-modal-enable').addEventListener('click', async () => {
+    overlay.remove();
+    await enableCloudBackup();
+  });
+}
+
 // ─── Notifications (in-app Action Queue + OS-level, app-triggered) ─────
 // App-triggered, not server-triggered: everything here only fires while
 // this tab is open (or freshly backgrounded) — there's no backend, so
@@ -1351,7 +1697,7 @@ async function checkAndFireNotifications() {
     const st = (typeof jobStage === 'function') ? jobStage(j) : '';
     const k = notifyConditionKey('job', j.id, st);
     nextNotified[k] = true;
-    if (!notified[k]) toFire.push({ title: 'Engagement needs attention', body: `${j.client || 'Client'} has been in ${(STAGE_META[st] || {}).label || st} for a few days`, tag: k });
+    if (!notified[k]) toFire.push({ title: 'Engagement needs attention', body: `${j.client || 'Client'} has been in ${t((STAGE_META[st] || {}).label) || st} for a few days`, tag: k });
   });
 
   for (const n of toFire) await showOsNotification(n.title, n.body, n.tag);
@@ -1417,7 +1763,7 @@ function incomingPipelineRowHtml(j) {
   const stage = jobStage(j);
   const meta = STAGE_META[stage] || {};
   const pkg = j.packageId != null ? packages.find(p => p.id === j.packageId) : null;
-  const subParts = [htmlEsc(meta.label || stage || '')];
+  const subParts = [htmlEsc((meta.label && t(meta.label)) || stage || '')];
   if (pkg) subParts.push(`${packageUsed(pkg)} ${t('goal_of')} ${htmlEsc(pkg.totalSessions)}`);
   else if (j.serviceName) subParts.push(htmlEsc(j.serviceName));
   return `<div class="list-row" onclick="openPipelineAt('${stage}')">
@@ -1815,6 +2161,9 @@ async function saveJob() {
   const key = await dbPut('jobs', obj);
   if (obj.id == null) obj.id = key;
   if (isNew) logEvent('session_logged');
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorJobSave(obj).catch(() => {});
+  }
   closeJobModal();
   await reload();
   toast(t('job_saved'));
@@ -1823,7 +2172,12 @@ async function deleteJob() {
   const editId = document.getElementById('j-edit-id').value;
   if (!editId) return;
   if (!confirm(t('delete_job_confirm'))) return;
-  await dbDel('jobs', parseInt(editId));
+  const id = parseInt(editId);
+  const prev = jobs.find(j => j.id === id);
+  await dbDel('jobs', id);
+  if (!isGuest && prev && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorJobDelete(prev.cuid).catch(() => {});
+  }
   closeJobModal();
   await reload();
   toast(t('job_deleted'));
@@ -1871,7 +2225,7 @@ function renderPipeline() {
     const meta = STAGE_META[stage] || {};
     const isActive = stage === activeStage;
     return `<button type="button" class="pl-chip${isActive ? ' active' : ''}" onclick="selectPipelineStage('${stage}')" aria-current="${isActive ? 'true' : 'false'}">
-      <span>${htmlEsc(meta.label || stage)}</span>
+      <span>${htmlEsc((meta.label && t(meta.label)) || stage)}</span>
       <span class="pl-chip-count">${(groups[stage] || []).length}</span>
     </button>`;
   }).join('');
@@ -1885,12 +2239,12 @@ function renderPipeline() {
 
   const list = activeItems.length
     ? activeItems.map(j => pipelineCard(j, activeStage)).join('')
-    : '<div class="kb-empty">Nothing here yet</div>';
+    : `<div class="kb-empty">${htmlEsc(t('pl_nothing_here'))}</div>`;
 
   el.innerHTML = `
     <div class="pl-chip-rail" role="tablist" aria-label="Task flow stages">${chips}</div>
     <div class="pl-minimap">${minimap}</div>
-    <p class="pl-stage-hint">${htmlEsc(activeMeta.hint || activeMeta.label || activeStage)}</p>
+    <p class="pl-stage-hint">${htmlEsc((activeMeta.hint && t(activeMeta.hint)) || (activeMeta.label && t(activeMeta.label)) || activeStage)}</p>
     <div class="pl-main-body">${list}</div>
   `;
   if (window.__kbMoved != null) setTimeout(() => { window.__kbMoved = null; }, 500);
@@ -1906,10 +2260,10 @@ function pipelineCard(j, stage) {
   const order = jobOrder(j);
   const canBack = complete || order.indexOf(jobStage(j)) > 0;
   const enter = (window.__kbMoved === j.id) ? ' kb-enter' : '';
-  const doneLabel = j.outcome === 'finished' ? t('mark_finished') : (meta.done || 'Done');
+  const doneLabel = j.outcome === 'finished' ? t('mark_finished') : (t(meta.done) || 'Done');
   const foot = complete
     ? `<span class="pl-done">✓ ${htmlEsc(doneLabel)}</span>`
-    : `<button type="button" class="pl-action" onclick="event.stopPropagation();pipelineAction(${j.id})">${htmlEsc(meta.action || 'Advance')} →</button>`;
+    : `<button type="button" class="pl-action" onclick="event.stopPropagation();pipelineAction(${j.id})">${htmlEsc(t(meta.action) || 'Advance')} →</button>`;
   const skip = (!complete && meta.skippable)
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();skipJobStage(${j.id})">${htmlEsc(t('skip_stage'))}</button>`
     : '';
@@ -2230,12 +2584,13 @@ function renderWorkflowControls() {
   const order = getStageOrder();
   const rows = order.map((stage, i) => {
     const meta = STAGE_META[stage] || {};
+    const label = (meta.label && t(meta.label)) || stage;
     return `<div class="wf-row">
       <span class="wf-ico">${meta.icon || ''}</span>
-      <span class="wf-name">${htmlEsc(meta.label || stage)}</span>
+      <span class="wf-name">${htmlEsc(label)}</span>
       <span class="wf-btns">
-        <button type="button" class="wf-move" aria-label="Move ${htmlEsc(meta.label || stage)} up" ${i === 0 ? 'disabled' : ''} onclick="wfMove(${i},-1)">↑</button>
-        <button type="button" class="wf-move" aria-label="Move ${htmlEsc(meta.label || stage)} down" ${i === order.length - 1 ? 'disabled' : ''} onclick="wfMove(${i},1)">↓</button>
+        <button type="button" class="wf-move" aria-label="Move ${htmlEsc(label)} up" ${i === 0 ? 'disabled' : ''} onclick="wfMove(${i},-1)">↑</button>
+        <button type="button" class="wf-move" aria-label="Move ${htmlEsc(label)} down" ${i === order.length - 1 ? 'disabled' : ''} onclick="wfMove(${i},1)">↓</button>
       </span>
     </div>`;
   }).join('');
@@ -2504,6 +2859,9 @@ async function savePackage(clientId) {
   const uid = isGuest ? 'guest' : currentUser.id;
   const obj = { uid, clientId, totalSessions: total, price, purchasedDate: date, expiresAt, notes: '', cuid: cuid(), updatedAt: nowISO() };
   await dbAdd('packages', obj);
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorPackageSave(obj).catch(() => {});
+  }
   window.__pkgFormOpen = false;
   await reload();
   renderCustomerPackages(clientId);
@@ -2603,6 +2961,19 @@ function deleteClientListItem(clientId, field, itemId) {
   return dbPut('clients', c).then(() => renderClientPersonaTracker(clientId));
 }
 window.deleteClientListItem = deleteClientListItem;
+// In-place edit of one field on one item within a client-list array (e.g. a
+// single vehicle's plate/mileage) — the array-item counterpart to
+// saveClientField() above, which only handles flat top-level client fields.
+function saveClientListItemField(clientId, field, itemId, key, value) {
+  const c = customers.find(x => x.id === clientId);
+  if (!c) return;
+  const item = (c[field] || []).find(r => r.id === itemId);
+  if (!item) return;
+  item[key] = value;
+  c.updatedAt = nowISO();
+  return dbPut('clients', c);
+}
+window.saveClientListItemField = saveClientListItemField;
 
 function addMealPlanRow(clientId) {
   const input = document.getElementById('meal-plan-new-' + clientId);
@@ -2614,23 +2985,46 @@ function addMealPlanRow(clientId) {
 window.addMealPlanRow = addMealPlanRow;
 
 const VIEWING_VERDICTS = ['interested', 'maybe', 'passed'];
-function addViewingRow(clientId) {
-  const date = (document.getElementById('viewing-date-' + clientId) || {}).value || '';
-  const propertyEl = document.getElementById('viewing-property-' + clientId);
-  const property = ((propertyEl && propertyEl.value) || '').trim();
-  const verdict = (document.getElementById('viewing-verdict-' + clientId) || {}).value || 'interested';
-  if (!property) return;
-  addClientListItem(clientId, 'viewings', { date, property, verdict });
-  if (propertyEl) propertyEl.value = '';
+// A deal's own viewings are a nested array (deal.viewings), not a top-level
+// client-list field — addClientListItem/deleteClientListItem/
+// saveClientListItemField only reach c[field] directly, so these two are the
+// deal-scoped equivalents, following the exact same shape.
+function addDealViewing(clientId, dealId, viewing) {
+  const c = customers.find(x => x.id === clientId);
+  if (!c) return;
+  const deal = (c.deals || []).find(d => d.id === dealId);
+  if (!deal) return;
+  deal.viewings = deal.viewings || [];
+  deal.viewings.push({ id: cuid(), ...viewing });
+  c.updatedAt = nowISO();
+  return dbPut('clients', c).then(() => renderClientPersonaTracker(clientId));
 }
-window.addViewingRow = addViewingRow;
+window.addDealViewing = addDealViewing;
+function deleteDealViewing(clientId, dealId, viewingId) {
+  const c = customers.find(x => x.id === clientId);
+  if (!c) return;
+  const deal = (c.deals || []).find(d => d.id === dealId);
+  if (!deal) return;
+  deal.viewings = (deal.viewings || []).filter(v => v.id !== viewingId);
+  c.updatedAt = nowISO();
+  return dbPut('clients', c).then(() => renderClientPersonaTracker(clientId));
+}
+window.deleteDealViewing = deleteDealViewing;
+function addViewingRowToDeal(clientId, dealId) {
+  const date = (document.getElementById('viewing-date-' + dealId) || {}).value || '';
+  const verdict = (document.getElementById('viewing-verdict-' + dealId) || {}).value || 'interested';
+  addDealViewing(clientId, dealId, { date, verdict });
+}
+window.addViewingRowToDeal = addViewingRowToDeal;
 
 function addServiceHistoryRow(clientId) {
   const date = (document.getElementById('svc-date-' + clientId) || {}).value || '';
   const noteEl = document.getElementById('svc-note-' + clientId);
   const note = ((noteEl && noteEl.value) || '').trim();
   if (!note) return;
-  addClientListItem(clientId, 'serviceHistory', { date, note });
+  const vehicleEl = document.getElementById('svc-vehicle-' + clientId);
+  const vehicleId = (vehicleEl && vehicleEl.value) || null;
+  addClientListItem(clientId, 'serviceHistory', { date, note, vehicleId });
   if (noteEl) noteEl.value = '';
 }
 window.addServiceHistoryRow = addServiceHistoryRow;
@@ -2655,6 +3049,85 @@ function listRowsHtml(rows, clientId, field, lineFn) {
       </div>`).join('') + '</div>';
 }
 
+// A structured deal-stage pipeline, replacing the old flat activity log:
+// each deal is one property pursuit moving through these stages, rather
+// than one undifferentiated list of viewings across however many
+// properties a client happens to be looking at.
+const DEAL_STAGES = ['searching', 'viewing', 'offer', 'negotiating', 'closing', 'closed'];
+// One-time, non-destructive: pre-deal-pipeline real estate clients had a flat
+// searchBrief/offerStatus/estCommission per client plus one undifferentiated
+// viewings[] log (no notion of which property a viewing was for, or where
+// the deal stood). Folds them into a single deal[0] the first time this
+// client's tracker renders: offerStatus becomes the deal's free-text notes
+// (it was already free text, e.g. "Offer submitted, awaiting reply" — not a
+// stage enum, so it can't map onto DEAL_STAGES automatically), estCommission
+// becomes the deal's commission, and every existing viewing carries over
+// as-is (its own `property` field dropped only going forward — see the
+// render side below). searchBrief stays flat: it's the client's general
+// search criteria, not any one deal's.
+function migrateRealEstateDealsIfNeeded(c) {
+  if (Array.isArray(c.deals)) return c.deals;
+  const hadFlatFields = c.offerStatus || c.estCommission || (c.viewings && c.viewings.length);
+  c.deals = hadFlatFields
+    ? [{ id: cuid(), property: '', stage: 'searching', commission: c.estCommission || 0, notes: c.offerStatus || '', viewings: c.viewings || [] }]
+    : [];
+  delete c.offerStatus; delete c.estCommission; delete c.viewings;
+  dbPut('clients', c);
+  return c.deals;
+}
+// One-time, non-destructive: pre-multi-policy insurance clients had one flat
+// policyName/policyRenewalDate per client (no second policy possible).
+// Folds them into policies[0] the first time this client's tracker renders,
+// then drops the flat fields so they can never drift out of sync with the
+// new array — same treatment as migrateGarageVehiclesIfNeeded() below.
+function migrateInsurancePoliciesIfNeeded(c) {
+  if (Array.isArray(c.policies)) return c.policies;
+  const hadFlatFields = c.policyName || c.policyRenewalDate;
+  c.policies = hadFlatFields
+    ? [{ id: cuid(), name: c.policyName || '', renewalDate: c.policyRenewalDate || '' }]
+    : [];
+  delete c.policyName; delete c.policyRenewalDate;
+  dbPut('clients', c);
+  return c.policies;
+}
+// One-time, non-destructive: pre-multi-vehicle garage clients had one flat
+// vehiclePlate/vehicleMileage/nextServiceDate per client instead of a
+// vehicles[] array. Folds them into vehicles[0] the first time this
+// client's tracker renders, then drops the flat fields so they can never
+// drift out of sync with the new array.
+function migrateGarageVehiclesIfNeeded(c) {
+  if (Array.isArray(c.vehicles)) return c.vehicles;
+  const hadFlatFields = c.vehiclePlate || c.vehicleMileage || c.nextServiceDate;
+  c.vehicles = hadFlatFields
+    ? [{ id: cuid(), plate: c.vehiclePlate || '', mileage: c.vehicleMileage || 0, nextServiceDate: c.nextServiceDate || '' }]
+    : [];
+  delete c.vehiclePlate; delete c.vehicleMileage; delete c.nextServiceDate;
+  dbPut('clients', c);
+  return c.vehicles;
+}
+// One-time, non-destructive: pre-order-history laundry clients had one live
+// orderStatus scalar and no history at all. Folds it into a single active
+// order the first time this client's tracker renders, then drops the flat
+// field so it can never drift out of sync with the new array.
+function migrateLaundryOrdersIfNeeded(c) {
+  if (Array.isArray(c.orders)) return c.orders;
+  c.orders = c.orderStatus
+    ? [{ id: cuid(), date: '', kg: 0, status: c.orderStatus, notes: '' }]
+    : [];
+  delete c.orderStatus;
+  dbPut('clients', c);
+  return c.orders;
+}
+// Closes out the current active order into history — a dedicated function
+// (not an inline saveClientListItemField() call) because, unlike every
+// other field edit on an order, this one needs the tracker to actually
+// re-render: the "current order" editor disappears and the order moves
+// into the read-only history list below it.
+async function completeLaundryOrder(clientId, orderId) {
+  await saveClientListItemField(clientId, 'orders', orderId, 'status', 'completed');
+  renderClientPersonaTracker(clientId);
+}
+window.completeLaundryOrder = completeLaundryOrder;
 function renderClientPersonaTracker(clientId) {
   const wrap = document.getElementById('cust-persona-body');
   const titleEl = document.getElementById('cust-persona-title');
@@ -2674,60 +3147,120 @@ function renderClientPersonaTracker(clientId) {
       </div>
     `;
   } else if (bt === 'realestate') {
-    const rows = (c.viewings || []).slice().reverse();
+    const deals = migrateRealEstateDealsIfNeeded(c);
+    const dealHtml = d => {
+      const viewingRows = (d.viewings || []).slice().reverse();
+      return `<div class="list-card" style="margin-bottom:8px;padding:10px 14px">
+          <div class="field"><label>${htmlEsc(t('field_viewing_property'))}</label><input type="text" value="${attrEsc(d.property || '')}" onchange="saveClientListItemField(${clientId},'deals','${d.id}','property',this.value)"></div>
+          <div class="field"><label>${htmlEsc(t('field_deal_stage'))}</label><select onchange="saveClientListItemField(${clientId},'deals','${d.id}','stage',this.value)">
+            ${DEAL_STAGES.map(s => `<option value="${s}"${s === d.stage ? ' selected' : ''}>${htmlEsc(t('deal_stage_' + s))}</option>`).join('')}
+          </select></div>
+          <div class="field"><label>${htmlEsc(t('field_est_commission'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${d.commission || ''}" onchange="saveClientListItemField(${clientId},'deals','${d.id}','commission',parseFloat(this.value)||0)"></div>
+          <div class="field"><label>${htmlEsc(t('field_notes'))}</label><textarea rows="2" onchange="saveClientListItemField(${clientId},'deals','${d.id}','notes',this.value)">${htmlEsc(d.notes || '')}</textarea></div>
+          <div class="section-title" style="font-size:11px;margin:10px 0 6px">${htmlEsc(t('viewing_log_title'))}</div>
+          ${viewingRows.length ? '<div class="list-card" style="margin-bottom:8px">' + viewingRows.map(v => `
+            <div class="list-row" style="cursor:default">
+              <div class="list-main"><div class="list-sub">${v.date ? htmlEsc(fmtDate(v.date)) + ' · ' : ''}${htmlEsc(t('viewing_verdict_' + (v.verdict || 'interested')))}</div></div>
+              <div class="list-right"><button type="button" class="qc-btn" aria-label="Delete" onclick="deleteDealViewing(${clientId},'${d.id}','${v.id}')">✕</button></div>
+            </div>`).join('') + '</div>' : `<div class="pkg-status"><span>${htmlEsc(t('no_viewings'))}</span></div>`}
+          <div class="form-row" style="margin-top:8px">
+            <input type="date" id="viewing-date-${d.id}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+            <select id="viewing-verdict-${d.id}" style="padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+              ${VIEWING_VERDICTS.map(v => `<option value="${v}">${htmlEsc(t('viewing_verdict_' + v))}</option>`).join('')}
+            </select>
+            <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addViewingRowToDeal(${clientId},'${d.id}')">${htmlEsc(t('btn_add'))}</button>
+          </div>
+          <button type="button" class="qc-btn" style="width:100%;margin-top:8px;color:var(--overdue)" onclick="deleteClientListItem(${clientId},'deals','${d.id}')">${htmlEsc(t('delete_deal_btn'))}</button>
+        </div>`;
+    };
     wrap.innerHTML = `
       <div class="field"><label>${htmlEsc(t('field_search_brief'))}</label><textarea rows="2" onchange="saveClientField(${clientId},'searchBrief',this.value)">${htmlEsc(c.searchBrief || '')}</textarea></div>
-      <div class="field"><label>${htmlEsc(t('field_offer_status'))}</label><input type="text" value="${attrEsc(c.offerStatus || '')}" placeholder="e.g. Offer submitted, awaiting reply" onchange="saveClientField(${clientId},'offerStatus',this.value)"></div>
-      <div class="field"><label>${htmlEsc(t('field_est_commission'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.estCommission || ''}" onchange="saveClientField(${clientId},'estCommission',parseFloat(this.value)||0)"></div>
-      <div class="section-title" style="font-size:12px;margin:14px 0 8px">${htmlEsc(t('viewing_log_title'))}</div>
-      ${listRowsHtml(rows, clientId, 'viewings', r => `<div class="list-title">${htmlEsc(r.property)}</div><div class="list-sub">${r.date ? htmlEsc(fmtDate(r.date)) + ' · ' : ''}${htmlEsc(t('viewing_verdict_' + (r.verdict || 'interested')))}</div>`) || `<div class="pkg-status"><span>${htmlEsc(t('no_viewings'))}</span></div>`}
-      <div class="form-row" style="margin-top:8px">
-        <input type="date" id="viewing-date-${clientId}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
-        <select id="viewing-verdict-${clientId}" style="padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
-          ${VIEWING_VERDICTS.map(v => `<option value="${v}">${htmlEsc(t('viewing_verdict_' + v))}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-row" style="margin-top:8px">
-        <input type="text" id="viewing-property-${clientId}" placeholder="${attrEsc(t('field_viewing_property'))}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
-        <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addViewingRow(${clientId})">${htmlEsc(t('btn_add'))}</button>
-      </div>
+      <div class="section-title" style="font-size:12px;margin:14px 0 8px">${htmlEsc(t('deals_title'))}</div>
+      ${deals.length ? deals.map(dealHtml).join('') : `<div class="pkg-status"><span>${htmlEsc(t('no_deals'))}</span></div>`}
+      <button type="button" class="qc-btn" style="width:100%" onclick="addClientListItem(${clientId},'deals',{property:'',stage:'searching',commission:0,notes:'',viewings:[]})">${htmlEsc(t('add_deal_btn'))}</button>
     `;
   } else if (bt === 'laundry') {
+    const orders = migrateLaundryOrdersIfNeeded(c);
     const steps = ['received', 'washing', 'drying', 'ready'];
-    const cur = steps.includes(c.orderStatus) ? c.orderStatus : 'received';
+    const active = orders.find(o => o.status !== 'completed');
+    const history = orders.filter(o => o.status === 'completed').slice().reverse();
     wrap.innerHTML = `
-      <div class="field"><label>${htmlEsc(t('field_order_status'))}</label><select onchange="saveClientField(${clientId},'orderStatus',this.value)">
-        ${steps.map(s => `<option value="${s}"${s === cur ? ' selected' : ''}>${htmlEsc(t('order_step_' + s))}</option>`).join('')}
-      </select></div>
-      <div class="field"><label>${htmlEsc(t('field_monthly_kg_plan'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.monthlyKgPlan || ''}" onchange="saveClientField(${clientId},'monthlyKgPlan',parseFloat(this.value)||0)"></div>
+      <div class="section-title" style="font-size:12px;margin:0 0 8px">${htmlEsc(t('current_order_title'))}</div>
+      ${active ? `
+        <div class="pkg-status">
+          <div class="field"><label>${htmlEsc(t('field_order_status'))}</label><select onchange="saveClientListItemField(${clientId},'orders','${active.id}','status',this.value)">
+            ${steps.map(s => `<option value="${s}"${s === active.status ? ' selected' : ''}>${htmlEsc(t('order_step_' + s))}</option>`).join('')}
+          </select></div>
+          <div class="field"><label>${htmlEsc(t('field_order_date'))}</label><input type="date" value="${attrEsc(active.date || '')}" onchange="saveClientListItemField(${clientId},'orders','${active.id}','date',this.value)"></div>
+          <div class="field"><label>${htmlEsc(t('field_order_kg'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${active.kg || ''}" onchange="saveClientListItemField(${clientId},'orders','${active.id}','kg',parseFloat(this.value)||0)"></div>
+          <div class="field"><label>${htmlEsc(t('field_order_notes'))}</label><textarea rows="2" onchange="saveClientListItemField(${clientId},'orders','${active.id}','notes',this.value)">${htmlEsc(active.notes || '')}</textarea></div>
+        </div>
+        <button type="button" class="qc-btn" style="width:100%;margin-top:8px" onclick="completeLaundryOrder(${clientId},'${active.id}')">${htmlEsc(t('mark_picked_up_btn'))}</button>
+      ` : `
+        <div class="pkg-status"><span>${htmlEsc(t('no_active_order'))}</span></div>
+        <button type="button" class="qc-btn" style="width:100%;margin-top:8px" onclick="addClientListItem(${clientId},'orders',{date:todayISO(),kg:0,status:'received',notes:''})">${htmlEsc(t('start_new_order_btn'))}</button>
+      `}
+      <div class="field" style="margin-top:14px"><label>${htmlEsc(t('field_monthly_kg_plan'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.monthlyKgPlan || ''}" onchange="saveClientField(${clientId},'monthlyKgPlan',parseFloat(this.value)||0)"></div>
       <div class="field"><label>${htmlEsc(t('field_preferences'))}</label><textarea rows="2" onchange="saveClientField(${clientId},'preferences',this.value)">${htmlEsc(c.preferences || '')}</textarea></div>
+      <div class="section-title" style="font-size:12px;margin:14px 0 8px">${htmlEsc(t('order_history_title'))}</div>
+      ${listRowsHtml(history, clientId, 'orders', r => `<div class="list-title">${htmlEsc(fmt(r.kg, 1))} kg</div><div class="list-sub">${[r.date ? htmlEsc(fmtDate(r.date)) : '', htmlEsc(r.notes || '')].filter(Boolean).join(' · ')}</div>`) || `<div class="pkg-status"><span>${htmlEsc(t('no_order_history'))}</span></div>`}
     `;
   } else if (bt === 'insurance') {
-    const days = c.policyRenewalDate ? daysSinceISO(c.policyRenewalDate) : null;
-    const countdown = (days != null)
-      ? (days > 0
-          ? `<div class="pkg-status"><span style="color:var(--overdue)">${days} ${days === 1 ? t('day_singular') : t('day_plural')} ${t('overdue_for_renewal')}</span></div>`
-          : `<div class="pkg-status"><span>${-days} ${-days === 1 ? t('day_singular') : t('day_plural')} ${t('until_renewal')}</span></div>`)
-      : '';
+    const policies = migrateInsurancePoliciesIfNeeded(c);
+    const countdownHtml = p => {
+      if (!p.renewalDate) return '';
+      const days = daysSinceISO(p.renewalDate);
+      return days > 0
+        ? `<div class="pkg-status"><span style="color:var(--overdue)">${days} ${days === 1 ? t('day_singular') : t('day_plural')} ${t('overdue_for_renewal')}</span></div>`
+        : `<div class="pkg-status"><span>${-days} ${-days === 1 ? t('day_singular') : t('day_plural')} ${t('until_renewal')}</span></div>`;
+    };
     wrap.innerHTML = `
-      <div class="field"><label>${htmlEsc(t('field_policy_name'))}</label><input type="text" value="${attrEsc(c.policyName || '')}" onchange="saveClientField(${clientId},'policyName',this.value)"></div>
-      <div class="field"><label>${htmlEsc(t('field_renewal_date'))}</label><input type="date" value="${attrEsc(c.policyRenewalDate || '')}" onchange="saveClientField(${clientId},'policyRenewalDate',this.value)"></div>
-      ${countdown}
+      <div class="section-title" style="font-size:12px;margin:0 0 8px">${htmlEsc(t('policies_title'))}</div>
+      ${policies.length ? policies.map(p => `
+        <div class="list-card" style="margin-bottom:8px;padding:10px 14px">
+          <div class="field"><label>${htmlEsc(t('field_policy_name'))}</label><input type="text" value="${attrEsc(p.name || '')}" onchange="saveClientListItemField(${clientId},'policies','${p.id}','name',this.value)"></div>
+          <div class="field"><label>${htmlEsc(t('field_renewal_date'))}</label><input type="date" value="${attrEsc(p.renewalDate || '')}" onchange="saveClientListItemField(${clientId},'policies','${p.id}','renewalDate',this.value)"></div>
+          ${countdownHtml(p)}
+          <button type="button" class="qc-btn" style="width:100%;margin-top:6px;color:var(--overdue)" onclick="deleteClientListItem(${clientId},'policies','${p.id}')">${htmlEsc(t('delete_policy_btn'))}</button>
+        </div>
+      `).join('') : `<div class="pkg-status"><span>${htmlEsc(t('no_policies'))}</span></div>`}
+      <button type="button" class="qc-btn" style="width:100%;margin-bottom:14px" onclick="addClientListItem(${clientId},'policies',{name:'',renewalDate:''})">${htmlEsc(t('add_policy_btn'))}</button>
+
       <div class="field"><label>${htmlEsc(t('field_birthday'))}</label><input type="date" value="${attrEsc(c.birthday || '')}" onchange="saveClientField(${clientId},'birthday',this.value)"></div>
       <div class="field"><label>${htmlEsc(t('field_referred_by'))}</label><input type="text" value="${attrEsc(c.referredBy || '')}" onchange="saveClientField(${clientId},'referredBy',this.value)"></div>
     `;
   } else if (bt === 'garage') {
+    const vehicles = migrateGarageVehiclesIfNeeded(c);
     const rows = (c.serviceHistory || []).slice().reverse();
     const spend = clientLifetimeSpend(clientId);
+    const vehicleLabel = v => v.plate || t('unnamed_vehicle');
     wrap.innerHTML = `
-      <div class="form-row">
-        <div class="field-half"><label>${htmlEsc(t('field_plate'))}</label><input type="text" value="${attrEsc(c.vehiclePlate || '')}" onchange="saveClientField(${clientId},'vehiclePlate',this.value)"></div>
-        <div class="field-half"><label>${htmlEsc(t('field_mileage'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.vehicleMileage || ''}" onchange="saveClientField(${clientId},'vehicleMileage',parseFloat(this.value)||0)"></div>
-      </div>
-      <div class="field"><label>${htmlEsc(t('field_next_service_due'))}</label><input type="date" value="${attrEsc(c.nextServiceDate || '')}" onchange="saveClientField(${clientId},'nextServiceDate',this.value)"></div>
+      <div class="section-title" style="font-size:12px;margin:0 0 8px">${htmlEsc(t('vehicles_title'))}</div>
+      ${vehicles.length ? vehicles.map(v => `
+        <div class="list-card" style="margin-bottom:8px;padding:10px 14px">
+          <div class="form-row">
+            <div class="field-half"><label>${htmlEsc(t('field_plate'))}</label><input type="text" value="${attrEsc(v.plate || '')}" onchange="saveClientListItemField(${clientId},'vehicles','${v.id}','plate',this.value)"></div>
+            <div class="field-half"><label>${htmlEsc(t('field_mileage'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${v.mileage || ''}" onchange="saveClientListItemField(${clientId},'vehicles','${v.id}','mileage',parseFloat(this.value)||0)"></div>
+          </div>
+          <div class="field"><label>${htmlEsc(t('field_next_service_due'))}</label><input type="date" value="${attrEsc(v.nextServiceDate || '')}" onchange="saveClientListItemField(${clientId},'vehicles','${v.id}','nextServiceDate',this.value)"></div>
+          <button type="button" class="qc-btn" style="width:100%;margin-top:6px;color:var(--overdue)" onclick="deleteClientListItem(${clientId},'vehicles','${v.id}')">${htmlEsc(t('delete_vehicle_btn'))}</button>
+        </div>
+      `).join('') : `<div class="pkg-status"><span>${htmlEsc(t('no_vehicles'))}</span></div>`}
+      <button type="button" class="qc-btn" style="width:100%;margin-bottom:14px" onclick="addClientListItem(${clientId},'vehicles',{plate:'',mileage:0,nextServiceDate:''})">${htmlEsc(t('add_vehicle_btn'))}</button>
+
       <div class="pkg-status-row"><span>${htmlEsc(t('lifetime_spend_label'))}</span><span class="tnum">${htmlEsc(money(spend))}</span></div>
       <div class="section-title" style="font-size:12px;margin:14px 0 8px">${htmlEsc(t('service_history_title'))}</div>
-      ${listRowsHtml(rows, clientId, 'serviceHistory', r => `<div class="list-title">${htmlEsc(r.note)}</div>${r.date ? `<div class="list-sub">${htmlEsc(fmtDate(r.date))}</div>` : ''}`) || `<div class="pkg-status"><span>${htmlEsc(t('no_service_history'))}</span></div>`}
+      ${listRowsHtml(rows, clientId, 'serviceHistory', r => {
+        const v = vehicles.find(x => x.id === r.vehicleId);
+        const sub = [v ? vehicleLabel(v) : '', r.date ? fmtDate(r.date) : ''].filter(Boolean).join(' · ');
+        return `<div class="list-title">${htmlEsc(r.note)}</div>${sub ? `<div class="list-sub">${htmlEsc(sub)}</div>` : ''}`;
+      }) || `<div class="pkg-status"><span>${htmlEsc(t('no_service_history'))}</span></div>`}
+      ${vehicles.length ? `<div class="form-row" style="margin-top:8px">
+        <select id="svc-vehicle-${clientId}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+          <option value="">${htmlEsc(t('svc_vehicle_none_option'))}</option>
+          ${vehicles.map(v => `<option value="${v.id}">${htmlEsc(vehicleLabel(v))}</option>`).join('')}
+        </select>
+      </div>` : ''}
       <div class="form-row" style="margin-top:8px">
         <input type="date" id="svc-date-${clientId}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
       </div>
@@ -2809,13 +3342,12 @@ async function deleteSubTask(jobId, subId) {
 window.deleteSubTask = deleteSubTask;
 
 // ── Milestone payments ──
-// Deliberately doesn't auto-link the created invoice back to the milestone
-// (a real per-milestone invoiceId + auto-draft-on-unlock, as the design
-// brief describes) — that needs hooking into invoices.js's creation flow
-// alongside the *existing* engagement-stage-linking hook, and getting that
-// interaction wrong risks breaking Pipeline stage advancement, a feature
-// that already works today. "Draft invoice" here just opens a pre-filled
-// invoice form the user completes normally.
+// "Draft invoice" opens a pre-filled invoice form; the resulting invoiceId
+// links back onto the milestone via window.onMilestoneInvoiceCreated below
+// only once the invoice is actually saved (cancelling leaves the milestone
+// untouched). Deliberately NOT routed through onEngagementInvoiceCreated /
+// fromJobId — that hook also advances the Pipeline stage, which would be
+// wrong here since a job can have several milestones before it's actually done.
 window.__milestoneFormOpen = false;
 function renderMilestones(jobId) {
   const wrap = document.getElementById('job-milestones-body');
@@ -2833,9 +3365,11 @@ function renderMilestones(jobId) {
           <div class="list-sub">${gate ? htmlEsc(t('unlocks_with')) + htmlEsc(gate.text) : htmlEsc(t('no_gating_subtask'))}</div>
         </div>
         <div class="list-right">
-          ${ready
-            ? `<button type="button" class="qc-btn" style="width:auto;padding:0 10px;color:var(--brand)" onclick="draftMilestoneInvoice(${jobId},'${m.id}')">${htmlEsc(t('draft_invoice'))}</button>`
-            : `<span class="chip" style="background:var(--border);color:var(--text3)">${htmlEsc(t('milestone_locked'))}</span>`}
+          ${m.invoiceId != null
+            ? `<span class="chip" style="background:var(--brand-tint);color:var(--brand)">${htmlEsc(t('time_invoiced_label'))}</span>`
+            : ready
+              ? `<button type="button" class="qc-btn" style="width:auto;padding:0 10px;color:var(--brand)" onclick="draftMilestoneInvoice(${jobId},'${m.id}')">${htmlEsc(t('draft_invoice'))}</button>`
+              : `<span class="chip" style="background:var(--border);color:var(--text3)">${htmlEsc(t('milestone_locked'))}</span>`}
           <button type="button" class="qc-btn" aria-label="Delete milestone" onclick="deleteMilestone(${jobId},'${m.id}')">✕</button>
         </div>
       </div>`;
@@ -2893,9 +3427,26 @@ function draftMilestoneInvoice(jobId, msId) {
     clientId: j.clientId,
     clientName: (client && client.name) || j.client || '',
     lineItems: [{ description: `Milestone (${fmt(m.pct, 0)}%)`, qty: 1, unitPrice: m.amount }],
+    linkMeta: { type: 'milestone', jobId, milestoneId: msId },
   });
 }
 window.draftMilestoneInvoice = draftMilestoneInvoice;
+
+// Called by invoices.js only once a milestone-draft invoice is actually saved
+// (never on cancel) — see invoices.js's file header for the linkMeta contract.
+// Deliberately not routed through onEngagementInvoiceCreated: this must NOT
+// advance the Pipeline stage, since a job can have several milestones before
+// it's actually done.
+window.onMilestoneInvoiceCreated = async function (invoiceId, jobId, milestoneId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !j.milestones) return;
+  const m = j.milestones.find(x => x.id === milestoneId);
+  if (!m) return;
+  m.invoiceId = invoiceId;
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  renderMilestones(jobId);
+};
 
 // ── Time tracking + Focus mode ──
 // One timer per job at a time (job.timerStartedAt, an ISO timestamp — null
@@ -2977,20 +3528,32 @@ function convertUnbilledToInvoice(jobId) {
   const rate = (svc && Number(svc.rate)) || 0;
   const hours = minutes / 60;
   if (typeof openInvoiceForm !== 'function') return;
+  // Snapshot exactly which entries are unbilled right now — marked invoiced
+  // only once the invoice is actually saved (onUnbilledTimeInvoiceCreated
+  // below), not a new entry that might get logged while the form is still open.
+  const entryIds = (j.timeEntries || []).filter(e => !e.invoiced).map(e => e.id);
   openInvoiceForm(null, {
     clientId: j.clientId,
     clientName: (client && client.name) || j.client || '',
     lineItems: [{ description: 'Unbilled time', qty: Math.round(hours * 100) / 100, unitPrice: rate }],
+    linkMeta: { type: 'unbilled', jobId, timeEntryIds: entryIds },
   });
-  // Marking entries invoiced happens only once the invoice is actually saved
-  // would need the same cross-module hook risk noted above for milestones —
-  // instead, mark them right away: the invoice form is already open with
-  // these hours as a line item, so "unbilled" has done its job either way.
-  (j.timeEntries || []).forEach(e => { if (!e.invoiced) e.invoiced = true; });
-  dbPut('jobs', j);
-  renderJobTracking(jobId);
 }
 window.convertUnbilledToInvoice = convertUnbilledToInvoice;
+
+// Called by invoices.js only once an unbilled-time invoice is actually saved
+// (never on cancel) — marks exactly the entries that were unbilled at
+// draft-time, not whatever happens to be unbilled by the time save occurs.
+// Same non-stage-advancing treatment as onMilestoneInvoiceCreated above.
+window.onUnbilledTimeInvoiceCreated = async function (invoiceId, jobId, timeEntryIds) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !j.timeEntries) return;
+  const ids = new Set(timeEntryIds || []);
+  j.timeEntries.forEach(e => { if (ids.has(e.id)) { e.invoiced = true; e.invoiceId = invoiceId; } });
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  renderJobTracking(jobId);
+};
 
 // Focus mode — full-screen Pomodoro view over whichever job's timer is
 // running. Ring is 25:00 counting down purely for pacing; hitting 0 just
@@ -3054,6 +3617,9 @@ async function saveProgressEntry(clientId) {
   const uid = isGuest ? 'guest' : currentUser.id;
   const obj = { uid, clientId, date, weight, notes, cuid: cuid(), updatedAt: nowISO() };
   await dbAdd('progressLogs', obj);
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorProgressLogSave(obj).catch(() => {});
+  }
   window.__progressFormOpen = false;
   await renderCustomerProgress(clientId);
   toast('Entry saved');
@@ -3061,7 +3627,11 @@ async function saveProgressEntry(clientId) {
 window.saveProgressEntry = saveProgressEntry;
 async function deleteProgressEntry(id, clientId) {
   if (!confirm('Delete this entry?')) return;
+  const prev = await dbGet('progressLogs', id);
   await dbDel('progressLogs', id);
+  if (!isGuest && prev && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorProgressLogDelete(prev.cuid).catch(() => {});
+  }
   await renderCustomerProgress(clientId);
 }
 window.deleteProgressEntry = deleteProgressEntry;
@@ -3179,6 +3749,12 @@ async function saveCustomer() {
   const linkToJob = !!window.__pendingJobCustomerLink && !prev;
   const newId = await dbPut('clients', obj);
   if (!prev) logEvent('client_added');
+  // Best-effort cloud-backup mirror (Phase 1 of the local->backend
+  // migration) — local IndexedDB above is already the write of record by
+  // this point, so a mirror failure here never blocks or reverts the save.
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorClientSave(obj).catch(() => {});
+  }
   closeCustomerModal();
   await reload();
   toast(t('customer_saved'));
@@ -3191,7 +3767,11 @@ async function deleteCustomer() {
   const editId = document.getElementById('c-edit-id').value;
   if (!editId) return;
   if (!confirm(t('delete_customer_confirm'))) return;
+  const prev = customers.find(c => c.id === parseInt(editId));
   await dbDel('clients', parseInt(editId));
+  if (prev && prev.cuid && !isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorClientDelete(prev.cuid).catch(() => {});
+  }
   closeCustomerModal();
   await reload();
   toast(t('customer_deleted'));
@@ -3276,6 +3856,9 @@ async function saveService() {
   const linkToJob = !!window.__pendingJobServiceLink && !editId;
   const key = await dbPut('services', obj);
   if (obj.id == null) obj.id = key;
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorServiceSave(obj).catch(() => {});
+  }
   closeServiceModal();
   await reload();
   toast(t('service_saved'));
@@ -3288,7 +3871,12 @@ async function deleteService() {
   const editId = document.getElementById('sv-edit-id').value;
   if (!editId) return;
   if (!confirm(t('delete_service_confirm'))) return;
-  await dbDel('services', parseInt(editId));
+  const id = parseInt(editId);
+  const prev = services.find(s => s.id === id);
+  await dbDel('services', id);
+  if (!isGuest && prev && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorServiceDelete(prev.cuid).catch(() => {});
+  }
   closeServiceModal();
   await reload();
   toast(t('service_deleted'));
@@ -3299,6 +3887,9 @@ async function saveSetting(key, val) {
   settings[key] = val;
   const prefix = isGuest ? 'guest:' : (currentUser.id + ':');
   await dbPut('settings', {key: prefix + key, value: val});
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorSettingSave(prefix + key, val).catch(() => {});
+  }
   if (key === 'lang') localStorage.setItem('sidekick_ui_lang', val);
 }
 async function onCurrencyChange(v) { await saveSetting('currency', v); applyLang(); }
@@ -3648,6 +4239,7 @@ function switchScreen(name) {
   if (name === 'more' && typeof renderWorkflowControls === 'function') renderWorkflowControls();
   if (name === 'more') applyInsightsVisibility();
   if (name === 'more') renderBackupReminder();
+  if (name === 'more') renderCloudBackupSection();
   if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.

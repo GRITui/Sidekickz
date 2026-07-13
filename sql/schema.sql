@@ -54,3 +54,6 @@ create table if not exists bookings (
 -- insert into availability_slots (starts_at, ends_at) values
 --   ('2026-07-16 10:00+07', '2026-07-16 11:00+07'),
 --   ('2026-07-16 14:00+07', '2026-07-16 15:00+07');
+select table_name from information_schema.tables
+where table_schema = 'public'
+order by table_name;

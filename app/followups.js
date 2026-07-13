@@ -137,15 +137,27 @@
   async function applyDecision(key, patch) {
     const uid = uidNow();
     const existing = (await dbAll(STORE)).filter(r => r.uid === uid).find(r => r.key === key);
+    // Existing followup rows predate the cuid convention (this store was
+    // never part of the initial backend-migration slice) — mint one lazily
+    // on first mirror rather than requiring a separate backfill migration,
+    // same as every other cuid-bearing store already does on first save.
+    let record;
     if (existing) {
       Object.assign(existing, patch, { updatedAt: nowISO() });
+      if (!existing.cuid) existing.cuid = cuid();
       await dbPut(STORE, existing);
+      record = existing;
     } else {
-      await dbAdd(STORE, {
+      record = {
         uid, key, dismissed: false, snoozedUntil: '',
         createdAt: nowISO(), updatedAt: nowISO(),
+        cuid: cuid(),
         ...patch,
-      });
+      };
+      await dbAdd(STORE, record);
+    }
+    if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+      SidekickBackend.mirrorFollowupSave(record).catch(() => {});
     }
   }
 

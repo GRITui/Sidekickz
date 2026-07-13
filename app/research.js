@@ -278,7 +278,13 @@
 
   async function deleteArticle(id) {
     if (!confirm('Delete this article? This cannot be undone.')) return;
-    try { await dbDel(STORE, id); } catch (e) { console.error(e); }
+    try {
+      const prev = await dbGet(STORE, id);
+      await dbDel(STORE, id);
+      if (!isGuest && prev && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+        SidekickBackend.mirrorResearchDelete(prev.cuid).catch(() => {});
+      }
+    } catch (e) { console.error(e); }
     closeModal('rs-detail-modal');
     toast('Article deleted');
     renderResearch();
@@ -364,16 +370,19 @@
     const base = { uid, title, category, body, isPremium, updatedAt: nowISO() };
 
     try {
+      const mirrorEnabled = !isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled();
       if (isEdit) {
         base.id = editing.id;
         base.cuid = editing.cuid || cuid();
         base.createdAt = editing.createdAt || nowISO();
         await dbPut(STORE, base);
+        if (mirrorEnabled) SidekickBackend.mirrorResearchSave(base).catch(() => {});
         toast('Article updated');
       } else {
         base.cuid = cuid();
         base.createdAt = nowISO();
         await dbAdd(STORE, base);
+        if (mirrorEnabled) SidekickBackend.mirrorResearchSave(base).catch(() => {});
         toast('Article added');
       }
     } catch (err) {

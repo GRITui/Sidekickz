@@ -9,13 +9,20 @@
  * Public surface (kept on window):
  *   - renderInvoices()          — fills #invoices-body
  *   - openInvoiceForm(fromJobId?, prefillQuote?) — create/edit invoice UI.
- *     prefillQuote (from docgen.js's Quote → Invoice conversion) is
- *     {clientId, clientName, lineItems} and takes priority over fromJobId.
+ *     prefillQuote (from docgen.js's Quote → Invoice conversion, or app.js's
+ *     milestone/unbilled-time draft flows) is {clientId, clientName,
+ *     lineItems, linkMeta?} and takes priority over fromJobId for prefill.
+ *     linkMeta, if present, is {type:'milestone', jobId, milestoneId} or
+ *     {type:'unbilled', jobId, timeEntryIds} — on actual save (not cancel),
+ *     app.js's window.onMilestoneInvoiceCreated/onUnbilledTimeInvoiceCreated
+ *     is called to link the invoice back, WITHOUT touching Pipeline stage
+ *     (that's fromJobId + onEngagementInvoiceCreated's job, kept separate on
+ *     purpose since a job can have several milestones before it's actually done).
  *
  * Everything below is self-contained: EMVCo PromptPay payload builder,
  * CRC16-CCITT-FALSE, and a byte-mode QR encoder (Nayuki-style, reference
- * algorithm) — no CDN, no network, no external libraries. English-only,
- * light-mode, THB via money()/curSym().
+ * algorithm) — no CDN, no network, no external libraries. Fully localized
+ * (en/th) via app.js's t()/I18N; light-mode, THB via money()/curSym().
  */
 'use strict';
 
@@ -54,10 +61,10 @@
 
   function statusChip(status) {
     const map = {
-      paid: ['chip-paid', 'Paid'],
-      overdue: ['chip-overdue', 'Overdue'],
-      sent: ['chip-due', 'Sent'],
-      draft: ['', 'Draft'],
+      paid: ['chip-paid', t('inv_status_paid')],
+      overdue: ['chip-overdue', t('inv_status_overdue')],
+      sent: ['chip-due', t('inv_status_sent')],
+      draft: ['', t('inv_status_draft')],
     };
     const [cls, label] = map[status] || map.draft;
     if (!cls) {
@@ -75,12 +82,13 @@
   function tawiTrackerHtml(inv) {
     const received = inv.tawiStatus === 'received';
     const days = inv.issueDate ? Math.max(0, Math.round((Date.now() - new Date(inv.issueDate + 'T12:00:00').getTime()) / 86400000)) : 0;
+    const unit = days === 1 ? t('day_singular') : t('day_plural');
     return `<div style="margin:0 20px 10px;background:${received ? 'var(--brand-tint)' : 'var(--marigold-tint)'};border-radius:var(--radius-sm);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px">
         <div>
-          <div style="font-size:12px;font-weight:800;color:${received ? 'var(--brand)' : 'var(--marigold-ink)'}">50 Tawi certificate</div>
-          <div style="font-size:11px;color:var(--text3)">${received ? 'Received' : `Missing · ${days} day${days === 1 ? '' : 's'} outstanding`}</div>
+          <div style="font-size:12px;font-weight:800;color:${received ? 'var(--brand)' : 'var(--marigold-ink)'}">${esc(t('tawi_cert_title'))}</div>
+          <div style="font-size:11px;color:var(--text3)">${received ? esc(t('tawi_received')) : esc(t('tawi_missing_template').replace('{n}', days).replace('{unit}', unit))}</div>
         </div>
-        <button type="button" id="inv-tawi-toggle" style="flex-shrink:0;padding:8px 12px;border:1px solid ${received ? 'var(--brand)' : 'var(--marigold)'};background:none;color:${received ? 'var(--brand)' : 'var(--marigold-ink)'};border-radius:9px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">${received ? 'Mark missing' : 'Mark received'}</button>
+        <button type="button" id="inv-tawi-toggle" style="flex-shrink:0;padding:8px 12px;border:1px solid ${received ? 'var(--brand)' : 'var(--marigold)'};background:none;color:${received ? 'var(--brand)' : 'var(--marigold-ink)'};border-radius:9px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">${received ? esc(t('mark_missing_btn')) : esc(t('mark_received_btn'))}</button>
       </div>`;
   }
 
@@ -92,13 +100,13 @@
     if (!el) return;
     const rows = await loadInvoices();
 
-    const btn = `<button type="button" id="inv-new-btn" class="btn-submit" style="width:100%;margin:0 0 16px">+ New invoice</button>`;
+    const btn = `<button type="button" id="inv-new-btn" class="btn-submit" style="width:100%;margin:0 0 16px">${esc(t('new_invoice_btn'))}</button>`;
 
     if (!rows.length) {
       el.innerHTML = btn +
         `<div class="empty"><div class="empty-icon">🧾</div>
-           <p>No invoices yet</p>
-           <span>Create your first invoice — add line items, snapshot tax, and share a PromptPay QR.</span>
+           <p>${esc(t('no_invoices'))}</p>
+           <span>${esc(t('no_invoices_sub'))}</span>
          </div>`;
       document.getElementById('inv-new-btn').addEventListener('click', () => openInvoiceForm());
       return;
@@ -128,20 +136,20 @@
         <div class="tnum" style="font-size:18px;font-weight:800;color:${danger ? 'var(--overdue)' : 'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(money2(amt))}</div>
       </div>`;
     const summary = `<div style="display:flex;gap:8px;margin:0 0 8px">
-        ${summaryCard('Outstanding', outstanding, false)}
-        ${summaryCard('Overdue' + (overdueCount ? ` (${overdueCount})` : ''), overdue, overdue > 0)}
+        ${summaryCard(t('inv_outstanding_label'), outstanding, false)}
+        ${summaryCard(t('inv_status_overdue') + (overdueCount ? ` (${overdueCount})` : ''), overdue, overdue > 0)}
       </div>
       <div style="display:flex;gap:8px;margin:0 0 14px">
-        ${summaryCard('Liquid revenue', liquidRevenue, false)}
-        ${summaryCard('WHT tax credits', taxCredits, false)}
+        ${summaryCard(t('liquid_revenue_label'), liquidRevenue, false)}
+        ${summaryCard(t('wht_tax_credits_label'), taxCredits, false)}
       </div>`;
 
     const list = '<div class="list-card">' + rows.map(r => {
-      const sub = [esc(r.clientName || 'No client'), esc(fmtInvDate(r.issueDate))].filter(Boolean).join(' · ');
+      const sub = [esc(r.clientName || t('no_client_option')), esc(fmtInvDate(r.issueDate))].filter(Boolean).join(' · ');
       return `<div class="list-row" data-inv="${r.id}" tabindex="0" role="button">
         <div class="list-icon">🧾</div>
         <div class="list-main">
-          <div class="list-title tnum">${esc(r.number || 'Invoice')}</div>
+          <div class="list-title tnum">${esc(r.number || t('invoice_word'))}</div>
           <div class="list-sub">${sub}</div>
         </div>
         <div class="list-right">
@@ -176,11 +184,13 @@
   let lines = [];        // working line items: {description, qty, unitPrice}
   let editing = null;    // full record being edited, or null on create
   let formFromJobId = null; // pipeline session this form was opened from (for engagement linking)
+  let formLinkMeta = null;  // milestone/unbilled-time link to apply on actual save (see file header)
 
   function openInvoiceForm(fromJobId, prefillQuote) {
     editing = null;
     lines = [];
     formFromJobId = (fromJobId != null) ? fromJobId : null;
+    formLinkMeta = (prefillQuote && prefillQuote.linkMeta) ? prefillQuote.linkMeta : null;
 
     let preClientId = '', preClientName = '';
     if (prefillQuote) {
@@ -198,7 +208,7 @@
         preClientName = j.client || '';
         if (j.clientId != null) preClientId = j.clientId;
         lines.push({
-          description: j.serviceName || 'Service',
+          description: j.serviceName || t('service_word'),
           qty: Math.max(1, n(j.count) || 1),
           unitPrice: n(j.amount),
         });
@@ -207,8 +217,8 @@
     if (!lines.length) lines.push({ description: '', qty: 1, unitPrice: 0 });
 
     buildFormModal({
-      title: 'New invoice',
-      number: '(assigned on save)',
+      title: t('new_invoice_title'),
+      number: t('assigned_on_save'),
       clientId: preClientId,
       clientName: preClientName,
       clientTaxId: '',
@@ -227,11 +237,12 @@
   function openInvoiceEdit(inv) {
     editing = inv;
     formFromJobId = null;
+    formLinkMeta = null;
     lines = (inv.lineItems && inv.lineItems.length)
       ? inv.lineItems.map(li => ({ description: li.description || '', qty: n(li.qty), unitPrice: n(li.unitPrice) }))
       : [{ description: '', qty: 1, unitPrice: 0 }];
     buildFormModal({
-      title: 'Edit invoice',
+      title: t('edit_invoice_title'),
       number: inv.number || '',
       clientId: inv.clientId != null ? inv.clientId : '',
       clientName: inv.clientName || '',
@@ -258,77 +269,78 @@
     overlay.className = 'modal-overlay';
     overlay.id = 'inv-form-modal';
 
-    const custOpts = `<option value="">— Free text —</option>` +
+    const custOpts = `<option value="">${esc(t('free_text_option'))}</option>` +
       (typeof customers !== 'undefined' ? customers : []).map(c =>
         `<option value="${c.id}"${String(c.id) === String(v.clientId) ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
 
-    const svcOpts = `<option value="">+ Add line from service…</option>` +
+    const svcOpts = `<option value="">${esc(t('add_line_from_service_option'))}</option>` +
       (typeof services !== 'undefined' ? services : []).map(s =>
         `<option value="${s.id}">${esc(s.name)} · ${esc(money(s.rate))}</option>`).join('');
 
+    const INV_STATUS_LABEL_KEYS = { draft: 'inv_status_draft', sent: 'inv_status_sent', paid: 'inv_status_paid', overdue: 'inv_status_overdue' };
     const statusOpts = ['draft', 'sent', 'paid', 'overdue'].map(s =>
-      `<option value="${s}"${s === v.status ? ' selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`).join('');
+      `<option value="${s}"${s === v.status ? ' selected' : ''}>${esc(t(INV_STATUS_LABEL_KEYS[s]))}</option>`).join('');
 
     overlay.innerHTML = `
-      <div class="modal" role="dialog" aria-modal="true" aria-label="Invoice form">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="${aesc(t('invoice_form_aria'))}">
         <div class="modal-handle"></div>
         <div class="modal-title">${esc(v.title)} <span style="font-size:12px;font-weight:600;color:var(--text3)">${esc(v.number)}</span></div>
         <div class="form-body">
-          <div class="form-header">Client</div>
+          <div class="form-header">${esc(t('field_customer'))}</div>
           <div class="field">
-            <label for="inv-cust">Pick a client</label>
+            <label for="inv-cust">${esc(t('pick_client_label'))}</label>
             <select id="inv-cust">${custOpts}</select>
           </div>
           <div class="field">
-            <label for="inv-cname">Bill to (name)</label>
-            <input type="text" id="inv-cname" value="${aesc(v.clientName)}" placeholder="Client or company name">
+            <label for="inv-cname">${esc(t('bill_to_name_label'))}</label>
+            <input type="text" id="inv-cname" value="${aesc(v.clientName)}" placeholder="${aesc(t('client_company_name_ph'))}">
           </div>
           <div class="field-row" style="display:flex">
-            <div class="field-half"><label for="inv-ctax">Tax ID</label><input type="text" id="inv-ctax" value="${aesc(v.clientTaxId)}"></div>
-            <div class="field-half"><label for="inv-caddr">Address</label><input type="text" id="inv-caddr" value="${aesc(v.clientAddress)}"></div>
+            <div class="field-half"><label for="inv-ctax">${esc(t('field_taxid'))}</label><input type="text" id="inv-ctax" value="${aesc(v.clientTaxId)}"></div>
+            <div class="field-half"><label for="inv-caddr">${esc(t('business_address'))}</label><input type="text" id="inv-caddr" value="${aesc(v.clientAddress)}"></div>
           </div>
 
-          <div class="form-header">Dates &amp; status</div>
+          <div class="form-header">${esc(t('dates_status_header'))}</div>
           <div class="field-row" style="display:flex">
-            <div class="field-half"><label for="inv-issue">Issue date</label><input type="date" id="inv-issue" value="${aesc(v.issueDate)}"></div>
-            <div class="field-half"><label for="inv-due">Due date</label><input type="date" id="inv-due" value="${aesc(v.dueDate)}"></div>
+            <div class="field-half"><label for="inv-issue">${esc(t('issue_date_label'))}</label><input type="date" id="inv-issue" value="${aesc(v.issueDate)}"></div>
+            <div class="field-half"><label for="inv-due">${esc(t('due_date_label'))}</label><input type="date" id="inv-due" value="${aesc(v.dueDate)}"></div>
           </div>
           <div class="field">
-            <label for="inv-status">Status</label>
+            <label for="inv-status">${esc(t('status_label'))}</label>
             <select id="inv-status">${statusOpts}</select>
           </div>
 
-          <div class="form-header">Line items</div>
+          <div class="form-header">${esc(t('line_items_header'))}</div>
           <div id="inv-lines"></div>
           <div class="field">
-            <label for="inv-svc">Add from service</label>
+            <label for="inv-svc">${esc(t('add_from_service_label'))}</label>
             <select id="inv-svc">${svcOpts}</select>
           </div>
           <div style="padding:10px 16px">
-            <button type="button" id="inv-add-line" style="width:100%;padding:11px;background:var(--brand-tint);color:var(--brand);border:none;border-radius:9px;font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">+ Add blank line</button>
+            <button type="button" id="inv-add-line" style="width:100%;padding:11px;background:var(--brand-tint);color:var(--brand);border:none;border-radius:9px;font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">${esc(t('add_blank_line_btn'))}</button>
           </div>
 
-          <div class="form-header">Tax &amp; deposit</div>
+          <div class="form-header">${esc(t('tax_deposit_header'))}</div>
           <div class="field-row" style="display:flex">
-            <div class="field-half"><label for="inv-vat">VAT %</label><input type="number" id="inv-vat" class="tnum" inputmode="decimal" min="0" step="0.01" value="${aesc(v.vatPct)}"></div>
-            <div class="field-half"><label for="inv-wht">WHT %</label><input type="number" id="inv-wht" class="tnum" inputmode="decimal" min="0" step="0.01" value="${aesc(v.whtPct)}"></div>
+            <div class="field-half"><label for="inv-vat">${esc(t('vat'))}</label><input type="number" id="inv-vat" class="tnum" inputmode="decimal" min="0" step="0.01" value="${aesc(v.vatPct)}"></div>
+            <div class="field-half"><label for="inv-wht">${esc(t('wht_pct_label'))}</label><input type="number" id="inv-wht" class="tnum" inputmode="decimal" min="0" step="0.01" value="${aesc(v.whtPct)}"></div>
           </div>
           <div class="field">
-            <label for="inv-deposit">Deposit % (upfront, optional)</label>
+            <label for="inv-deposit">${esc(t('deposit_pct_label'))}</label>
             <input type="number" id="inv-deposit" class="tnum" inputmode="decimal" min="0" max="100" step="1" value="${aesc(v.depositPct)}">
           </div>
 
-          <div class="form-header">Notes</div>
+          <div class="form-header">${esc(t('field_notes'))}</div>
           <div class="field">
-            <label for="inv-notes">Notes (shown on the invoice)</label>
+            <label for="inv-notes">${esc(t('invoice_notes_label'))}</label>
             <textarea id="inv-notes" rows="2">${esc(v.notes)}</textarea>
           </div>
 
           <div id="inv-totals" style="margin:8px 16px 4px;background:var(--brand-tint);border-radius:var(--radius-sm);padding:14px 16px"></div>
         </div>
-        <button type="button" class="btn-submit" id="inv-save">${isEdit ? 'Save changes' : 'Create invoice'}</button>
-        ${isEdit ? `<button type="button" class="btn-danger" id="inv-del">Delete invoice</button>` : ''}
-        <button type="button" class="btn-danger" id="inv-cancel" style="border-color:var(--border-mid);color:var(--text3)">Cancel</button>
+        <button type="button" class="btn-submit" id="inv-save">${isEdit ? esc(t('save_changes_btn')) : esc(t('create_invoice_btn'))}</button>
+        ${isEdit ? `<button type="button" class="btn-danger" id="inv-del">${esc(t('delete_invoice_btn'))}</button>` : ''}
+        <button type="button" class="btn-danger" id="inv-cancel" style="border-color:var(--border-mid);color:var(--text3)">${esc(t('cancel'))}</button>
       </div>`;
 
     document.body.appendChild(overlay);
@@ -387,17 +399,17 @@
       const amt = n(li.qty) * n(li.unitPrice);
       return `<div class="inv-line" data-i="${i}" style="border-bottom:0.5px solid var(--border);padding:10px 16px">
         <div style="display:flex;gap:8px;align-items:flex-start">
-          <input type="text" data-f="description" placeholder="Description" value="${aesc(li.description)}"
+          <input type="text" data-f="description" placeholder="${aesc(t('description_ph'))}" value="${aesc(li.description)}"
             style="flex:1;border:none;outline:none;background:transparent;font-size:15px;color:var(--text);font-family:inherit;padding:4px 0">
-          <button type="button" data-rm="${i}" aria-label="Remove line"
+          <button type="button" data-rm="${i}" aria-label="${aesc(t('remove_line_aria'))}"
             style="border:none;background:none;color:var(--overdue);font-size:20px;line-height:1;cursor:pointer;padding:2px 4px">×</button>
         </div>
         <div style="display:flex;gap:10px;align-items:center;margin-top:4px">
-          <label style="font-size:11px;color:var(--text3);font-weight:700">Qty</label>
-          <input type="number" data-f="qty" aria-label="Quantity" class="tnum" inputmode="decimal" min="0" step="any" value="${aesc(li.qty)}"
+          <label style="font-size:11px;color:var(--text3);font-weight:700">${esc(t('qty_label'))}</label>
+          <input type="number" data-f="qty" aria-label="${aesc(t('quantity_aria'))}" class="tnum" inputmode="decimal" min="0" step="any" value="${aesc(li.qty)}"
             style="width:64px;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-family:inherit;font-size:14px;background:var(--card);color:var(--text);outline:none">
-          <label style="font-size:11px;color:var(--text3);font-weight:700">Rate</label>
-          <input type="number" data-f="unitPrice" aria-label="Unit price" class="tnum" inputmode="decimal" min="0" step="any" value="${aesc(li.unitPrice)}"
+          <label style="font-size:11px;color:var(--text3);font-weight:700">${esc(t('rate_label'))}</label>
+          <input type="number" data-f="unitPrice" aria-label="${aesc(t('unit_price_aria'))}" class="tnum" inputmode="decimal" min="0" step="any" value="${aesc(li.unitPrice)}"
             style="width:96px;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-family:inherit;font-size:14px;background:var(--card);color:var(--text);outline:none">
           <div class="tnum" data-amt="${i}" style="margin-left:auto;font-weight:800;color:var(--text);font-size:14px">${esc(money2(amt))}</div>
         </div>
@@ -435,19 +447,19 @@
     const vatPct = n(document.getElementById('inv-vat').value);
     const whtPct = n(document.getElementById('inv-wht').value);
     const depositPct = n(document.getElementById('inv-deposit').value);
-    const t = window.computeTax(subtotal, whtPct, vatPct);
-    const deposit = t.clientPays * (depositPct / 100);
+    const taxRes = window.computeTax(subtotal, whtPct, vatPct);
+    const deposit = taxRes.clientPays * (depositPct / 100);
     const row = (label, val, strong) =>
       `<div style="display:flex;justify-content:space-between;margin:3px 0;${strong ? 'font-weight:800;font-size:15px;color:var(--brand)' : 'font-size:13px;color:var(--text2)'}">
-        <span>${label}</span><span class="tnum">${esc(val)}</span></div>`;
+        <span>${esc(label)}</span><span class="tnum">${esc(val)}</span></div>`;
     box.innerHTML =
-      row('Subtotal', money2(subtotal)) +
-      row(`VAT (${fmt(vatPct, 2)}%)`, '+ ' + money2(t.vat)) +
-      row(`WHT (${fmt(whtPct, 2)}%)`, '- ' + money2(t.wht)) +
+      row(t('subtotal_label'), money2(subtotal)) +
+      row(t('vat_pct_row').replace('{pct}', fmt(vatPct, 2)), '+ ' + money2(taxRes.vat)) +
+      row(t('wht_pct_row').replace('{pct}', fmt(whtPct, 2)), '- ' + money2(taxRes.wht)) +
       `<div style="border-top:1px solid var(--border-mid);margin:6px 0"></div>` +
-      row('Client pays', money2(t.clientPays), true) +
-      row('You receive', money2(t.youReceive)) +
-      (depositPct > 0 ? row(`Deposit (${fmt(depositPct, 0)}%)`, money2(deposit)) : '');
+      row(t('client_pays_label'), money2(taxRes.clientPays), true) +
+      row(t('you_receive_label'), money2(taxRes.youReceive)) +
+      (depositPct > 0 ? row(t('deposit_pct_row').replace('{pct}', fmt(depositPct, 0)), money2(deposit)) : '');
   }
 
   async function saveInvoice(isEdit) {
@@ -461,9 +473,9 @@
       .filter(li => li.description || li.qty * li.unitPrice > 0);
 
     let bad = false;
-    if (!clientName) { markErr('inv-cname', 'Enter who this invoice is billed to'); bad = true; }
-    if (!cleanLines.length) { toast('Add at least one line item'); bad = true; }
-    else if (currentSubtotal() <= 0) { toast('Invoice total must be greater than zero'); bad = true; }
+    if (!clientName) { markErr('inv-cname', t('err_enter_billed_to')); bad = true; }
+    if (!cleanLines.length) { toast(t('err_add_line_item')); bad = true; }
+    else if (currentSubtotal() <= 0) { toast(t('err_invoice_total_zero')); bad = true; }
     if (bad) return;
 
     const uid = uidNow();
@@ -504,21 +516,39 @@
         base.cuid = editing.cuid || cuid();
         if (editing.paymentChannels) base.paymentChannels = editing.paymentChannels; // preserve issue-time snapshot
         await dbPut(STORE, base);
-        toast('Invoice updated');
+        if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+          SidekickBackend.mirrorInvoiceSave(base).catch(() => {});
+        }
+        toast(t('invoice_updated'));
       } else {
         base.cuid = cuid();
         const newId = await dbAdd(STORE, base);
         base.id = newId;
-        toast('Invoice ' + base.number + ' created');
+        toast(t('invoice_created_with_number').replace('{number}', base.number));
+        if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+          SidekickBackend.mirrorInvoiceSave(base).catch(() => {});
+        }
         // Engagement linking: let app.js link invoiceId onto the session + advance.
         if (formFromJobId != null && typeof window.onEngagementInvoiceCreated === 'function') {
           try { window.onEngagementInvoiceCreated(newId, formFromJobId); } catch (e) { /* non-fatal */ }
         }
+        // Milestone/unbilled-time linking: separate from the above on purpose —
+        // neither should advance the Pipeline stage (see file header).
+        if (formLinkMeta) {
+          try {
+            if (formLinkMeta.type === 'milestone' && typeof window.onMilestoneInvoiceCreated === 'function') {
+              window.onMilestoneInvoiceCreated(newId, formLinkMeta.jobId, formLinkMeta.milestoneId);
+            } else if (formLinkMeta.type === 'unbilled' && typeof window.onUnbilledTimeInvoiceCreated === 'function') {
+              window.onUnbilledTimeInvoiceCreated(newId, formLinkMeta.jobId, formLinkMeta.timeEntryIds);
+            }
+          } catch (e) { /* non-fatal */ }
+        }
         formFromJobId = null;
+        formLinkMeta = null;
       }
     } catch (err) {
       console.error(err);
-      toast('Could not save invoice');
+      toast(t('invoice_save_failed'));
       return;
     }
     closeModal('inv-form-modal');
@@ -544,11 +574,17 @@
   }
 
   async function deleteInvoice(id) {
-    if (!confirm('Delete this invoice? This cannot be undone.')) return;
-    try { await dbDel(STORE, id); } catch (e) { console.error(e); }
+    if (!confirm(t('delete_invoice_confirm'))) return;
+    try {
+      const prev = await dbGet(STORE, id);
+      await dbDel(STORE, id);
+      if (!isGuest && prev && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+        SidekickBackend.mirrorInvoiceDelete(prev.cuid).catch(() => {});
+      }
+    } catch (e) { console.error(e); }
     closeModal('inv-form-modal');
     closeModal('inv-detail-modal');
-    toast('Invoice deleted');
+    toast(t('invoice_deleted'));
     renderInvoices();
   }
 
@@ -557,7 +593,7 @@
   // ══════════════════════════════════════════════════════════════════════
   async function openInvoiceDetail(id) {
     const inv = await dbGet(STORE, id);
-    if (!inv || inv.uid !== uidNow()) { toast('Invoice not found'); return; }
+    if (!inv || inv.uid !== uidNow()) { toast(t('invoice_not_found')); return; }
 
     closeModal('inv-detail-modal');
     const overlay = document.createElement('div');
@@ -574,33 +610,34 @@
     const deposit = n(inv.clientPays) * (n(inv.depositPct) / 100);
     const trow = (label, val, strong) =>
       `<div style="display:flex;justify-content:space-between;margin:3px 0;${strong ? 'font-weight:800;color:var(--brand);font-size:15px' : 'font-size:13px;color:var(--text2)'}">
-        <span>${label}</span><span class="tnum">${esc(val)}</span></div>`;
+        <span>${esc(label)}</span><span class="tnum">${esc(val)}</span></div>`;
+    const INV_STATUS_LABEL_KEYS = { draft: 'inv_status_draft', sent: 'inv_status_sent', paid: 'inv_status_paid', overdue: 'inv_status_overdue' };
 
     overlay.innerHTML = `
-      <div class="modal" role="dialog" aria-modal="true" aria-label="Invoice detail">
+      <div class="modal" role="dialog" aria-modal="true" aria-label="${aesc(t('invoice_detail_aria'))}">
         <div class="modal-handle"></div>
         <div class="modal-title" style="display:flex;align-items:center;gap:10px">
-          ${esc(inv.number || 'Invoice')} ${statusChip(inv.status)}
+          ${esc(inv.number || t('invoice_word'))} ${statusChip(inv.status)}
         </div>
         <div style="padding:0 20px 8px">
-          <div style="font-size:14px;font-weight:700;color:var(--text)">${esc(inv.clientName || 'No client')}</div>
+          <div style="font-size:14px;font-weight:700;color:var(--text)">${esc(inv.clientName || t('no_client_option'))}</div>
           ${inv.clientAddress ? `<div style="font-size:12px;color:var(--text3)">${esc(inv.clientAddress)}</div>` : ''}
-          ${inv.clientTaxId ? `<div style="font-size:12px;color:var(--text3)">Tax ID: ${esc(inv.clientTaxId)}</div>` : ''}
+          ${inv.clientTaxId ? `<div style="font-size:12px;color:var(--text3)">${esc(t('tax_id_prefix'))}${esc(inv.clientTaxId)}</div>` : ''}
           <div style="font-size:12px;color:var(--text3);margin-top:4px">
-            Issued ${esc(fmtInvDate(inv.issueDate))}${inv.dueDate ? ' · Due ' + esc(fmtInvDate(inv.dueDate)) : ''}
+            ${esc(t('issued_label'))} ${esc(fmtInvDate(inv.issueDate))}${inv.dueDate ? ' · ' + esc(t('due_label')) + ' ' + esc(fmtInvDate(inv.dueDate)) : ''}
           </div>
         </div>
         <div style="padding:0 20px 8px">
           <table style="width:100%;border-collapse:collapse;font-size:14px">${linesHtml}</table>
         </div>
         <div style="margin:6px 20px 10px;background:var(--brand-tint);border-radius:var(--radius-sm);padding:14px 16px">
-          ${trow('Subtotal', money2(inv.subtotal))}
-          ${trow(`VAT (${fmt(n(inv.vatPct), 2)}%)`, '+ ' + money2(inv.vat))}
-          ${trow(`WHT (${fmt(n(inv.whtPct), 2)}%)`, '- ' + money2(inv.wht))}
+          ${trow(t('subtotal_label'), money2(inv.subtotal))}
+          ${trow(t('vat_pct_row').replace('{pct}', fmt(n(inv.vatPct), 2)), '+ ' + money2(inv.vat))}
+          ${trow(t('wht_pct_row').replace('{pct}', fmt(n(inv.whtPct), 2)), '- ' + money2(inv.wht))}
           <div style="border-top:1px solid var(--border-mid);margin:6px 0"></div>
-          ${trow('Client pays', money2(inv.clientPays), true)}
-          ${trow('You receive', money2(inv.youReceive))}
-          ${n(inv.depositPct) > 0 ? trow(`Deposit (${fmt(n(inv.depositPct), 0)}%)`, money2(deposit)) : ''}
+          ${trow(t('client_pays_label'), money2(inv.clientPays), true)}
+          ${trow(t('you_receive_label'), money2(inv.youReceive))}
+          ${n(inv.depositPct) > 0 ? trow(t('deposit_pct_row').replace('{pct}', fmt(n(inv.depositPct), 0)), money2(deposit)) : ''}
         </div>
         ${inv.notes ? `<div style="padding:0 20px 8px;font-size:12px;color:var(--text3)">${esc(inv.notes)}</div>` : ''}
 
@@ -609,16 +646,16 @@
         <div id="inv-qr-wrap" style="padding:6px 20px 10px;text-align:center"></div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px 10px">
-          <button type="button" id="inv-d-edit" style="padding:13px;border:1.5px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">Edit</button>
-          <button type="button" id="inv-d-print" style="padding:13px;border:1.5px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">Print / PDF</button>
+          <button type="button" id="inv-d-edit" style="padding:13px;border:1.5px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">${esc(t('edit_btn'))}</button>
+          <button type="button" id="inv-d-print" style="padding:13px;border:1.5px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">${esc(t('print_pdf_btn'))}</button>
         </div>
         <div style="padding:0 16px 4px">
-          <label for="inv-d-status" style="display:block;font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px">Change status</label>
+          <label for="inv-d-status" style="display:block;font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px">${esc(t('change_status_label'))}</label>
           <select id="inv-d-status" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:9px;font-family:inherit;font-size:14px;background:var(--card);color:var(--text)">
-            ${['draft', 'sent', 'paid', 'overdue'].map(s => `<option value="${s}"${s === inv.status ? ' selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`).join('')}
+            ${['draft', 'sent', 'paid', 'overdue'].map(s => `<option value="${s}"${s === inv.status ? ' selected' : ''}>${esc(t(INV_STATUS_LABEL_KEYS[s]))}</option>`).join('')}
           </select>
         </div>
-        <button type="button" class="btn-danger" id="inv-d-close" style="border-color:var(--border-mid);color:var(--text3);margin-top:12px">Close</button>
+        <button type="button" class="btn-danger" id="inv-d-close" style="border-color:var(--border-mid);color:var(--text3);margin-top:12px">${esc(t('close_btn'))}</button>
       </div>`;
 
     document.body.appendChild(overlay);
@@ -641,7 +678,10 @@
     overlay.querySelector('#inv-d-status').addEventListener('change', async (e) => {
       inv.status = e.target.value;
       inv.updatedAt = nowISO();
-      try { await dbPut(STORE, inv); toast('Status: ' + inv.status); } catch (er) { console.error(er); }
+      try {
+        await dbPut(STORE, inv);
+        toast(t('status_toast_prefix') + t(INV_STATUS_LABEL_KEYS[inv.status]));
+      } catch (er) { console.error(er); }
       const chip = overlay.querySelector('.modal-title .chip');
       if (chip) chip.outerHTML = statusChip(inv.status);
       renderInvoices();
@@ -663,7 +703,7 @@
   // a synthesized single channel from the older single-field promptpayId.
   function invoicePaymentChannels(inv) {
     if (Array.isArray(inv.paymentChannels) && inv.paymentChannels.length) return inv.paymentChannels;
-    if (inv.promptpayId) return [{ id: 'legacy', type: 'promptpay', label: 'PromptPay', detail: inv.promptpayId }];
+    if (inv.promptpayId) return [{ id: 'legacy', type: 'promptpay', label: t('promptpay_label'), detail: inv.promptpayId }];
     if (typeof settings !== 'undefined' && settings && Array.isArray(settings.paymentChannels)) return settings.paymentChannels;
     return [];
   }
@@ -682,7 +722,7 @@
     const chans = invoicePaymentChannels(inv);
     if (!chans.length) {
       wrap.innerHTML = `<div style="background:var(--marigold-tint);border-radius:var(--radius-sm);padding:14px;font-size:13px;color:var(--marigold-ink)">
-        Add a payment channel (PromptPay, bank transfer, etc.) in <b>More → Settings</b> to show clients how to pay.</div>`;
+        ${t('add_payment_channel_hint')}</div>`;
       return;
     }
     const amount = n(inv.clientPays);
@@ -694,7 +734,7 @@
             <div style="display:inline-block;background:#fff;padding:14px;border-radius:14px;border:1px solid var(--border)">
               <canvas id="inv-qr-canvas-${i}" style="display:block;image-rendering:pixelated"></canvas>
             </div>
-            <div style="font-size:12px;color:var(--text3);margin-top:6px">Scan with any Thai banking app · ${esc(c.label || 'PromptPay')}</div>
+            <div style="font-size:12px;color:var(--text3);margin-top:6px">${esc(t('scan_promptpay_label'))} · ${esc(c.label || t('promptpay_label'))}</div>
             <div class="tnum" style="font-size:16px;font-weight:800;color:var(--text);margin-top:2px">${esc(money2(amount))}</div>
           </div>`;
       }
@@ -715,7 +755,7 @@
       } catch (e) {
         console.error('QR render failed', e);
         const el = document.getElementById('inv-qr-canvas-' + i);
-        if (el) el.replaceWith(Object.assign(document.createElement('div'), { textContent: 'QR unavailable', style: 'font-size:12px;color:var(--overdue)' }));
+        if (el) el.replaceWith(Object.assign(document.createElement('div'), { textContent: t('qr_unavailable'), style: 'font-size:12px;color:var(--overdue)' }));
       }
     });
   }
@@ -1156,7 +1196,7 @@
         if (!dataUrl) return '';
         return `<div class="pi-pay-block">
             <img src="${dataUrl}" style="width:120px;height:120px;display:block">
-            <div class="pi-muted" style="margin-top:4px">Scan with any Thai banking app · ${esc(c.label || 'PromptPay')}</div>
+            <div class="pi-muted" style="margin-top:4px">${esc(t('scan_promptpay_label'))} · ${esc(c.label || t('promptpay_label'))}</div>
           </div>`;
       }
       return `<div class="pi-pay-block">
@@ -1165,7 +1205,7 @@
         </div>`;
     }).filter(Boolean).join('');
     if (!blocks) return '';
-    return `<div class="pi-pay"><div class="pi-pay-title">Payment</div><div class="pi-pay-grid">${blocks}</div></div>`;
+    return `<div class="pi-pay"><div class="pi-pay-title">${esc(t('payment_word'))}</div><div class="pi-pay-grid">${blocks}</div></div>`;
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -1179,7 +1219,7 @@
     const sellerBits = [];
     if (typeof settings !== 'undefined' && settings) {
       if (settings.sellerAddress) sellerBits.push(esc(settings.sellerAddress));
-      if (settings.sellerTaxId) sellerBits.push('Tax ID: ' + esc(settings.sellerTaxId));
+      if (settings.sellerTaxId) sellerBits.push(esc(t('tax_id_prefix')) + esc(settings.sellerTaxId));
     }
 
     const rows = (inv.lineItems || []).map(li => {
@@ -1229,39 +1269,40 @@
     `;
     document.head.appendChild(style);
 
+    const INV_STATUS_LABEL_KEYS = { draft: 'inv_status_draft', sent: 'inv_status_sent', paid: 'inv_status_paid', overdue: 'inv_status_overdue' };
     const root = document.createElement('div');
     root.id = 'inv-print-root';
     root.innerHTML = `
       <div class="pi-wrap">
         <div class="pi-head">
           <div>
-            <h1>Invoice</h1>
+            <h1>${esc(t('invoice_word'))}</h1>
             <div class="pi-muted">${esc(inv.number || '')}</div>
-            <div class="pi-muted">Issued ${esc(fmtInvDate(inv.issueDate))}${inv.dueDate ? ' · Due ' + esc(fmtInvDate(inv.dueDate)) : ''}</div>
+            <div class="pi-muted">${esc(t('issued_label'))} ${esc(fmtInvDate(inv.issueDate))}${inv.dueDate ? ' · ' + esc(t('due_label')) + ' ' + esc(fmtInvDate(inv.dueDate)) : ''}</div>
           </div>
           <div style="text-align:right">
             <div style="font-weight:800;font-size:16px">${fromName}</div>
             ${sellerBits.map(b => `<div class="pi-muted">${b}</div>`).join('')}
-            <div class="pi-status">${esc(inv.status || 'draft')}</div>
+            <div class="pi-status">${esc(t(INV_STATUS_LABEL_KEYS[inv.status || 'draft']))}</div>
           </div>
         </div>
         <div style="margin-bottom:14px">
-          <div class="pi-muted">Bill to</div>
+          <div class="pi-muted">${esc(t('bill_to_label'))}</div>
           <div style="font-weight:700;font-size:15px">${esc(inv.clientName || '')}</div>
           ${inv.clientAddress ? `<div class="pi-muted">${esc(inv.clientAddress)}</div>` : ''}
-          ${inv.clientTaxId ? `<div class="pi-muted">Tax ID: ${esc(inv.clientTaxId)}</div>` : ''}
+          ${inv.clientTaxId ? `<div class="pi-muted">${esc(t('tax_id_prefix'))}${esc(inv.clientTaxId)}</div>` : ''}
         </div>
         <table>
-          <thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+          <thead><tr><th>${esc(t('description_ph'))}</th><th class="num">${esc(t('qty_label'))}</th><th class="num">${esc(t('rate_label'))}</th><th class="num">${esc(t('amount_header'))}</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
         <div class="pi-tot">
-          <div class="r"><span>Subtotal</span><span>${esc(money2(inv.subtotal))}</span></div>
-          <div class="r"><span>VAT (${esc(fmt(n(inv.vatPct), 2))}%)</span><span>+ ${esc(money2(inv.vat))}</span></div>
-          <div class="r"><span>WHT (${esc(fmt(n(inv.whtPct), 2))}%)</span><span>- ${esc(money2(inv.wht))}</span></div>
-          <div class="r grand"><span>Client pays</span><span>${esc(money2(inv.clientPays))}</span></div>
-          <div class="r"><span>You receive</span><span>${esc(money2(inv.youReceive))}</span></div>
-          ${n(inv.depositPct) > 0 ? `<div class="r"><span>Deposit (${esc(fmt(n(inv.depositPct), 0))}%)</span><span>${esc(money2(deposit))}</span></div>` : ''}
+          <div class="r"><span>${esc(t('subtotal_label'))}</span><span>${esc(money2(inv.subtotal))}</span></div>
+          <div class="r"><span>${esc(t('vat_pct_row').replace('{pct}', fmt(n(inv.vatPct), 2)))}</span><span>+ ${esc(money2(inv.vat))}</span></div>
+          <div class="r"><span>${esc(t('wht_pct_row').replace('{pct}', fmt(n(inv.whtPct), 2)))}</span><span>- ${esc(money2(inv.wht))}</span></div>
+          <div class="r grand"><span>${esc(t('client_pays_label'))}</span><span>${esc(money2(inv.clientPays))}</span></div>
+          <div class="r"><span>${esc(t('you_receive_label'))}</span><span>${esc(money2(inv.youReceive))}</span></div>
+          ${n(inv.depositPct) > 0 ? `<div class="r"><span>${esc(t('deposit_pct_row').replace('{pct}', fmt(n(inv.depositPct), 0)))}</span><span>${esc(money2(deposit))}</span></div>` : ''}
         </div>
         ${paymentChannelsPrintHtml(inv)}
         ${inv.notes ? `<div class="pi-notes">${esc(inv.notes)}</div>` : ''}
