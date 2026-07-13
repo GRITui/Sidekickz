@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.11';          // <-> sw.js SW_VERSION 'sidekick-v0.9.11'
+const APP_VERSION = '0.9.12';          // <-> sw.js SW_VERSION 'sidekick-v0.9.12'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -3042,13 +3042,12 @@ async function deleteSubTask(jobId, subId) {
 window.deleteSubTask = deleteSubTask;
 
 // ── Milestone payments ──
-// Deliberately doesn't auto-link the created invoice back to the milestone
-// (a real per-milestone invoiceId + auto-draft-on-unlock, as the design
-// brief describes) — that needs hooking into invoices.js's creation flow
-// alongside the *existing* engagement-stage-linking hook, and getting that
-// interaction wrong risks breaking Pipeline stage advancement, a feature
-// that already works today. "Draft invoice" here just opens a pre-filled
-// invoice form the user completes normally.
+// "Draft invoice" opens a pre-filled invoice form; the resulting invoiceId
+// links back onto the milestone via window.onMilestoneInvoiceCreated below
+// only once the invoice is actually saved (cancelling leaves the milestone
+// untouched). Deliberately NOT routed through onEngagementInvoiceCreated /
+// fromJobId — that hook also advances the Pipeline stage, which would be
+// wrong here since a job can have several milestones before it's actually done.
 window.__milestoneFormOpen = false;
 function renderMilestones(jobId) {
   const wrap = document.getElementById('job-milestones-body');
@@ -3066,9 +3065,11 @@ function renderMilestones(jobId) {
           <div class="list-sub">${gate ? htmlEsc(t('unlocks_with')) + htmlEsc(gate.text) : htmlEsc(t('no_gating_subtask'))}</div>
         </div>
         <div class="list-right">
-          ${ready
-            ? `<button type="button" class="qc-btn" style="width:auto;padding:0 10px;color:var(--brand)" onclick="draftMilestoneInvoice(${jobId},'${m.id}')">${htmlEsc(t('draft_invoice'))}</button>`
-            : `<span class="chip" style="background:var(--border);color:var(--text3)">${htmlEsc(t('milestone_locked'))}</span>`}
+          ${m.invoiceId != null
+            ? `<span class="chip" style="background:var(--brand-tint);color:var(--brand)">${htmlEsc(t('time_invoiced_label'))}</span>`
+            : ready
+              ? `<button type="button" class="qc-btn" style="width:auto;padding:0 10px;color:var(--brand)" onclick="draftMilestoneInvoice(${jobId},'${m.id}')">${htmlEsc(t('draft_invoice'))}</button>`
+              : `<span class="chip" style="background:var(--border);color:var(--text3)">${htmlEsc(t('milestone_locked'))}</span>`}
           <button type="button" class="qc-btn" aria-label="Delete milestone" onclick="deleteMilestone(${jobId},'${m.id}')">✕</button>
         </div>
       </div>`;
@@ -3126,9 +3127,26 @@ function draftMilestoneInvoice(jobId, msId) {
     clientId: j.clientId,
     clientName: (client && client.name) || j.client || '',
     lineItems: [{ description: `Milestone (${fmt(m.pct, 0)}%)`, qty: 1, unitPrice: m.amount }],
+    linkMeta: { type: 'milestone', jobId, milestoneId: msId },
   });
 }
 window.draftMilestoneInvoice = draftMilestoneInvoice;
+
+// Called by invoices.js only once a milestone-draft invoice is actually saved
+// (never on cancel) — see invoices.js's file header for the linkMeta contract.
+// Deliberately not routed through onEngagementInvoiceCreated: this must NOT
+// advance the Pipeline stage, since a job can have several milestones before
+// it's actually done.
+window.onMilestoneInvoiceCreated = async function (invoiceId, jobId, milestoneId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !j.milestones) return;
+  const m = j.milestones.find(x => x.id === milestoneId);
+  if (!m) return;
+  m.invoiceId = invoiceId;
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  renderMilestones(jobId);
+};
 
 // ── Time tracking + Focus mode ──
 // One timer per job at a time (job.timerStartedAt, an ISO timestamp — null
@@ -3210,20 +3228,32 @@ function convertUnbilledToInvoice(jobId) {
   const rate = (svc && Number(svc.rate)) || 0;
   const hours = minutes / 60;
   if (typeof openInvoiceForm !== 'function') return;
+  // Snapshot exactly which entries are unbilled right now — marked invoiced
+  // only once the invoice is actually saved (onUnbilledTimeInvoiceCreated
+  // below), not a new entry that might get logged while the form is still open.
+  const entryIds = (j.timeEntries || []).filter(e => !e.invoiced).map(e => e.id);
   openInvoiceForm(null, {
     clientId: j.clientId,
     clientName: (client && client.name) || j.client || '',
     lineItems: [{ description: 'Unbilled time', qty: Math.round(hours * 100) / 100, unitPrice: rate }],
+    linkMeta: { type: 'unbilled', jobId, timeEntryIds: entryIds },
   });
-  // Marking entries invoiced happens only once the invoice is actually saved
-  // would need the same cross-module hook risk noted above for milestones —
-  // instead, mark them right away: the invoice form is already open with
-  // these hours as a line item, so "unbilled" has done its job either way.
-  (j.timeEntries || []).forEach(e => { if (!e.invoiced) e.invoiced = true; });
-  dbPut('jobs', j);
-  renderJobTracking(jobId);
 }
 window.convertUnbilledToInvoice = convertUnbilledToInvoice;
+
+// Called by invoices.js only once an unbilled-time invoice is actually saved
+// (never on cancel) — marks exactly the entries that were unbilled at
+// draft-time, not whatever happens to be unbilled by the time save occurs.
+// Same non-stage-advancing treatment as onMilestoneInvoiceCreated above.
+window.onUnbilledTimeInvoiceCreated = async function (invoiceId, jobId, timeEntryIds) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !j.timeEntries) return;
+  const ids = new Set(timeEntryIds || []);
+  j.timeEntries.forEach(e => { if (ids.has(e.id)) { e.invoiced = true; e.invoiceId = invoiceId; } });
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  renderJobTracking(jobId);
+};
 
 // Focus mode — full-screen Pomodoro view over whichever job's timer is
 // running. Ring is 25:00 counting down purely for pacing; hitting 0 just

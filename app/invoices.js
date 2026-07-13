@@ -9,8 +9,15 @@
  * Public surface (kept on window):
  *   - renderInvoices()          — fills #invoices-body
  *   - openInvoiceForm(fromJobId?, prefillQuote?) — create/edit invoice UI.
- *     prefillQuote (from docgen.js's Quote → Invoice conversion) is
- *     {clientId, clientName, lineItems} and takes priority over fromJobId.
+ *     prefillQuote (from docgen.js's Quote → Invoice conversion, or app.js's
+ *     milestone/unbilled-time draft flows) is {clientId, clientName,
+ *     lineItems, linkMeta?} and takes priority over fromJobId for prefill.
+ *     linkMeta, if present, is {type:'milestone', jobId, milestoneId} or
+ *     {type:'unbilled', jobId, timeEntryIds} — on actual save (not cancel),
+ *     app.js's window.onMilestoneInvoiceCreated/onUnbilledTimeInvoiceCreated
+ *     is called to link the invoice back, WITHOUT touching Pipeline stage
+ *     (that's fromJobId + onEngagementInvoiceCreated's job, kept separate on
+ *     purpose since a job can have several milestones before it's actually done).
  *
  * Everything below is self-contained: EMVCo PromptPay payload builder,
  * CRC16-CCITT-FALSE, and a byte-mode QR encoder (Nayuki-style, reference
@@ -177,11 +184,13 @@
   let lines = [];        // working line items: {description, qty, unitPrice}
   let editing = null;    // full record being edited, or null on create
   let formFromJobId = null; // pipeline session this form was opened from (for engagement linking)
+  let formLinkMeta = null;  // milestone/unbilled-time link to apply on actual save (see file header)
 
   function openInvoiceForm(fromJobId, prefillQuote) {
     editing = null;
     lines = [];
     formFromJobId = (fromJobId != null) ? fromJobId : null;
+    formLinkMeta = (prefillQuote && prefillQuote.linkMeta) ? prefillQuote.linkMeta : null;
 
     let preClientId = '', preClientName = '';
     if (prefillQuote) {
@@ -228,6 +237,7 @@
   function openInvoiceEdit(inv) {
     editing = inv;
     formFromJobId = null;
+    formLinkMeta = null;
     lines = (inv.lineItems && inv.lineItems.length)
       ? inv.lineItems.map(li => ({ description: li.description || '', qty: n(li.qty), unitPrice: n(li.unitPrice) }))
       : [{ description: '', qty: 1, unitPrice: 0 }];
@@ -516,7 +526,19 @@
         if (formFromJobId != null && typeof window.onEngagementInvoiceCreated === 'function') {
           try { window.onEngagementInvoiceCreated(newId, formFromJobId); } catch (e) { /* non-fatal */ }
         }
+        // Milestone/unbilled-time linking: separate from the above on purpose —
+        // neither should advance the Pipeline stage (see file header).
+        if (formLinkMeta) {
+          try {
+            if (formLinkMeta.type === 'milestone' && typeof window.onMilestoneInvoiceCreated === 'function') {
+              window.onMilestoneInvoiceCreated(newId, formLinkMeta.jobId, formLinkMeta.milestoneId);
+            } else if (formLinkMeta.type === 'unbilled' && typeof window.onUnbilledTimeInvoiceCreated === 'function') {
+              window.onUnbilledTimeInvoiceCreated(newId, formLinkMeta.jobId, formLinkMeta.timeEntryIds);
+            }
+          } catch (e) { /* non-fatal */ }
+        }
         formFromJobId = null;
+        formLinkMeta = null;
       }
     } catch (err) {
       console.error(err);
