@@ -403,8 +403,22 @@ function attrEsc(s) { return htmlEsc(s).replace(/"/g,'&quot;'); }
 const CURRENCY_SYM = {THB:'฿', USD:'$', EUR:'€', GBP:'£', SGD:'S$', MYR:'RM'};
 function curSym() { return CURRENCY_SYM[(settings && settings.currency) || 'THB'] || '฿'; }
 
-// Sidekick: single work type, no persona picker.
-function unitWord() { return 'Session'; }
+// ─── BUSINESS TYPES (persona reintroduced per the 2026 redesign handoff) ──
+// Reverses the earlier "Persona strip" decision (commit 848c4e8) on explicit
+// user instruction — settings.businessType now genuinely drives seed
+// services and the unit word, not just which tracker card renders on a
+// client (see clientTrackerHtml()). Existing installs migrate to 'trainer'
+// in enterApp() (this app's actual base case up to now), so nobody already
+// using it sees any behavior change.
+const BUSINESS_TYPES = {
+  trainer:    { label:'Personal trainer', unitWord:'Session', seedServices:[['1-on-1 session',800,'session'],['Group class',400,'session'],['Nutrition plan',2000,'plan']] },
+  realestate: { label:'Real estate agent', unitWord:'Deal',    seedServices:[['Property viewing',0,'viewing'],['Listing consultation',0,'consult']] },
+  laundry:    { label:'Laundry service',   unitWord:'Order',   seedServices:[['Wash & fold',150,'kg'],['Dry cleaning',80,'item']] },
+  insurance:  { label:'Insurance agent',   unitWord:'Policy',  seedServices:[['Policy review',0,'review'],['Claim assistance',0,'case']] },
+  garage:     { label:'Car garage',        unitWord:'Job',     seedServices:[['Oil change',600,'job'],['Full service',2500,'job']] },
+};
+function businessType() { return BUSINESS_TYPES[settings && settings.businessType] ? settings.businessType : 'trainer'; }
+function unitWord() { return BUSINESS_TYPES[businessType()].unitWord; }
 
 // ─── ENGAGEMENT PIPELINE (user-facing label: "Workflow" — see i18n) ─────
 // A session IS an engagement moving through a fixed 6-stage lifecycle. The
@@ -541,6 +555,8 @@ const I18N = {
     business_name:'Business name', business_taxid:'Tax ID', business_address:'Address',
     tax_defaults:'Tax defaults (for M2)', wht:'Withholding tax %', vat:'VAT %',
     daily_goal:'Daily income goal', goal_target_month:'Monthly income goal', goal_target_quarter:'Quarterly income goal', goal_target_year:'Yearly income goal',
+    business_type_label:'Business type', business_type_trainer:'Personal trainer', business_type_realestate:'Real estate agent',
+    business_type_laundry:'Laundry service', business_type_insurance:'Insurance agent', business_type_garage:'Car garage',
     data:'Data', export_csv:'Export CSV', backup_json:'Backup JSON', restore_json:'Restore JSON',
     total_jobs:'Total jobs', app_word:'App', version:'Version', logout:'Log out', exit_guest:'Exit guest mode',
     // placeholder modules
@@ -578,6 +594,7 @@ const I18N = {
     manage:'Manage', customers_title:'Clients', add_customer:'Add client', edit_customer:'Edit client',
     save_customer:'Save client', delete_customer:'Delete client', delete_customer_confirm:'Delete this client?',
     no_customers:'No clients yet', no_customers_sub:'Add your first client to reuse their details.',
+    needs_attention_title:'Needs attention', all_clients_title:'All clients', remind_action:'Remind', offer_renewal_action:'Offer renewal',
     customer_saved:'Client saved', customer_deleted:'Client deleted',
     field_name:'Name', field_phone:'Phone', field_email:'Email', field_tags:'Tags (comma-separated)',
     field_taxid:'Tax ID', field_billing:'Billing address', field_member_no:'Member ID',
@@ -648,6 +665,8 @@ const I18N = {
     business_name:'ชื่อธุรกิจ', business_taxid:'เลขประจำตัวผู้เสียภาษี', business_address:'ที่อยู่',
     tax_defaults:'ค่าเริ่มต้นภาษี', wht:'ภาษีหัก ณ ที่จ่าย %', vat:'ภาษีมูลค่าเพิ่ม %',
     daily_goal:'เป้าหมายรายได้ต่อวัน', goal_target_month:'เป้าหมายรายได้ต่อเดือน', goal_target_quarter:'เป้าหมายรายได้ต่อไตรมาส', goal_target_year:'เป้าหมายรายได้ต่อปี',
+    business_type_label:'ประเภทธุรกิจ', business_type_trainer:'เทรนเนอร์ส่วนตัว', business_type_realestate:'นายหน้าอสังหาริมทรัพย์',
+    business_type_laundry:'ร้านซักรีด', business_type_insurance:'ตัวแทนประกันภัย', business_type_garage:'อู่ซ่อมรถ',
     data:'ข้อมูล', export_csv:'ส่งออก CSV', backup_json:'สำรองข้อมูล JSON', restore_json:'กู้คืนข้อมูล JSON',
     total_jobs:'จำนวนเซสชันทั้งหมด', app_word:'แอป', version:'เวอร์ชัน', logout:'ออกจากระบบ', exit_guest:'ออกจากโหมดผู้เยี่ยมชม',
     // placeholder modules
@@ -682,6 +701,7 @@ const I18N = {
     manage:'จัดการ', customers_title:'ลูกค้า', add_customer:'เพิ่มลูกค้า', edit_customer:'แก้ไขลูกค้า',
     save_customer:'บันทึกลูกค้า', delete_customer:'ลบลูกค้า', delete_customer_confirm:'ลบลูกค้ารายนี้หรือไม่?',
     no_customers:'ยังไม่มีลูกค้า', no_customers_sub:'เพิ่มลูกค้ารายแรกเพื่อใช้ข้อมูลซ้ำได้',
+    needs_attention_title:'ต้องดำเนินการ', all_clients_title:'ลูกค้าทั้งหมด', remind_action:'เตือน', offer_renewal_action:'เสนอต่ออายุ',
     customer_saved:'บันทึกลูกค้าแล้ว', customer_deleted:'ลบลูกค้าแล้ว',
     field_name:'ชื่อ', field_phone:'เบอร์โทร', field_email:'อีเมล', field_tags:'แท็ก (คั่นด้วยจุลภาค)',
     field_taxid:'เลขประจำตัวผู้เสียภาษี', field_billing:'ที่อยู่สำหรับเรียกเก็บเงิน', field_member_no:'รหัสสมาชิก',
@@ -852,9 +872,13 @@ async function enterApp() {
   set('set-goal-quarter', settings.goalTargets.quarter || '');
   set('set-goal-year', settings.goalTargets.year || '');
 
-  // Personal Gym Trainer edition: single fixed work type, no onboarding picker.
-  if (!settings.workType) await saveSetting('workType', 'gym');
-  document.body.setAttribute('data-work-type', 'gym');
+  // Business type (persona) picker — reintroduced per the 2026 redesign
+  // handoff. Migrates existing installs to 'trainer' (this app's actual base
+  // case up to now, back when it was single-persona-only) so switching over
+  // changes nothing for anyone not deliberately picking a different type.
+  if (!settings.businessType) await saveSetting('businessType', 'trainer');
+  document.body.setAttribute('data-work-type', businessType());
+  set('set-business-type', businessType());
   await seedServicesIfEmpty();
   switchScreen('home');
 
@@ -1920,7 +1944,72 @@ async function backfillMemberNumbers() {
     await dbPut('clients', c);
   }
 }
-function renderCustomers() {
+// "Needs attention" — an overdue invoice takes priority over a nearly-used
+// package if a client somehow has both, since money owed is more urgent than
+// a renewal offer. Trainer-only for the package half (packages are a
+// trainer-specific feature); the overdue-invoice half applies to any
+// business type since invoices aren't persona-gated.
+const PACKAGE_ALMOST_DONE_THRESHOLD = 2;
+async function computeClientsNeedingAttention() {
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const todayStr = todayISO();
+  const allInvoices = (await dbAll('invoices')).filter(i => i.uid === uid);
+  const isTrainer = businessType() === 'trainer';
+  const items = [];
+  customers.forEach(c => {
+    const overdue = allInvoices
+      .filter(i => i.clientId === c.id && i.status !== 'paid' && i.dueDate && i.dueDate < todayStr)
+      .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+    if (overdue.length) {
+      const inv = overdue[0];
+      const days = daysSinceISO(inv.dueDate);
+      items.push({
+        client: c,
+        reason: `Invoice ${days} day${days === 1 ? '' : 's'} overdue · ${money(inv.clientPays)}`,
+        actionLabel: t('remind_action'),
+        action: () => remindAboutInvoice(inv.id),
+      });
+      return; // one attention item per client — overdue takes priority
+    }
+    if (isTrainer) {
+      const pkg = activePackageFor(c.id);
+      if (pkg) {
+        const remaining = packageRemaining(pkg);
+        if (remaining > 0 && remaining <= PACKAGE_ALMOST_DONE_THRESHOLD) {
+          items.push({
+            client: c,
+            reason: `Package almost done · ${remaining} session${remaining === 1 ? '' : 's'} left`,
+            actionLabel: t('offer_renewal_action'),
+            action: () => offerRenewalForClient(c.id),
+          });
+        }
+      }
+    }
+  });
+  return items;
+}
+function remindAboutInvoice(invoiceId) {
+  switchScreen('invoices');
+}
+window.remindAboutInvoice = remindAboutInvoice;
+function offerRenewalForClient(clientId) {
+  openEditCustomer(clientId);
+  togglePackageForm(true, clientId);
+}
+window.offerRenewalForClient = offerRenewalForClient;
+window.__clientAttentionActions = [];
+function needsAttentionRowHtml(item, idx) {
+  const initial = (item.client.name || '?').charAt(0).toUpperCase();
+  return `<div class="list-row" style="cursor:default">
+      <div class="list-icon" style="background:var(--marigold-tint);color:var(--marigold-ink)">${htmlEsc(initial)}</div>
+      <div class="list-main">
+        <div class="list-title">${htmlEsc(item.client.name)}</div>
+        <div class="list-sub">${item.reason}</div>
+      </div>
+      <div class="list-right"><button type="button" class="qc-btn" style="width:auto;padding:0 10px;color:var(--marigold-ink);font-size:12px;font-weight:700" onclick="window.__clientAttentionActions[${idx}]()">${htmlEsc(item.actionLabel)}</button></div>
+    </div>`;
+}
+async function renderCustomers() {
   const wrap = document.getElementById('customers-body');
   if (!wrap) return;
   if (!customers.length) {
@@ -1928,7 +2017,14 @@ function renderCustomers() {
       <p>${htmlEsc(t('no_customers'))}</p><span>${htmlEsc(t('no_customers_sub'))}</span></div>`;
     return;
   }
-  wrap.innerHTML = '<div class="list-card">' + customers.map(c => {
+  const attention = await computeClientsNeedingAttention();
+  window.__clientAttentionActions = attention.map(item => item.action);
+  const attentionHtml = attention.length
+    ? `<div class="section-title" style="font-size:12px;margin-bottom:8px">${htmlEsc(t('needs_attention_title'))}</div>
+       <div class="list-card" style="margin-bottom:16px">${attention.map(needsAttentionRowHtml).join('')}</div>
+       <div class="section-title" style="font-size:12px;margin-bottom:8px">${htmlEsc(t('all_clients_title'))}</div>`
+    : '';
+  wrap.innerHTML = attentionHtml + '<div class="list-card">' + customers.map(c => {
     const sub = [c.memberNo, c.company || c.phone || c.email || ''].filter(Boolean).join(' · ');
     const pkg = activePackageFor(c.id);
     const pkgBadge = pkg
@@ -2064,6 +2160,80 @@ function toggleProgressForm(open, clientId) {
   renderCustomerProgress(clientId);
 }
 window.toggleProgressForm = toggleProgressForm;
+
+// ─── CLIENT PERSONA TRACKER (redesign handoff, non-trainer business types) ──
+// Trainer keeps its existing package + progress-log sections above (real,
+// established features) — this is the registry for the other four. A
+// deliberately lean first pass: a handful of auto-saving fields directly on
+// the client record, not the full richness the design brief describes (a
+// structured viewing log with verdicts, a real multi-policy list, full
+// service history) — those are each their own small CRUD system, and
+// building four of them in one pass wasn't realistic alongside everything
+// else in this redesign. Real and useful, just simpler than the ideal.
+async function saveClientField(clientId, field, value) {
+  const c = customers.find(x => x.id === clientId);
+  if (!c) return;
+  c[field] = value;
+  c.updatedAt = nowISO();
+  await dbPut('clients', c);
+}
+window.saveClientField = saveClientField;
+
+const PERSONA_TRACKER_TITLES = {
+  realestate: 'Deal tracker',
+  laundry: 'Order tracker',
+  insurance: 'Policy tracker',
+  garage: 'Vehicle tracker',
+};
+function renderClientPersonaTracker(clientId) {
+  const wrap = document.getElementById('cust-persona-body');
+  const titleEl = document.getElementById('cust-persona-title');
+  if (!wrap) return;
+  const c = customers.find(x => x.id === clientId);
+  if (!c) return;
+  const bt = businessType();
+  if (titleEl) titleEl.textContent = PERSONA_TRACKER_TITLES[bt] || '';
+
+  if (bt === 'realestate') {
+    wrap.innerHTML = `
+      <div class="field"><label>Budget / areas / needs</label><textarea rows="2" onchange="saveClientField(${clientId},'searchBrief',this.value)">${htmlEsc(c.searchBrief || '')}</textarea></div>
+      <div class="field"><label>Offer status</label><input type="text" value="${attrEsc(c.offerStatus || '')}" placeholder="e.g. Offer submitted, awaiting reply" onchange="saveClientField(${clientId},'offerStatus',this.value)"></div>
+      <div class="field"><label>Est. commission</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.estCommission || ''}" onchange="saveClientField(${clientId},'estCommission',parseFloat(this.value)||0)"></div>
+    `;
+  } else if (bt === 'laundry') {
+    const steps = ['received', 'washing', 'drying', 'ready'];
+    const cur = steps.includes(c.orderStatus) ? c.orderStatus : 'received';
+    wrap.innerHTML = `
+      <div class="field"><label>Order status</label><select onchange="saveClientField(${clientId},'orderStatus',this.value)">
+        ${steps.map(s => `<option value="${s}"${s === cur ? ' selected' : ''}>${s.charAt(0).toUpperCase() + s.slice(1)}</option>`).join('')}
+      </select></div>
+      <div class="field"><label>Monthly kg plan</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.monthlyKgPlan || ''}" onchange="saveClientField(${clientId},'monthlyKgPlan',parseFloat(this.value)||0)"></div>
+      <div class="field"><label>Preferences</label><textarea rows="2" onchange="saveClientField(${clientId},'preferences',this.value)">${htmlEsc(c.preferences || '')}</textarea></div>
+    `;
+  } else if (bt === 'insurance') {
+    const days = c.policyRenewalDate ? daysSinceISO(c.policyRenewalDate) : null;
+    const countdown = (days != null)
+      ? (days > 0
+          ? `<div class="pkg-status"><span style="color:var(--overdue)">${days} day${days === 1 ? '' : 's'} overdue for renewal</span></div>`
+          : `<div class="pkg-status"><span>${-days} day${-days === 1 ? '' : 's'} until renewal</span></div>`)
+      : '';
+    wrap.innerHTML = `
+      <div class="field"><label>Policy name</label><input type="text" value="${attrEsc(c.policyName || '')}" onchange="saveClientField(${clientId},'policyName',this.value)"></div>
+      <div class="field"><label>Renewal date</label><input type="date" value="${attrEsc(c.policyRenewalDate || '')}" onchange="saveClientField(${clientId},'policyRenewalDate',this.value)"></div>
+      ${countdown}
+    `;
+  } else if (bt === 'garage') {
+    wrap.innerHTML = `
+      <div class="form-row">
+        <div class="field-half"><label>Plate</label><input type="text" value="${attrEsc(c.vehiclePlate || '')}" onchange="saveClientField(${clientId},'vehiclePlate',this.value)"></div>
+        <div class="field-half"><label>Mileage</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.vehicleMileage || ''}" onchange="saveClientField(${clientId},'vehicleMileage',parseFloat(this.value)||0)"></div>
+      </div>
+      <div class="field"><label>Next service due</label><input type="date" value="${attrEsc(c.nextServiceDate || '')}" onchange="saveClientField(${clientId},'nextServiceDate',this.value)"></div>
+    `;
+  } else {
+    wrap.innerHTML = '';
+  }
+}
 async function saveProgressEntry(clientId) {
   const date = document.getElementById('pl-date').value || todayISO();
   const weightVal = document.getElementById('pl-weight').value;
@@ -2130,10 +2300,12 @@ function openAddCustomer() {
   const memberNoEl = document.getElementById('c-memberno');
   if (memberNoEl) memberNoEl.value = t('assigned_on_save');
   renderIntakeFields({});
-  // Package/progress tracking needs a saved client id to attach records to —
-  // hidden on Add, shown once the client actually exists (openEditCustomer).
+  // Package/progress/persona tracking all need a saved client id to attach
+  // records to — hidden on Add, shown once the client actually exists
+  // (openEditCustomer).
   document.getElementById('cust-package-section').style.display = 'none';
   document.getElementById('cust-progress-section').style.display = 'none';
+  document.getElementById('cust-persona-section').style.display = 'none';
   document.getElementById('c-delete').style.display = 'none';
   clearFieldErrors();
   openCustomerModal();
@@ -2149,10 +2321,15 @@ function openEditCustomer(id) {
   set('c-memberno', c.memberNo || t('assigned_on_save'));
   renderIntakeFields(c);
   window.__pkgFormOpen = false; window.__progressFormOpen = false;
-  document.getElementById('cust-package-section').style.display = 'block';
-  document.getElementById('cust-progress-section').style.display = 'block';
-  renderCustomerPackages(id);
-  renderCustomerProgress(id);
+  // Trainer keeps the existing package + progress-log sections; every other
+  // business type gets the persona tracker section instead (see the
+  // registry above renderClientPersonaTracker()).
+  const isTrainer = businessType() === 'trainer';
+  document.getElementById('cust-package-section').style.display = isTrainer ? 'block' : 'none';
+  document.getElementById('cust-progress-section').style.display = isTrainer ? 'block' : 'none';
+  document.getElementById('cust-persona-section').style.display = isTrainer ? 'none' : 'block';
+  if (isTrainer) { renderCustomerPackages(id); renderCustomerProgress(id); }
+  else renderClientPersonaTracker(id);
   document.getElementById('c-delete').style.display = 'block';
   clearFieldErrors();
   openCustomerModal();
@@ -2206,15 +2383,18 @@ async function deleteCustomer() {
 }
 
 // ─── SERVICES (catalog + default rates) ───────────────────────────────
-// Example gym services seeded once (editable/deletable). Numbers are currency-agnostic.
-const SEED_SERVICES = [['1-on-1 session',800,'session'],['Group class',400,'session'],['Nutrition plan',2000,'plan']];
+// Default services seeded once per business type (editable/deletable after).
+// Numbers are currency-agnostic. Flag is keyed per type so switching
+// Settings ▸ Business type later can seed that type's defaults too, without
+// re-seeding (or touching) whatever the user already has.
 async function seedServicesIfEmpty() {
-  const flag = 'servicesSeeded_gym';
-  if (settings[flag]) return;                       // already seeded
+  const bt = businessType();
+  const flag = 'servicesSeeded_' + bt;
+  if (settings[flag]) return;                       // already seeded for this type
   const uid = isGuest ? 'guest' : currentUser.id;
   const existing = (await dbAll('services')).filter(s => s.uid === uid);
   if (existing.length) { await saveSetting(flag, true); return; }   // never overwrite user data
-  for (const [name, rate, unit] of SEED_SERVICES) {
+  for (const [name, rate, unit] of BUSINESS_TYPES[bt].seedServices) {
     await dbAdd('services', {uid, name, rate, unit, cuid: cuid(), updatedAt: nowISO()});
   }
   await saveSetting(flag, true);
@@ -2298,6 +2478,17 @@ async function saveSetting(key, val) {
   if (key === 'lang') localStorage.setItem('sidekick_ui_lang', val);
 }
 async function onCurrencyChange(v) { await saveSetting('currency', v); applyLang(); }
+// Switching business type never touches existing services/clients — only
+// changes the unit word, seeds that type's defaults if the account has no
+// services at all yet, and swaps which tracker card renders on a client.
+async function onBusinessTypeChange(v) {
+  if (!BUSINESS_TYPES[v]) return;
+  await saveSetting('businessType', v);
+  document.body.setAttribute('data-work-type', v);
+  await seedServicesIfEmpty();
+  applyLang();
+  renderHome();
+}
 async function onLangChange(v) { await saveSetting('lang', v === 'th' ? 'th' : 'en'); applyLang(); }
 async function onWhtChange(v) { const n = parseFloat(v); await saveSetting('wht', isNaN(n)?null:n); }
 async function onVatChange(v) { const n = parseFloat(v); await saveSetting('vat', isNaN(n)?null:n); }

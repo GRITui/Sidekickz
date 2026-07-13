@@ -200,6 +200,16 @@
       <summary class="section-title" data-i18n="preferences">Preferences</summary>
       <div class="settings-list">
         <div class="settings-row">
+          <label class="settings-label" for="set-business-type" data-i18n="business_type_label">Business type</label>
+          <select id="set-business-type" onchange="onBusinessTypeChange(this.value)">
+            <option value="trainer" data-i18n="business_type_trainer">Personal trainer</option>
+            <option value="realestate" data-i18n="business_type_realestate">Real estate agent</option>
+            <option value="laundry" data-i18n="business_type_laundry">Laundry service</option>
+            <option value="insurance" data-i18n="business_type_insurance">Insurance agent</option>
+            <option value="garage" data-i18n="business_type_garage">Car garage</option>
+          </select>
+        </div>
+        <div class="settings-row">
           <label class="settings-label" for="set-theme" data-i18n="theme">Theme</label>
           <select id="set-theme" onchange="onThemeChange(this.value)">
             <option value="dark" data-i18n="theme_dark">Dark</option>
@@ -453,6 +463,10 @@
     <div class="form-section" id="cust-progress-section" style="display:none">
       <div class="section-title" style="margin:0 0 8px">Progress log</div>
       <div id="cust-progress-body"></div>
+    </div>
+    <div class="form-section" id="cust-persona-section" style="display:none">
+      <div class="section-title" style="margin:0 0 8px" id="cust-persona-title"></div>
+      <div id="cust-persona-body"></div>
     </div>
     <div class="form-section">
       <div class="field"><label for="c-notes" data-i18n="field_notes">Notes</label><textarea id="c-notes" rows="2"></textarea></div>
