@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.17';          // <-> sw.js SW_VERSION 'sidekick-v0.9.17'
+const APP_VERSION = '0.9.18';          // <-> sw.js SW_VERSION 'sidekick-v0.9.18'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -679,6 +679,9 @@ const I18N = {
     billable_session:'Billable this session:', focus_pause:'Pause', focus_resume:'Resume', focus_stop:'Stop',
     tracker_deal_title:'Deal tracker', tracker_order_title:'Order tracker', tracker_policy_title:'Policy tracker', tracker_vehicle_title:'Vehicle tracker',
     field_search_brief:'Budget / areas / needs', field_offer_status:'Offer status', field_est_commission:'Est. commission',
+    deals_title:'Deals', no_deals:'No deals yet.', add_deal_btn:'+ Add deal', delete_deal_btn:'Delete deal',
+    field_deal_stage:'Stage', deal_stage_searching:'Searching', deal_stage_viewing:'Viewing', deal_stage_offer:'Offer submitted',
+    deal_stage_negotiating:'Negotiating', deal_stage_closing:'Closing', deal_stage_closed:'Closed',
     field_order_status:'Order status', order_step_received:'Received', order_step_washing:'Washing', order_step_drying:'Drying', order_step_ready:'Ready',
     field_monthly_kg_plan:'Monthly kg plan', field_preferences:'Preferences',
     current_order_title:'Current order', no_active_order:'No active order.', start_new_order_btn:'+ Start new order',
@@ -921,6 +924,9 @@ const I18N = {
     billable_session:'เวลาที่เรียกเก็บเงินได้ในเซสชันนี้:', focus_pause:'หยุดชั่วคราว', focus_resume:'ดำเนินการต่อ', focus_stop:'หยุด',
     tracker_deal_title:'ติดตามดีล', tracker_order_title:'ติดตามออเดอร์', tracker_policy_title:'ติดตามกรมธรรม์', tracker_vehicle_title:'ติดตามรถ',
     field_search_brief:'งบประมาณ / ทำเล / ความต้องการ', field_offer_status:'สถานะข้อเสนอ', field_est_commission:'ค่าคอมมิชชั่นโดยประมาณ',
+    deals_title:'ดีล', no_deals:'ยังไม่มีดีล', add_deal_btn:'+ เพิ่มดีล', delete_deal_btn:'ลบดีล',
+    field_deal_stage:'ขั้นตอน', deal_stage_searching:'กำลังหา', deal_stage_viewing:'กำลังดูสถานที่', deal_stage_offer:'ยื่นข้อเสนอแล้ว',
+    deal_stage_negotiating:'กำลังต่อรอง', deal_stage_closing:'ปิดการขาย', deal_stage_closed:'ปิดแล้ว',
     field_order_status:'สถานะออเดอร์', order_step_received:'รับผ้าแล้ว', order_step_washing:'กำลังซัก', order_step_drying:'กำลังตาก', order_step_ready:'พร้อมรับ',
     field_monthly_kg_plan:'แผนกิโลกรัมต่อเดือน', field_preferences:'ความต้องการเฉพาะ',
     current_order_title:'ออเดอร์ปัจจุบัน', no_active_order:'ไม่มีออเดอร์ที่กำลังดำเนินการ', start_new_order_btn:'+ เริ่มออเดอร์ใหม่',
@@ -2968,16 +2974,37 @@ function addMealPlanRow(clientId) {
 window.addMealPlanRow = addMealPlanRow;
 
 const VIEWING_VERDICTS = ['interested', 'maybe', 'passed'];
-function addViewingRow(clientId) {
-  const date = (document.getElementById('viewing-date-' + clientId) || {}).value || '';
-  const propertyEl = document.getElementById('viewing-property-' + clientId);
-  const property = ((propertyEl && propertyEl.value) || '').trim();
-  const verdict = (document.getElementById('viewing-verdict-' + clientId) || {}).value || 'interested';
-  if (!property) return;
-  addClientListItem(clientId, 'viewings', { date, property, verdict });
-  if (propertyEl) propertyEl.value = '';
+// A deal's own viewings are a nested array (deal.viewings), not a top-level
+// client-list field — addClientListItem/deleteClientListItem/
+// saveClientListItemField only reach c[field] directly, so these two are the
+// deal-scoped equivalents, following the exact same shape.
+function addDealViewing(clientId, dealId, viewing) {
+  const c = customers.find(x => x.id === clientId);
+  if (!c) return;
+  const deal = (c.deals || []).find(d => d.id === dealId);
+  if (!deal) return;
+  deal.viewings = deal.viewings || [];
+  deal.viewings.push({ id: cuid(), ...viewing });
+  c.updatedAt = nowISO();
+  return dbPut('clients', c).then(() => renderClientPersonaTracker(clientId));
 }
-window.addViewingRow = addViewingRow;
+window.addDealViewing = addDealViewing;
+function deleteDealViewing(clientId, dealId, viewingId) {
+  const c = customers.find(x => x.id === clientId);
+  if (!c) return;
+  const deal = (c.deals || []).find(d => d.id === dealId);
+  if (!deal) return;
+  deal.viewings = (deal.viewings || []).filter(v => v.id !== viewingId);
+  c.updatedAt = nowISO();
+  return dbPut('clients', c).then(() => renderClientPersonaTracker(clientId));
+}
+window.deleteDealViewing = deleteDealViewing;
+function addViewingRowToDeal(clientId, dealId) {
+  const date = (document.getElementById('viewing-date-' + dealId) || {}).value || '';
+  const verdict = (document.getElementById('viewing-verdict-' + dealId) || {}).value || 'interested';
+  addDealViewing(clientId, dealId, { date, verdict });
+}
+window.addViewingRowToDeal = addViewingRowToDeal;
 
 function addServiceHistoryRow(clientId) {
   const date = (document.getElementById('svc-date-' + clientId) || {}).value || '';
@@ -3011,6 +3038,32 @@ function listRowsHtml(rows, clientId, field, lineFn) {
       </div>`).join('') + '</div>';
 }
 
+// A structured deal-stage pipeline, replacing the old flat activity log:
+// each deal is one property pursuit moving through these stages, rather
+// than one undifferentiated list of viewings across however many
+// properties a client happens to be looking at.
+const DEAL_STAGES = ['searching', 'viewing', 'offer', 'negotiating', 'closing', 'closed'];
+// One-time, non-destructive: pre-deal-pipeline real estate clients had a flat
+// searchBrief/offerStatus/estCommission per client plus one undifferentiated
+// viewings[] log (no notion of which property a viewing was for, or where
+// the deal stood). Folds them into a single deal[0] the first time this
+// client's tracker renders: offerStatus becomes the deal's free-text notes
+// (it was already free text, e.g. "Offer submitted, awaiting reply" — not a
+// stage enum, so it can't map onto DEAL_STAGES automatically), estCommission
+// becomes the deal's commission, and every existing viewing carries over
+// as-is (its own `property` field dropped only going forward — see the
+// render side below). searchBrief stays flat: it's the client's general
+// search criteria, not any one deal's.
+function migrateRealEstateDealsIfNeeded(c) {
+  if (Array.isArray(c.deals)) return c.deals;
+  const hadFlatFields = c.offerStatus || c.estCommission || (c.viewings && c.viewings.length);
+  c.deals = hadFlatFields
+    ? [{ id: cuid(), property: '', stage: 'searching', commission: c.estCommission || 0, notes: c.offerStatus || '', viewings: c.viewings || [] }]
+    : [];
+  delete c.offerStatus; delete c.estCommission; delete c.viewings;
+  dbPut('clients', c);
+  return c.deals;
+}
 // One-time, non-destructive: pre-multi-policy insurance clients had one flat
 // policyName/policyRenewalDate per client (no second policy possible).
 // Folds them into policies[0] the first time this client's tracker renders,
@@ -3083,23 +3136,37 @@ function renderClientPersonaTracker(clientId) {
       </div>
     `;
   } else if (bt === 'realestate') {
-    const rows = (c.viewings || []).slice().reverse();
+    const deals = migrateRealEstateDealsIfNeeded(c);
+    const dealHtml = d => {
+      const viewingRows = (d.viewings || []).slice().reverse();
+      return `<div class="list-card" style="margin-bottom:8px;padding:10px 14px">
+          <div class="field"><label>${htmlEsc(t('field_viewing_property'))}</label><input type="text" value="${attrEsc(d.property || '')}" onchange="saveClientListItemField(${clientId},'deals','${d.id}','property',this.value)"></div>
+          <div class="field"><label>${htmlEsc(t('field_deal_stage'))}</label><select onchange="saveClientListItemField(${clientId},'deals','${d.id}','stage',this.value)">
+            ${DEAL_STAGES.map(s => `<option value="${s}"${s === d.stage ? ' selected' : ''}>${htmlEsc(t('deal_stage_' + s))}</option>`).join('')}
+          </select></div>
+          <div class="field"><label>${htmlEsc(t('field_est_commission'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${d.commission || ''}" onchange="saveClientListItemField(${clientId},'deals','${d.id}','commission',parseFloat(this.value)||0)"></div>
+          <div class="field"><label>${htmlEsc(t('field_notes'))}</label><textarea rows="2" onchange="saveClientListItemField(${clientId},'deals','${d.id}','notes',this.value)">${htmlEsc(d.notes || '')}</textarea></div>
+          <div class="section-title" style="font-size:11px;margin:10px 0 6px">${htmlEsc(t('viewing_log_title'))}</div>
+          ${viewingRows.length ? '<div class="list-card" style="margin-bottom:8px">' + viewingRows.map(v => `
+            <div class="list-row" style="cursor:default">
+              <div class="list-main"><div class="list-sub">${v.date ? htmlEsc(fmtDate(v.date)) + ' · ' : ''}${htmlEsc(t('viewing_verdict_' + (v.verdict || 'interested')))}</div></div>
+              <div class="list-right"><button type="button" class="qc-btn" aria-label="Delete" onclick="deleteDealViewing(${clientId},'${d.id}','${v.id}')">✕</button></div>
+            </div>`).join('') + '</div>' : `<div class="pkg-status"><span>${htmlEsc(t('no_viewings'))}</span></div>`}
+          <div class="form-row" style="margin-top:8px">
+            <input type="date" id="viewing-date-${d.id}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+            <select id="viewing-verdict-${d.id}" style="padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+              ${VIEWING_VERDICTS.map(v => `<option value="${v}">${htmlEsc(t('viewing_verdict_' + v))}</option>`).join('')}
+            </select>
+            <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addViewingRowToDeal(${clientId},'${d.id}')">${htmlEsc(t('btn_add'))}</button>
+          </div>
+          <button type="button" class="qc-btn" style="width:100%;margin-top:8px;color:var(--overdue)" onclick="deleteClientListItem(${clientId},'deals','${d.id}')">${htmlEsc(t('delete_deal_btn'))}</button>
+        </div>`;
+    };
     wrap.innerHTML = `
       <div class="field"><label>${htmlEsc(t('field_search_brief'))}</label><textarea rows="2" onchange="saveClientField(${clientId},'searchBrief',this.value)">${htmlEsc(c.searchBrief || '')}</textarea></div>
-      <div class="field"><label>${htmlEsc(t('field_offer_status'))}</label><input type="text" value="${attrEsc(c.offerStatus || '')}" placeholder="e.g. Offer submitted, awaiting reply" onchange="saveClientField(${clientId},'offerStatus',this.value)"></div>
-      <div class="field"><label>${htmlEsc(t('field_est_commission'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.estCommission || ''}" onchange="saveClientField(${clientId},'estCommission',parseFloat(this.value)||0)"></div>
-      <div class="section-title" style="font-size:12px;margin:14px 0 8px">${htmlEsc(t('viewing_log_title'))}</div>
-      ${listRowsHtml(rows, clientId, 'viewings', r => `<div class="list-title">${htmlEsc(r.property)}</div><div class="list-sub">${r.date ? htmlEsc(fmtDate(r.date)) + ' · ' : ''}${htmlEsc(t('viewing_verdict_' + (r.verdict || 'interested')))}</div>`) || `<div class="pkg-status"><span>${htmlEsc(t('no_viewings'))}</span></div>`}
-      <div class="form-row" style="margin-top:8px">
-        <input type="date" id="viewing-date-${clientId}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
-        <select id="viewing-verdict-${clientId}" style="padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
-          ${VIEWING_VERDICTS.map(v => `<option value="${v}">${htmlEsc(t('viewing_verdict_' + v))}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-row" style="margin-top:8px">
-        <input type="text" id="viewing-property-${clientId}" placeholder="${attrEsc(t('field_viewing_property'))}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
-        <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addViewingRow(${clientId})">${htmlEsc(t('btn_add'))}</button>
-      </div>
+      <div class="section-title" style="font-size:12px;margin:14px 0 8px">${htmlEsc(t('deals_title'))}</div>
+      ${deals.length ? deals.map(dealHtml).join('') : `<div class="pkg-status"><span>${htmlEsc(t('no_deals'))}</span></div>`}
+      <button type="button" class="qc-btn" style="width:100%" onclick="addClientListItem(${clientId},'deals',{property:'',stage:'searching',commission:0,notes:'',viewings:[]})">${htmlEsc(t('add_deal_btn'))}</button>
     `;
   } else if (bt === 'laundry') {
     const orders = migrateLaundryOrdersIfNeeded(c);
