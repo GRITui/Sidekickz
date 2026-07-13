@@ -3,11 +3,17 @@ name: Deploy to Vercel
 # Requires repo secrets VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID.
 # Vercel's own GitHub-integration auto-deploy must be disabled in the Vercel
 # dashboard (Project Settings > Git) or every push double-deploys.
+#
+# workflow_dispatch lets a dashboard-only change (e.g. new env vars) force a
+# fresh prod build+deploy from the Actions tab, without a throwaway commit —
+# these are prebuilt deploys, so "Redeploy" in Vercel just re-serves the old
+# build and won't pick up new env vars.
 
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: vercel-${{ github.ref }}
@@ -15,7 +21,7 @@ concurrency:
 
 jobs:
   deploy-production:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: production
