@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.14';          // <-> sw.js SW_VERSION 'sidekick-v0.9.14'
+const APP_VERSION = '0.9.15';          // <-> sw.js SW_VERSION 'sidekick-v0.9.15'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -690,6 +690,8 @@ const I18N = {
     field_birthday:'Birthday', field_referred_by:'Referred by',
     lifetime_spend_label:'Lifetime spend', service_history_title:'Service history', no_service_history:'No service history yet.',
     field_service_note:'Service note',
+    vehicles_title:'Vehicles', no_vehicles:'No vehicles yet.', add_vehicle_btn:'+ Add vehicle', delete_vehicle_btn:'Delete vehicle',
+    unnamed_vehicle:'Unnamed vehicle', svc_vehicle_none_option:'No vehicle (general)',
     package_unit_label:'Package unit', package_unit_ph:'Sessions',
     package_unit_sub:'What one unit of a package is called — "Pieces," "Sessions," "Policies," whatever fits.',
     apply_to_package:'Apply to package', of_label:'of', left_label:'left', purchased_label:'Purchased',
@@ -926,6 +928,8 @@ const I18N = {
     field_birthday:'วันเกิด', field_referred_by:'แนะนำโดย',
     lifetime_spend_label:'ยอดใช้จ่ายสะสม', service_history_title:'ประวัติการซ่อมบำรุง', no_service_history:'ยังไม่มีประวัติการซ่อมบำรุง',
     field_service_note:'บันทึกการซ่อมบำรุง',
+    vehicles_title:'ยานพาหนะ', no_vehicles:'ยังไม่มียานพาหนะ', add_vehicle_btn:'+ เพิ่มยานพาหนะ', delete_vehicle_btn:'ลบยานพาหนะ',
+    unnamed_vehicle:'ยานพาหนะไม่มีชื่อ', svc_vehicle_none_option:'ไม่ระบุยานพาหนะ (ทั่วไป)',
     package_unit_label:'หน่วยแพ็กเกจ', package_unit_ph:'เซสชัน',
     package_unit_sub:'หน่วยของแพ็กเกจเรียกว่าอะไร — "ชิ้น" "เซสชัน" "กรมธรรม์" หรือคำที่เหมาะกับธุรกิจของคุณ',
     apply_to_package:'ใช้กับแพ็กเกจ', of_label:'จาก', left_label:'เหลือ', purchased_label:'ซื้อเมื่อ',
@@ -2932,6 +2936,19 @@ function deleteClientListItem(clientId, field, itemId) {
   return dbPut('clients', c).then(() => renderClientPersonaTracker(clientId));
 }
 window.deleteClientListItem = deleteClientListItem;
+// In-place edit of one field on one item within a client-list array (e.g. a
+// single vehicle's plate/mileage) — the array-item counterpart to
+// saveClientField() above, which only handles flat top-level client fields.
+function saveClientListItemField(clientId, field, itemId, key, value) {
+  const c = customers.find(x => x.id === clientId);
+  if (!c) return;
+  const item = (c[field] || []).find(r => r.id === itemId);
+  if (!item) return;
+  item[key] = value;
+  c.updatedAt = nowISO();
+  return dbPut('clients', c);
+}
+window.saveClientListItemField = saveClientListItemField;
 
 function addMealPlanRow(clientId) {
   const input = document.getElementById('meal-plan-new-' + clientId);
@@ -2959,7 +2976,9 @@ function addServiceHistoryRow(clientId) {
   const noteEl = document.getElementById('svc-note-' + clientId);
   const note = ((noteEl && noteEl.value) || '').trim();
   if (!note) return;
-  addClientListItem(clientId, 'serviceHistory', { date, note });
+  const vehicleEl = document.getElementById('svc-vehicle-' + clientId);
+  const vehicleId = (vehicleEl && vehicleEl.value) || null;
+  addClientListItem(clientId, 'serviceHistory', { date, note, vehicleId });
   if (noteEl) noteEl.value = '';
 }
 window.addServiceHistoryRow = addServiceHistoryRow;
@@ -2984,6 +3003,21 @@ function listRowsHtml(rows, clientId, field, lineFn) {
       </div>`).join('') + '</div>';
 }
 
+// One-time, non-destructive: pre-multi-vehicle garage clients had one flat
+// vehiclePlate/vehicleMileage/nextServiceDate per client instead of a
+// vehicles[] array. Folds them into vehicles[0] the first time this
+// client's tracker renders, then drops the flat fields so they can never
+// drift out of sync with the new array.
+function migrateGarageVehiclesIfNeeded(c) {
+  if (Array.isArray(c.vehicles)) return c.vehicles;
+  const hadFlatFields = c.vehiclePlate || c.vehicleMileage || c.nextServiceDate;
+  c.vehicles = hadFlatFields
+    ? [{ id: cuid(), plate: c.vehiclePlate || '', mileage: c.vehicleMileage || 0, nextServiceDate: c.nextServiceDate || '' }]
+    : [];
+  delete c.vehiclePlate; delete c.vehicleMileage; delete c.nextServiceDate;
+  dbPut('clients', c);
+  return c.vehicles;
+}
 function renderClientPersonaTracker(clientId) {
   const wrap = document.getElementById('cust-persona-body');
   const titleEl = document.getElementById('cust-persona-title');
@@ -3046,17 +3080,37 @@ function renderClientPersonaTracker(clientId) {
       <div class="field"><label>${htmlEsc(t('field_referred_by'))}</label><input type="text" value="${attrEsc(c.referredBy || '')}" onchange="saveClientField(${clientId},'referredBy',this.value)"></div>
     `;
   } else if (bt === 'garage') {
+    const vehicles = migrateGarageVehiclesIfNeeded(c);
     const rows = (c.serviceHistory || []).slice().reverse();
     const spend = clientLifetimeSpend(clientId);
+    const vehicleLabel = v => v.plate || t('unnamed_vehicle');
     wrap.innerHTML = `
-      <div class="form-row">
-        <div class="field-half"><label>${htmlEsc(t('field_plate'))}</label><input type="text" value="${attrEsc(c.vehiclePlate || '')}" onchange="saveClientField(${clientId},'vehiclePlate',this.value)"></div>
-        <div class="field-half"><label>${htmlEsc(t('field_mileage'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${c.vehicleMileage || ''}" onchange="saveClientField(${clientId},'vehicleMileage',parseFloat(this.value)||0)"></div>
-      </div>
-      <div class="field"><label>${htmlEsc(t('field_next_service_due'))}</label><input type="date" value="${attrEsc(c.nextServiceDate || '')}" onchange="saveClientField(${clientId},'nextServiceDate',this.value)"></div>
+      <div class="section-title" style="font-size:12px;margin:0 0 8px">${htmlEsc(t('vehicles_title'))}</div>
+      ${vehicles.length ? vehicles.map(v => `
+        <div class="list-card" style="margin-bottom:8px;padding:10px 14px">
+          <div class="form-row">
+            <div class="field-half"><label>${htmlEsc(t('field_plate'))}</label><input type="text" value="${attrEsc(v.plate || '')}" onchange="saveClientListItemField(${clientId},'vehicles','${v.id}','plate',this.value)"></div>
+            <div class="field-half"><label>${htmlEsc(t('field_mileage'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${v.mileage || ''}" onchange="saveClientListItemField(${clientId},'vehicles','${v.id}','mileage',parseFloat(this.value)||0)"></div>
+          </div>
+          <div class="field"><label>${htmlEsc(t('field_next_service_due'))}</label><input type="date" value="${attrEsc(v.nextServiceDate || '')}" onchange="saveClientListItemField(${clientId},'vehicles','${v.id}','nextServiceDate',this.value)"></div>
+          <button type="button" class="qc-btn" style="width:100%;margin-top:6px;color:var(--overdue)" onclick="deleteClientListItem(${clientId},'vehicles','${v.id}')">${htmlEsc(t('delete_vehicle_btn'))}</button>
+        </div>
+      `).join('') : `<div class="pkg-status"><span>${htmlEsc(t('no_vehicles'))}</span></div>`}
+      <button type="button" class="qc-btn" style="width:100%;margin-bottom:14px" onclick="addClientListItem(${clientId},'vehicles',{plate:'',mileage:0,nextServiceDate:''})">${htmlEsc(t('add_vehicle_btn'))}</button>
+
       <div class="pkg-status-row"><span>${htmlEsc(t('lifetime_spend_label'))}</span><span class="tnum">${htmlEsc(money(spend))}</span></div>
       <div class="section-title" style="font-size:12px;margin:14px 0 8px">${htmlEsc(t('service_history_title'))}</div>
-      ${listRowsHtml(rows, clientId, 'serviceHistory', r => `<div class="list-title">${htmlEsc(r.note)}</div>${r.date ? `<div class="list-sub">${htmlEsc(fmtDate(r.date))}</div>` : ''}`) || `<div class="pkg-status"><span>${htmlEsc(t('no_service_history'))}</span></div>`}
+      ${listRowsHtml(rows, clientId, 'serviceHistory', r => {
+        const v = vehicles.find(x => x.id === r.vehicleId);
+        const sub = [v ? vehicleLabel(v) : '', r.date ? fmtDate(r.date) : ''].filter(Boolean).join(' · ');
+        return `<div class="list-title">${htmlEsc(r.note)}</div>${sub ? `<div class="list-sub">${htmlEsc(sub)}</div>` : ''}`;
+      }) || `<div class="pkg-status"><span>${htmlEsc(t('no_service_history'))}</span></div>`}
+      ${vehicles.length ? `<div class="form-row" style="margin-top:8px">
+        <select id="svc-vehicle-${clientId}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+          <option value="">${htmlEsc(t('svc_vehicle_none_option'))}</option>
+          ${vehicles.map(v => `<option value="${v.id}">${htmlEsc(vehicleLabel(v))}</option>`).join('')}
+        </select>
+      </div>` : ''}
       <div class="form-row" style="margin-top:8px">
         <input type="date" id="svc-date-${clientId}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
       </div>
