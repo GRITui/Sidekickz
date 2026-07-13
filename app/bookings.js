@@ -96,6 +96,11 @@
   let selectedDate = todayISO();          // last date the user looked at (fallback for "+ New booking")
   let expandedDate = todayISO();          // date whose agenda panel is open beneath the grid; null = collapsed
   let calMonth = todayISO().slice(0, 7);  // 'YYYY-MM' currently shown in the grid
+  // Week/Month segmented toggle (redesign handoff) — persisted like any other
+  // Settings value, read straight from the shared global `settings` object
+  // (bookings.js loads after app.js, sharing its global scope, same as every
+  // other app.js global this file already reads).
+  let calMode = (settings && settings.calViewMode === 'week') ? 'week' : 'month';
   let editing = null;                     // full record being edited, or null on create
 
   function shiftMonth(ym, delta) {
@@ -158,6 +163,122 @@
       out.push({ iso: `${ny}-${pad2(nm)}-${pad2(i)}`, dayNum: i, dim: true });
     }
     return out;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  WEEK VIEW (redesign handoff — segmented Week/Month toggle)
+  // ══════════════════════════════════════════════════════════════════════
+  // The 7 Mon–Sun dates for the week containing `iso`.
+  function weekDates(iso) {
+    const d = new Date((iso || todayISO()) + 'T12:00:00');
+    const mondayOffset = (d.getDay() + 6) % 7; // Monday=0..Sunday=6
+    const out = [];
+    for (let i = -mondayOffset; i < 7 - mondayOffset; i++) out.push(addDays(iso, i));
+    return out;
+  }
+  // Same "gap < travel buffer" check buildDayList's strips already flag —
+  // reused here just to decide the week-strip dot's color (red = an issue
+  // exists somewhere in that day's schedule), not to render a strip.
+  function dayHasBufferIssue(activeSorted) {
+    for (let i = 0; i < activeSorted.length - 1; i++) {
+      const prev = activeSorted[i], next = activeSorted[i + 1];
+      const gap = toMin(next.startTime) - (toMin(prev.startTime) + n(prev.durationMin));
+      const buf = n(prev.travelBufferMin);
+      if (!(buf === 0 && gap >= 0)) return true;
+    }
+    return false;
+  }
+  // One dbAll(STORE) covers the whole visible week (same "load once, filter
+  // client-side" approach computeActivitySets() uses for the month grid).
+  async function computeWeekActivity(dates) {
+    const uid = uidNow();
+    const set = new Set(dates);
+    const rows = (await dbAll(STORE)).filter(r => r.uid === uid && set.has(r.date));
+    const byDate = {};
+    dates.forEach(iso => { byDate[iso] = []; });
+    rows.forEach(r => { byDate[r.date].push(r); });
+    const out = {};
+    dates.forEach(iso => {
+      const all = byDate[iso].sort((a, b) => toMin(a.startTime) - toMin(b.startTime));
+      const active = all.filter(r => r.status !== 'cancelled');
+      out[iso] = { count: active.length, issue: dayHasBufferIssue(active) };
+    });
+    return out;
+  }
+  // Busy-day count pill (marigold) once a day is "full" (matches the month
+  // grid's own >3-sessions-renders-a-pill threshold); otherwise a small dot
+  // per session, red if any buffer issue exists that day, green otherwise.
+  const WEEK_BUSY_THRESHOLD = 4;
+  function weekDayMarkerHtml(info) {
+    if (!info || !info.count) return '';
+    if (info.count >= WEEK_BUSY_THRESHOLD) return `<span class="cal-count" style="background:var(--marigold)">${info.count}</span>`;
+    const color = info.issue ? 'var(--overdue)' : 'var(--paid)';
+    return Array.from({ length: info.count }).map(() => `<span class="cal-dot" style="background:${color}"></span>`).join('');
+  }
+  function buildWeekStrip(dates, activity, selected) {
+    const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return `<div class="cal-week-strip">${dates.map((iso, i) => {
+      const d = new Date(iso + 'T12:00:00');
+      const isToday = iso === todayISO();
+      const isSel = iso === selected;
+      const info = activity[iso];
+      return `<button type="button" class="cal-week-day${isSel ? ' cal-selected' : ''}${isToday ? ' cal-today' : ''}" data-week-day="${iso}">
+          <span class="cal-wd">${WD[i]}</span>
+          <span class="cal-daynum">${d.getDate()}</span>
+          <span class="cal-dots">${weekDayMarkerHtml(info)}</span>
+        </button>`;
+    }).join('')}</div>`;
+  }
+  // Hour timeline for the selected day: duration-sized blocks positioned by
+  // pixel-per-minute, dashed "free slot + add" gaps filling everything else
+  // in the visible range — the range itself stretches to fit any booking
+  // that falls outside the default 7:00–21:00 working-hours window rather
+  // than clipping it.
+  const TIMELINE_PX_PER_MIN = 1.0;
+  function buildHourTimeline(dateISO, rows) {
+    const active = rows.filter(r => r.status !== 'cancelled').sort((a, b) => toMin(a.startTime) - toMin(b.startTime));
+    let rangeStart = 7 * 60, rangeEnd = 21 * 60;
+    active.forEach(r => {
+      rangeStart = Math.min(rangeStart, Math.floor(toMin(r.startTime) / 60) * 60);
+      rangeEnd = Math.max(rangeEnd, Math.ceil((toMin(r.startTime) + n(r.durationMin)) / 60) * 60);
+    });
+    const totalMin = rangeEnd - rangeStart;
+    const px = m => Math.round(m * TIMELINE_PX_PER_MIN);
+
+    const hourLines = [];
+    for (let h = rangeStart; h <= rangeEnd; h += 60) {
+      hourLines.push(`<div class="cal-hour-row" style="top:${px(h - rangeStart)}px"><span class="cal-hour-label">${fmtMin(h)}</span></div>`);
+    }
+
+    const blocks = [];
+    let cursor = rangeStart;
+    active.forEach(r => {
+      const start = toMin(r.startTime), dur = n(r.durationMin);
+      if (start > cursor) {
+        blocks.push(gapBlockHtml(dateISO, cursor, start, rangeStart, px));
+      }
+      const cust = customerName(r.customerId);
+      blocks.push(`<div class="cal-tl-block" data-bk="${r.id}" tabindex="0" role="button"
+          style="top:${px(start - rangeStart)}px;height:${Math.max(px(dur), 24)}px">
+          <div class="cal-tl-time tnum">${esc(fmtMin(start))}-${esc(fmtMin(start + dur))}</div>
+          <div class="cal-tl-title">${esc(r.title || 'Booking')}${cust ? ' · ' + esc(cust) : ''}</div>
+        </div>`);
+      cursor = Math.max(cursor, start + dur);
+    });
+    if (cursor < rangeEnd) blocks.push(gapBlockHtml(dateISO, cursor, rangeEnd, rangeStart, px));
+
+    return `<div class="cal-timeline" style="height:${px(totalMin)}px">
+        <div class="cal-timeline-hours">${hourLines.join('')}</div>
+        <div class="cal-timeline-blocks">${blocks.join('')}</div>
+      </div>`;
+  }
+  function gapBlockHtml(dateISO, fromMin, toMinVal, rangeStart, px) {
+    const dur = toMinVal - fromMin;
+    if (dur < 15) return ''; // too thin to usefully show or tap
+    return `<button type="button" class="cal-tl-gap" data-gap-date="${aesc(dateISO)}" data-gap-start="${fmtMin(fromMin)}"
+        style="top:${px(fromMin - rangeStart)}px;height:${px(dur)}px">
+        Free ${esc(fmtMin(fromMin))}–${esc(fmtMin(toMinVal))} · + add
+      </button>`;
   }
 
   // A single engagement that day still renders as a small stage-colored dot
@@ -262,12 +383,89 @@
       </div>`;
   }
 
+  // Shared by both views — the segmented Week/Month switch itself never
+  // changes shape, only which render function runs underneath it.
+  function calModeToggleHtml() {
+    return `<div class="cal-mode-switch">
+        <button type="button" class="cal-mode-btn${calMode === 'week' ? ' active' : ''}" data-cal-mode="week">Week</button>
+        <button type="button" class="cal-mode-btn${calMode === 'month' ? ' active' : ''}" data-cal-mode="month">Month</button>
+      </div>`;
+  }
+  function wireCalModeToggle(el) {
+    el.querySelectorAll('[data-cal-mode]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const mode = btn.getAttribute('data-cal-mode');
+        if (mode === calMode) return;
+        calMode = mode;
+        await saveSetting('calViewMode', mode);
+        renderBookings();
+      });
+    });
+  }
+
   async function renderBookings() {
     const el = document.getElementById('book-body');
     if (!el) return;
     if (!selectedDate) selectedDate = todayISO();
     if (!calMonth) calMonth = todayISO().slice(0, 7);
+    if (calMode === 'week') { await renderWeekView(el); return; }
+    await renderMonthView(el);
+  }
+  window.renderBookings = renderBookings;
 
+  async function renderWeekView(el) {
+    const dates = weekDates(selectedDate);
+    let activity, rows;
+    try {
+      activity = await computeWeekActivity(dates);
+      rows = await loadBookings(selectedDate);
+    } catch (err) {
+      console.error('renderWeekView', err);
+      el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>Could not load bookings.</p></div>`;
+      return;
+    }
+    const weekNav = `<div class="cal-topnav">
+        <button type="button" id="cal-prev" class="cal-navbtn" aria-label="Previous week">‹</button>
+        <button type="button" id="cal-label" class="cal-monthlabel">${esc(monthLabel(selectedDate.slice(0, 7)))}</button>
+        <button type="button" id="cal-next" class="cal-navbtn" aria-label="Next week">›</button>
+        <button type="button" id="cal-today-btn" class="cal-todaybtn">Today</button>
+        <input type="date" id="bk-jump" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
+      </div>`;
+    const strip = buildWeekStrip(dates, activity, selectedDate);
+    const dayTotal = (activity[selectedDate] && activity[selectedDate].count) || 0;
+    const sumLabel = dayTotal
+      ? `<div class="cal-day-summary"><span>${esc(dayLabel(selectedDate))}</span><span class="tnum">${dayTotal} session${dayTotal === 1 ? '' : 's'}</span></div>`
+      : `<div class="cal-day-summary"><span>${esc(dayLabel(selectedDate))}</span></div>`;
+    const timeline = buildHourTimeline(selectedDate, rows);
+
+    el.innerHTML = `${calModeToggleHtml()}${weekNav}${strip}${sumLabel}${timeline}`;
+    wireCalModeToggle(el);
+
+    document.getElementById('cal-prev').addEventListener('click', () => { selectedDate = addDays(selectedDate, -7); renderBookings(); });
+    document.getElementById('cal-next').addEventListener('click', () => { selectedDate = addDays(selectedDate, 7); renderBookings(); });
+    document.getElementById('cal-today-btn').addEventListener('click', () => { selectedDate = todayISO(); renderBookings(); });
+    document.getElementById('cal-label').addEventListener('click', () => {
+      const inp = document.getElementById('bk-jump');
+      inp.value = selectedDate;
+      if (inp.showPicker) inp.showPicker(); else inp.click();
+    });
+    document.getElementById('bk-jump').addEventListener('change', (e) => {
+      if (!e.target.value) return;
+      selectedDate = e.target.value;
+      renderBookings();
+    });
+    el.querySelectorAll('[data-week-day]').forEach(btn => {
+      btn.addEventListener('click', () => { selectedDate = btn.getAttribute('data-week-day'); renderBookings(); });
+    });
+    el.querySelectorAll('[data-bk]').forEach(block => {
+      block.addEventListener('click', () => openBookingEdit(parseInt(block.getAttribute('data-bk'), 10)));
+    });
+    el.querySelectorAll('[data-gap-date]').forEach(btn => {
+      btn.addEventListener('click', () => openBookingForm(btn.getAttribute('data-gap-date')));
+    });
+  }
+
+  async function renderMonthView(el) {
     let bookingDates, stageDates, stagesByDate, dayPanelHtml = '';
     try {
       ({ bookingDates, stageDates, stagesByDate } = await computeActivitySets());
@@ -314,10 +512,11 @@
     // scrolling needed to see what's on a day after tapping it. On mobile
     // the grid rule doesn't apply and this just stacks top-to-bottom as before.
     const rightPanel = dayPanelHtml || `<div class="empty cal-daypanel-placeholder"><p>Tap a day to see what's on it.</p></div>`;
-    el.innerHTML = `<div class="cal-layout">
+    el.innerHTML = `${calModeToggleHtml()}<div class="cal-layout">
         <div class="cal-left">${monthNav}${wdRow}${grid}${legend}${btn}</div>
         <div class="cal-right">${rightPanel}</div>
       </div>`;
+    wireCalModeToggle(el);
 
     document.getElementById('cal-prev').addEventListener('click', () => { calMonth = shiftMonth(calMonth, -1); expandedDate = null; renderBookings(); });
     document.getElementById('cal-next').addEventListener('click', () => { calMonth = shiftMonth(calMonth, 1); expandedDate = null; renderBookings(); });
@@ -369,7 +568,6 @@
       });
     });
   }
-  window.renderBookings = renderBookings;
 
   function buildDayList(rows, nextDayFirst) {
     // Buffer gaps are computed only between non-cancelled bookings; cancelled
