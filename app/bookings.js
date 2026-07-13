@@ -342,7 +342,7 @@
         <div class="list-icon" style="background:${meta.dot}22;color:${meta.dot}">${meta.icon || ''}</div>
         <div class="list-main">
           <div class="list-title">${esc(j.client || 'Client')}</div>
-          <div class="list-sub">${esc(meta.label || stage || '')}${j.serviceName ? ' · ' + esc(j.serviceName) : ''}</div>
+          <div class="list-sub">${esc((meta.label && t(meta.label)) || stage || '')}${j.serviceName ? ' · ' + esc(j.serviceName) : ''}</div>
         </div>
         <div class="list-right">
           <div class="list-amt tnum">${esc(amt)}</div>
@@ -496,7 +496,7 @@
     const isos = gridDates.map(c => c.iso);
     const stageLegendItems = (typeof STAGES !== 'undefined' ? STAGES : [])
       .filter(s => stageDates[s] && isos.some(iso => stageDates[s].has(iso)))
-      .map(s => `<span class="cal-legend-item"><span class="cal-dot" style="background:${STAGE_META[s].dot}"></span> ${esc(STAGE_META[s].label)}</span>`).join('');
+      .map(s => `<span class="cal-legend-item"><span class="cal-dot" style="background:${STAGE_META[s].dot}"></span> ${esc(t(STAGE_META[s].label))}</span>`).join('');
     const bookingLegendItem = isos.some(iso => bookingDates.has(iso))
       ? `<span class="cal-legend-item"><span class="cal-dot cal-dot-book"></span> Booking</span>` : '';
     const legend = (stageLegendItems || bookingLegendItem)

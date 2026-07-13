@@ -452,13 +452,19 @@ const STAGES = ['pitch', 'quote', 'invoice', 'paid', 'delivery', 'extend'];
 // legend (bookings.js) to show which stage(s) a day's engagements are in —
 // chosen to read clearly at a few px each, separate from the semantically-
 // loaded --paid/--due/--overdue vars used elsewhere for invoice status.
+// label/action/done/hint hold i18n KEYS, not display text — every consumer
+// must resolve them with t() (e.g. t(meta.label)), never read raw. Keeping
+// the field names but swapping their values to keys (rather than adding new
+// labelKey/actionKey fields) is a deliberate minimal-diff choice: every call
+// site already reads `meta.label` etc, so only the read needs a `t()`
+// wrapper, not a field rename everywhere.
 const STAGE_META = {
-  pitch:    {label:'Inquiry',  dot:'#64748B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'Log inquiry',     done:'Inquired', hint:'Inquiry — a prospective client reached out, not booked yet.'},
-  quote:    {label:'Quote',    dot:'#8B5CF6', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'Send quote',       done:'Quote sent', skippable:true, hint:'Quote — waiting on a price quote to go out.'},
-  invoice:  {label:'Invoice',  dot:'#F59E0B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'Send invoice',      done:'Invoice sent', skippable:true, hint:'Invoice — quote accepted, waiting on the invoice to go out.'},
-  paid:     {label:'Paid',     dot:'#2F9E5B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'Mark paid',         done:'Paid', hint:'Paid — invoiced, waiting on payment to come in.'},
-  delivery: {label:'Delivery', dot:'#22554B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'Mark delivered',  done:'Delivered', hint:'Delivery — sessions scheduled, not yet delivered.'},
-  extend:   {label:'Renew',    dot:'#0EA5E9', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'Renew',           done:'Renewed', hint:'Renew — delivered, offer a renewal or wrap up.'},
+  pitch:    {label:'stage_pitch_label',    dot:'#64748B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'stage_pitch_action',     done:'stage_pitch_done', hint:'stage_pitch_hint'},
+  quote:    {label:'stage_quote_label',    dot:'#8B5CF6', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'stage_quote_action',       done:'stage_quote_done', skippable:true, hint:'stage_quote_hint'},
+  invoice:  {label:'stage_invoice_label',  dot:'#F59E0B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'stage_invoice_action',      done:'stage_invoice_done', skippable:true, hint:'stage_invoice_hint'},
+  paid:     {label:'stage_paid_label',     dot:'#2F9E5B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'stage_paid_action',         done:'stage_paid_done', hint:'stage_paid_hint'},
+  delivery: {label:'stage_delivery_label', dot:'#22554B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'stage_delivery_action',  done:'stage_delivery_done', hint:'stage_delivery_hint'},
+  extend:   {label:'stage_extend_label',   dot:'#0EA5E9', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'stage_extend_action',           done:'stage_extend_done', hint:'stage_extend_hint'},
 };
 const DEFAULT_STAGE_ORDER = STAGES.slice();
 function getStageOrder() {
@@ -573,6 +579,19 @@ const I18N = {
     nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Task flow', nav_book:'Calendar', nav_more:'More',
     pipeline_title:'Task flow', workflow_title:'Stage order', pipeline_glance_title:'Task flow at a glance',
     skip_stage:'Skip', mark_finished:'Finished', reschedule:'Reschedule', cash_job:'Cash job', active_count:'active',
+    stage_pitch_label:'Inquiry', stage_pitch_action:'Log inquiry', stage_pitch_done:'Inquired',
+    stage_pitch_hint:'Inquiry — a prospective client reached out, not booked yet.',
+    stage_quote_label:'Quote', stage_quote_action:'Send quote', stage_quote_done:'Quote sent',
+    stage_quote_hint:'Quote — waiting on a price quote to go out.',
+    stage_invoice_label:'Invoice', stage_invoice_action:'Send invoice', stage_invoice_done:'Invoice sent',
+    stage_invoice_hint:'Invoice — quote accepted, waiting on the invoice to go out.',
+    stage_paid_label:'Paid', stage_paid_action:'Mark paid', stage_paid_done:'Paid',
+    stage_paid_hint:'Paid — invoiced, waiting on payment to come in.',
+    stage_delivery_label:'Delivery', stage_delivery_action:'Mark delivered', stage_delivery_done:'Delivered',
+    stage_delivery_hint:'Delivery — sessions scheduled, not yet delivered.',
+    stage_extend_label:'Renew', stage_extend_action:'Renew', stage_extend_done:'Renewed',
+    stage_extend_hint:'Renew — delivered, offer a renewal or wrap up.',
+    pl_nothing_here:'Nothing here yet',
     // dashboard
     earned_this_month:'Earned this month', net_after_expenses:'net after expenses',
     stat_jobs:'Sessions', stat_avg:'Avg / session', stat_expenses:'Expenses',
@@ -726,6 +745,19 @@ const I18N = {
     nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_pipeline:'แผนงาน', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
     pipeline_title:'แผนงาน', workflow_title:'ลำดับขั้นตอน', pipeline_glance_title:'ภาพรวมแผนงาน',
     skip_stage:'ข้าม', mark_finished:'เสร็จสิ้น', reschedule:'เลื่อนนัด', cash_job:'จ่ายสด', active_count:'กำลังดำเนินการ',
+    stage_pitch_label:'สอบถาม', stage_pitch_action:'บันทึกการสอบถาม', stage_pitch_done:'สอบถามแล้ว',
+    stage_pitch_hint:'สอบถาม — ลูกค้าที่มีแนวโน้มติดต่อมา ยังไม่ได้จองงาน',
+    stage_quote_label:'เสนอราคา', stage_quote_action:'ส่งใบเสนอราคา', stage_quote_done:'ส่งใบเสนอราคาแล้ว',
+    stage_quote_hint:'เสนอราคา — รอส่งใบเสนอราคาให้ลูกค้า',
+    stage_invoice_label:'ใบแจ้งหนี้', stage_invoice_action:'ส่งใบแจ้งหนี้', stage_invoice_done:'ส่งใบแจ้งหนี้แล้ว',
+    stage_invoice_hint:'ใบแจ้งหนี้ — ลูกค้ายอมรับราคาแล้ว รอส่งใบแจ้งหนี้',
+    stage_paid_label:'ชำระแล้ว', stage_paid_action:'บันทึกว่าชำระแล้ว', stage_paid_done:'ชำระแล้ว',
+    stage_paid_hint:'ชำระแล้ว — ส่งใบแจ้งหนี้แล้ว รอรับชำระเงิน',
+    stage_delivery_label:'ส่งมอบ', stage_delivery_action:'บันทึกว่าส่งมอบแล้ว', stage_delivery_done:'ส่งมอบแล้ว',
+    stage_delivery_hint:'ส่งมอบ — นัดหมายแล้ว ยังไม่ได้ส่งมอบงาน',
+    stage_extend_label:'ต่ออายุ', stage_extend_action:'ต่ออายุ', stage_extend_done:'ต่ออายุแล้ว',
+    stage_extend_hint:'ต่ออายุ — ส่งมอบแล้ว เสนอการต่ออายุหรือปิดงาน',
+    pl_nothing_here:'ยังไม่มีงานในขั้นตอนนี้',
     // dashboard
     earned_this_month:'รายได้เดือนนี้', net_after_expenses:'สุทธิหลังหักค่าใช้จ่าย',
     stat_jobs:'เซสชัน', stat_avg:'เฉลี่ย/เซสชัน', stat_expenses:'ค่าใช้จ่าย',
@@ -1176,9 +1208,9 @@ function renderInsights() {
     }
   });
   const stageOrderForDisplay = (typeof getStageOrder === 'function') ? getStageOrder().concat(['extended', 'finished', 'done']) : Object.keys(stageCounts);
-  const STAGE_DISPLAY_LABELS = { done: t('insights_stage_done'), extended: STAGE_META.extend && STAGE_META.extend.done, finished: t('mark_finished') };
+  const STAGE_DISPLAY_LABELS = { done: t('insights_stage_done'), extended: STAGE_META.extend && t(STAGE_META.extend.done), finished: t('mark_finished') };
   const stageRows = stageOrderForDisplay.filter(s => stageCounts[s]).map(s => {
-    const label = STAGE_DISPLAY_LABELS[s] || (STAGE_META[s] && STAGE_META[s].label) || s;
+    const label = STAGE_DISPLAY_LABELS[s] || (STAGE_META[s] && t(STAGE_META[s].label)) || s;
     return {label, count: stageCounts[s]};
   });
 
@@ -1423,7 +1455,7 @@ async function checkAndFireNotifications() {
     const st = (typeof jobStage === 'function') ? jobStage(j) : '';
     const k = notifyConditionKey('job', j.id, st);
     nextNotified[k] = true;
-    if (!notified[k]) toFire.push({ title: 'Engagement needs attention', body: `${j.client || 'Client'} has been in ${(STAGE_META[st] || {}).label || st} for a few days`, tag: k });
+    if (!notified[k]) toFire.push({ title: 'Engagement needs attention', body: `${j.client || 'Client'} has been in ${t((STAGE_META[st] || {}).label) || st} for a few days`, tag: k });
   });
 
   for (const n of toFire) await showOsNotification(n.title, n.body, n.tag);
@@ -1489,7 +1521,7 @@ function incomingPipelineRowHtml(j) {
   const stage = jobStage(j);
   const meta = STAGE_META[stage] || {};
   const pkg = j.packageId != null ? packages.find(p => p.id === j.packageId) : null;
-  const subParts = [htmlEsc(meta.label || stage || '')];
+  const subParts = [htmlEsc((meta.label && t(meta.label)) || stage || '')];
   if (pkg) subParts.push(`${packageUsed(pkg)} ${t('goal_of')} ${htmlEsc(pkg.totalSessions)}`);
   else if (j.serviceName) subParts.push(htmlEsc(j.serviceName));
   return `<div class="list-row" onclick="openPipelineAt('${stage}')">
@@ -1943,7 +1975,7 @@ function renderPipeline() {
     const meta = STAGE_META[stage] || {};
     const isActive = stage === activeStage;
     return `<button type="button" class="pl-chip${isActive ? ' active' : ''}" onclick="selectPipelineStage('${stage}')" aria-current="${isActive ? 'true' : 'false'}">
-      <span>${htmlEsc(meta.label || stage)}</span>
+      <span>${htmlEsc((meta.label && t(meta.label)) || stage)}</span>
       <span class="pl-chip-count">${(groups[stage] || []).length}</span>
     </button>`;
   }).join('');
@@ -1957,12 +1989,12 @@ function renderPipeline() {
 
   const list = activeItems.length
     ? activeItems.map(j => pipelineCard(j, activeStage)).join('')
-    : '<div class="kb-empty">Nothing here yet</div>';
+    : `<div class="kb-empty">${htmlEsc(t('pl_nothing_here'))}</div>`;
 
   el.innerHTML = `
     <div class="pl-chip-rail" role="tablist" aria-label="Task flow stages">${chips}</div>
     <div class="pl-minimap">${minimap}</div>
-    <p class="pl-stage-hint">${htmlEsc(activeMeta.hint || activeMeta.label || activeStage)}</p>
+    <p class="pl-stage-hint">${htmlEsc((activeMeta.hint && t(activeMeta.hint)) || (activeMeta.label && t(activeMeta.label)) || activeStage)}</p>
     <div class="pl-main-body">${list}</div>
   `;
   if (window.__kbMoved != null) setTimeout(() => { window.__kbMoved = null; }, 500);
@@ -1978,10 +2010,10 @@ function pipelineCard(j, stage) {
   const order = jobOrder(j);
   const canBack = complete || order.indexOf(jobStage(j)) > 0;
   const enter = (window.__kbMoved === j.id) ? ' kb-enter' : '';
-  const doneLabel = j.outcome === 'finished' ? t('mark_finished') : (meta.done || 'Done');
+  const doneLabel = j.outcome === 'finished' ? t('mark_finished') : (t(meta.done) || 'Done');
   const foot = complete
     ? `<span class="pl-done">✓ ${htmlEsc(doneLabel)}</span>`
-    : `<button type="button" class="pl-action" onclick="event.stopPropagation();pipelineAction(${j.id})">${htmlEsc(meta.action || 'Advance')} →</button>`;
+    : `<button type="button" class="pl-action" onclick="event.stopPropagation();pipelineAction(${j.id})">${htmlEsc(t(meta.action) || 'Advance')} →</button>`;
   const skip = (!complete && meta.skippable)
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();skipJobStage(${j.id})">${htmlEsc(t('skip_stage'))}</button>`
     : '';
@@ -2302,12 +2334,13 @@ function renderWorkflowControls() {
   const order = getStageOrder();
   const rows = order.map((stage, i) => {
     const meta = STAGE_META[stage] || {};
+    const label = (meta.label && t(meta.label)) || stage;
     return `<div class="wf-row">
       <span class="wf-ico">${meta.icon || ''}</span>
-      <span class="wf-name">${htmlEsc(meta.label || stage)}</span>
+      <span class="wf-name">${htmlEsc(label)}</span>
       <span class="wf-btns">
-        <button type="button" class="wf-move" aria-label="Move ${htmlEsc(meta.label || stage)} up" ${i === 0 ? 'disabled' : ''} onclick="wfMove(${i},-1)">↑</button>
-        <button type="button" class="wf-move" aria-label="Move ${htmlEsc(meta.label || stage)} down" ${i === order.length - 1 ? 'disabled' : ''} onclick="wfMove(${i},1)">↓</button>
+        <button type="button" class="wf-move" aria-label="Move ${htmlEsc(label)} up" ${i === 0 ? 'disabled' : ''} onclick="wfMove(${i},-1)">↑</button>
+        <button type="button" class="wf-move" aria-label="Move ${htmlEsc(label)} down" ${i === order.length - 1 ? 'disabled' : ''} onclick="wfMove(${i},1)">↓</button>
       </span>
     </div>`;
   }).join('');
