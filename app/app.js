@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.21';          // <-> sw.js SW_VERSION 'sidekick-v0.9.21'
+const APP_VERSION = '0.9.22';          // <-> sw.js SW_VERSION 'sidekick-v0.9.22'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -814,6 +814,11 @@ const I18N = {
     subscription_upgrade_pro_btn:'Upgrade to Pro — ฿{price}/mo', subscription_subscribe_basic_btn:'Subscribe to Basic — ฿{price}/mo',
     subscription_manage_billing_btn:'Manage billing', subscription_checkout_failed:'Could not start checkout — try again in a moment.',
     subscription_portal_failed:'Could not open billing — try again in a moment.',
+    client_cap_reached:'You\'ve reached your plan\'s client limit — upgrade in Settings > Subscription to add more.',
+    recurring_locked:'Repeat bookings need a Pro subscription — upgrade in Settings > Subscription.',
+    research_premium_plan_note:'Premium articles are also included free with a Pro subscription.',
+    business_logo:'Business logo', doc_branding_locked:'Add your logo to quotes/invoices/receipts with a Pro subscription.',
+    remove_logo_btn:'Remove logo', image_too_large:'Image too large — please pick one under 2MB', image_read_failed:'Could not read that image',
     delete_job_confirm:'Delete this job?', name_saved:'Name saved',
     err_id_min3:'Enter an email or username (3+ characters).', err_pw_min4:'Password must be at least 8 characters.',
     err_pw_mismatch:'Passwords do not match.', err_account_exists:'That account already exists on this device.',
@@ -1070,6 +1075,11 @@ const I18N = {
     subscription_upgrade_pro_btn:'อัปเกรดเป็น Pro — ฿{price}/เดือน', subscription_subscribe_basic_btn:'สมัคร Basic — ฿{price}/เดือน',
     subscription_manage_billing_btn:'จัดการการเรียกเก็บเงิน', subscription_checkout_failed:'ไม่สามารถเริ่มการชำระเงินได้ — ลองใหม่อีกครั้ง',
     subscription_portal_failed:'ไม่สามารถเปิดหน้าจัดการการเรียกเก็บเงินได้ — ลองใหม่อีกครั้ง',
+    client_cap_reached:'คุณถึงขีดจำกัดจำนวนลูกค้าของแพ็กเกจแล้ว — อัปเกรดที่การตั้งค่า > การสมัครสมาชิก เพื่อเพิ่มลูกค้า',
+    recurring_locked:'การจองซ้ำต้องสมัครแพ็กเกจ Pro — อัปเกรดที่การตั้งค่า > การสมัครสมาชิก',
+    research_premium_plan_note:'บทความ Premium ยังรวมอยู่ในแพ็กเกจ Pro โดยไม่มีค่าใช้จ่ายเพิ่มเติม',
+    business_logo:'โลโก้ธุรกิจ', doc_branding_locked:'เพิ่มโลโก้ในใบเสนอราคา/ใบแจ้งหนี้/ใบเสร็จได้ด้วยแพ็กเกจ Pro',
+    remove_logo_btn:'ลบโลโก้', image_too_large:'ไฟล์ภาพใหญ่เกินไป — กรุณาเลือกไฟล์ที่มีขนาดไม่เกิน 2MB', image_read_failed:'ไม่สามารถอ่านไฟล์ภาพนี้ได้',
     delete_job_confirm:'ลบเซสชันนี้หรือไม่?', name_saved:'บันทึกชื่อแล้ว',
     err_id_min3:'กรอกอีเมลหรือชื่อผู้ใช้ (อย่างน้อย 3 ตัวอักษร)', err_pw_min4:'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',
     err_pw_mismatch:'รหัสผ่านไม่ตรงกัน', err_account_exists:'มีบัญชีนี้อยู่แล้วในเครื่องนี้',
@@ -1291,6 +1301,10 @@ async function finishAppBoot() {
   await seedServicesIfEmpty();
   switchScreen('home');
   await maybeShowCloudBackupModal();
+  // Fire-and-forget: populates __entitlements for the Phase 1 feature
+  // gates (planHasFeature()/planClientCap()) without delaying boot on a
+  // network round trip guest/local-only accounts don't even need.
+  refreshEntitlements();
 
   // App-triggered OS notifications: only fire while this tab stays open (no
   // backend to check conditions while fully closed — see the comment above
@@ -1638,26 +1652,68 @@ async function enableCloudBackup() {
 window.enableCloudBackup = enableCloudBackup;
 
 // ─── SUBSCRIPTION (Phase 0) ─────────────────────────────────────────────
-// Deliberately reads live from api/auth-session.js on every render rather
-// than caching plan/status locally — subscription state can change from a
-// Stripe webhook at any moment (a payment succeeding/failing), and this
-// screen is exactly the place that needs to reflect that, not a stale
-// snapshot. Guest and any account that hasn't enabled cloud backup yet has
-// no backend `users` row at all (see renderCloudBackupSection() above) —
-// there's nothing to subscribe against yet, so this renders nothing beyond
-// a short hint pointing at the Cloud backup section right above it.
+// Deliberately reads live from api/auth-session.js rather than trusting a
+// long-lived cache — subscription state can change from a Stripe webhook
+// at any moment (a payment succeeding/failing). Guest and any account that
+// hasn't enabled cloud backup yet has no backend `users` row at all (see
+// renderCloudBackupSection() above) — there's nothing to subscribe against
+// yet, so this renders nothing beyond a short hint pointing at the Cloud
+// backup section right above it.
+//
+// `__entitlements` is a same-tab, in-memory cache of the last fetch
+// (refreshed at boot via finishAppBoot(), and again every time Settings
+// renders this section) — the Phase 1 feature gates below
+// (planHasFeature()/planClientCap()) read this synchronously rather than
+// awaiting a fresh network round trip on every "+ Add client"/booking-save
+// tap. A few minutes of staleness on a plan/lock change is an acceptable
+// trade for that — same "good enough, not perfectly live" bar this app
+// already accepts elsewhere (e.g. the mirror-not-authoritative backend
+// writes). `null` means "not tracked" (guest, or a registered account that
+// never enabled cloud backup) — every gate below treats that as
+// unrestricted, matching Phase 0's own framing: the paywall only applies
+// once an account opts into the backend/subscription system at all, never
+// to purely local usage.
+let __entitlements = null;
+async function refreshEntitlements() {
+  if (isGuest || typeof SidekickBackend === 'undefined' || !SidekickBackend.isEnabled()) {
+    __entitlements = null;
+    return null;
+  }
+  const r = await SidekickBackend.session();
+  __entitlements = r.ok ? r.data.user : null;
+  return __entitlements;
+}
+// key is one of lib/entitlements.js's FEATURE_KEYS (cloudSync/lineBooking/
+// recurringBookings/researchPremium/docBranding) — see that file for the
+// authoritative plan->feature mapping this only ever mirrors, never
+// recomputes.
+function planHasFeature(key) {
+  const e = __entitlements;
+  if (!e) return true;
+  if (e.locked) return false;
+  return !!(e.features && e.features[key]);
+}
+// null clientCap from the server means unlimited (JSON has no Infinity). A
+// locked account's cap is 0 — matches "read-only until you subscribe again"
+// rather than letting a locked-but-under-cap account keep adding clients.
+function planClientCap() {
+  const e = __entitlements;
+  if (!e) return Infinity;
+  if (e.locked) return 0;
+  return e.clientCap == null ? Infinity : e.clientCap;
+}
 const SUBSCRIPTION_PRICE_THB = { basic: 149, pro: 349 };
 async function renderSubscriptionSection() {
   const el = document.getElementById('subscription-body');
   if (!el || typeof SidekickBackend === 'undefined') return;
   if (isGuest) { el.innerHTML = ''; return; }
   if (!SidekickBackend.isEnabled()) {
+    __entitlements = null;
     el.innerHTML = `<p style="font-size:12px;color:var(--text3);margin:0 16px 14px">${htmlEsc(t('subscription_needs_account_hint'))}</p>`;
     return;
   }
-  const r = await SidekickBackend.session();
-  if (!r.ok) { el.innerHTML = ''; return; }
-  const u = r.data.user;
+  const u = await refreshEntitlements();
+  if (!u) { el.innerHTML = ''; return; }
   const statusKey = u.locked ? 'subscription_status_locked'
     : u.subscriptionStatus === 'trialing' ? 'subscription_status_trialing'
     : u.subscriptionStatus === 'past_due' ? 'subscription_status_past_due'
@@ -1689,6 +1745,78 @@ async function renderSubscriptionSection() {
       </div>
       ${upgradeBtns.length ? `<div style="padding:0 16px 14px;display:flex;flex-direction:column;gap:8px">${upgradeBtns.join('')}</div>` : ''}
     </div>`;
+}
+
+// ─── DOCUMENT BRANDING (Phase 1, Pro+) ──────────────────────────────────
+// Same FileReader/dataURL-into-a-setting pattern portfolio.js already uses
+// for item images (see saveItem()/onImagePick() there), just persisted via
+// saveSetting() as `settings.sellerLogoDataUrl` instead of a per-item
+// IndexedDB field — one logo per account, not one per document. Reads
+// planHasFeature('docBranding') the same synchronous, cached way every
+// other Phase 1 gate does (see planHasFeature() above); the upload UI
+// itself is only shown once entitled, but sellerLogoDataUrl() (used by
+// docgen.js/invoices.js at render time) re-checks the same gate rather
+// than trusting whatever was true when the logo was uploaded — a downgrade
+// stops the logo from appearing on new documents without deleting the
+// stored image, so re-upgrading brings it straight back.
+let __pickedLogo = undefined; // undefined = "use settings.sellerLogoDataUrl as-is", null = "explicitly removed this render"
+function sellerLogoDataUrl() {
+  if (typeof planHasFeature === 'function' && !planHasFeature('docBranding')) return '';
+  return (settings && settings.sellerLogoDataUrl) || '';
+}
+function renderSellerLogoSection() {
+  const el = document.getElementById('seller-logo-body');
+  if (!el) return;
+  const entitled = typeof planHasFeature !== 'function' || planHasFeature('docBranding');
+  if (!entitled) {
+    el.innerHTML = `<div class="settings-row" style="cursor:default">
+        <span class="settings-label">${htmlEsc(t('business_logo'))}</span>
+        <span style="font-size:12px;color:var(--text3)">${htmlEsc(t('doc_branding_locked'))}</span>
+      </div>`;
+    return;
+  }
+  __pickedLogo = settings.sellerLogoDataUrl || null;
+  el.innerHTML = `
+    <div class="field" style="padding:0 16px">
+      <label for="seller-logo-input" style="display:block;font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(t('business_logo'))}</label>
+      <input type="file" id="seller-logo-input" accept="image/*" style="padding:8px 0;font-size:13px">
+    </div>
+    <div id="seller-logo-preview-wrap" style="padding:0 16px 14px"></div>`;
+  document.getElementById('seller-logo-input').addEventListener('change', onSellerLogoPick);
+  renderSellerLogoPreview();
+}
+function renderSellerLogoPreview() {
+  const wrap = document.getElementById('seller-logo-preview-wrap');
+  if (!wrap) return;
+  if (!__pickedLogo) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `<div style="display:flex;align-items:center;gap:12px">
+      <img src="${attrEsc(__pickedLogo)}" alt="" style="width:64px;height:64px;border-radius:var(--radius-sm);object-fit:contain;background:var(--card);border:0.5px solid var(--border)">
+      <button type="button" id="seller-logo-remove" class="qc-btn" style="width:auto;padding:0 14px">${htmlEsc(t('remove_logo_btn'))}</button>
+    </div>`;
+  document.getElementById('seller-logo-remove').addEventListener('click', async () => {
+    __pickedLogo = null;
+    const input = document.getElementById('seller-logo-input');
+    if (input) input.value = '';
+    await saveSetting('sellerLogoDataUrl', '');
+    renderSellerLogoPreview();
+  });
+}
+function onSellerLogoPick(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) {
+    toast(t('image_too_large'));
+    e.target.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    __pickedLogo = reader.result;
+    await saveSetting('sellerLogoDataUrl', __pickedLogo);
+    renderSellerLogoPreview();
+  };
+  reader.onerror = () => toast(t('image_read_failed'));
+  reader.readAsDataURL(file);
 }
 async function startSubscriptionCheckout(plan) {
   const r = await SidekickBackend.billingCheckout(plan);
@@ -3845,6 +3973,14 @@ async function saveCustomer() {
   const editId = document.getElementById('c-edit-id').value;
   const prev = editId ? customers.find(c => c.id === parseInt(editId)) : null;
   if (editId && !prev) return;
+  // Plan client cap (Phase 1) — only ever blocks a brand-new client, never
+  // an edit to one that already exists (so nobody's existing data becomes
+  // unreachable just for going over a cap after the fact). No-op (Infinity)
+  // for guest/local-only/unlimited-plan accounts — see planClientCap().
+  if (!prev && customers.length >= planClientCap()) {
+    toast(t('client_cap_reached'));
+    return;
+  }
   const obj = {
     ...(prev || {}),
     uid, name,
@@ -4359,6 +4495,7 @@ function switchScreen(name) {
   if (name === 'more') renderBackupReminder();
   if (name === 'more') renderCloudBackupSection();
   if (name === 'more') renderSubscriptionSection();
+  if (name === 'more') renderSellerLogoSection();
   if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.
