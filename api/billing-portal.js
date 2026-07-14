@@ -1,0 +1,53 @@
+/* Sidekick — api/billing-portal.js
+ *
+ * Hands back a Stripe-hosted Billing Portal URL so an account can view
+ * invoices, update its card, or cancel — self-service, no custom
+ * cancel/update-card UI to build here (same "defer to Stripe's hosted
+ * flow" reasoning as api/billing-checkout.js).
+ */
+import { db } from '../lib/db.js';
+import { requireSession } from '../lib/auth.js';
+import { corsHeaders, handlePreflight, resolveOrigin } from '../lib/cors.js';
+import { stripeClient } from '../lib/stripe.js';
+
+function json(body, status, request) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json', ...corsHeaders(request) },
+  });
+}
+
+export default async function handler(request) {
+  const preflight = handlePreflight(request);
+  if (preflight) return preflight;
+  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405, request);
+
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) return json({ error: 'Server misconfigured' }, 500, request);
+  const session = await requireSession(request, secret);
+  if (!session) return json({ error: 'Not authenticated' }, 401, request);
+
+  const sql = db();
+  try {
+    const [user] = await sql(
+      `select stripe_customer_id from users where cuid = $1`,
+      [session.userCuid]
+    );
+    if (!user) return json({ error: 'Account not found' }, 404, request);
+    if (!user.stripe_customer_id) {
+      return json({ error: 'No subscription yet — checkout first', code: 'no_customer' }, 409, request);
+    }
+
+    const portalSession = await stripeClient().billingPortal.sessions.create({
+      customer: user.stripe_customer_id,
+      return_url: `${resolveOrigin(request)}/?screen=more`,
+    });
+
+    return json({ url: portalSession.url }, 200, request);
+  } catch (err) {
+    console.error('billing-portal handler error', err.message);
+    return json({ error: 'Could not open billing portal' }, 502, request);
+  }
+}
+
+export const config = { runtime: 'edge' };

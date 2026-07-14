@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.20';          // <-> sw.js SW_VERSION 'sidekick-v0.9.20'
+const APP_VERSION = '0.9.21';          // <-> sw.js SW_VERSION 'sidekick-v0.9.21'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -805,6 +805,15 @@ const I18N = {
     cloud_backup_enabled_toast:'Cloud backup enabled — {n} client(s) backed up.',
     cloud_backup_modal_body:'Right now your clients only live on this device — if it\'s lost or reset, they\'re gone. Turn on cloud backup to also keep a copy in your account. You can always do this later from Settings.',
     cloud_backup_later_btn:'Not now',
+    subscription_needs_account_hint:'Enable cloud backup above to start your 15-day free trial and manage billing.',
+    subscription_plan_basic:'Basic plan', subscription_plan_pro:'Pro plan', subscription_plan_team:'Team plan',
+    subscription_status_trialing:'Free trial — {n} day(s) left', subscription_status_active:'Active',
+    subscription_status_past_due:'Payment failed — update your card to keep access', subscription_status_canceled:'Canceled',
+    subscription_status_locked:'Trial ended',
+    subscription_locked_banner:'Your trial has ended. Your data is safe and visible, but you\'ll need to subscribe to add or edit anything.',
+    subscription_upgrade_pro_btn:'Upgrade to Pro — ฿{price}/mo', subscription_subscribe_basic_btn:'Subscribe to Basic — ฿{price}/mo',
+    subscription_manage_billing_btn:'Manage billing', subscription_checkout_failed:'Could not start checkout — try again in a moment.',
+    subscription_portal_failed:'Could not open billing — try again in a moment.',
     delete_job_confirm:'Delete this job?', name_saved:'Name saved',
     err_id_min3:'Enter an email or username (3+ characters).', err_pw_min4:'Password must be at least 8 characters.',
     err_pw_mismatch:'Passwords do not match.', err_account_exists:'That account already exists on this device.',
@@ -1052,6 +1061,15 @@ const I18N = {
     cloud_backup_enabled_toast:'เปิดใช้งานสำรองข้อมูลบนคลาวด์แล้ว — สำรองข้อมูลลูกค้า {n} รายการ',
     cloud_backup_modal_body:'ตอนนี้ข้อมูลลูกค้าของคุณอยู่ในเครื่องนี้เท่านั้น — หากเครื่องหายหรือถูกรีเซ็ต ข้อมูลจะหายไปด้วย เปิดใช้งานสำรองข้อมูลบนคลาวด์เพื่อเก็บสำเนาไว้ในบัญชีของคุณด้วย คุณสามารถทำภายหลังได้จากหน้าตั้งค่า',
     cloud_backup_later_btn:'ไว้ทีหลัง',
+    subscription_needs_account_hint:'เปิดใช้งานสำรองข้อมูลบนคลาวด์ด้านบนเพื่อเริ่มทดลองใช้ฟรี 15 วันและจัดการการเรียกเก็บเงิน',
+    subscription_plan_basic:'แพ็กเกจ Basic', subscription_plan_pro:'แพ็กเกจ Pro', subscription_plan_team:'แพ็กเกจ Team',
+    subscription_status_trialing:'ทดลองใช้ฟรี — เหลืออีก {n} วัน', subscription_status_active:'ใช้งานอยู่',
+    subscription_status_past_due:'ชำระเงินไม่สำเร็จ — อัปเดตบัตรของคุณเพื่อใช้งานต่อ', subscription_status_canceled:'ยกเลิกแล้ว',
+    subscription_status_locked:'หมดระยะทดลองใช้',
+    subscription_locked_banner:'ระยะทดลองใช้ของคุณสิ้นสุดแล้ว ข้อมูลของคุณยังปลอดภัยและดูได้ แต่คุณต้องสมัครสมาชิกเพื่อเพิ่มหรือแก้ไขข้อมูล',
+    subscription_upgrade_pro_btn:'อัปเกรดเป็น Pro — ฿{price}/เดือน', subscription_subscribe_basic_btn:'สมัคร Basic — ฿{price}/เดือน',
+    subscription_manage_billing_btn:'จัดการการเรียกเก็บเงิน', subscription_checkout_failed:'ไม่สามารถเริ่มการชำระเงินได้ — ลองใหม่อีกครั้ง',
+    subscription_portal_failed:'ไม่สามารถเปิดหน้าจัดการการเรียกเก็บเงินได้ — ลองใหม่อีกครั้ง',
     delete_job_confirm:'ลบเซสชันนี้หรือไม่?', name_saved:'บันทึกชื่อแล้ว',
     err_id_min3:'กรอกอีเมลหรือชื่อผู้ใช้ (อย่างน้อย 3 ตัวอักษร)', err_pw_min4:'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',
     err_pw_mismatch:'รหัสผ่านไม่ตรงกัน', err_account_exists:'มีบัญชีนี้อยู่แล้วในเครื่องนี้',
@@ -1618,6 +1636,72 @@ async function enableCloudBackup() {
   renderCloudBackupSection();
 }
 window.enableCloudBackup = enableCloudBackup;
+
+// ─── SUBSCRIPTION (Phase 0) ─────────────────────────────────────────────
+// Deliberately reads live from api/auth-session.js on every render rather
+// than caching plan/status locally — subscription state can change from a
+// Stripe webhook at any moment (a payment succeeding/failing), and this
+// screen is exactly the place that needs to reflect that, not a stale
+// snapshot. Guest and any account that hasn't enabled cloud backup yet has
+// no backend `users` row at all (see renderCloudBackupSection() above) —
+// there's nothing to subscribe against yet, so this renders nothing beyond
+// a short hint pointing at the Cloud backup section right above it.
+const SUBSCRIPTION_PRICE_THB = { basic: 149, pro: 349 };
+async function renderSubscriptionSection() {
+  const el = document.getElementById('subscription-body');
+  if (!el || typeof SidekickBackend === 'undefined') return;
+  if (isGuest) { el.innerHTML = ''; return; }
+  if (!SidekickBackend.isEnabled()) {
+    el.innerHTML = `<p style="font-size:12px;color:var(--text3);margin:0 16px 14px">${htmlEsc(t('subscription_needs_account_hint'))}</p>`;
+    return;
+  }
+  const r = await SidekickBackend.session();
+  if (!r.ok) { el.innerHTML = ''; return; }
+  const u = r.data.user;
+  const statusKey = u.locked ? 'subscription_status_locked'
+    : u.subscriptionStatus === 'trialing' ? 'subscription_status_trialing'
+    : u.subscriptionStatus === 'past_due' ? 'subscription_status_past_due'
+    : u.subscriptionStatus === 'canceled' ? 'subscription_status_canceled'
+    : 'subscription_status_active';
+  const statusText = (statusKey === 'subscription_status_trialing')
+    ? t('subscription_status_trialing').replace('{n}', u.trialDaysLeft)
+    : t(statusKey);
+
+  const upgradeBtns = [];
+  if (u.plan !== 'pro') {
+    upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="startSubscriptionCheckout('pro')">${htmlEsc(t('subscription_upgrade_pro_btn').replace('{price}', SUBSCRIPTION_PRICE_THB.pro))}</button>`);
+  }
+  if (u.plan === 'basic' && (u.locked || u.subscriptionStatus !== 'active')) {
+    upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="startSubscriptionCheckout('basic')">${htmlEsc(t('subscription_subscribe_basic_btn').replace('{price}', SUBSCRIPTION_PRICE_THB.basic))}</button>`);
+  }
+  if (u.hasStripeCustomer) {
+    upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="openBillingPortal()">${htmlEsc(t('subscription_manage_billing_btn'))}</button>`);
+  }
+
+  el.innerHTML = `<div class="list-card">
+      ${u.locked ? `<div style="padding:12px 16px;background:color-mix(in srgb,var(--overdue) 12%,var(--card));color:var(--overdue);font-size:12px;font-weight:700">${htmlEsc(t('subscription_locked_banner'))}</div>` : ''}
+      <div class="list-row" style="cursor:default">
+        <div class="list-icon">💳</div>
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(t('subscription_plan_' + u.plan))}</div>
+          <div class="list-sub">${htmlEsc(statusText)}</div>
+        </div>
+      </div>
+      ${upgradeBtns.length ? `<div style="padding:0 16px 14px;display:flex;flex-direction:column;gap:8px">${upgradeBtns.join('')}</div>` : ''}
+    </div>`;
+}
+async function startSubscriptionCheckout(plan) {
+  const r = await SidekickBackend.billingCheckout(plan);
+  if (!r.ok || !r.data.url) { toast(t('subscription_checkout_failed')); return; }
+  window.location.href = r.data.url;
+}
+window.startSubscriptionCheckout = startSubscriptionCheckout;
+async function openBillingPortal() {
+  const r = await SidekickBackend.billingPortal();
+  if (!r.ok || !r.data.url) { toast(t('subscription_portal_failed')); return; }
+  window.location.href = r.data.url;
+}
+window.openBillingPortal = openBillingPortal;
 
 // The migration plan's actual "back up your existing data" first-login
 // prompt — surfaced proactively instead of requiring a user to notice the
@@ -4274,6 +4358,7 @@ function switchScreen(name) {
   if (name === 'more') applyInsightsVisibility();
   if (name === 'more') renderBackupReminder();
   if (name === 'more') renderCloudBackupSection();
+  if (name === 'more') renderSubscriptionSection();
   if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.

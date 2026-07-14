@@ -10,6 +10,7 @@
 import { db } from '../lib/db.js';
 import { requireSession } from '../lib/auth.js';
 import { corsHeaders, handlePreflight } from '../lib/cors.js';
+import { isLocked, trialDaysLeft } from '../lib/entitlements.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -32,7 +33,8 @@ export default async function handler(request) {
   const sql = db();
   try {
     const rows = await sql`
-      select cuid, username, first_name, migrated_at from users where cuid = ${session.userCuid}
+      select cuid, username, first_name, migrated_at, plan, subscription_status, trial_ends_at, current_period_end, stripe_customer_id
+      from users where cuid = ${session.userCuid}
     `;
     const user = rows[0];
     if (!user) return json({ error: 'Not authenticated' }, 401, request);
@@ -42,6 +44,13 @@ export default async function handler(request) {
         username: user.username,
         firstName: user.first_name,
         migrated: user.migrated_at != null,
+        plan: user.plan,
+        subscriptionStatus: user.subscription_status,
+        trialEndsAt: user.trial_ends_at,
+        currentPeriodEnd: user.current_period_end,
+        trialDaysLeft: trialDaysLeft(user),
+        locked: isLocked(user),
+        hasStripeCustomer: user.stripe_customer_id != null,
       },
     }, 200, request);
   } catch (err) {

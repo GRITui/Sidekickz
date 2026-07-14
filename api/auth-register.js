@@ -40,9 +40,16 @@ export default async function handler(request) {
   const sql = db();
   try {
     const cuid = crypto.randomUUID();
+    // New accounts start a real 15-day trial (explicit, overriding the
+    // users table's own 'active'/no-trial default — that default exists
+    // specifically to grandfather pre-existing rows, not to describe a
+    // fresh signup). See lib/entitlements.js for how trial_ends_at is
+    // read; no Stripe customer/subscription is created at this point —
+    // this app doesn't ask for a card until checkout, so there is nothing
+    // to create yet.
     const rows = await sql`
-      insert into users (cuid, username, password_hash, password_salt, password_iters, first_name)
-      values (${cuid}, ${username}, ${hash}, ${salt}, ${iters}, ${firstName || null})
+      insert into users (cuid, username, password_hash, password_salt, password_iters, first_name, plan, subscription_status, trial_ends_at)
+      values (${cuid}, ${username}, ${hash}, ${salt}, ${iters}, ${firstName || null}, 'basic', 'trialing', now() + interval '15 days')
       on conflict (username) do nothing
       returning cuid, username, first_name
     `;

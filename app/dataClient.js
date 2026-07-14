@@ -87,6 +87,17 @@
   function logout() { clearToken(); }
   function isEnabled() { return !!getToken(); }
 
+  // ── Billing (Phase 0) ────────────────────────────────────────────────
+  // Both just hand back a Stripe-hosted URL for the caller to redirect to
+  // — see api/billing-checkout.js/api/billing-portal.js for why nothing
+  // card-related is ever built or handled client-side here.
+  async function billingCheckout(plan) {
+    return apiFetch('/api/billing-checkout', { method: 'POST', body: { plan } });
+  }
+  async function billingPortal() {
+    return apiFetch('/api/billing-portal', { method: 'POST' });
+  }
+
   // ── clients mirror ────────────────────────────────────────────────────
   // Always tries create first; a 409 (this cuid already exists server-side
   // — e.g. this record was already uploaded, or already mirrored from a
@@ -219,6 +230,7 @@
 
   window.SidekickBackend = {
     isEnabled, register, login, session, logout, migrateUpload,
+    billingCheckout, billingPortal,
     mirrorClientSave, mirrorClientDelete,
     mirrorJobSave: jobsMirror.mirrorSave, mirrorJobDelete: jobsMirror.mirrorDelete,
     mirrorServiceSave: servicesMirror.mirrorSave, mirrorServiceDelete: servicesMirror.mirrorDelete,

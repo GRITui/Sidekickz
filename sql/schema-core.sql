@@ -33,8 +33,49 @@ create table if not exists users (
   -- has run for this account. A later cutover phase must not let an
   -- unmigrated account start reading from the server before this is set.
   migrated_at       timestamptz,
-  created_at        timestamptz not null default now()
+  created_at        timestamptz not null default now(),
+  -- ─── Subscription (Phase 0, 2026-07-14) ──────────────────────────────
+  -- 'basic' | 'pro' | 'team' — Team billing (seats/orgs) is Phase 2, not
+  -- built yet; this column exists now so Phase 1 gating has somewhere to
+  -- read from. subscription_status: 'trialing' | 'active' | 'past_due' |
+  -- 'canceled'. Default is 'active' with no trial clock (not 'trialing')
+  -- specifically so this ALTER grandfathers every pre-existing account —
+  -- see the trial-fields default below, and lib/entitlements.js, for why
+  -- that matters: nobody using the app before this shipped should hit a
+  -- surprise lock. New registrations (api/auth-register.js) explicitly
+  -- override both to start a real 15-day trial instead of relying on this
+  -- default. trial_ends_at is the ONLY thing lib/entitlements.js checks
+  -- against the clock — a 'trialing' row with a null trial_ends_at (should
+  -- never happen post-registration, but is possible if this default is
+  -- ever hit some other way) is treated as never-expiring, not locked.
+  plan                  text not null default 'basic' check (plan in ('basic','pro','team')),
+  subscription_status   text not null default 'active' check (subscription_status in ('trialing','active','past_due','canceled')),
+  trial_ends_at         timestamptz,
+  stripe_customer_id    text,
+  stripe_subscription_id text,
+  current_period_end    timestamptz
 );
+
+-- Idempotent by design (`add column if not exists`) so this can be re-run
+-- safely against the already-live production table — same by-hand
+-- apply-once convention as the rest of this file (no migration runner
+-- exists in this project). A fresh `create table` above already includes
+-- these columns for anyone standing up the schema from scratch; this
+-- block only matters for the existing deployed database.
+alter table users add column if not exists plan text not null default 'basic';
+alter table users add column if not exists subscription_status text not null default 'active';
+alter table users add column if not exists trial_ends_at timestamptz;
+alter table users add column if not exists stripe_customer_id text;
+alter table users add column if not exists stripe_subscription_id text;
+alter table users add column if not exists current_period_end timestamptz;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'users_plan_check') then
+    alter table users add constraint users_plan_check check (plan in ('basic','pro','team'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'users_subscription_status_check') then
+    alter table users add constraint users_subscription_status_check check (subscription_status in ('trialing','active','past_due','canceled'));
+  end if;
+end $$;
 
 create table if not exists clients (
   cuid              text primary key,
