@@ -98,6 +98,29 @@
     return apiFetch('/api/billing-portal', { method: 'POST' });
   }
 
+  // ── LINE business connection + booking slots (generic multi-tenant) ────
+  // See api/line-channel-connect.js/api/booking-slots.js — this account's
+  // own LINE Official Account connection and the time windows it offers up
+  // on its public booking page (app/book.html).
+  async function lineChannelStatus() {
+    return apiFetch('/api/line-channel-connect');
+  }
+  async function lineChannelConnect({ channelId, channelSecret, freelancerLineUserId }) {
+    return apiFetch('/api/line-channel-connect', { method: 'POST', body: { channelId, channelSecret, freelancerLineUserId } });
+  }
+  async function lineChannelDisconnect() {
+    return apiFetch('/api/line-channel-connect', { method: 'DELETE' });
+  }
+  async function bookingSlotsList() {
+    return apiFetch('/api/booking-slots');
+  }
+  async function bookingSlotCreate({ startsAt, endsAt }) {
+    return apiFetch('/api/booking-slots', { method: 'POST', body: { startsAt, endsAt } });
+  }
+  async function bookingSlotDelete(id) {
+    return apiFetch(`/api/booking-slots?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+
   // ── clients mirror ────────────────────────────────────────────────────
   // Always tries create first; a 409 (this cuid already exists server-side
   // — e.g. this record was already uploaded, or already mirrored from a
@@ -231,6 +254,8 @@
   window.SidekickBackend = {
     isEnabled, register, login, session, logout, migrateUpload,
     billingCheckout, billingPortal,
+    lineChannelStatus, lineChannelConnect, lineChannelDisconnect,
+    bookingSlotsList, bookingSlotCreate, bookingSlotDelete,
     mirrorClientSave, mirrorClientDelete,
     mirrorJobSave: jobsMirror.mirrorSave, mirrorJobDelete: jobsMirror.mirrorDelete,
     mirrorServiceSave: servicesMirror.mirrorSave, mirrorServiceDelete: servicesMirror.mirrorDelete,

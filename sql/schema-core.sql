@@ -1,11 +1,5 @@
 -- Sidekick — core app schema (Phase 1 of the local-first -> backend migration)
 --
--- Sibling to schema.sql, not a merge into it: schema.sql is the LINE
--- self-service booking pilot's own schema, explicitly single-tenant by
--- design (see its own header comment) — its `services`/`bookings` table
--- names and shapes are unrelated to and would collide with the general,
--- multi-tenant tables this file defines for the app's own core data.
---
 -- `cuid` is the real primary key throughout, matching the client-generated
 -- UUID (`cuid()` in app/app.js) every record already carries today. The
 -- client keeps minting its own id exactly as it does now; the server only
@@ -14,8 +8,23 @@
 -- nothing`, and what keeps almost every existing call site unchanged (see
 -- app/dataClient.js).
 --
--- Run this once against the Neon database from its own SQL console, same
--- as schema.sql — there is no migration runner in this project.
+-- Run this once against the Neon database from its own SQL console — there
+-- is no migration runner in this project.
+--
+-- 2026-07-14: `sql/schema.sql` (the formerly-separate, explicitly
+-- single-tenant LINE self-service-booking pilot schema) is retired and its
+-- tables folded in below as real multi-tenant tables, per the "generic LINE
+-- OA connection" build — see the LINE INTEGRATION section further down.
+-- That file's own `create table if not exists services (...)` used the
+-- *bare* name `services`, which — contrary to this file's previous header
+-- comment claiming the two "would collide" (future tense, as if already
+-- prevented) — was a real, never-actually-avoided collision: this file
+-- already defined its own, differently-shaped `services` table below. Since
+-- `sql/schema.sql` was still only "tracked, not started" (per the project
+-- changelog's LINE integration entry — Vercel deploy access was never
+-- available to actually run it), nothing live ever depended on its
+-- single-tenant shape, so no data migration is needed to retire it — this
+-- is a from-scratch definition, not a breaking change to a populated table.
 
 create table if not exists users (
   cuid              text primary key,
@@ -299,3 +308,76 @@ create table if not exists settings (
 );
 
 create index if not exists idx_settings_user on settings(user_cuid);
+
+-- ─── LINE INTEGRATION (2026-07-14: generic per-account connection) ────────
+-- Retires sql/schema.sql's single-tenant pilot (one hardcoded Channel via
+-- env vars, no tenant column anywhere) — see this file's own header note.
+-- Every account can now connect its own LINE Official Account (a Messaging
+-- API channel, a different channel type from the app-wide "Continue with
+-- LINE" *Login* channel lib/lineLogin.js talks to — unrelated, unaffected).
+
+-- One connected Messaging API channel per account (1:1 for now — a second
+-- connected channel per account isn't a case this pass supports).
+-- `bot_user_id` is LINE's own userId for this channel, resolved once via
+-- GET /v2/bot/info at connect time (api/line-channel-connect.js) — this is
+-- what api/line-webhook.js matches an inbound event's `destination` field
+-- against to route ONE shared webhook URL back to the right account,
+-- without trusting any client-supplied identifier. `channel_secret` is
+-- required to verify that same inbound webhook's signature, so it has to
+-- be stored (not just the access token) — same sensitivity posture the
+-- `settings` table's header comment above already accepts for other
+-- PII-adjacent plaintext, no separate encryption layer added here either.
+-- `freelancer_line_user_id` is optional and self-reported by the account
+-- owner (their own personal LINE user ID, found in their webhook event
+-- logs — there's no lookup-by-name API for it) so booking-request can push
+-- them a "new booking" alert; booking still works fully without it.
+create table if not exists line_channels (
+  user_cuid                 text primary key references users(cuid) on delete cascade,
+  channel_id                text not null unique,
+  channel_secret             text not null,
+  bot_user_id                text,
+  freelancer_line_user_id    text,
+  connected_at               timestamptz not null default now()
+);
+
+create index if not exists idx_line_channels_bot_user on line_channels(bot_user_id);
+
+-- A freelancer's self-service-bookable time windows — distinct from
+-- `app_bookings` above (their own internal calendar of scheduled work,
+-- managed in-app): this is the smaller, simpler set of open slots they've
+-- explicitly offered up for a client to grab via the public booking page.
+-- 'open' -> free to request. 'held' -> a client just requested it, soft
+-- reservation, releases automatically if hold_expires_at passes without a
+-- booking. 'booked' -> confirmed, no further action needed.
+create table if not exists availability_slots (
+  id                bigint generated always as identity primary key,
+  user_cuid         text not null references users(cuid) on delete cascade,
+  starts_at         timestamptz not null,
+  ends_at           timestamptz not null check (ends_at > starts_at),
+  status            text not null default 'open' check (status in ('open', 'held', 'booked')),
+  hold_expires_at   timestamptz
+);
+
+create index if not exists idx_availability_slots_open
+  on availability_slots (user_cuid, starts_at)
+  where status = 'open';
+
+-- An incoming self-service request against one of the slots above.
+-- `service_cuid` points at this same file's own `services` table (the
+-- account's already-existing Service catalog, rate/name) — no separate,
+-- narrower services table for the booking page, unlike the old pilot
+-- schema; a freelancer manages one service list, used everywhere.
+create table if not exists bookings (
+  id                    bigint generated always as identity primary key,
+  user_cuid             text not null references users(cuid) on delete cascade,
+  slot_id               bigint not null references availability_slots(id),
+  service_cuid          text references services(cuid),
+  client_name           text not null,
+  -- Nullable on purpose: a client arriving via a non-LINE channel (a
+  -- shared link outside the LINE rich menu) has no LINE user ID at all.
+  client_line_user_id   text,
+  status                text not null default 'requested' check (status in ('requested', 'confirmed', 'declined')),
+  created_at            timestamptz not null default now()
+);
+
+create index if not exists idx_bookings_user on bookings(user_cuid);
