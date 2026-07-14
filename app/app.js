@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.19';          // <-> sw.js SW_VERSION 'sidekick-v0.9.19'
+const APP_VERSION = '0.9.20';          // <-> sw.js SW_VERSION 'sidekick-v0.9.20'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -440,7 +440,7 @@ async function restoreSession() {
 }
 
 // ─── STATE ────────────────────────────────────────────────────────────
-let jobs = [], expenses = [], customers = [], services = [], usageEvents = [], packages = [], settings = {lang:'en', currency:'THB'};
+let jobs = [], expenses = [], customers = [], services = [], usageEvents = [], packages = [], settings = {lang:'th', currency:'THB'};
 let currentPeriod = 'month';
 
 // HTML/attr escaping (shared by all list/form renderers)
@@ -463,6 +463,7 @@ const BUSINESS_TYPES = {
   laundry:    { label:'Laundry service',   unitWord:'Order',   seedServices:[['Wash & fold',150,'kg'],['Dry cleaning',80,'item']] },
   insurance:  { label:'Insurance agent',   unitWord:'Policy',  seedServices:[['Policy review',0,'review'],['Claim assistance',0,'case']] },
   garage:     { label:'Car garage',        unitWord:'Job',     seedServices:[['Oil change',600,'job'],['Full service',2500,'job']] },
+  custom:     { label:'Other',             unitWord:'Job',     seedServices:[] },
 };
 function businessType() { return BUSINESS_TYPES[settings && settings.businessType] ? settings.businessType : 'trainer'; }
 function unitWord() { return BUSINESS_TYPES[businessType()].unitWord; }
@@ -473,7 +474,7 @@ function unitWord() { return BUSINESS_TYPES[businessType()].unitWord; }
 // this registry doesn't know about yet still works with zero code changes —
 // the user just types whatever word fits.
 const PACKAGE_UNIT_DEFAULTS = {
-  trainer: 'Sessions', realestate: 'Deals', laundry: 'Pieces', insurance: 'Policies', garage: 'Jobs',
+  trainer: 'Sessions', realestate: 'Deals', laundry: 'Pieces', insurance: 'Policies', garage: 'Jobs', custom: 'Units',
 };
 function packageUnitLabel() {
   return (settings && settings.packageUnitLabel) || PACKAGE_UNIT_DEFAULTS[businessType()] || 'Units';
@@ -669,6 +670,8 @@ const I18N = {
     daily_goal:'Daily income goal', goal_target_month:'Monthly income goal', goal_target_quarter:'Quarterly income goal', goal_target_year:'Yearly income goal',
     business_type_label:'Business type', business_type_trainer:'Personal trainer', business_type_realestate:'Real estate agent',
     business_type_laundry:'Laundry service', business_type_insurance:'Insurance agent', business_type_garage:'Car garage',
+    business_type_custom:'Other',
+    onboard_persona_title:'What kind of business do you run?', onboard_persona_sub:'Pick the closest match — we’ll set up starting services for it. You can change this anytime in Settings.',
     subtasks_title:'Sub-tasks', subtask_add_ph:'Add a sub-task…', btn_add:'+ Add', no_subtasks:'No sub-tasks yet.',
     milestones_title:'Milestone payments', add_milestone:'+ Add milestone', save_milestone:'Save milestone',
     draft_invoice:'Draft invoice', milestone_locked:'Locked', no_milestones:'No milestones yet.',
@@ -914,6 +917,8 @@ const I18N = {
     daily_goal:'เป้าหมายรายได้ต่อวัน', goal_target_month:'เป้าหมายรายได้ต่อเดือน', goal_target_quarter:'เป้าหมายรายได้ต่อไตรมาส', goal_target_year:'เป้าหมายรายได้ต่อปี',
     business_type_label:'ประเภทธุรกิจ', business_type_trainer:'เทรนเนอร์ส่วนตัว', business_type_realestate:'นายหน้าอสังหาริมทรัพย์',
     business_type_laundry:'ร้านซักรีด', business_type_insurance:'ตัวแทนประกันภัย', business_type_garage:'อู่ซ่อมรถ',
+    business_type_custom:'อื่นๆ',
+    onboard_persona_title:'ธุรกิจของคุณเป็นแบบไหน?', onboard_persona_sub:'เลือกที่ใกล้เคียงที่สุด — เราจะตั้งค่าบริการเริ่มต้นให้ คุณเปลี่ยนได้ทุกเมื่อในการตั้งค่า',
     subtasks_title:'งานย่อย', subtask_add_ph:'เพิ่มงานย่อย…', btn_add:'+ เพิ่ม', no_subtasks:'ยังไม่มีงานย่อย',
     milestones_title:'การจ่ายเงินตามช่วงงาน', add_milestone:'+ เพิ่มช่วงงาน', save_milestone:'บันทึกช่วงงาน',
     draft_invoice:'ร่างใบแจ้งหนี้', milestone_locked:'ล็อกอยู่', no_milestones:'ยังไม่มีช่วงงาน',
@@ -1092,7 +1097,7 @@ const I18N = {
     insights_cleared:'ล้างข้อมูลการใช้งานแล้ว', insights_unlocked:'ปลดล็อกข้อมูลเชิงลึกแล้ว',
   },
 };
-function curLang() { return (settings && settings.lang) || localStorage.getItem('sidekick_ui_lang') || 'en'; }
+function curLang() { return (settings && settings.lang) || localStorage.getItem('sidekick_ui_lang') || 'th'; }
 function t(key) {
   const l = curLang();
   return (I18N[l] && I18N[l][key]) ?? I18N.en[key] ?? key;
@@ -1112,32 +1117,24 @@ function money(n, dec=0) { return curSym() + fmt(n, dec); }
 function netOf(j) { return (Number(j.amount)||0) + (Number(j.tip)||0) - (Number(j.expense)||0); }
 
 // ─── THEME ────────────────────────────────────────────────────────────
-// Un-paused for the 2026 rebrand (dark mode was force-disabled since M1.5).
-// Stored value is one of 'light' | 'dark' | 'auto', in localStorage (not the
-// per-uid `settings` DB object) so the pre-paint inline script in index.html/
-// login.html can read it synchronously, before IndexedDB is even open, to
-// avoid a flash of the wrong theme.
+// Light by default (reverses the 2026 rebrand's "dark by default" decision
+// on explicit user instruction). Stored value is one of 'light' | 'dark' |
+// 'auto', in localStorage (not the per-uid `settings` DB object) so the
+// pre-paint inline script in index.html/login.html can read it
+// synchronously, before IndexedDB is even open, to avoid a flash of the
+// wrong theme.
 //   'light' -> dataset.theme = 'light'  (forces light, overrides OS)
 //   'dark'  -> dataset.theme = 'dark'   (forces dark, overrides OS)
 //   'auto'  -> dataset.theme removed    (styles.css's prefers-color-scheme
 //              media query decides, tracking the OS live)
 const THEME_KEY = 'sidekick_ui_theme';
-// One-time: every boot before this rebrand force-wrote 'light' into storage
-// while dark mode was paused, so an existing 'light' value there was never a
-// real user choice — flip it to the new dark default exactly once. Anything
-// a user picks afterward (via Settings) is respected normally, forever.
-const THEME_MIGRATION_FLAG = 'sidekick_dark_default_migrated_v1';
 function applyTheme() {
-  if (!localStorage.getItem(THEME_MIGRATION_FLAG)) {
-    if (localStorage.getItem(THEME_KEY) === 'light') localStorage.setItem(THEME_KEY, 'dark');
-    localStorage.setItem(THEME_MIGRATION_FLAG, '1');
-  }
-  const stored = localStorage.getItem(THEME_KEY) || 'dark';
+  const stored = localStorage.getItem(THEME_KEY) || 'light';
   if (stored === 'auto') delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = (stored === 'light') ? 'light' : 'dark';
+  else document.documentElement.dataset.theme = (stored === 'dark') ? 'dark' : 'light';
 }
 async function onThemeChange(v) {
-  localStorage.setItem(THEME_KEY, (v === 'light' || v === 'auto') ? v : 'dark');
+  localStorage.setItem(THEME_KEY, (v === 'dark' || v === 'auto') ? v : 'light');
   applyTheme();
 }
 
@@ -1185,7 +1182,7 @@ function boot() {
 
 async function enterApp() {
   document.body.classList.add('authed');
-  settings = {lang:'en', currency:'THB'};
+  settings = {lang:'th', currency:'THB'};
   const sAll = await dbAll('settings');
   const prefix = isGuest ? 'guest:' : (currentUser.id + ':');
   sAll.forEach(s => { if (s.key.startsWith(prefix)) settings[s.key.slice(prefix.length)] = s.value; });
@@ -1199,8 +1196,8 @@ async function enterApp() {
   if (settings.wht == null) settings.wht = 3;
   if (settings.vat == null) settings.vat = 7;
   const set = (id, v) => { const el = document.getElementById(id); if (el != null && v != null) el.value = v; };
-  set('set-theme', localStorage.getItem(THEME_KEY) || 'dark');
-  set('set-lang', settings.lang || 'en');
+  set('set-theme', localStorage.getItem(THEME_KEY) || 'light');
+  set('set-lang', settings.lang || 'th');
   set('set-currency', settings.currency || 'THB');
   set('set-page-size', settings.docPageSize || 'A4');
   set('set-wht', settings.wht != null ? settings.wht : '');
@@ -1240,12 +1237,26 @@ async function enterApp() {
   // handoff. Migrates existing installs to 'trainer' (this app's actual base
   // case up to now, back when it was single-persona-only) so switching over
   // changes nothing for anyone not deliberately picking a different type.
-  if (!settings.businessType) await saveSetting('businessType', 'trainer');
+  // Business type (persona) picker — reintroduced per the 2026 redesign
+  // handoff, now asked once at first run via a blocking modal instead of
+  // silently defaulting to 'trainer'. Existing installs already have
+  // `businessType` set from the earlier silent-default migration, so this
+  // only ever gates a genuinely new account/device — nobody already using
+  // the app sees it appear. enterApp() returns early here; finishAppBoot()
+  // (below) picks up once a choice is made, in showPersonaOnboard()'s
+  // choosePersonaOnboard() handler.
+  if (!settings.businessType) { showPersonaOnboard(); return; }
   document.body.setAttribute('data-work-type', businessType());
   set('set-business-type', businessType());
   if (!settings.packageUnitLabel) await saveSetting('packageUnitLabel', PACKAGE_UNIT_DEFAULTS[businessType()] || 'Units');
   set('set-package-unit', packageUnitLabel());
+  await finishAppBoot();
+}
 
+// The rest of boot, once businessType is known — split out of enterApp()
+// so the first-run persona picker can pause boot after loading settings/
+// applying theme+lang, then resume here once a choice is made.
+async function finishAppBoot() {
   // One-time migration: the client-facing ID format changes from "M-xxxx"
   // to "SK-xxxx" per the 2026 redesign spec. Rewrites existing records in
   // place (preserving the numeric sequence) rather than leaving old and new
@@ -1269,6 +1280,26 @@ async function enterApp() {
   // the first check; this just re-checks every minute after that, mainly for
   // the time-sensitive "booking starting soon" condition.
   setInterval(checkAndFireNotifications, 60000);
+}
+
+// First-run persona picker (index.html's #modal-persona-onboard). Shown
+// exactly once, only when settings.businessType has never been set —
+// deliberately not dismissible (enterApp() already returned without calling
+// finishAppBoot() above, so nothing else runs until a choice is made here).
+function showPersonaOnboard() {
+  const m = document.getElementById('modal-persona-onboard');
+  if (m) m.classList.add('open');
+}
+async function choosePersonaOnboard(v) {
+  if (!BUSINESS_TYPES[v]) return;
+  const m = document.getElementById('modal-persona-onboard');
+  if (m) m.classList.remove('open');
+  await saveSetting('businessType', v);
+  await saveSetting('packageUnitLabel', PACKAGE_UNIT_DEFAULTS[v] || 'Units');
+  document.body.setAttribute('data-work-type', v);
+  const btEl = document.getElementById('set-business-type'); if (btEl) btEl.value = v;
+  const puEl = document.getElementById('set-package-unit'); if (puEl) puEl.value = packageUnitLabel();
+  await finishAppBoot();
 }
 
 function displayName() {
@@ -3709,12 +3740,15 @@ function openEditCustomer(id) {
   // persona also gets its own tracker section below (see the registry
   // above renderClientPersonaTracker()).
   const isTrainer = businessType() === 'trainer';
+  const isCustom = businessType() === 'custom';
   document.getElementById('cust-package-section').style.display = 'block';
   document.getElementById('cust-progress-section').style.display = isTrainer ? 'block' : 'none';
-  document.getElementById('cust-persona-section').style.display = 'block';
+  // 'custom' has no persona-specific tracker (see PERSONA_TRACKER_TITLES) —
+  // hide the section entirely rather than render it empty.
+  document.getElementById('cust-persona-section').style.display = isCustom ? 'none' : 'block';
   renderCustomerPackages(id);
   if (isTrainer) renderCustomerProgress(id);
-  renderClientPersonaTracker(id);
+  if (!isCustom) renderClientPersonaTracker(id);
   document.getElementById('c-delete').style.display = 'block';
   clearFieldErrors();
   openCustomerModal();

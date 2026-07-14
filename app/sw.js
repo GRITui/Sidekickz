@@ -1,8 +1,8 @@
 /* Sidekick service worker — local-first PWA app shell.
  *
  * VERSION LOCKSTEP: SW_VERSION tracks APP_VERSION in app.js.
- *   app.js  APP_VERSION = '0.9.19'
- *   sw.js   SW_VERSION   = 'sidekick-v0.9.19'
+ *   app.js  APP_VERSION = '0.9.20'
+ *   sw.js   SW_VERSION   = 'sidekick-v0.9.20'
  * Bump BOTH together on every deploy, and keep the ?v= query on the precached
  * app.js / styles.css in step (they double as cache-busters).
  *
@@ -17,7 +17,7 @@
  * this rename is simply left alone (harmless, and evicted by the browser's
  * normal cache-storage limits over time) rather than actively cleaned up.
  */
-const SW_VERSION = 'sidekick-v0.9.19';
+const SW_VERSION = 'sidekick-v0.9.20';
 const CACHE_PREFIX = 'sidekick-shell-';
 const SHELL_CACHE = `${CACHE_PREFIX}${SW_VERSION}`;
 
@@ -29,16 +29,16 @@ const SHELL_ASSETS = [
   BASE,
   BASE + 'index.html',
   BASE + 'login.html',
-  BASE + 'app.js?v=0.9.19',
-  BASE + 'dataClient.js?v=0.9.19',
-  BASE + 'tax.js?v=0.9.19',
-  BASE + 'invoices.js?v=0.9.19',
-  BASE + 'docgen.js?v=0.9.19',
-  BASE + 'bookings.js?v=0.9.19',
-  BASE + 'followups.js?v=0.9.19',
-  BASE + 'portfolio.js?v=0.9.19',
-  BASE + 'research.js?v=0.9.19',
-  BASE + 'styles.css?v=0.9.19',
+  BASE + 'app.js?v=0.9.20',
+  BASE + 'dataClient.js?v=0.9.20',
+  BASE + 'tax.js?v=0.9.20',
+  BASE + 'invoices.js?v=0.9.20',
+  BASE + 'docgen.js?v=0.9.20',
+  BASE + 'bookings.js?v=0.9.20',
+  BASE + 'followups.js?v=0.9.20',
+  BASE + 'portfolio.js?v=0.9.20',
+  BASE + 'research.js?v=0.9.20',
+  BASE + 'styles.css?v=0.9.20',
   BASE + 'manifest.json',
   BASE + 'icons/icon.svg',
   BASE + 'icons/icon-192.png',
