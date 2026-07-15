@@ -1281,6 +1281,7 @@
             <div class="pi-muted">${esc(t('issued_label'))} ${esc(fmtInvDate(inv.issueDate))}${inv.dueDate ? ' · ' + esc(t('due_label')) + ' ' + esc(fmtInvDate(inv.dueDate)) : ''}</div>
           </div>
           <div style="text-align:right">
+            ${(typeof sellerLogoDataUrl === 'function' && sellerLogoDataUrl()) ? `<img src="${attrEsc(sellerLogoDataUrl())}" alt="" style="max-height:48px;max-width:160px;object-fit:contain;margin-bottom:6px">` : ''}
             <div style="font-weight:800;font-size:16px">${fromName}</div>
             ${sellerBits.map(b => `<div class="pi-muted">${b}</div>`).join('')}
             <div class="pi-status">${esc(t(INV_STATUS_LABEL_KEYS[inv.status || 'draft']))}</div>

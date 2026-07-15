@@ -10,6 +10,7 @@
 import { db } from '../lib/db.js';
 import { requireSession } from '../lib/auth.js';
 import { corsHeaders, handlePreflight } from '../lib/cors.js';
+import { isLocked, trialDaysLeft, hasFeature, clientCapFor, FEATURE_KEYS } from '../lib/entitlements.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -32,16 +33,31 @@ export default async function handler(request) {
   const sql = db();
   try {
     const rows = await sql`
-      select cuid, username, first_name, migrated_at from users where cuid = ${session.userCuid}
+      select cuid, username, first_name, migrated_at, plan, subscription_status, trial_ends_at, current_period_end, stripe_customer_id
+      from users where cuid = ${session.userCuid}
     `;
     const user = rows[0];
     if (!user) return json({ error: 'Not authenticated' }, 401, request);
+    const features = {};
+    for (const key of FEATURE_KEYS) features[key] = hasFeature(user, key);
+    const cap = clientCapFor(user);
     return json({
       user: {
         cuid: user.cuid,
         username: user.username,
         firstName: user.first_name,
         migrated: user.migrated_at != null,
+        plan: user.plan,
+        subscriptionStatus: user.subscription_status,
+        trialEndsAt: user.trial_ends_at,
+        currentPeriodEnd: user.current_period_end,
+        trialDaysLeft: trialDaysLeft(user),
+        locked: isLocked(user),
+        hasStripeCustomer: user.stripe_customer_id != null,
+        features,
+        // null = unlimited (JSON has no Infinity) — the client treats a
+        // missing/null cap as "don't block."
+        clientCap: cap === Infinity ? null : cap,
       },
     }, 200, request);
   } catch (err) {

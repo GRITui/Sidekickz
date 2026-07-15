@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.19';          // <-> sw.js SW_VERSION 'sidekick-v0.9.19'
+const APP_VERSION = '0.9.23';          // <-> sw.js SW_VERSION 'sidekick-v0.9.23'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -440,7 +440,7 @@ async function restoreSession() {
 }
 
 // ─── STATE ────────────────────────────────────────────────────────────
-let jobs = [], expenses = [], customers = [], services = [], usageEvents = [], packages = [], settings = {lang:'en', currency:'THB'};
+let jobs = [], expenses = [], customers = [], services = [], usageEvents = [], packages = [], settings = {lang:'th', currency:'THB'};
 let currentPeriod = 'month';
 
 // HTML/attr escaping (shared by all list/form renderers)
@@ -463,6 +463,7 @@ const BUSINESS_TYPES = {
   laundry:    { label:'Laundry service',   unitWord:'Order',   seedServices:[['Wash & fold',150,'kg'],['Dry cleaning',80,'item']] },
   insurance:  { label:'Insurance agent',   unitWord:'Policy',  seedServices:[['Policy review',0,'review'],['Claim assistance',0,'case']] },
   garage:     { label:'Car garage',        unitWord:'Job',     seedServices:[['Oil change',600,'job'],['Full service',2500,'job']] },
+  custom:     { label:'Other',             unitWord:'Job',     seedServices:[] },
 };
 function businessType() { return BUSINESS_TYPES[settings && settings.businessType] ? settings.businessType : 'trainer'; }
 function unitWord() { return BUSINESS_TYPES[businessType()].unitWord; }
@@ -473,7 +474,7 @@ function unitWord() { return BUSINESS_TYPES[businessType()].unitWord; }
 // this registry doesn't know about yet still works with zero code changes —
 // the user just types whatever word fits.
 const PACKAGE_UNIT_DEFAULTS = {
-  trainer: 'Sessions', realestate: 'Deals', laundry: 'Pieces', insurance: 'Policies', garage: 'Jobs',
+  trainer: 'Sessions', realestate: 'Deals', laundry: 'Pieces', insurance: 'Policies', garage: 'Jobs', custom: 'Units',
 };
 function packageUnitLabel() {
   return (settings && settings.packageUnitLabel) || PACKAGE_UNIT_DEFAULTS[businessType()] || 'Units';
@@ -669,6 +670,8 @@ const I18N = {
     daily_goal:'Daily income goal', goal_target_month:'Monthly income goal', goal_target_quarter:'Quarterly income goal', goal_target_year:'Yearly income goal',
     business_type_label:'Business type', business_type_trainer:'Personal trainer', business_type_realestate:'Real estate agent',
     business_type_laundry:'Laundry service', business_type_insurance:'Insurance agent', business_type_garage:'Car garage',
+    business_type_custom:'Other',
+    onboard_persona_title:'What kind of business do you run?', onboard_persona_sub:'Pick the closest match — we’ll set up starting services for it. You can change this anytime in Settings.',
     subtasks_title:'Sub-tasks', subtask_add_ph:'Add a sub-task…', btn_add:'+ Add', no_subtasks:'No sub-tasks yet.',
     milestones_title:'Milestone payments', add_milestone:'+ Add milestone', save_milestone:'Save milestone',
     draft_invoice:'Draft invoice', milestone_locked:'Locked', no_milestones:'No milestones yet.',
@@ -802,6 +805,36 @@ const I18N = {
     cloud_backup_enabled_toast:'Cloud backup enabled — {n} client(s) backed up.',
     cloud_backup_modal_body:'Right now your clients only live on this device — if it\'s lost or reset, they\'re gone. Turn on cloud backup to also keep a copy in your account. You can always do this later from Settings.',
     cloud_backup_later_btn:'Not now',
+    subscription_needs_account_hint:'Enable cloud backup above to start your 15-day free trial and manage billing.',
+    subscription_plan_basic:'Basic plan', subscription_plan_pro:'Pro plan', subscription_plan_team:'Team plan',
+    subscription_status_trialing:'Free trial — {n} day(s) left', subscription_status_active:'Active',
+    subscription_status_past_due:'Payment failed — update your card to keep access', subscription_status_canceled:'Canceled',
+    subscription_status_locked:'Trial ended',
+    subscription_locked_banner:'Your trial has ended. Your data is safe and visible, but you\'ll need to subscribe to add or edit anything.',
+    subscription_upgrade_pro_btn:'Upgrade to Pro — ฿{price}/mo', subscription_subscribe_basic_btn:'Subscribe to Basic — ฿{price}/mo',
+    subscription_manage_billing_btn:'Manage billing', subscription_checkout_failed:'Could not start checkout — try again in a moment.',
+    subscription_portal_failed:'Could not open billing — try again in a moment.',
+    client_cap_reached:'You\'ve reached your plan\'s client limit — upgrade in Settings > Subscription to add more.',
+    recurring_locked:'Repeat bookings need a Pro subscription — upgrade in Settings > Subscription.',
+    research_premium_plan_note:'Premium articles are also included free with a Pro subscription.',
+    business_logo:'Business logo', doc_branding_locked:'Add your logo to quotes/invoices/receipts with a Pro subscription.',
+    remove_logo_btn:'Remove logo', image_too_large:'Image too large — please pick one under 2MB', image_read_failed:'Could not read that image',
+    line_booking_title:'LINE booking', line_booking_sub:'Connect your own LINE Official Account so clients can request a booking straight from a chat — no separate app for them to install.',
+    line_booking_connect_title:'Connect LINE', line_booking_locked:'Connect your own LINE Official Account for self-service booking with a Pro subscription.',
+    line_booking_needs_account_hint:'Enable cloud backup above to connect a LINE Official Account.',
+    line_channel_id_label:'Channel ID', line_channel_secret_label:'Channel secret',
+    line_alert_uid_label:'Your LINE user ID (optional)', line_alert_uid_ph:'For new-booking alerts',
+    line_alert_uid_sub:'Optional — lets Sidekick push you a LINE message when a client requests a booking. Find yours in your LINE Developers Console webhook event log. Booking works fine without it.',
+    line_connect_btn:'Connect', line_connect_missing_fields:'Enter both the Channel ID and Channel secret.',
+    line_connect_failed:'Could not connect that LINE channel.', line_connected_toast:'LINE channel connected',
+    line_connected_title:'LINE channel connected', line_webhook_url_label:'Webhook URL (paste into LINE console)',
+    line_booking_page_url_label:'Your booking page (share with clients)', copy_btn:'Copy',
+    copied_toast:'Copied', copy_failed:'Could not copy — select and copy manually.',
+    line_disconnect_btn:'Disconnect', line_disconnect_confirm:'Disconnect this LINE channel? Clients will no longer be able to book through it.',
+    booking_slots_title:'Open booking slots', no_booking_slots:'No open slots yet — add one below.',
+    slot_status_open:'Open', slot_status_held:'Held (pending confirmation)', slot_status_booked:'Booked',
+    add_slot_btn:'+ Add slot', slot_missing_fields:'Pick a start and end time.', slot_end_before_start:'End time must be after the start time.',
+    slot_add_failed:'Could not add that slot.',
     delete_job_confirm:'Delete this job?', name_saved:'Name saved',
     err_id_min3:'Enter an email or username (3+ characters).', err_pw_min4:'Password must be at least 8 characters.',
     err_pw_mismatch:'Passwords do not match.', err_account_exists:'That account already exists on this device.',
@@ -914,6 +947,8 @@ const I18N = {
     daily_goal:'เป้าหมายรายได้ต่อวัน', goal_target_month:'เป้าหมายรายได้ต่อเดือน', goal_target_quarter:'เป้าหมายรายได้ต่อไตรมาส', goal_target_year:'เป้าหมายรายได้ต่อปี',
     business_type_label:'ประเภทธุรกิจ', business_type_trainer:'เทรนเนอร์ส่วนตัว', business_type_realestate:'นายหน้าอสังหาริมทรัพย์',
     business_type_laundry:'ร้านซักรีด', business_type_insurance:'ตัวแทนประกันภัย', business_type_garage:'อู่ซ่อมรถ',
+    business_type_custom:'อื่นๆ',
+    onboard_persona_title:'ธุรกิจของคุณเป็นแบบไหน?', onboard_persona_sub:'เลือกที่ใกล้เคียงที่สุด — เราจะตั้งค่าบริการเริ่มต้นให้ คุณเปลี่ยนได้ทุกเมื่อในการตั้งค่า',
     subtasks_title:'งานย่อย', subtask_add_ph:'เพิ่มงานย่อย…', btn_add:'+ เพิ่ม', no_subtasks:'ยังไม่มีงานย่อย',
     milestones_title:'การจ่ายเงินตามช่วงงาน', add_milestone:'+ เพิ่มช่วงงาน', save_milestone:'บันทึกช่วงงาน',
     draft_invoice:'ร่างใบแจ้งหนี้', milestone_locked:'ล็อกอยู่', no_milestones:'ยังไม่มีช่วงงาน',
@@ -1047,6 +1082,36 @@ const I18N = {
     cloud_backup_enabled_toast:'เปิดใช้งานสำรองข้อมูลบนคลาวด์แล้ว — สำรองข้อมูลลูกค้า {n} รายการ',
     cloud_backup_modal_body:'ตอนนี้ข้อมูลลูกค้าของคุณอยู่ในเครื่องนี้เท่านั้น — หากเครื่องหายหรือถูกรีเซ็ต ข้อมูลจะหายไปด้วย เปิดใช้งานสำรองข้อมูลบนคลาวด์เพื่อเก็บสำเนาไว้ในบัญชีของคุณด้วย คุณสามารถทำภายหลังได้จากหน้าตั้งค่า',
     cloud_backup_later_btn:'ไว้ทีหลัง',
+    subscription_needs_account_hint:'เปิดใช้งานสำรองข้อมูลบนคลาวด์ด้านบนเพื่อเริ่มทดลองใช้ฟรี 15 วันและจัดการการเรียกเก็บเงิน',
+    subscription_plan_basic:'แพ็กเกจ Basic', subscription_plan_pro:'แพ็กเกจ Pro', subscription_plan_team:'แพ็กเกจ Team',
+    subscription_status_trialing:'ทดลองใช้ฟรี — เหลืออีก {n} วัน', subscription_status_active:'ใช้งานอยู่',
+    subscription_status_past_due:'ชำระเงินไม่สำเร็จ — อัปเดตบัตรของคุณเพื่อใช้งานต่อ', subscription_status_canceled:'ยกเลิกแล้ว',
+    subscription_status_locked:'หมดระยะทดลองใช้',
+    subscription_locked_banner:'ระยะทดลองใช้ของคุณสิ้นสุดแล้ว ข้อมูลของคุณยังปลอดภัยและดูได้ แต่คุณต้องสมัครสมาชิกเพื่อเพิ่มหรือแก้ไขข้อมูล',
+    subscription_upgrade_pro_btn:'อัปเกรดเป็น Pro — ฿{price}/เดือน', subscription_subscribe_basic_btn:'สมัคร Basic — ฿{price}/เดือน',
+    subscription_manage_billing_btn:'จัดการการเรียกเก็บเงิน', subscription_checkout_failed:'ไม่สามารถเริ่มการชำระเงินได้ — ลองใหม่อีกครั้ง',
+    subscription_portal_failed:'ไม่สามารถเปิดหน้าจัดการการเรียกเก็บเงินได้ — ลองใหม่อีกครั้ง',
+    client_cap_reached:'คุณถึงขีดจำกัดจำนวนลูกค้าของแพ็กเกจแล้ว — อัปเกรดที่การตั้งค่า > การสมัครสมาชิก เพื่อเพิ่มลูกค้า',
+    recurring_locked:'การจองซ้ำต้องสมัครแพ็กเกจ Pro — อัปเกรดที่การตั้งค่า > การสมัครสมาชิก',
+    research_premium_plan_note:'บทความ Premium ยังรวมอยู่ในแพ็กเกจ Pro โดยไม่มีค่าใช้จ่ายเพิ่มเติม',
+    business_logo:'โลโก้ธุรกิจ', doc_branding_locked:'เพิ่มโลโก้ในใบเสนอราคา/ใบแจ้งหนี้/ใบเสร็จได้ด้วยแพ็กเกจ Pro',
+    remove_logo_btn:'ลบโลโก้', image_too_large:'ไฟล์ภาพใหญ่เกินไป — กรุณาเลือกไฟล์ที่มีขนาดไม่เกิน 2MB', image_read_failed:'ไม่สามารถอ่านไฟล์ภาพนี้ได้',
+    line_booking_title:'การจองผ่าน LINE', line_booking_sub:'เชื่อมต่อ LINE Official Account ของคุณเองเพื่อให้ลูกค้าจองคิวได้จากแชทโดยตรง — ไม่ต้องติดตั้งแอปเพิ่ม',
+    line_booking_connect_title:'เชื่อมต่อ LINE', line_booking_locked:'เชื่อมต่อ LINE Official Account ของคุณเองเพื่อเปิดจองด้วยตนเองได้ด้วยแพ็กเกจ Pro',
+    line_booking_needs_account_hint:'เปิดใช้งานสำรองข้อมูลบนคลาวด์ด้านบนก่อนเพื่อเชื่อมต่อ LINE Official Account',
+    line_channel_id_label:'Channel ID', line_channel_secret_label:'Channel secret',
+    line_alert_uid_label:'LINE user ID ของคุณ (ไม่บังคับ)', line_alert_uid_ph:'สำหรับแจ้งเตือนการจองใหม่',
+    line_alert_uid_sub:'ไม่บังคับ — ให้ Sidekick ส่งข้อความ LINE แจ้งเตือนเมื่อมีลูกค้าขอจอง หา user ID ของคุณได้จากบันทึกเหตุการณ์ webhook ใน LINE Developers Console ระบบจองยังทำงานได้ตามปกติแม้ไม่กรอก',
+    line_connect_btn:'เชื่อมต่อ', line_connect_missing_fields:'กรอก Channel ID และ Channel secret ให้ครบ',
+    line_connect_failed:'ไม่สามารถเชื่อมต่อ LINE channel นี้ได้', line_connected_toast:'เชื่อมต่อ LINE channel แล้ว',
+    line_connected_title:'เชื่อมต่อ LINE channel แล้ว', line_webhook_url_label:'Webhook URL (นำไปวางใน LINE console)',
+    line_booking_page_url_label:'หน้าจองของคุณ (แชร์ให้ลูกค้า)', copy_btn:'คัดลอก',
+    copied_toast:'คัดลอกแล้ว', copy_failed:'ไม่สามารถคัดลอกได้ — กรุณาเลือกและคัดลอกด้วยตนเอง',
+    line_disconnect_btn:'ยกเลิกการเชื่อมต่อ', line_disconnect_confirm:'ยกเลิกการเชื่อมต่อ LINE channel นี้หรือไม่? ลูกค้าจะไม่สามารถจองผ่านช่องทางนี้ได้อีก',
+    booking_slots_title:'ช่วงเวลาที่เปิดให้จอง', no_booking_slots:'ยังไม่มีช่วงเวลาที่เปิดให้จอง — เพิ่มด้านล่าง',
+    slot_status_open:'เปิดให้จอง', slot_status_held:'กำลังรอยืนยัน', slot_status_booked:'จองแล้ว',
+    add_slot_btn:'+ เพิ่มช่วงเวลา', slot_missing_fields:'เลือกเวลาเริ่มต้นและสิ้นสุด', slot_end_before_start:'เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น',
+    slot_add_failed:'ไม่สามารถเพิ่มช่วงเวลานี้ได้',
     delete_job_confirm:'ลบเซสชันนี้หรือไม่?', name_saved:'บันทึกชื่อแล้ว',
     err_id_min3:'กรอกอีเมลหรือชื่อผู้ใช้ (อย่างน้อย 3 ตัวอักษร)', err_pw_min4:'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',
     err_pw_mismatch:'รหัสผ่านไม่ตรงกัน', err_account_exists:'มีบัญชีนี้อยู่แล้วในเครื่องนี้',
@@ -1092,7 +1157,7 @@ const I18N = {
     insights_cleared:'ล้างข้อมูลการใช้งานแล้ว', insights_unlocked:'ปลดล็อกข้อมูลเชิงลึกแล้ว',
   },
 };
-function curLang() { return (settings && settings.lang) || localStorage.getItem('sidekick_ui_lang') || 'en'; }
+function curLang() { return (settings && settings.lang) || localStorage.getItem('sidekick_ui_lang') || 'th'; }
 function t(key) {
   const l = curLang();
   return (I18N[l] && I18N[l][key]) ?? I18N.en[key] ?? key;
@@ -1112,32 +1177,24 @@ function money(n, dec=0) { return curSym() + fmt(n, dec); }
 function netOf(j) { return (Number(j.amount)||0) + (Number(j.tip)||0) - (Number(j.expense)||0); }
 
 // ─── THEME ────────────────────────────────────────────────────────────
-// Un-paused for the 2026 rebrand (dark mode was force-disabled since M1.5).
-// Stored value is one of 'light' | 'dark' | 'auto', in localStorage (not the
-// per-uid `settings` DB object) so the pre-paint inline script in index.html/
-// login.html can read it synchronously, before IndexedDB is even open, to
-// avoid a flash of the wrong theme.
+// Light by default (reverses the 2026 rebrand's "dark by default" decision
+// on explicit user instruction). Stored value is one of 'light' | 'dark' |
+// 'auto', in localStorage (not the per-uid `settings` DB object) so the
+// pre-paint inline script in index.html/login.html can read it
+// synchronously, before IndexedDB is even open, to avoid a flash of the
+// wrong theme.
 //   'light' -> dataset.theme = 'light'  (forces light, overrides OS)
 //   'dark'  -> dataset.theme = 'dark'   (forces dark, overrides OS)
 //   'auto'  -> dataset.theme removed    (styles.css's prefers-color-scheme
 //              media query decides, tracking the OS live)
 const THEME_KEY = 'sidekick_ui_theme';
-// One-time: every boot before this rebrand force-wrote 'light' into storage
-// while dark mode was paused, so an existing 'light' value there was never a
-// real user choice — flip it to the new dark default exactly once. Anything
-// a user picks afterward (via Settings) is respected normally, forever.
-const THEME_MIGRATION_FLAG = 'sidekick_dark_default_migrated_v1';
 function applyTheme() {
-  if (!localStorage.getItem(THEME_MIGRATION_FLAG)) {
-    if (localStorage.getItem(THEME_KEY) === 'light') localStorage.setItem(THEME_KEY, 'dark');
-    localStorage.setItem(THEME_MIGRATION_FLAG, '1');
-  }
-  const stored = localStorage.getItem(THEME_KEY) || 'dark';
+  const stored = localStorage.getItem(THEME_KEY) || 'light';
   if (stored === 'auto') delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = (stored === 'light') ? 'light' : 'dark';
+  else document.documentElement.dataset.theme = (stored === 'dark') ? 'dark' : 'light';
 }
 async function onThemeChange(v) {
-  localStorage.setItem(THEME_KEY, (v === 'light' || v === 'auto') ? v : 'dark');
+  localStorage.setItem(THEME_KEY, (v === 'dark' || v === 'auto') ? v : 'light');
   applyTheme();
 }
 
@@ -1185,7 +1242,7 @@ function boot() {
 
 async function enterApp() {
   document.body.classList.add('authed');
-  settings = {lang:'en', currency:'THB'};
+  settings = {lang:'th', currency:'THB'};
   const sAll = await dbAll('settings');
   const prefix = isGuest ? 'guest:' : (currentUser.id + ':');
   sAll.forEach(s => { if (s.key.startsWith(prefix)) settings[s.key.slice(prefix.length)] = s.value; });
@@ -1199,8 +1256,8 @@ async function enterApp() {
   if (settings.wht == null) settings.wht = 3;
   if (settings.vat == null) settings.vat = 7;
   const set = (id, v) => { const el = document.getElementById(id); if (el != null && v != null) el.value = v; };
-  set('set-theme', localStorage.getItem(THEME_KEY) || 'dark');
-  set('set-lang', settings.lang || 'en');
+  set('set-theme', localStorage.getItem(THEME_KEY) || 'light');
+  set('set-lang', settings.lang || 'th');
   set('set-currency', settings.currency || 'THB');
   set('set-page-size', settings.docPageSize || 'A4');
   set('set-wht', settings.wht != null ? settings.wht : '');
@@ -1240,12 +1297,26 @@ async function enterApp() {
   // handoff. Migrates existing installs to 'trainer' (this app's actual base
   // case up to now, back when it was single-persona-only) so switching over
   // changes nothing for anyone not deliberately picking a different type.
-  if (!settings.businessType) await saveSetting('businessType', 'trainer');
+  // Business type (persona) picker — reintroduced per the 2026 redesign
+  // handoff, now asked once at first run via a blocking modal instead of
+  // silently defaulting to 'trainer'. Existing installs already have
+  // `businessType` set from the earlier silent-default migration, so this
+  // only ever gates a genuinely new account/device — nobody already using
+  // the app sees it appear. enterApp() returns early here; finishAppBoot()
+  // (below) picks up once a choice is made, in showPersonaOnboard()'s
+  // choosePersonaOnboard() handler.
+  if (!settings.businessType) { showPersonaOnboard(); return; }
   document.body.setAttribute('data-work-type', businessType());
   set('set-business-type', businessType());
   if (!settings.packageUnitLabel) await saveSetting('packageUnitLabel', PACKAGE_UNIT_DEFAULTS[businessType()] || 'Units');
   set('set-package-unit', packageUnitLabel());
+  await finishAppBoot();
+}
 
+// The rest of boot, once businessType is known — split out of enterApp()
+// so the first-run persona picker can pause boot after loading settings/
+// applying theme+lang, then resume here once a choice is made.
+async function finishAppBoot() {
   // One-time migration: the client-facing ID format changes from "M-xxxx"
   // to "SK-xxxx" per the 2026 redesign spec. Rewrites existing records in
   // place (preserving the numeric sequence) rather than leaving old and new
@@ -1262,6 +1333,10 @@ async function enterApp() {
   await seedServicesIfEmpty();
   switchScreen('home');
   await maybeShowCloudBackupModal();
+  // Fire-and-forget: populates __entitlements for the Phase 1 feature
+  // gates (planHasFeature()/planClientCap()) without delaying boot on a
+  // network round trip guest/local-only accounts don't even need.
+  refreshEntitlements();
 
   // App-triggered OS notifications: only fire while this tab stays open (no
   // backend to check conditions while fully closed — see the comment above
@@ -1269,6 +1344,26 @@ async function enterApp() {
   // the first check; this just re-checks every minute after that, mainly for
   // the time-sensitive "booking starting soon" condition.
   setInterval(checkAndFireNotifications, 60000);
+}
+
+// First-run persona picker (index.html's #modal-persona-onboard). Shown
+// exactly once, only when settings.businessType has never been set —
+// deliberately not dismissible (enterApp() already returned without calling
+// finishAppBoot() above, so nothing else runs until a choice is made here).
+function showPersonaOnboard() {
+  const m = document.getElementById('modal-persona-onboard');
+  if (m) m.classList.add('open');
+}
+async function choosePersonaOnboard(v) {
+  if (!BUSINESS_TYPES[v]) return;
+  const m = document.getElementById('modal-persona-onboard');
+  if (m) m.classList.remove('open');
+  await saveSetting('businessType', v);
+  await saveSetting('packageUnitLabel', PACKAGE_UNIT_DEFAULTS[v] || 'Units');
+  document.body.setAttribute('data-work-type', v);
+  const btEl = document.getElementById('set-business-type'); if (btEl) btEl.value = v;
+  const puEl = document.getElementById('set-package-unit'); if (puEl) puEl.value = packageUnitLabel();
+  await finishAppBoot();
 }
 
 function displayName() {
@@ -1587,6 +1682,336 @@ async function enableCloudBackup() {
   renderCloudBackupSection();
 }
 window.enableCloudBackup = enableCloudBackup;
+
+// ─── SUBSCRIPTION (Phase 0) ─────────────────────────────────────────────
+// Deliberately reads live from api/auth-session.js rather than trusting a
+// long-lived cache — subscription state can change from a Stripe webhook
+// at any moment (a payment succeeding/failing). Guest and any account that
+// hasn't enabled cloud backup yet has no backend `users` row at all (see
+// renderCloudBackupSection() above) — there's nothing to subscribe against
+// yet, so this renders nothing beyond a short hint pointing at the Cloud
+// backup section right above it.
+//
+// `__entitlements` is a same-tab, in-memory cache of the last fetch
+// (refreshed at boot via finishAppBoot(), and again every time Settings
+// renders this section) — the Phase 1 feature gates below
+// (planHasFeature()/planClientCap()) read this synchronously rather than
+// awaiting a fresh network round trip on every "+ Add client"/booking-save
+// tap. A few minutes of staleness on a plan/lock change is an acceptable
+// trade for that — same "good enough, not perfectly live" bar this app
+// already accepts elsewhere (e.g. the mirror-not-authoritative backend
+// writes). `null` means "not tracked" (guest, or a registered account that
+// never enabled cloud backup) — every gate below treats that as
+// unrestricted, matching Phase 0's own framing: the paywall only applies
+// once an account opts into the backend/subscription system at all, never
+// to purely local usage.
+let __entitlements = null;
+async function refreshEntitlements() {
+  if (isGuest || typeof SidekickBackend === 'undefined' || !SidekickBackend.isEnabled()) {
+    __entitlements = null;
+    return null;
+  }
+  const r = await SidekickBackend.session();
+  __entitlements = r.ok ? r.data.user : null;
+  return __entitlements;
+}
+// key is one of lib/entitlements.js's FEATURE_KEYS (cloudSync/lineBooking/
+// recurringBookings/researchPremium/docBranding) — see that file for the
+// authoritative plan->feature mapping this only ever mirrors, never
+// recomputes.
+function planHasFeature(key) {
+  const e = __entitlements;
+  if (!e) return true;
+  if (e.locked) return false;
+  return !!(e.features && e.features[key]);
+}
+// null clientCap from the server means unlimited (JSON has no Infinity). A
+// locked account's cap is 0 — matches "read-only until you subscribe again"
+// rather than letting a locked-but-under-cap account keep adding clients.
+function planClientCap() {
+  const e = __entitlements;
+  if (!e) return Infinity;
+  if (e.locked) return 0;
+  return e.clientCap == null ? Infinity : e.clientCap;
+}
+const SUBSCRIPTION_PRICE_THB = { basic: 149, pro: 349 };
+async function renderSubscriptionSection() {
+  const el = document.getElementById('subscription-body');
+  if (!el || typeof SidekickBackend === 'undefined') return;
+  if (isGuest) { el.innerHTML = ''; return; }
+  if (!SidekickBackend.isEnabled()) {
+    __entitlements = null;
+    el.innerHTML = `<p style="font-size:12px;color:var(--text3);margin:0 16px 14px">${htmlEsc(t('subscription_needs_account_hint'))}</p>`;
+    return;
+  }
+  const u = await refreshEntitlements();
+  if (!u) { el.innerHTML = ''; return; }
+  const statusKey = u.locked ? 'subscription_status_locked'
+    : u.subscriptionStatus === 'trialing' ? 'subscription_status_trialing'
+    : u.subscriptionStatus === 'past_due' ? 'subscription_status_past_due'
+    : u.subscriptionStatus === 'canceled' ? 'subscription_status_canceled'
+    : 'subscription_status_active';
+  const statusText = (statusKey === 'subscription_status_trialing')
+    ? t('subscription_status_trialing').replace('{n}', u.trialDaysLeft)
+    : t(statusKey);
+
+  const upgradeBtns = [];
+  if (u.plan !== 'pro') {
+    upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="startSubscriptionCheckout('pro')">${htmlEsc(t('subscription_upgrade_pro_btn').replace('{price}', SUBSCRIPTION_PRICE_THB.pro))}</button>`);
+  }
+  if (u.plan === 'basic' && (u.locked || u.subscriptionStatus !== 'active')) {
+    upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="startSubscriptionCheckout('basic')">${htmlEsc(t('subscription_subscribe_basic_btn').replace('{price}', SUBSCRIPTION_PRICE_THB.basic))}</button>`);
+  }
+  if (u.hasStripeCustomer) {
+    upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="openBillingPortal()">${htmlEsc(t('subscription_manage_billing_btn'))}</button>`);
+  }
+
+  el.innerHTML = `<div class="list-card">
+      ${u.locked ? `<div style="padding:12px 16px;background:color-mix(in srgb,var(--overdue) 12%,var(--card));color:var(--overdue);font-size:12px;font-weight:700">${htmlEsc(t('subscription_locked_banner'))}</div>` : ''}
+      <div class="list-row" style="cursor:default">
+        <div class="list-icon">💳</div>
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(t('subscription_plan_' + u.plan))}</div>
+          <div class="list-sub">${htmlEsc(statusText)}</div>
+        </div>
+      </div>
+      ${upgradeBtns.length ? `<div style="padding:0 16px 14px;display:flex;flex-direction:column;gap:8px">${upgradeBtns.join('')}</div>` : ''}
+    </div>`;
+}
+
+// ─── DOCUMENT BRANDING (Phase 1, Pro+) ──────────────────────────────────
+// Same FileReader/dataURL-into-a-setting pattern portfolio.js already uses
+// for item images (see saveItem()/onImagePick() there), just persisted via
+// saveSetting() as `settings.sellerLogoDataUrl` instead of a per-item
+// IndexedDB field — one logo per account, not one per document. Reads
+// planHasFeature('docBranding') the same synchronous, cached way every
+// other Phase 1 gate does (see planHasFeature() above); the upload UI
+// itself is only shown once entitled, but sellerLogoDataUrl() (used by
+// docgen.js/invoices.js at render time) re-checks the same gate rather
+// than trusting whatever was true when the logo was uploaded — a downgrade
+// stops the logo from appearing on new documents without deleting the
+// stored image, so re-upgrading brings it straight back.
+let __pickedLogo = undefined; // undefined = "use settings.sellerLogoDataUrl as-is", null = "explicitly removed this render"
+function sellerLogoDataUrl() {
+  if (typeof planHasFeature === 'function' && !planHasFeature('docBranding')) return '';
+  return (settings && settings.sellerLogoDataUrl) || '';
+}
+function renderSellerLogoSection() {
+  const el = document.getElementById('seller-logo-body');
+  if (!el) return;
+  const entitled = typeof planHasFeature !== 'function' || planHasFeature('docBranding');
+  if (!entitled) {
+    el.innerHTML = `<div class="settings-row" style="cursor:default">
+        <span class="settings-label">${htmlEsc(t('business_logo'))}</span>
+        <span style="font-size:12px;color:var(--text3)">${htmlEsc(t('doc_branding_locked'))}</span>
+      </div>`;
+    return;
+  }
+  __pickedLogo = settings.sellerLogoDataUrl || null;
+  el.innerHTML = `
+    <div class="field" style="padding:0 16px">
+      <label for="seller-logo-input" style="display:block;font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(t('business_logo'))}</label>
+      <input type="file" id="seller-logo-input" accept="image/*" style="padding:8px 0;font-size:13px">
+    </div>
+    <div id="seller-logo-preview-wrap" style="padding:0 16px 14px"></div>`;
+  document.getElementById('seller-logo-input').addEventListener('change', onSellerLogoPick);
+  renderSellerLogoPreview();
+}
+function renderSellerLogoPreview() {
+  const wrap = document.getElementById('seller-logo-preview-wrap');
+  if (!wrap) return;
+  if (!__pickedLogo) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = `<div style="display:flex;align-items:center;gap:12px">
+      <img src="${attrEsc(__pickedLogo)}" alt="" style="width:64px;height:64px;border-radius:var(--radius-sm);object-fit:contain;background:var(--card);border:0.5px solid var(--border)">
+      <button type="button" id="seller-logo-remove" class="qc-btn" style="width:auto;padding:0 14px">${htmlEsc(t('remove_logo_btn'))}</button>
+    </div>`;
+  document.getElementById('seller-logo-remove').addEventListener('click', async () => {
+    __pickedLogo = null;
+    const input = document.getElementById('seller-logo-input');
+    if (input) input.value = '';
+    await saveSetting('sellerLogoDataUrl', '');
+    renderSellerLogoPreview();
+  });
+}
+function onSellerLogoPick(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) {
+    toast(t('image_too_large'));
+    e.target.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    __pickedLogo = reader.result;
+    await saveSetting('sellerLogoDataUrl', __pickedLogo);
+    renderSellerLogoPreview();
+  };
+  reader.onerror = () => toast(t('image_read_failed'));
+  reader.readAsDataURL(file);
+}
+// ─── LINE BUSINESS CONNECTION (generic multi-tenant booking, Pro+) ──────
+// Settings > LINE booking: connect this account's own LINE Official
+// Account (a Messaging API channel — separate from "Continue with LINE"
+// sign-in) for self-service booking. Same gated-when-not-Pro / hidden-
+// when-no-backend-account pattern as renderSellerLogoSection() above.
+// Genuinely needs the backend regardless of plan (line_channels/
+// availability_slots only exist server-side) — unlike docBranding, there's
+// no local-only fallback to speak of here.
+async function renderLineChannelSection() {
+  const el = document.getElementById('line-channel-body');
+  const slotsEl = document.getElementById('booking-slots-body');
+  if (!el) return;
+  const entitled = typeof planHasFeature !== 'function' || planHasFeature('lineBooking');
+  if (!entitled) {
+    el.innerHTML = `<div class="settings-row" style="cursor:default">
+        <span class="settings-label">${htmlEsc(t('line_booking_connect_title'))}</span>
+        <span style="font-size:12px;color:var(--text3)">${htmlEsc(t('line_booking_locked'))}</span>
+      </div>`;
+    if (slotsEl) slotsEl.innerHTML = '';
+    return;
+  }
+  if (isGuest || typeof SidekickBackend === 'undefined' || !SidekickBackend.isEnabled()) {
+    el.innerHTML = `<p style="font-size:12px;color:var(--text3);margin:0 16px 14px">${htmlEsc(t('line_booking_needs_account_hint'))}</p>`;
+    if (slotsEl) slotsEl.innerHTML = '';
+    return;
+  }
+  const r = await SidekickBackend.lineChannelStatus();
+  if (!r.ok) { el.innerHTML = ''; if (slotsEl) slotsEl.innerHTML = ''; return; }
+  const s = r.data;
+  if (!s.connected) {
+    el.innerHTML = `
+      <div class="field" style="padding:0 16px">
+        <label for="line-ch-id" style="display:block;font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(t('line_channel_id_label'))}</label>
+        <input class="settings-input" id="line-ch-id" type="text" style="width:100%">
+      </div>
+      <div class="field" style="padding:12px 16px 0">
+        <label for="line-ch-secret" style="display:block;font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(t('line_channel_secret_label'))}</label>
+        <input class="settings-input" id="line-ch-secret" type="password" style="width:100%">
+      </div>
+      <div class="field" style="padding:12px 16px 0">
+        <label for="line-ch-alert-uid" style="display:block;font-size:12px;font-weight:700;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(t('line_alert_uid_label'))}</label>
+        <input class="settings-input" id="line-ch-alert-uid" type="text" style="width:100%" placeholder="${attrEsc(t('line_alert_uid_ph'))}">
+        <p style="font-size:11px;color:var(--text4);margin-top:6px">${htmlEsc(t('line_alert_uid_sub'))}</p>
+      </div>
+      <button type="button" class="btn-submit" style="margin:14px 16px 4px;width:calc(100% - 32px)" onclick="connectLineChannel()">${htmlEsc(t('line_connect_btn'))}</button>
+    `;
+    if (slotsEl) slotsEl.innerHTML = '';
+    return;
+  }
+  const urlRow = (label, url) => `
+    <div class="field" style="padding:0;border:1px solid var(--border);border-radius:var(--radius-sm)">
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--text3);padding:8px 12px 0;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(label)}</label>
+      <div style="display:flex;align-items:center;gap:6px;padding:2px 12px 8px">
+        <input readonly value="${attrEsc(url)}" onclick="this.select()" style="flex:1;min-width:0;border:none;background:none;font-family:'Spline Sans Mono',monospace;font-size:11px;color:var(--text2)">
+        <button type="button" class="qc-btn" style="width:auto;padding:0 12px;flex:none" onclick="copyLineUrl('${attrEsc(url)}')">${htmlEsc(t('copy_btn'))}</button>
+      </div>
+    </div>`;
+  el.innerHTML = `<div class="list-card" style="margin:0 16px 14px">
+      <div class="list-row" style="cursor:default">
+        <div class="list-icon">💬</div>
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(t('line_connected_title'))}</div>
+          <div class="list-sub">${htmlEsc(t('line_channel_id_label'))}: ${htmlEsc(s.channelId)}</div>
+        </div>
+      </div>
+      <div style="padding:0 16px 14px;display:flex;flex-direction:column;gap:8px">
+        ${urlRow(t('line_webhook_url_label'), s.webhookUrl)}
+        ${urlRow(t('line_booking_page_url_label'), s.bookingPageUrl)}
+        <button type="button" class="btn-danger" style="border-color:var(--border-mid);color:var(--text3)" onclick="disconnectLineChannel()">${htmlEsc(t('line_disconnect_btn'))}</button>
+      </div>
+    </div>`;
+  renderBookingSlotsSection();
+}
+async function connectLineChannel() {
+  const channelId = (document.getElementById('line-ch-id').value || '').trim();
+  const channelSecret = (document.getElementById('line-ch-secret').value || '').trim();
+  const freelancerLineUserId = (document.getElementById('line-ch-alert-uid').value || '').trim();
+  if (!channelId || !channelSecret) { toast(t('line_connect_missing_fields')); return; }
+  const r = await SidekickBackend.lineChannelConnect({ channelId, channelSecret, freelancerLineUserId });
+  if (!r.ok) { toast((r.data && r.data.error) || t('line_connect_failed')); return; }
+  toast(t('line_connected_toast'));
+  renderLineChannelSection();
+}
+async function disconnectLineChannel() {
+  if (!confirm(t('line_disconnect_confirm'))) return;
+  await SidekickBackend.lineChannelDisconnect();
+  renderLineChannelSection();
+}
+function copyLineUrl(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => toast(t('copied_toast'))).catch(() => toast(t('copy_failed')));
+  } else {
+    toast(t('copy_failed'));
+  }
+}
+// The slot list itself — only ever rendered once a channel is connected
+// (see renderLineChannelSection() above), but genuinely independent of it:
+// a client can book against open slots regardless of whether the LINE
+// channel is the referral path (a shared link works too), so this stays
+// its own render pass rather than being folded into the connect card.
+async function renderBookingSlotsSection() {
+  const el = document.getElementById('booking-slots-body');
+  if (!el) return;
+  const r = await SidekickBackend.bookingSlotsList();
+  if (!r.ok) { el.innerHTML = ''; return; }
+  const rows = (r.data.rows || []).filter(s => s.status !== 'booked');
+  const fmtRange = (startsAt, endsAt) => {
+    const d = new Date(startsAt), e = new Date(endsAt);
+    const day = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const startTime = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const endTime = e.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    return `${day} · ${startTime}–${endTime}`;
+  };
+  const rowsHtml = rows.length ? rows.map(s => `
+      <div class="list-row" style="cursor:default">
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(fmtRange(s.starts_at, s.ends_at))}</div>
+          <div class="list-sub">${htmlEsc(t('slot_status_' + s.status))}</div>
+        </div>
+        <div class="list-right"><button type="button" class="qc-btn" aria-label="Delete" onclick="deleteBookingSlot(${s.id})">✕</button></div>
+      </div>`).join('') : `<div class="pkg-status"><span>${htmlEsc(t('no_booking_slots'))}</span></div>`;
+  el.innerHTML = `
+    <div class="section-title" style="font-size:12px;margin:14px 16px 8px">${htmlEsc(t('booking_slots_title'))}</div>
+    <div class="list-card" style="margin:0 16px 14px">${rowsHtml}</div>
+    <div class="form-row" style="padding:0 16px;gap:8px">
+      <input type="datetime-local" id="slot-start-input" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:13px">
+      <input type="datetime-local" id="slot-end-input" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:13px">
+    </div>
+    <button type="button" class="btn-submit" style="margin:10px 16px 4px;width:calc(100% - 32px)" onclick="addBookingSlot()">${htmlEsc(t('add_slot_btn'))}</button>
+  `;
+}
+async function addBookingSlot() {
+  const startEl = document.getElementById('slot-start-input');
+  const endEl = document.getElementById('slot-end-input');
+  const startsAtLocal = startEl && startEl.value;
+  const endsAtLocal = endEl && endEl.value;
+  if (!startsAtLocal || !endsAtLocal) { toast(t('slot_missing_fields')); return; }
+  if (endsAtLocal <= startsAtLocal) { toast(t('slot_end_before_start')); return; }
+  const r = await SidekickBackend.bookingSlotCreate({
+    startsAt: new Date(startsAtLocal).toISOString(),
+    endsAt: new Date(endsAtLocal).toISOString(),
+  });
+  if (!r.ok) { toast(t('slot_add_failed')); return; }
+  renderBookingSlotsSection();
+}
+async function deleteBookingSlot(id) {
+  await SidekickBackend.bookingSlotDelete(id);
+  renderBookingSlotsSection();
+}
+
+async function startSubscriptionCheckout(plan) {
+  const r = await SidekickBackend.billingCheckout(plan);
+  if (!r.ok || !r.data.url) { toast(t('subscription_checkout_failed')); return; }
+  window.location.href = r.data.url;
+}
+window.startSubscriptionCheckout = startSubscriptionCheckout;
+async function openBillingPortal() {
+  const r = await SidekickBackend.billingPortal();
+  if (!r.ok || !r.data.url) { toast(t('subscription_portal_failed')); return; }
+  window.location.href = r.data.url;
+}
+window.openBillingPortal = openBillingPortal;
 
 // The migration plan's actual "back up your existing data" first-login
 // prompt — surfaced proactively instead of requiring a user to notice the
@@ -3709,12 +4134,15 @@ function openEditCustomer(id) {
   // persona also gets its own tracker section below (see the registry
   // above renderClientPersonaTracker()).
   const isTrainer = businessType() === 'trainer';
+  const isCustom = businessType() === 'custom';
   document.getElementById('cust-package-section').style.display = 'block';
   document.getElementById('cust-progress-section').style.display = isTrainer ? 'block' : 'none';
-  document.getElementById('cust-persona-section').style.display = 'block';
+  // 'custom' has no persona-specific tracker (see PERSONA_TRACKER_TITLES) —
+  // hide the section entirely rather than render it empty.
+  document.getElementById('cust-persona-section').style.display = isCustom ? 'none' : 'block';
   renderCustomerPackages(id);
   if (isTrainer) renderCustomerProgress(id);
-  renderClientPersonaTracker(id);
+  if (!isCustom) renderClientPersonaTracker(id);
   document.getElementById('c-delete').style.display = 'block';
   clearFieldErrors();
   openCustomerModal();
@@ -3727,6 +4155,14 @@ async function saveCustomer() {
   const editId = document.getElementById('c-edit-id').value;
   const prev = editId ? customers.find(c => c.id === parseInt(editId)) : null;
   if (editId && !prev) return;
+  // Plan client cap (Phase 1) — only ever blocks a brand-new client, never
+  // an edit to one that already exists (so nobody's existing data becomes
+  // unreachable just for going over a cap after the fact). No-op (Infinity)
+  // for guest/local-only/unlimited-plan accounts — see planClientCap().
+  if (!prev && customers.length >= planClientCap()) {
+    toast(t('client_cap_reached'));
+    return;
+  }
   const obj = {
     ...(prev || {}),
     uid, name,
@@ -4240,6 +4676,9 @@ function switchScreen(name) {
   if (name === 'more') applyInsightsVisibility();
   if (name === 'more') renderBackupReminder();
   if (name === 'more') renderCloudBackupSection();
+  if (name === 'more') renderSubscriptionSection();
+  if (name === 'more') renderSellerLogoSection();
+  if (name === 'more') renderLineChannelSection();
   if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.

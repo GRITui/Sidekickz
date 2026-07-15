@@ -3,15 +3,15 @@
 <title>Sidekick</title>
 <meta name="description" content="Local-first admin for freelancers: bookings, invoicing, tax, docs, and client follow-up — all on your device.">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#121715">
+<meta name="theme-color" content="#F7F6F2">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Sidekick">
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<script>(function(){var K='sidekick_ui_theme',M='sidekick_dark_default_migrated_v1';if(!localStorage.getItem(M)){if(localStorage.getItem(K)==='light')localStorage.setItem(K,'dark');localStorage.setItem(M,'1');}var t=localStorage.getItem(K);if(t==='light')document.documentElement.dataset.theme='light';else if(t!=='auto')document.documentElement.dataset.theme='dark';})();</script><!-- dark by default (2026 rebrand): set before CSS paints to avoid a flash of the wrong theme -->
-<link rel="stylesheet" href="styles.css?v=0.9.19">
+<script>(function(){var K='sidekick_ui_theme',t=localStorage.getItem(K);if(t==='dark')document.documentElement.dataset.theme='dark';else if(t!=='auto')document.documentElement.dataset.theme='light';})();</script><!-- light by default: set before CSS paints to avoid a flash of the wrong theme -->
+<link rel="stylesheet" href="styles.css?v=0.9.23">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -155,6 +155,7 @@
 
     <div id="backup-reminder-body"></div>
     <div id="cloud-backup-body"></div>
+    <div id="subscription-body"></div>
 
     <details class="settings-section" open>
       <summary class="section-title" data-i18n="manage">Manage</summary>
@@ -214,6 +215,7 @@
             <option value="laundry" data-i18n="business_type_laundry">Laundry service</option>
             <option value="insurance" data-i18n="business_type_insurance">Insurance agent</option>
             <option value="garage" data-i18n="business_type_garage">Car garage</option>
+            <option value="custom" data-i18n="business_type_custom">Other</option>
           </select>
         </div>
         <div class="settings-row">
@@ -295,6 +297,14 @@
           <input class="settings-input" id="set-seller-address" type="text" onchange="onSellerAddressChange(this.value)">
         </div>
       </div>
+      <div id="seller-logo-body"></div>
+    </details>
+
+    <details class="settings-section" open>
+      <summary class="section-title" data-i18n="line_booking_title">LINE booking</summary>
+      <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px" data-i18n="line_booking_sub">Connect your own LINE Official Account so clients can request a booking straight from a chat — no separate app for them to install.</p>
+      <div id="line-channel-body"></div>
+      <div id="booking-slots-body"></div>
     </details>
 
     <details class="settings-section" open>
@@ -334,7 +344,7 @@
 
     <div class="settings-list" style="margin-top:16px">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.19</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.23</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
@@ -548,6 +558,45 @@
   </div>
 </div>
 
+<!-- First-run persona picker: shown once, only when settings.businessType has
+     never been set (see enterApp()/showPersonaOnboard() in app.js). No close/
+     cancel button — deliberately not dismissible, matching the app's other
+     required-field modals, since every account needs a business type to seed
+     starting services/pipeline labels correctly. -->
+<div class="modal-overlay" id="modal-persona-onboard">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-handle"></div>
+    <div class="modal-title" data-i18n="onboard_persona_title">What kind of business do you run?</div>
+    <div style="padding:0 20px 14px;color:var(--text3);font-size:13px" data-i18n="onboard_persona_sub">Pick the closest match — we'll set up starting services for it. You can change this anytime in Settings.</div>
+    <div class="list-card" style="margin:0 16px 20px">
+      <div class="list-row" onclick="choosePersonaOnboard('trainer')">
+        <div class="list-icon">🏋️</div>
+        <div class="list-main"><div class="list-title" data-i18n="business_type_trainer">Personal trainer</div></div>
+      </div>
+      <div class="list-row" onclick="choosePersonaOnboard('realestate')">
+        <div class="list-icon">🏠</div>
+        <div class="list-main"><div class="list-title" data-i18n="business_type_realestate">Real estate agent</div></div>
+      </div>
+      <div class="list-row" onclick="choosePersonaOnboard('laundry')">
+        <div class="list-icon">🧺</div>
+        <div class="list-main"><div class="list-title" data-i18n="business_type_laundry">Laundry service</div></div>
+      </div>
+      <div class="list-row" onclick="choosePersonaOnboard('insurance')">
+        <div class="list-icon">🛡️</div>
+        <div class="list-main"><div class="list-title" data-i18n="business_type_insurance">Insurance agent</div></div>
+      </div>
+      <div class="list-row" onclick="choosePersonaOnboard('garage')">
+        <div class="list-icon">🔧</div>
+        <div class="list-main"><div class="list-title" data-i18n="business_type_garage">Car garage</div></div>
+      </div>
+      <div class="list-row" onclick="choosePersonaOnboard('custom')">
+        <div class="list-icon">✨</div>
+        <div class="list-main"><div class="list-title" data-i18n="business_type_custom">Other</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Focus mode: full-screen Pomodoro overlay launched from a job's time
      tracker. The ring is a purely visual 25-min pacing aid — it never force-
      stops the underlying timer, since cutting off real billable client work
@@ -566,22 +615,22 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.9.19"></script>
+<script src="app.js?v=0.9.23"></script>
 <!-- Phase 1 of the local-first -> backend migration: a fetch()-only mirror
      for the `clients` store, exposing window.SidekickBackend. Local
      IndexedDB stays authoritative for every read/write in this phase; see
      dataClient.js's own header for why. -->
-<script src="dataClient.js?v=0.9.19"></script>
+<script src="dataClient.js?v=0.9.23"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.9.19"></script>
-<script src="invoices.js?v=0.9.19"></script>
-<script src="docgen.js?v=0.9.19"></script>
+<script src="tax.js?v=0.9.23"></script>
+<script src="invoices.js?v=0.9.23"></script>
+<script src="docgen.js?v=0.9.23"></script>
 <!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
      the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
-<script src="bookings.js?v=0.9.19"></script>
-<script src="followups.js?v=0.9.19"></script>
-<script src="portfolio.js?v=0.9.19"></script>
+<script src="bookings.js?v=0.9.23"></script>
+<script src="followups.js?v=0.9.23"></script>
+<script src="portfolio.js?v=0.9.23"></script>
 <!-- M5: research.js (content library, subscription UI stubbed open — no
      payment verification yet; see project-changelog-handshake.md). -->
-<script src="research.js?v=0.9.19"></script>
+<script src="research.js?v=0.9.23"></script>

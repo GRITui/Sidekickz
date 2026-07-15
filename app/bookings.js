@@ -745,7 +745,15 @@
             <label for="bk-notes">${esc(t('field_notes'))}</label>
             <textarea id="bk-notes" rows="2">${esc(v.notes)}</textarea>
           </div>
-          ${!isEdit ? `
+          ${!isEdit ? (typeof planHasFeature === 'function' && !planHasFeature('recurringBookings') ? `
+          <div class="form-header">${esc(t('repeat_header'))}</div>
+          <div class="field">
+            <label for="bk-repeat">${esc(t('repeat_header'))}</label>
+            <select id="bk-repeat" disabled>
+              <option value="">${esc(t('repeat_none_option'))}</option>
+            </select>
+            <p style="font-size:12px;color:var(--text3);margin:6px 0 0">${esc(t('recurring_locked'))}</p>
+          </div>` : `
           <div class="form-header">${esc(t('repeat_header'))}</div>
           <div class="field">
             <label for="bk-repeat">${esc(t('repeat_header'))}</label>
@@ -758,7 +766,7 @@
           <div class="field" id="bk-repeat-until-wrap" style="display:none">
             <label for="bk-repeat-until">${esc(t('repeat_until_label'))}</label>
             <input type="date" id="bk-repeat-until">
-          </div>` : ''}
+          </div>`) : ''}
         </div>
         <button type="button" class="btn-submit" id="bk-save">${isEdit ? esc(t('save_changes_btn')) : esc(t('create_booking_btn'))}</button>
         ${isEdit ? `<button type="button" class="btn-danger" id="bk-del">${esc(t('delete_booking_btn'))}</button>` : ''}
@@ -791,8 +799,12 @@
     const durationMin = Math.round(n(document.getElementById('bk-dur').value));
     const travelBufferMin = Math.max(0, Math.round(n(document.getElementById('bk-buffer').value)));
 
+    // Defense-in-depth alongside the locked/disabled <select> rendered
+    // above when the plan doesn't include recurringBookings — a stale
+    // render or direct DOM tampering still can't produce extra rows.
+    const repeatAllowed = typeof planHasFeature !== 'function' || planHasFeature('recurringBookings');
     const repeatEl = document.getElementById('bk-repeat');
-    const repeat = (!isEdit && repeatEl) ? repeatEl.value : '';
+    const repeat = (!isEdit && repeatEl && repeatAllowed) ? repeatEl.value : '';
     const repeatUntilEl = document.getElementById('bk-repeat-until');
     const repeatUntil = repeat ? (repeatUntilEl ? repeatUntilEl.value : '') : '';
 

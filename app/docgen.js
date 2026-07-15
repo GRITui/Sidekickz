@@ -546,6 +546,15 @@ function sellerInfoLine(fname) {
   }
   return '<p class="dg-meta">' + bits.join(' · ') + '</p>';
 }
+// Phase 1, Pro+: renders nothing at all (not even a broken-image gap) for
+// any account without the docBranding entitlement, or that never uploaded
+// one — sellerLogoDataUrl() (app.js) itself re-checks the plan gate at
+// render time, not just at upload time, so a downgrade quietly stops new
+// documents from showing the logo without deleting the stored image.
+function sellerLogoHtml() {
+  const url = (typeof sellerLogoDataUrl === 'function') ? sellerLogoDataUrl() : '';
+  return url ? '<img src="' + attrEsc(url) + '" alt="" style="max-height:56px;max-width:180px;object-fit:contain;margin-bottom:8px">' : '';
+}
 // Optional client billing address/tax ID, snapshotted from the customer
 // profile onto the document's fields when a customer was selected.
 function clientInfoLine(f) {
@@ -566,7 +575,7 @@ function buildDocHtml(rec) {
   const f = rec.fields || {};
   const fname = esc(freelancerName());
   const cname = esc(rec.clientName || 'Client');
-  let body = '<div class="dg-doc"><h1>' + esc(rec.title) + '</h1>' + sellerInfoLine(fname);
+  let body = '<div class="dg-doc">' + sellerLogoHtml() + '<h1>' + esc(rec.title) + '</h1>' + sellerInfoLine(fname);
 
   if (rec.type === 'contract') {
     body += '<p class="dg-meta">Issue date: ' + esc(rec.issueDate) + '</p>';

@@ -35,6 +35,17 @@
   const PREMIUM_PRICE_THB = 99;
   const TEASER_CHARS = 140;
 
+  // True via either path: the original per-device honor-system unlock
+  // (settings.premiumUnlocked, unchanged — still the only option for
+  // guest/local-only accounts with no subscription to check), or a Pro+
+  // subscription (Phase 1: bundles Premium research in as a real,
+  // server-verified entitlement instead of a second ฿99 charge). Deliberately
+  // additive — an account that already paid the one-time unlock keeps it
+  // regardless of plan.
+  function researchPremiumUnlocked() {
+    return !!settings.premiumUnlocked || (typeof planHasFeature === 'function' && planHasFeature('researchPremium'));
+  }
+
   function uidNow() { return isGuest ? 'guest' : currentUser.id; }
 
   const SEED_ARTICLES = [
@@ -113,14 +124,15 @@
       return;
     }
 
-    const subscribeBanner = settings.premiumUnlocked ? `
+    const subscribeBanner = researchPremiumUnlocked() ? `
       <div style="background:var(--marigold-tint);border:1px solid var(--marigold);border-radius:var(--radius-sm);padding:14px 16px;margin:0 0 16px">
         <div style="font-weight:800;color:var(--marigold-ink);font-size:14px">⭐ Premium unlocked</div>
         <div style="font-size:12px;color:var(--text2);margin-top:3px">You have full access to every Premium article on this device.</div>
       </div>` : `
       <div style="background:var(--marigold-tint);border:1px solid var(--marigold);border-radius:var(--radius-sm);padding:14px 16px;margin:0 0 16px">
         <div style="font-weight:800;color:var(--marigold-ink);font-size:14px;margin-bottom:3px">⭐ Premium research</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Unlock in-depth guides marked "Premium" — pay once via PromptPay, ${esc(String(PREMIUM_PRICE_THB))} THB.</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:6px">Unlock in-depth guides marked "Premium" — pay once via PromptPay, ${esc(String(PREMIUM_PRICE_THB))} THB.</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px">${esc(t('research_premium_plan_note'))}</div>
         <button type="button" id="rs-subscribe-btn" style="width:100%;padding:11px;border:1.5px solid var(--marigold);background:none;color:var(--marigold-ink);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">Subscribe</button>
       </div>`;
 
@@ -198,7 +210,7 @@
     overlay.className = 'modal-overlay open';
     overlay.id = 'rs-detail-modal';
 
-    const locked = !!a.isPremium && !settings.premiumUnlocked;
+    const locked = !!a.isPremium && !researchPremiumUnlocked();
     const body = a.body || '';
     const bodyHtml = !locked
       ? `<div style="padding:10px 16px 6px;white-space:pre-wrap;font-size:14px;line-height:1.55;color:var(--text)">${esc(body)}</div>`
