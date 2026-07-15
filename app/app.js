@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.23';          // <-> sw.js SW_VERSION 'sidekick-v0.9.23'
+const APP_VERSION = '0.9.25';          // <-> sw.js SW_VERSION 'sidekick-v0.9.25'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -617,6 +617,8 @@ const I18N = {
     // auth
     login:'Log in', create_account:'Create account', email:'Email or username', password:'Password',
     confirm_password:'Confirm password', your_name:'Your name', login_guest:'Continue as guest', login_line:'Continue with LINE',
+    try_demo_btn:'Try a demo', demo_wipe_confirm:'This device already has guest data on it. Starting a demo will erase it and load fresh example data instead. Continue?',
+    demo_seeded_toast:'Demo data loaded — this is a preview account, nothing here is real.',
     guest_choice_title:'Welcome back', guest_choice_sub:'This device already has guest data saved on it.',
     guest_resume_btn:'Resume as', guest_fresh_btn:"Start fresh (erase this guest's data)",
     guest_fresh_confirm:'This permanently deletes all guest data on this device. This cannot be undone. Continue?',
@@ -835,6 +837,18 @@ const I18N = {
     slot_status_open:'Open', slot_status_held:'Held (pending confirmation)', slot_status_booked:'Booked',
     add_slot_btn:'+ Add slot', slot_missing_fields:'Pick a start and end time.', slot_end_before_start:'End time must be after the start time.',
     slot_add_failed:'Could not add that slot.',
+    team_title:'Team', team_sub:'Share your client base, pipeline, and calendar with staff — everyone works from the same data under one subscription.',
+    subscription_upgrade_team_btn:'Upgrade to Team — ฿{price}/seat/mo', subscription_team_member_of:"part of {name}'s team",
+    team_seats_prompt:'How many seats? (minimum 2, including you)', team_seats_invalid:'Enter a number of seats, at least 2.',
+    team_needs_plan_hint:'Upgrade to the Team plan above to share your data with staff.',
+    team_you_title:'Your team', team_seats_used:'{used} of {total} seats used',
+    team_members_title:'Members', no_team_members:'No team members yet — invite someone below.',
+    team_role_owner:'Owner', team_role_admin:'Admin', team_role_staff:'Staff',
+    team_invite_staff_btn:'+ Invite staff', team_invite_admin_btn:'+ Invite an admin', team_invite_failed:'Could not create an invite.',
+    team_invite_link_label:'Invite link', team_invite_link_sub:"Share this with the person you're inviting — it works once, for 7 days.",
+    team_remove_confirm:'Remove this person from your team? They\'ll keep their own Sidekick account, just lose access to this shared data.',
+    team_remove_failed:'Could not remove that team member.',
+    team_invite_needs_account:'You need a real (non-guest) Sidekick account to join a team.', team_joined_toast:"You've joined the team.",
     delete_job_confirm:'Delete this job?', name_saved:'Name saved',
     err_id_min3:'Enter an email or username (3+ characters).', err_pw_min4:'Password must be at least 8 characters.',
     err_pw_mismatch:'Passwords do not match.', err_account_exists:'That account already exists on this device.',
@@ -894,6 +908,8 @@ const I18N = {
     // auth
     login:'เข้าสู่ระบบ', create_account:'สร้างบัญชี', email:'อีเมลหรือชื่อผู้ใช้', password:'รหัสผ่าน',
     confirm_password:'ยืนยันรหัสผ่าน', your_name:'ชื่อของคุณ', login_guest:'เข้าใช้แบบผู้เยี่ยมชม', login_line:'เข้าสู่ระบบด้วย LINE',
+    try_demo_btn:'ทดลองใช้ตัวอย่าง', demo_wipe_confirm:'อุปกรณ์นี้มีข้อมูลผู้เยี่ยมชมอยู่แล้ว การเริ่มตัวอย่างจะลบข้อมูลเดิมและโหลดข้อมูลตัวอย่างใหม่แทน ดำเนินการต่อหรือไม่?',
+    demo_seeded_toast:'โหลดข้อมูลตัวอย่างแล้ว — นี่เป็นบัญชีตัวอย่าง ข้อมูลทั้งหมดไม่ใช่ข้อมูลจริง',
     guest_choice_title:'ยินดีต้อนรับกลับมา', guest_choice_sub:'อุปกรณ์นี้มีข้อมูลผู้เยี่ยมชมที่บันทึกไว้อยู่แล้ว',
     guest_resume_btn:'ดำเนินการต่อในชื่อ', guest_fresh_btn:'เริ่มต้นใหม่ (ลบข้อมูลผู้เยี่ยมชมนี้)',
     guest_fresh_confirm:'การทำเช่นนี้จะลบข้อมูลผู้เยี่ยมชมทั้งหมดบนอุปกรณ์นี้อย่างถาวร ไม่สามารถย้อนกลับได้ ดำเนินการต่อหรือไม่?',
@@ -1112,6 +1128,18 @@ const I18N = {
     slot_status_open:'เปิดให้จอง', slot_status_held:'กำลังรอยืนยัน', slot_status_booked:'จองแล้ว',
     add_slot_btn:'+ เพิ่มช่วงเวลา', slot_missing_fields:'เลือกเวลาเริ่มต้นและสิ้นสุด', slot_end_before_start:'เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น',
     slot_add_failed:'ไม่สามารถเพิ่มช่วงเวลานี้ได้',
+    team_title:'ทีม', team_sub:'แชร์ฐานข้อมูลลูกค้า แผนงาน และปฏิทินกับพนักงาน — ทุกคนทำงานบนข้อมูลเดียวกันภายใต้การสมัครสมาชิกเดียว',
+    subscription_upgrade_team_btn:'อัปเกรดเป็น Team — ฿{price}/ที่นั่ง/เดือน', subscription_team_member_of:'เป็นส่วนหนึ่งของทีม {name}',
+    team_seats_prompt:'ต้องการกี่ที่นั่ง? (ขั้นต่ำ 2 รวมคุณด้วย)', team_seats_invalid:'กรอกจำนวนที่นั่ง อย่างน้อย 2 ที่นั่ง',
+    team_needs_plan_hint:'อัปเกรดเป็นแพ็กเกจ Team ด้านบนเพื่อแชร์ข้อมูลกับพนักงาน',
+    team_you_title:'ทีมของคุณ', team_seats_used:'ใช้ไป {used} จาก {total} ที่นั่ง',
+    team_members_title:'สมาชิก', no_team_members:'ยังไม่มีสมาชิกในทีม — เชิญคนด้านล่าง',
+    team_role_owner:'เจ้าของ', team_role_admin:'ผู้ดูแล', team_role_staff:'พนักงาน',
+    team_invite_staff_btn:'+ เชิญพนักงาน', team_invite_admin_btn:'+ เชิญผู้ดูแล', team_invite_failed:'ไม่สามารถสร้างคำเชิญได้',
+    team_invite_link_label:'ลิงก์คำเชิญ', team_invite_link_sub:'ส่งลิงก์นี้ให้คนที่คุณต้องการเชิญ — ใช้ได้ครั้งเดียว ภายใน 7 วัน',
+    team_remove_confirm:'ลบคนนี้ออกจากทีมหรือไม่? บัญชี Sidekick ของเขาจะยังอยู่ แค่ไม่มีสิทธิ์เข้าถึงข้อมูลที่แชร์นี้อีก',
+    team_remove_failed:'ไม่สามารถลบสมาชิกทีมนี้ได้',
+    team_invite_needs_account:'คุณต้องมีบัญชี Sidekick จริง (ไม่ใช่ผู้เยี่ยมชม) เพื่อเข้าร่วมทีม', team_joined_toast:'คุณเข้าร่วมทีมแล้ว',
     delete_job_confirm:'ลบเซสชันนี้หรือไม่?', name_saved:'บันทึกชื่อแล้ว',
     err_id_min3:'กรอกอีเมลหรือชื่อผู้ใช้ (อย่างน้อย 3 ตัวอักษร)', err_pw_min4:'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',
     err_pw_mismatch:'รหัสผ่านไม่ตรงกัน', err_account_exists:'มีบัญชีนี้อยู่แล้วในเครื่องนี้',
@@ -1206,6 +1234,13 @@ function showPostLoginToast() {
 // login.html entry — already-authed devices skip to the app.
 async function bootLogin() {
   applyTheme();
+  // Captured before anything else — including before the already-logged-in
+  // fast-path a few lines down, which would otherwise redirect straight
+  // into index.html and never give this a chance to run. Redeemed in
+  // finishAppBoot() (app.js) once a real, non-guest, backend-enabled
+  // account is actually logged in — see maybeRedeemTeamInvite().
+  const teamInviteToken = new URLSearchParams(location.search).get('teamInvite');
+  if (teamInviteToken) sessionStorage.setItem('sidekick_team_invite', teamInviteToken);
   await openDB();
   await migrateLegacyStorageIfNeeded();
   // Runs before handleLineLoginRedirect() (not after, as `showPostLoginToast()`
@@ -1333,6 +1368,7 @@ async function finishAppBoot() {
   await seedServicesIfEmpty();
   switchScreen('home');
   await maybeShowCloudBackupModal();
+  await maybeRedeemTeamInvite();
   // Fire-and-forget: populates __entitlements for the Phase 1 feature
   // gates (planHasFeature()/planClientCap()) without delaying boot on a
   // network round trip guest/local-only accounts don't even need.
@@ -1364,6 +1400,142 @@ async function choosePersonaOnboard(v) {
   const btEl = document.getElementById('set-business-type'); if (btEl) btEl.value = v;
   const puEl = document.getElementById('set-package-unit'); if (puEl) puEl.value = packageUnitLabel();
   await finishAppBoot();
+  // Set by startDemo() (login.html's "Try a demo" button) before redirecting
+  // in as a fresh guest — runs after finishAppBoot() so seedServicesIfEmpty()
+  // has already created this persona's base service catalog for
+  // seedDemoData() to reference by name.
+  if (sessionStorage.getItem('sidekick_start_demo')) {
+    sessionStorage.removeItem('sidekick_start_demo');
+    await seedDemoData(v);
+  }
+}
+
+// ─── DEMO DATA (sales-pitch mode) ────────────────────────────────────────
+// login.html's "Try a demo" button forces a fresh guest session (see
+// startDemo() below) and sets sidekick_start_demo, which
+// choosePersonaOnboard() checks after the normal first-run persona picker —
+// picking a persona there both sets businessType AND populates a realistic,
+// ready-to-show dataset for it, rather than leaving a prospect looking at an
+// empty app. Guest-only by design: no server/account dependency, and
+// "Start fresh" (already built for guest mode) is the natural reset between
+// pitches on a shared device.
+function startDemo() {
+  (async () => {
+    if (await guestDataExists()) {
+      if (!confirm(t('demo_wipe_confirm'))) return;
+      await wipeGuestData();
+    }
+    sessionStorage.setItem('sidekick_start_demo', '1');
+    await proceedAsGuest();
+  })();
+}
+
+async function seedDemoData(persona) {
+  const data = DEMO_PERSONA_DATA[persona];
+  if (!data) return; // 'custom' has no seed services either — nothing to seed
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const today = new Date();
+  const relDate = (offsetDays) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + offsetDays);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  const myServices = (await dbAll('services')).filter(s => s.uid === uid);
+  const serviceByName = {};
+  myServices.forEach(s => { serviceByName[s.name] = s; });
+
+  const clientRefs = []; // index-aligned with data.clients
+  let memberSeq = 1;
+  for (const c of data.clients) {
+    const obj = {
+      uid, name: c.name, phone: c.phone || '', email: c.email || '', tags: c.tags || '',
+      notes: c.notes || '', taxId: '', billingAddress: c.address || '',
+      healthNotes: c.healthNotes || '', allergies: c.allergies || '', goals: c.goals || '',
+      cuid: cuid(), memberNo: 'SK-' + String(memberSeq++).padStart(4, '0'), updatedAt: nowISO(),
+    };
+    // Nested tracker dates are authored as day-offsets from "today" (like
+    // jobs/invoices/bookings below), not literal strings — a vehicle's
+    // "next service due" or a policy's renewal date needs to stay
+    // plausible no matter how much later this demo actually gets run.
+    if (c.vehicles) obj.vehicles = c.vehicles.map(x => ({ id: cuid(), ...x, nextServiceDate: relDate(x.nextServiceDate) }));
+    if (c.serviceHistory) obj.serviceHistory = c.serviceHistory.map(x => ({ id: cuid(), ...x, date: relDate(x.date) }));
+    if (c.orders) obj.orders = c.orders.map(x => ({ id: cuid(), ...x, date: relDate(x.date) }));
+    if (c.policies) obj.policies = c.policies.map(x => ({ id: cuid(), ...x, renewalDate: relDate(x.renewalDate) }));
+    if (c.deals) obj.deals = c.deals.map(x => ({ ...x, id: cuid(), viewings: (x.viewings || []).map(v => ({ id: cuid(), ...v, date: relDate(v.date) })) }));
+    if (c.mealPlan) obj.mealPlan = c.mealPlan.map(text => ({ id: cuid(), text }));
+    if (c.birthday) obj.birthday = c.birthday;
+    if (c.referredBy) obj.referredBy = c.referredBy;
+    if (c.searchBrief) obj.searchBrief = c.searchBrief;
+    if (c.monthlyKgPlan) obj.monthlyKgPlan = c.monthlyKgPlan;
+    if (c.preferences) obj.preferences = c.preferences;
+    const id = await dbAdd('clients', obj);
+    clientRefs.push({ id, name: obj.name });
+  }
+
+  const stageOrderNow = getStageOrder();
+  for (const j of data.jobs) {
+    const client = clientRefs[j.clientIndex];
+    const svc = serviceByName[j.serviceName];
+    const job = {
+      uid, date: relDate(j.daysOffset), client: client.name, clientId: client.id,
+      serviceId: svc ? svc.id : null, serviceName: svc ? svc.name : j.serviceName,
+      jobType: settings.workType || '', amount: j.amount, tip: j.tip || 0, expense: j.expense || 0,
+      count: j.count || 1, notes: j.notes || '', netAmount: j.amount + (j.tip || 0) - (j.expense || 0),
+      cuid: cuid(), stageOrder: stageOrderNow.slice(), stage: j.stage,
+      complete: !!j.complete, invoiceId: null, quoteDocId: null, packageId: null, updatedAt: nowISO(),
+    };
+    if (j.outcome) job.outcome = j.outcome;
+    await dbAdd('jobs', job);
+  }
+
+  const invoicesSoFar = [];
+  for (const inv of data.invoices) {
+    const client = clientRefs[inv.clientIndex];
+    const subtotal = inv.lineItems.reduce((s, li) => s + li.qty * li.unitPrice, 0);
+    const tax = computeTax(subtotal, settings.wht != null ? settings.wht : 3, settings.vat != null ? settings.vat : 7);
+    const number = nextDocNumber(invoicesSoFar, 'INV');
+    const record = {
+      uid, number, issueDate: relDate(inv.daysOffset), dueDate: relDate(inv.daysOffset + 7),
+      clientId: client.id, clientName: client.name, clientTaxId: '', clientAddress: '',
+      lineItems: inv.lineItems, subtotal, whtPct: settings.wht != null ? settings.wht : 3,
+      vatPct: settings.vat != null ? settings.vat : 7, vat: tax.vat, wht: tax.wht,
+      clientPays: tax.clientPays, youReceive: tax.youReceive, depositPct: 0, status: inv.status,
+      paymentChannels: JSON.parse(JSON.stringify(settings.paymentChannels || [])), notes: '',
+      cuid: cuid(), updatedAt: nowISO(),
+    };
+    await dbAdd('invoices', record);
+    invoicesSoFar.push(record);
+  }
+
+  for (const b of data.bookings) {
+    const client = clientRefs[b.clientIndex];
+    await dbAdd('bookings', {
+      uid, customerId: client.id, title: b.title, date: relDate(b.daysOffset), startTime: b.startTime,
+      durationMin: b.durationMin || 60, travelBufferMin: 0, location: b.location || '', notes: '',
+      status: 'scheduled', cuid: cuid(), createdAt: nowISO(), updatedAt: nowISO(),
+    });
+  }
+
+  for (const p of (data.packages || [])) {
+    const client = clientRefs[p.clientIndex];
+    await dbAdd('packages', {
+      uid, clientId: client.id, totalSessions: p.totalSessions, price: p.price,
+      purchasedDate: relDate(p.daysOffset), expiresAt: null, notes: '', cuid: cuid(), updatedAt: nowISO(),
+    });
+  }
+
+  for (const pl of (data.progressLogs || [])) {
+    const client = clientRefs[pl.clientIndex];
+    await dbAdd('progressLogs', {
+      uid, clientId: client.id, date: relDate(pl.daysOffset), weight: pl.weight, notes: pl.notes || '',
+      cuid: cuid(), updatedAt: nowISO(),
+    });
+  }
+
+  await reload();
+  switchScreen('home');
+  toast(t('demo_seeded_toast'));
 }
 
 function displayName() {
@@ -1734,7 +1906,7 @@ function planClientCap() {
   if (e.locked) return 0;
   return e.clientCap == null ? Infinity : e.clientCap;
 }
-const SUBSCRIPTION_PRICE_THB = { basic: 149, pro: 349 };
+const SUBSCRIPTION_PRICE_THB = { basic: 149, pro: 349, team: 349 };
 async function renderSubscriptionSection() {
   const el = document.getElementById('subscription-body');
   if (!el || typeof SidekickBackend === 'undefined') return;
@@ -1755,15 +1927,27 @@ async function renderSubscriptionSection() {
     ? t('subscription_status_trialing').replace('{n}', u.trialDaysLeft)
     : t(statusKey);
 
+  // A team member (admin/staff, not the owner) has nothing of their own to
+  // buy or manage here — the subscription belongs to whoever owns the
+  // org, api/billing-checkout.js/api/billing-portal.js both reject a
+  // non-owner outright. Just show what plan/status they're operating
+  // under and, for a member specifically, who that org belongs to.
+  const isTeamMember = !!(u.team && u.team.role !== 'owner');
+
   const upgradeBtns = [];
-  if (u.plan !== 'pro') {
-    upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="startSubscriptionCheckout('pro')">${htmlEsc(t('subscription_upgrade_pro_btn').replace('{price}', SUBSCRIPTION_PRICE_THB.pro))}</button>`);
-  }
-  if (u.plan === 'basic' && (u.locked || u.subscriptionStatus !== 'active')) {
-    upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="startSubscriptionCheckout('basic')">${htmlEsc(t('subscription_subscribe_basic_btn').replace('{price}', SUBSCRIPTION_PRICE_THB.basic))}</button>`);
-  }
-  if (u.hasStripeCustomer) {
-    upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="openBillingPortal()">${htmlEsc(t('subscription_manage_billing_btn'))}</button>`);
+  if (!isTeamMember) {
+    if (u.plan !== 'pro' && u.plan !== 'team') {
+      upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="startSubscriptionCheckout('pro')">${htmlEsc(t('subscription_upgrade_pro_btn').replace('{price}', SUBSCRIPTION_PRICE_THB.pro))}</button>`);
+    }
+    if (u.plan === 'basic' && (u.locked || u.subscriptionStatus !== 'active')) {
+      upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="startSubscriptionCheckout('basic')">${htmlEsc(t('subscription_subscribe_basic_btn').replace('{price}', SUBSCRIPTION_PRICE_THB.basic))}</button>`);
+    }
+    if (u.plan !== 'team') {
+      upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="startTeamCheckout()">${htmlEsc(t('subscription_upgrade_team_btn').replace('{price}', SUBSCRIPTION_PRICE_THB.team))}</button>`);
+    }
+    if (u.hasStripeCustomer) {
+      upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="openBillingPortal()">${htmlEsc(t('subscription_manage_billing_btn'))}</button>`);
+    }
   }
 
   el.innerHTML = `<div class="list-card">
@@ -1772,11 +1956,117 @@ async function renderSubscriptionSection() {
         <div class="list-icon">💳</div>
         <div class="list-main">
           <div class="list-title">${htmlEsc(t('subscription_plan_' + u.plan))}</div>
-          <div class="list-sub">${htmlEsc(statusText)}</div>
+          <div class="list-sub">${htmlEsc(statusText)}${isTeamMember ? ' · ' + htmlEsc(t('subscription_team_member_of').replace('{name}', u.team.orgOwnerName || '')) : ''}</div>
         </div>
       </div>
       ${upgradeBtns.length ? `<div style="padding:0 16px 14px;display:flex;flex-direction:column;gap:8px">${upgradeBtns.join('')}</div>` : ''}
     </div>`;
+}
+async function startTeamCheckout() {
+  const input = prompt(t('team_seats_prompt'), '2');
+  if (input == null) return;
+  const seats = parseInt(input, 10);
+  if (!Number.isInteger(seats) || seats < 2) { toast(t('team_seats_invalid')); return; }
+  const r = await SidekickBackend.teamCheckout(seats);
+  if (!r.ok || !r.data.url) { toast((r.data && r.data.error) || t('subscription_checkout_failed')); return; }
+  window.location.href = r.data.url;
+}
+
+// ─── TEAM MANAGEMENT (Phase 2) ───────────────────────────────────────────
+// Settings > Team. Reads __entitlements (already refreshed by
+// renderSubscriptionSection() just before this in the same switchScreen
+// chain) purely to decide whether to show anything at all; the actual
+// roster/invite state comes live from api/team-members.js on every render,
+// same "always fetch fresh, membership can change from another device at
+// any moment" reasoning as the Subscription screen itself.
+async function renderTeamSection() {
+  const el = document.getElementById('team-body');
+  if (!el) return;
+  if (isGuest || typeof SidekickBackend === 'undefined' || !SidekickBackend.isEnabled()) { el.innerHTML = ''; return; }
+  const u = __entitlements;
+  if (!u) { el.innerHTML = ''; return; }
+  if (u.plan !== 'team' && !u.team) {
+    el.innerHTML = `<p style="font-size:12px;color:var(--text3);margin:0 16px 14px">${htmlEsc(t('team_needs_plan_hint'))}</p>`;
+    return;
+  }
+
+  const r = await SidekickBackend.teamMembersList();
+  if (!r.ok) { el.innerHTML = ''; return; }
+  const { owner, myRole, members } = r.data;
+  const canManage = myRole === 'owner' || myRole === 'admin';
+  const canInvite = canManage; // seat capacity is enforced server-side (api/team-invite.js), not gated here
+
+  const memberRowsHtml = members.length ? members.map(m => `
+      <div class="list-row" style="cursor:default">
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(m.name)}</div>
+          <div class="list-sub">${htmlEsc(t('team_role_' + m.role))}</div>
+        </div>
+        ${(myRole === 'owner' || (myRole === 'admin' && m.role === 'staff')) ? `<div class="list-right"><button type="button" class="qc-btn" aria-label="Remove" onclick="removeTeamMember('${m.cuid}')">✕</button></div>` : ''}
+      </div>`).join('') : `<div class="pkg-status"><span>${htmlEsc(t('no_team_members'))}</span></div>`;
+
+  el.innerHTML = `
+    <div class="list-card" style="margin:0 16px 14px">
+      <div class="list-row" style="cursor:default">
+        <div class="list-icon">👥</div>
+        <div class="list-main">
+          <div class="list-title">${owner ? htmlEsc(owner.name) : htmlEsc(t('team_you_title'))}</div>
+          <div class="list-sub">${myRole === 'owner' ? htmlEsc(t('team_seats_used').replace('{used}', members.length + 1).replace('{total}', u.team && u.team.seats ? u.team.seats : '—')) : htmlEsc(t('team_role_' + myRole))}</div>
+        </div>
+      </div>
+    </div>
+    <div class="section-title" style="font-size:12px;margin:14px 16px 8px">${htmlEsc(t('team_members_title'))}</div>
+    <div class="list-card" style="margin:0 16px 14px">${memberRowsHtml}</div>
+    ${canInvite ? `<div style="padding:0 16px 14px;display:flex;flex-direction:column;gap:8px">
+        <button type="button" class="qc-btn" style="width:100%" onclick="inviteTeamMember('staff')">${htmlEsc(t('team_invite_staff_btn'))}</button>
+        ${myRole === 'owner' ? `<button type="button" class="qc-btn" style="width:100%" onclick="inviteTeamMember('admin')">${htmlEsc(t('team_invite_admin_btn'))}</button>` : ''}
+      </div>` : ''}
+    <div id="team-invite-link-body"></div>
+  `;
+}
+async function inviteTeamMember(role) {
+  const r = await SidekickBackend.teamInvite(role);
+  const linkEl = document.getElementById('team-invite-link-body');
+  if (!r.ok || !r.data.inviteUrl) {
+    toast((r.data && r.data.error) || t('team_invite_failed'));
+    return;
+  }
+  if (linkEl) {
+    linkEl.innerHTML = `<div class="field" style="margin:0 16px 14px;padding:0;border:1px solid var(--border);border-radius:var(--radius-sm)">
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text3);padding:8px 12px 0;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(t('team_invite_link_label'))}</label>
+        <p style="font-size:11px;color:var(--text4);padding:0 12px;margin:2px 0 6px">${htmlEsc(t('team_invite_link_sub'))}</p>
+        <div style="display:flex;align-items:center;gap:6px;padding:2px 12px 10px">
+          <input readonly value="${attrEsc(r.data.inviteUrl)}" onclick="this.select()" style="flex:1;min-width:0;border:none;background:none;font-family:'Spline Sans Mono',monospace;font-size:11px;color:var(--text2)">
+          <button type="button" class="qc-btn" style="width:auto;padding:0 12px;flex:none" onclick="copyLineUrl('${attrEsc(r.data.inviteUrl)}')">${htmlEsc(t('copy_btn'))}</button>
+        </div>
+      </div>`;
+  }
+}
+async function removeTeamMember(memberCuid) {
+  if (!confirm(t('team_remove_confirm'))) return;
+  const r = await SidekickBackend.teamMemberRemove(memberCuid);
+  if (!r.ok) { toast((r.data && r.data.error) || t('team_remove_failed')); return; }
+  renderTeamSection();
+}
+// Set by bootLogin() when the URL carried ?teamInvite=<token> — checked
+// here, in finishAppBoot(), so it fires regardless of which auth path got
+// the invitee here (log in, register, or LINE). Team membership requires a
+// real backend `users` row (team_members references it) — guest mode has
+// no persistent identity to grant one to, and a brand-new local-only
+// account needs the exact same register-or-login-against-the-backend step
+// enableCloudBackup() already does, reused here rather than duplicated.
+async function maybeRedeemTeamInvite() {
+  const token = sessionStorage.getItem('sidekick_team_invite');
+  if (!token) return;
+  sessionStorage.removeItem('sidekick_team_invite');
+  if (isGuest || typeof SidekickBackend === 'undefined') { toast(t('team_invite_needs_account')); return; }
+  if (!SidekickBackend.isEnabled()) {
+    await enableCloudBackup();
+    if (!SidekickBackend.isEnabled()) { toast(t('team_invite_needs_account')); return; }
+  }
+  const r = await SidekickBackend.teamJoin(token);
+  if (!r.ok) { toast((r.data && r.data.error) || t('team_invite_failed')); return; }
+  toast(t('team_joined_toast'));
 }
 
 // ─── DOCUMENT BRANDING (Phase 1, Pro+) ──────────────────────────────────
@@ -1999,6 +2289,184 @@ async function deleteBookingSlot(id) {
   await SidekickBackend.bookingSlotDelete(id);
   renderBookingSlotsSection();
 }
+
+// Content for seedDemoData() above. Every date is a day-offset from "today"
+// (negative = past, positive = future, 0 = today), never a literal string —
+// see seedDemoData()'s relDate() — so a demo run months from now still looks
+// current, not stale. `serviceName` values match BUSINESS_TYPES' own seeded
+// service names (app.js, ~line 461) so demo jobs/invoices reference real,
+// already-seeded services rather than inventing new ones. 'custom' has no
+// entry — there's no generic "custom" business content to fabricate, same
+// reasoning BUSINESS_TYPES.custom has an empty seedServices list.
+const DEMO_PERSONA_DATA = {
+  trainer: {
+    clients: [
+      { name: 'Nok Srisawat', phone: '081-234-5671', email: 'nok.s@example.com', tags: 'weight loss',
+        goals: 'Lose 5kg before Songkran, build core strength', healthNotes: 'Mild knee sensitivity — avoid high-impact jumps',
+        mealPlan: ['Breakfast: eggs + oats', 'Lunch: grilled chicken salad', 'Dinner: steamed fish + vegetables'] },
+      { name: 'Beam Charoensuk', phone: '081-234-5672', email: 'beam.c@example.com', tags: 'muscle building',
+        goals: 'Add 3kg lean muscle, bench press 80kg', mealPlan: ['High-protein breakfast shake', 'Post-workout: whey + banana'] },
+      { name: 'Ploy Nakornthep', phone: '081-234-5673', tags: 'postnatal',
+        goals: 'Rebuild core strength after pregnancy, low-impact only', healthNotes: 'Cleared by doctor for light exercise as of last month' },
+      { name: 'Golf Ratanakosin', phone: '081-234-5674', tags: 'marathon',
+        goals: 'Sub-4:30 marathon in November', mealPlan: ['Carb-load 2 days before long runs'] },
+      { name: 'Fah Wongsakul', phone: '081-234-5675', tags: 'senior fitness',
+        goals: 'Improve balance and mobility', healthNotes: 'Mild hypertension — keep heart rate moderate' },
+    ],
+    jobs: [
+      { clientIndex: 3, stage: 'pitch', daysOffset: -1, amount: 800, serviceName: '1-on-1 session', notes: 'Interested in a marathon prep package' },
+      { clientIndex: 4, stage: 'quote', daysOffset: -2, amount: 1600, count: 2, serviceName: '1-on-1 session', notes: 'Sent quote for 2x/week sessions' },
+      { clientIndex: 2, stage: 'invoice', daysOffset: -3, amount: 2400, count: 3, serviceName: '1-on-1 session', notes: '3 sessions this week' },
+      { clientIndex: 1, stage: 'paid', daysOffset: -5, amount: 800, serviceName: '1-on-1 session' },
+      { clientIndex: 0, stage: 'delivery', daysOffset: -7, amount: 800, serviceName: '1-on-1 session' },
+      { clientIndex: 0, stage: 'extend', daysOffset: -14, amount: 4000, serviceName: 'Nutrition plan', complete: true, outcome: 'extended', notes: 'Renewed for another month' },
+    ],
+    invoices: [
+      { clientIndex: 2, daysOffset: -3, status: 'draft', lineItems: [{ description: '1-on-1 session x3', qty: 3, unitPrice: 800 }] },
+      { clientIndex: 4, daysOffset: -6, status: 'sent', lineItems: [{ description: '1-on-1 session x2', qty: 2, unitPrice: 800 }] },
+      { clientIndex: 1, daysOffset: -20, status: 'paid', lineItems: [{ description: 'Nutrition plan', qty: 1, unitPrice: 2000 }, { description: '1-on-1 session x2', qty: 2, unitPrice: 800 }] },
+    ],
+    bookings: [
+      { clientIndex: 0, title: '1-on-1 session', daysOffset: 1, startTime: '07:00', durationMin: 60 },
+      { clientIndex: 1, title: '1-on-1 session', daysOffset: 2, startTime: '18:00', durationMin: 60 },
+      { clientIndex: 3, title: 'Group class', daysOffset: 3, startTime: '06:30', durationMin: 45 },
+    ],
+    packages: [
+      { clientIndex: 0, totalSessions: 10, price: 7200, daysOffset: -14 },
+      { clientIndex: 3, totalSessions: 5, price: 3600, daysOffset: -1 },
+    ],
+    progressLogs: [
+      { clientIndex: 0, daysOffset: -30, weight: 68, notes: 'Starting weight' },
+      { clientIndex: 0, daysOffset: -14, weight: 66.5, notes: 'Good progress' },
+      { clientIndex: 0, daysOffset: -2, weight: 65, notes: 'Down 3kg total' },
+    ],
+  },
+  realestate: {
+    clients: [
+      { name: 'Ann Thongchai', phone: '081-345-6781', email: 'ann.t@example.com', tags: 'buyer', searchBrief: '2BR condo near BTS, budget 5-7M',
+        deals: [{ property: 'The Base Sukhumvit 77, 35sqm', stage: 'viewing', commission: 90000, notes: 'Very interested, comparing 2 units',
+          viewings: [{ date: -6, verdict: 'interested' }, { date: -2, verdict: 'interested' }] }] },
+      { name: 'Mai Suriyan', phone: '081-345-6782', tags: 'seller',
+        deals: [{ property: 'Townhouse, Ramkhamhaeng, 3BR', stage: 'negotiating', commission: 150000, notes: 'Buyer offered 8% below asking',
+          viewings: [{ date: -10, verdict: 'interested' }] }] },
+      { name: 'Boss Pattaranan', phone: '081-345-6783', tags: 'buyer',
+        deals: [{ property: 'Land plot, Bang Na, 400sqm', stage: 'offer', commission: 120000, notes: 'Offer submitted, awaiting response',
+          viewings: [{ date: -8, verdict: 'interested' }] }] },
+      { name: 'Kob Iamsuwan', phone: '081-345-6784', tags: 'closed deal',
+        deals: [{ property: 'Noble Around Ari, 1BR', stage: 'closed', commission: 75000, notes: 'Deal closed, commission collected',
+          viewings: [{ date: -40, verdict: 'interested' }] }] },
+      { name: 'Tar Wattana', phone: '081-345-6785', tags: 'searching',
+        deals: [{ property: '', stage: 'searching', commission: 0, notes: 'Still narrowing down neighborhoods', viewings: [] }] },
+    ],
+    jobs: [
+      { clientIndex: 4, stage: 'pitch', daysOffset: -1, amount: 0, serviceName: 'Listing consultation', notes: 'Initial consultation call' },
+      { clientIndex: 2, stage: 'quote', daysOffset: -3, amount: 120000, serviceName: 'Property viewing', notes: 'Quoted commission structure for land deal' },
+      { clientIndex: 1, stage: 'invoice', daysOffset: -4, amount: 150000, serviceName: 'Property viewing', notes: 'Invoice sent for closed negotiation' },
+      { clientIndex: 0, stage: 'paid', daysOffset: -6, amount: 90000, serviceName: 'Property viewing' },
+      { clientIndex: 3, stage: 'delivery', daysOffset: -10, amount: 75000, serviceName: 'Property viewing', notes: 'Finalizing paperwork' },
+      { clientIndex: 3, stage: 'extend', daysOffset: -40, amount: 75000, serviceName: 'Property viewing', complete: true, outcome: 'finished', notes: 'Deal fully closed' },
+    ],
+    invoices: [
+      { clientIndex: 2, daysOffset: -3, status: 'draft', lineItems: [{ description: 'Commission — Land plot Bang Na', qty: 1, unitPrice: 120000 }] },
+      { clientIndex: 1, daysOffset: -4, status: 'sent', lineItems: [{ description: 'Commission — Townhouse Ramkhamhaeng', qty: 1, unitPrice: 150000 }] },
+      { clientIndex: 3, daysOffset: -40, status: 'paid', lineItems: [{ description: 'Commission — Noble Around Ari', qty: 1, unitPrice: 75000 }] },
+    ],
+    bookings: [
+      { clientIndex: 0, title: 'Property viewing', daysOffset: 1, startTime: '10:00', durationMin: 60, location: 'The Base Sukhumvit 77' },
+      { clientIndex: 2, title: 'Site visit', daysOffset: 2, startTime: '14:00', durationMin: 90, location: 'Bang Na land plot' },
+      { clientIndex: 4, title: 'Consultation call', daysOffset: 0, startTime: '16:00', durationMin: 30 },
+    ],
+  },
+  laundry: {
+    clients: [
+      { name: 'Nid Phromma', phone: '081-456-7891', tags: 'regular', preferences: 'No fabric softener', monthlyKgPlan: '20kg/month',
+        orders: [{ date: -1, kg: 5, status: 'washing', notes: '2 bedsheets + towels' }] },
+      { name: 'Aom Kittisak', phone: '081-456-7892', tags: 'weekly', orders: [{ date: -2, kg: 3, status: 'ready', notes: 'Office shirts' }] },
+      { name: 'Bank Suwanphan', phone: '081-456-7893', tags: 'dry clean', orders: [{ date: -5, kg: 2, status: 'completed', notes: 'Suit + 2 dresses, dry clean' }] },
+      { name: 'Ice Ruangrit', phone: '081-456-7894', tags: 'new', orders: [{ date: 0, kg: 4, status: 'received', notes: 'First order, mixed laundry' }] },
+      { name: 'Milk Chaowarat', phone: '081-456-7895', tags: 'regular', orders: [{ date: -3, kg: 6, status: 'completed', notes: 'Weekly household laundry' }] },
+    ],
+    jobs: [
+      { clientIndex: 3, stage: 'pitch', daysOffset: 0, amount: 600, serviceName: 'Wash & fold', notes: 'New customer inquiry' },
+      { clientIndex: 0, stage: 'quote', daysOffset: -1, amount: 750, count: 5, serviceName: 'Wash & fold', notes: 'Quoted for 5kg wash & fold' },
+      { clientIndex: 1, stage: 'invoice', daysOffset: -2, amount: 450, count: 3, serviceName: 'Wash & fold' },
+      { clientIndex: 2, stage: 'paid', daysOffset: -5, amount: 160, count: 2, serviceName: 'Dry cleaning' },
+      { clientIndex: 4, stage: 'delivery', daysOffset: -3, amount: 900, count: 6, serviceName: 'Wash & fold' },
+      { clientIndex: 4, stage: 'extend', daysOffset: -10, amount: 900, serviceName: 'Wash & fold', complete: true, outcome: 'extended', notes: 'Signed up for weekly plan' },
+    ],
+    invoices: [
+      { clientIndex: 0, daysOffset: -1, status: 'draft', lineItems: [{ description: 'Wash & fold 5kg', qty: 5, unitPrice: 150 }] },
+      { clientIndex: 1, daysOffset: -2, status: 'sent', lineItems: [{ description: 'Wash & fold 3kg', qty: 3, unitPrice: 150 }] },
+      { clientIndex: 2, daysOffset: -5, status: 'paid', lineItems: [{ description: 'Dry cleaning x2', qty: 2, unitPrice: 80 }] },
+    ],
+    bookings: [
+      { clientIndex: 3, title: 'Pickup', daysOffset: 0, startTime: '09:00', durationMin: 15 },
+      { clientIndex: 0, title: 'Delivery', daysOffset: 1, startTime: '17:00', durationMin: 15 },
+      { clientIndex: 4, title: 'Pickup', daysOffset: 4, startTime: '09:30', durationMin: 15 },
+    ],
+  },
+  insurance: {
+    clients: [
+      { name: 'Somchai Boonmee', phone: '081-567-8901', tags: 'health', birthday: '1985-03-12', referredBy: 'Friend referral',
+        policies: [{ name: 'Health Plus Premium', renewalDate: 20 }] },
+      { name: 'Kanya Srisombat', phone: '081-567-8902', tags: 'motor',
+        policies: [{ name: 'Motor Comprehensive', renewalDate: 5 }, { name: 'Home Insurance', renewalDate: 90 }] },
+      { name: 'Preecha Wattanasin', phone: '081-567-8903', tags: 'life', policies: [{ name: 'Life Assurance 20-Pay', renewalDate: 180 }] },
+      { name: 'Siriporn Chaiyasit', phone: '081-567-8904', tags: 'claim', policies: [{ name: 'Health Plus Premium', renewalDate: 60 }] },
+      { name: 'Anurak Thepsuwan', phone: '081-567-8905', tags: 'new lead', policies: [] },
+    ],
+    jobs: [
+      { clientIndex: 4, stage: 'pitch', daysOffset: 0, amount: 0, serviceName: 'Policy review', notes: 'Requested a quote for health coverage' },
+      { clientIndex: 1, stage: 'quote', daysOffset: -1, amount: 18000, serviceName: 'Policy review', notes: 'Quoted motor renewal + home bundle' },
+      { clientIndex: 0, stage: 'invoice', daysOffset: -3, amount: 24000, serviceName: 'Policy review', notes: 'Health Plus Premium renewal' },
+      { clientIndex: 2, stage: 'paid', daysOffset: -7, amount: 45000, serviceName: 'Policy review' },
+      { clientIndex: 3, stage: 'delivery', daysOffset: -2, amount: 0, serviceName: 'Claim assistance', notes: 'Processing hospital claim' },
+      { clientIndex: 3, stage: 'extend', daysOffset: -30, amount: 0, serviceName: 'Claim assistance', complete: true, outcome: 'finished', notes: 'Claim settled successfully' },
+    ],
+    invoices: [
+      { clientIndex: 1, daysOffset: -1, status: 'draft', lineItems: [{ description: 'Motor Comprehensive renewal', qty: 1, unitPrice: 12000 }, { description: 'Home Insurance renewal', qty: 1, unitPrice: 6000 }] },
+      { clientIndex: 0, daysOffset: -3, status: 'sent', lineItems: [{ description: 'Health Plus Premium renewal', qty: 1, unitPrice: 24000 }] },
+      { clientIndex: 2, daysOffset: -7, status: 'paid', lineItems: [{ description: 'Life Assurance 20-Pay annual premium', qty: 1, unitPrice: 45000 }] },
+    ],
+    bookings: [
+      { clientIndex: 4, title: 'Policy consultation', daysOffset: 1, startTime: '11:00', durationMin: 45 },
+      { clientIndex: 1, title: 'Renewal review', daysOffset: 3, startTime: '15:00', durationMin: 30 },
+      { clientIndex: 3, title: 'Claim follow-up call', daysOffset: 0, startTime: '13:00', durationMin: 20 },
+    ],
+  },
+  garage: {
+    clients: [
+      { name: 'Sombat Charoenkul', phone: '081-678-9011', tags: 'regular', vehicles: [{ plate: 'กข 1234 กรุงเทพ', mileage: 45000, nextServiceDate: 14 }],
+        serviceHistory: [{ date: -30, note: 'Oil change + filter' }, { date: -90, note: 'Brake pad replacement' }] },
+      { name: 'Waree Suksri', phone: '081-678-9012', tags: 'new', vehicles: [{ plate: '1กค 5678 นนทบุรี', mileage: 12000, nextServiceDate: 45 }],
+        serviceHistory: [{ date: -5, note: 'First visit — general inspection' }] },
+      { name: 'Decha Phongsathorn', phone: '081-678-9013', tags: 'fleet',
+        vehicles: [{ plate: 'ทข 9012 กรุงเทพ', mileage: 88000, nextServiceDate: 3 }, { plate: 'ทข 9013 กรุงเทพ', mileage: 76000, nextServiceDate: 20 }],
+        serviceHistory: [{ date: -14, note: 'Full service — both vehicles' }] },
+      { name: 'Ratree Munkong', phone: '081-678-9014', tags: 'regular', vehicles: [{ plate: '2กง 3456 ปทุมธานี', mileage: 60000, nextServiceDate: 60 }],
+        serviceHistory: [{ date: -20, note: 'Tire rotation + alignment' }] },
+      { name: 'Somsak Intharaphan', phone: '081-678-9015', tags: 'urgent', vehicles: [{ plate: '3กจ 7890 กรุงเทพ', mileage: 95000, nextServiceDate: 0 }], serviceHistory: [] },
+    ],
+    jobs: [
+      { clientIndex: 4, stage: 'pitch', daysOffset: 0, amount: 0, serviceName: 'Oil change', notes: 'Called about strange engine noise' },
+      { clientIndex: 2, stage: 'quote', daysOffset: -1, amount: 5000, count: 2, serviceName: 'Full service', notes: 'Quoted fleet service for both vehicles' },
+      { clientIndex: 3, stage: 'invoice', daysOffset: -3, amount: 2500, serviceName: 'Full service' },
+      { clientIndex: 1, stage: 'paid', daysOffset: -5, amount: 600, serviceName: 'Oil change' },
+      { clientIndex: 0, stage: 'delivery', daysOffset: -1, amount: 2500, serviceName: 'Full service', notes: 'In the shop now' },
+      { clientIndex: 0, stage: 'extend', daysOffset: -90, amount: 1800, serviceName: 'Full service', complete: true, outcome: 'extended', notes: 'Rebooked for next service' },
+    ],
+    invoices: [
+      { clientIndex: 3, daysOffset: -3, status: 'draft', lineItems: [{ description: 'Full service', qty: 1, unitPrice: 2500 }] },
+      { clientIndex: 2, daysOffset: -1, status: 'sent', lineItems: [{ description: 'Full service x2 vehicles', qty: 2, unitPrice: 2500 }] },
+      { clientIndex: 1, daysOffset: -5, status: 'paid', lineItems: [{ description: 'Oil change', qty: 1, unitPrice: 600 }] },
+    ],
+    bookings: [
+      { clientIndex: 4, title: 'Diagnostic check', daysOffset: 0, startTime: '09:00', durationMin: 60 },
+      { clientIndex: 0, title: 'Full service pickup', daysOffset: 1, startTime: '16:00', durationMin: 30 },
+      { clientIndex: 2, title: 'Fleet service', daysOffset: 2, startTime: '08:00', durationMin: 180 },
+    ],
+  },
+};
 
 async function startSubscriptionCheckout(plan) {
   const r = await SidekickBackend.billingCheckout(plan);
@@ -4679,6 +5147,7 @@ function switchScreen(name) {
   if (name === 'more') renderSubscriptionSection();
   if (name === 'more') renderSellerLogoSection();
   if (name === 'more') renderLineChannelSection();
+  if (name === 'more') renderTeamSection();
   if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.

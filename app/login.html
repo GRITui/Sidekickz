@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>(function(){var K='sidekick_ui_theme',t=localStorage.getItem(K);if(t==='dark')document.documentElement.dataset.theme='dark';else if(t!=='auto')document.documentElement.dataset.theme='light';})();</script><!-- light by default: set before CSS paints to avoid a flash of the wrong theme -->
-<link rel="stylesheet" href="styles.css?v=0.9.23">
+<link rel="stylesheet" href="styles.css?v=0.9.25">
 <!-- data-page drives boot(): 'login' → bootLogin() (redirects to ./ when already signed in) -->
 <body data-page="login">
 
@@ -46,6 +46,7 @@
     <button class="auth-btn" id="auth-submit" onclick="submitAuth()" data-i18n="login">Log in</button>
     <button class="auth-btn line" onclick="loginWithLine()" data-i18n="login_line">Continue with LINE</button>
     <button class="auth-btn guest" onclick="loginGuest()" data-i18n="login_guest">Continue as guest</button>
+    <button class="auth-btn guest" onclick="startDemo()" data-i18n="try_demo_btn">Try a demo</button>
     <div class="auth-hint"><span id="auth-hint-text"></span><br><br>Local-first · No cloud · Built with Claude</div>
   </div>
 </div>
@@ -82,4 +83,4 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.9.23"></script>
+<script src="app.js?v=0.9.25"></script>

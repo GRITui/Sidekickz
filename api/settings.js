@@ -27,6 +27,8 @@
 import { db } from '../lib/db.js';
 import { requireSession } from '../lib/auth.js';
 import { corsHeaders, handlePreflight } from '../lib/cors.js';
+import { canWrite } from '../lib/entitlements.js';
+import { resolveDataOwner } from '../lib/teams.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -44,9 +46,9 @@ export default async function handler(request) {
 
   const session = await requireSession(request, secret);
   if (!session) return json({ error: 'Not authenticated' }, 401, request);
-  const { userCuid } = session;
 
   const sql = db();
+  const userCuid = await resolveDataOwner(sql, session.userCuid);
   const url = new URL(request.url);
   const key = url.searchParams.get('key');
 
@@ -57,6 +59,16 @@ export default async function handler(request) {
         [userCuid]
       );
       return json({ rows }, 200, request);
+    }
+
+    // Same write-lock gate lib/crudHandler.js applies to every other
+    // resource (a locked account is read-only, not fully shut out) — found
+    // missing here while wiring in team resolution above; this bespoke
+    // handler predates that gate and never got it added. Reads (GET above)
+    // still stay open regardless, matching the rest of the app.
+    if (request.method === 'PUT' || request.method === 'DELETE') {
+      const [user] = await sql(`select plan, subscription_status, trial_ends_at from users where cuid = $1`, [userCuid]);
+      if (!canWrite(user)) return json({ error: 'Subscription required', code: 'locked' }, 402, request);
     }
 
     if (request.method === 'PUT') {

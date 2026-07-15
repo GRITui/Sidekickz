@@ -62,7 +62,14 @@ create table if not exists users (
   trial_ends_at         timestamptz,
   stripe_customer_id    text,
   stripe_subscription_id text,
-  current_period_end    timestamptz
+  current_period_end    timestamptz,
+  -- ─── Team seats (Phase 2, 2026-07-15) ────────────────────────────────
+  -- Purchased seat count for a 'team'-plan account, INCLUDING the owner
+  -- (so "2 seats" = the owner + 1 invited member) — synced from Stripe's
+  -- subscription item quantity by api/stripe-webhook.js. Null/meaningless
+  -- for non-team plans. See the TEAM section further down for the actual
+  -- membership model — this column only tracks capacity, not membership.
+  team_seats            integer
 );
 
 -- Idempotent by design (`add column if not exists`) so this can be re-run
@@ -77,6 +84,7 @@ alter table users add column if not exists trial_ends_at timestamptz;
 alter table users add column if not exists stripe_customer_id text;
 alter table users add column if not exists stripe_subscription_id text;
 alter table users add column if not exists current_period_end timestamptz;
+alter table users add column if not exists team_seats integer;
 do $$ begin
   if not exists (select 1 from pg_constraint where conname = 'users_plan_check') then
     alter table users add constraint users_plan_check check (plan in ('basic','pro','team'));
@@ -381,3 +389,45 @@ create table if not exists bookings (
 );
 
 create index if not exists idx_bookings_user on bookings(user_cuid);
+
+-- ─── TEAM (Phase 2, 2026-07-15) ─────────────────────────────────────────
+-- Shared-single-identity model, not per-resource org scoping: a team is
+-- just one account (the "owner") plus a set of *other* accounts who've
+-- been granted access to operate on the owner's data. None of the 12
+-- resource tables above changed at all — every one of them still has
+-- exactly one `user_cuid` owner column, scoped exactly as before. What
+-- changed is lib/crudHandler.js (and the resource-specific handlers)
+-- resolving an *effective* data-owner cuid for the caller before running
+-- any query: a plain solo account's effective owner is itself; a team
+-- member's effective owner is whoever's `org_owner_cuid` their row here
+-- points to (lib/teams.js's resolveDataOwner()). This is deliberately the
+-- lower-risk of two designs (the alternative — org_cuid added to every
+-- existing table, re-scoping ~12 already-live tables' row-security with
+-- no live-DB testing available this session — was assessed and rejected
+-- for that reason, see the project changelog's Team-tier delta entry).
+--
+-- The owner is never a row in this table (implicit: whoever `org_owner_cuid`
+-- equals). Only 'admin'/'staff' are ever stored here — a role of 'owner'
+-- would be redundant and just another state to keep in sync.
+--
+-- `member_cuid` is UNIQUE on its own (not just the pair) — this session's
+-- v1 keeps membership to exactly one org per account, matching "you work
+-- for one Sidekick business, not several simultaneously." Prevents needing
+-- resolveDataOwner() to handle "which of several orgs" ambiguity.
+--
+-- No row is ever created for a pending/not-yet-registered invitee — an
+-- invite is a signed, stateless token (lib/teams.js's
+-- signInviteToken()/verifyInviteToken(), same HMAC-token shape
+-- lib/auth.js's session tokens and lib/lineLogin.js's OAuth `state` already
+-- use), redeemed into a real row only once the invitee is a logged-in
+-- account themselves (api/team-join.js). Nothing to expire/clean up here —
+-- the token's own baked-in expiry handles that.
+create table if not exists team_members (
+  cuid              text primary key,
+  org_owner_cuid    text not null references users(cuid) on delete cascade,
+  member_cuid       text not null unique references users(cuid) on delete cascade,
+  role              text not null check (role in ('admin', 'staff')),
+  joined_at         timestamptz not null default now()
+);
+
+create index if not exists idx_team_members_owner on team_members(org_owner_cuid);

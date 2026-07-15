@@ -121,6 +121,26 @@
     return apiFetch(`/api/booking-slots?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
   }
 
+  // ── Team (Phase 2) ──────────────────────────────────────────────────────
+  // See api/team-invite.js/api/team-join.js/api/team-members.js — a Team
+  // plan's shared-single-identity org: the owner's own data, with other
+  // accounts (admin/staff) granted access to it.
+  async function teamCheckout(seats) {
+    return apiFetch('/api/billing-checkout', { method: 'POST', body: { plan: 'team', seats } });
+  }
+  async function teamInvite(role) {
+    return apiFetch('/api/team-invite', { method: 'POST', body: { role } });
+  }
+  async function teamJoin(token) {
+    return apiFetch('/api/team-join', { method: 'POST', body: { token } });
+  }
+  async function teamMembersList() {
+    return apiFetch('/api/team-members');
+  }
+  async function teamMemberRemove(memberCuid) {
+    return apiFetch(`/api/team-members?memberCuid=${encodeURIComponent(memberCuid)}`, { method: 'DELETE' });
+  }
+
   // ── clients mirror ────────────────────────────────────────────────────
   // Always tries create first; a 409 (this cuid already exists server-side
   // — e.g. this record was already uploaded, or already mirrored from a
@@ -256,6 +276,7 @@
     billingCheckout, billingPortal,
     lineChannelStatus, lineChannelConnect, lineChannelDisconnect,
     bookingSlotsList, bookingSlotCreate, bookingSlotDelete,
+    teamCheckout, teamInvite, teamJoin, teamMembersList, teamMemberRemove,
     mirrorClientSave, mirrorClientDelete,
     mirrorJobSave: jobsMirror.mirrorSave, mirrorJobDelete: jobsMirror.mirrorDelete,
     mirrorServiceSave: servicesMirror.mirrorSave, mirrorServiceDelete: servicesMirror.mirrorDelete,

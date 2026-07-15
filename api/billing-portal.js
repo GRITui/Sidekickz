@@ -4,11 +4,22 @@
  * invoices, update its card, or cancel — self-service, no custom
  * cancel/update-card UI to build here (same "defer to Stripe's hosted
  * flow" reasoning as api/billing-checkout.js).
+ *
+ * Restricted to account owners (never a team member) — see
+ * lib/teams.js's isAccountOwner(). For a Team-plan account this is also
+ * deliberately where seat-count CHANGES happen: rather than building a
+ * bespoke "add more seats" flow, the Portal's own quantity-editing feature
+ * covers it, as long as it's enabled in the Stripe Dashboard (Customer
+ * Portal settings → Subscriptions → "Customers can update quantities") —
+ * one more by-hand setup step, api/stripe-webhook.js already re-syncs
+ * users.team_seats on any subscription.updated event, including a
+ * quantity change made there.
  */
 import { db } from '../lib/db.js';
 import { requireSession } from '../lib/auth.js';
 import { corsHeaders, handlePreflight, resolveOrigin } from '../lib/cors.js';
 import { stripeClient } from '../lib/stripe.js';
+import { isAccountOwner } from '../lib/teams.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -29,6 +40,9 @@ export default async function handler(request) {
 
   const sql = db();
   try {
+    if (!(await isAccountOwner(sql, session.userCuid))) {
+      return json({ error: 'Only the account owner can manage billing' }, 403, request);
+    }
     const [user] = await sql(
       `select stripe_customer_id from users where cuid = $1`,
       [session.userCuid]
