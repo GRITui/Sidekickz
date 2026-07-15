@@ -7,20 +7,29 @@
  * stays out of PCI scope entirely, same reasoning as everything else here
  * that defers to a hosted flow rather than building a custom form.
  *
- * 'team' is deliberately not accepted yet — seat-based billing needs the
- * organizations/members data model from Phase 2, not built in this pass.
+ * 'team' (Phase 2, 2026-07-15): seat-quantity subscription, priced per
+ * seat — `seats` in the request body sets the Checkout line item's
+ * quantity, which api/stripe-webhook.js later reads back off the created
+ * subscription into users.team_seats. Minimum 2 (an owner alone has no
+ * need for seat billing at all — that's just the Pro plan).
  *
- * Requires STRIPE_PRICE_BASIC / STRIPE_PRICE_PRO env vars, set to real
- * Stripe Price IDs created by hand in the Stripe Dashboard (Products →
- * add a recurring monthly THB price for each plan) — there is no API call
- * in this codebase that creates Prices, matching this project's existing
- * "schema/config applied by hand, no automation for one-time setup" habit
- * (sql/schema-core.sql, the LINE channel setup, etc.).
+ * Restricted to account owners only (never a team member, admin or not) —
+ * see lib/teams.js's isAccountOwner()/header comment for why billing stays
+ * with whoever actually holds the account, regardless of role.
+ *
+ * Requires STRIPE_PRICE_BASIC / STRIPE_PRICE_PRO / STRIPE_PRICE_TEAM env
+ * vars, set to real Stripe Price IDs created by hand in the Stripe
+ * Dashboard (Products → add a recurring monthly THB price for each plan,
+ * STRIPE_PRICE_TEAM's Price configured as per-unit/per-seat) — there is no
+ * API call in this codebase that creates Prices, matching this project's
+ * existing "schema/config applied by hand, no automation for one-time
+ * setup" habit (sql/schema-core.sql, the LINE channel setup, etc.).
  */
 import { db } from '../lib/db.js';
 import { requireSession } from '../lib/auth.js';
 import { corsHeaders, handlePreflight, resolveOrigin } from '../lib/cors.js';
 import { stripeClient } from '../lib/stripe.js';
+import { isAccountOwner } from '../lib/teams.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -29,7 +38,8 @@ function json(body, status, request) {
   });
 }
 
-const PRICE_ENV_BY_PLAN = { basic: 'STRIPE_PRICE_BASIC', pro: 'STRIPE_PRICE_PRO' };
+const PRICE_ENV_BY_PLAN = { basic: 'STRIPE_PRICE_BASIC', pro: 'STRIPE_PRICE_PRO', team: 'STRIPE_PRICE_TEAM' };
+const MIN_TEAM_SEATS = 2;
 
 export default async function handler(request) {
   const preflight = handlePreflight(request);
@@ -44,12 +54,23 @@ export default async function handler(request) {
   const body = await request.json().catch(() => null);
   const plan = body && body.plan;
   const priceEnvKey = PRICE_ENV_BY_PLAN[plan];
-  if (!priceEnvKey) return json({ error: 'plan must be "basic" or "pro"' }, 400, request);
+  if (!priceEnvKey) return json({ error: 'plan must be "basic", "pro", or "team"' }, 400, request);
   const priceId = process.env[priceEnvKey];
   if (!priceId) return json({ error: `Server misconfigured — ${priceEnvKey} is not set` }, 500, request);
 
+  let quantity = 1;
+  if (plan === 'team') {
+    quantity = Math.floor(Number(body.seats));
+    if (!Number.isInteger(quantity) || quantity < MIN_TEAM_SEATS) {
+      return json({ error: `seats must be an integer of at least ${MIN_TEAM_SEATS}` }, 400, request);
+    }
+  }
+
   const sql = db();
   try {
+    if (!(await isAccountOwner(sql, session.userCuid))) {
+      return json({ error: 'Only the account owner can manage billing' }, 403, request);
+    }
     const [user] = await sql(
       `select cuid, username, stripe_customer_id from users where cuid = $1`,
       [session.userCuid]
@@ -75,7 +96,7 @@ export default async function handler(request) {
       mode: 'subscription',
       customer: customerId,
       client_reference_id: user.cuid,
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: [{ price: priceId, quantity }],
       success_url: `${origin}/?billing=success`,
       cancel_url: `${origin}/?billing=cancel`,
       metadata: { userCuid: user.cuid, plan },

@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.24';          // <-> sw.js SW_VERSION 'sidekick-v0.9.24'
+const APP_VERSION = '0.9.25';          // <-> sw.js SW_VERSION 'sidekick-v0.9.25'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -837,6 +837,18 @@ const I18N = {
     slot_status_open:'Open', slot_status_held:'Held (pending confirmation)', slot_status_booked:'Booked',
     add_slot_btn:'+ Add slot', slot_missing_fields:'Pick a start and end time.', slot_end_before_start:'End time must be after the start time.',
     slot_add_failed:'Could not add that slot.',
+    team_title:'Team', team_sub:'Share your client base, pipeline, and calendar with staff — everyone works from the same data under one subscription.',
+    subscription_upgrade_team_btn:'Upgrade to Team — ฿{price}/seat/mo', subscription_team_member_of:"part of {name}'s team",
+    team_seats_prompt:'How many seats? (minimum 2, including you)', team_seats_invalid:'Enter a number of seats, at least 2.',
+    team_needs_plan_hint:'Upgrade to the Team plan above to share your data with staff.',
+    team_you_title:'Your team', team_seats_used:'{used} of {total} seats used',
+    team_members_title:'Members', no_team_members:'No team members yet — invite someone below.',
+    team_role_owner:'Owner', team_role_admin:'Admin', team_role_staff:'Staff',
+    team_invite_staff_btn:'+ Invite staff', team_invite_admin_btn:'+ Invite an admin', team_invite_failed:'Could not create an invite.',
+    team_invite_link_label:'Invite link', team_invite_link_sub:"Share this with the person you're inviting — it works once, for 7 days.",
+    team_remove_confirm:'Remove this person from your team? They\'ll keep their own Sidekick account, just lose access to this shared data.',
+    team_remove_failed:'Could not remove that team member.',
+    team_invite_needs_account:'You need a real (non-guest) Sidekick account to join a team.', team_joined_toast:"You've joined the team.",
     delete_job_confirm:'Delete this job?', name_saved:'Name saved',
     err_id_min3:'Enter an email or username (3+ characters).', err_pw_min4:'Password must be at least 8 characters.',
     err_pw_mismatch:'Passwords do not match.', err_account_exists:'That account already exists on this device.',
@@ -1116,6 +1128,18 @@ const I18N = {
     slot_status_open:'เปิดให้จอง', slot_status_held:'กำลังรอยืนยัน', slot_status_booked:'จองแล้ว',
     add_slot_btn:'+ เพิ่มช่วงเวลา', slot_missing_fields:'เลือกเวลาเริ่มต้นและสิ้นสุด', slot_end_before_start:'เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น',
     slot_add_failed:'ไม่สามารถเพิ่มช่วงเวลานี้ได้',
+    team_title:'ทีม', team_sub:'แชร์ฐานข้อมูลลูกค้า แผนงาน และปฏิทินกับพนักงาน — ทุกคนทำงานบนข้อมูลเดียวกันภายใต้การสมัครสมาชิกเดียว',
+    subscription_upgrade_team_btn:'อัปเกรดเป็น Team — ฿{price}/ที่นั่ง/เดือน', subscription_team_member_of:'เป็นส่วนหนึ่งของทีม {name}',
+    team_seats_prompt:'ต้องการกี่ที่นั่ง? (ขั้นต่ำ 2 รวมคุณด้วย)', team_seats_invalid:'กรอกจำนวนที่นั่ง อย่างน้อย 2 ที่นั่ง',
+    team_needs_plan_hint:'อัปเกรดเป็นแพ็กเกจ Team ด้านบนเพื่อแชร์ข้อมูลกับพนักงาน',
+    team_you_title:'ทีมของคุณ', team_seats_used:'ใช้ไป {used} จาก {total} ที่นั่ง',
+    team_members_title:'สมาชิก', no_team_members:'ยังไม่มีสมาชิกในทีม — เชิญคนด้านล่าง',
+    team_role_owner:'เจ้าของ', team_role_admin:'ผู้ดูแล', team_role_staff:'พนักงาน',
+    team_invite_staff_btn:'+ เชิญพนักงาน', team_invite_admin_btn:'+ เชิญผู้ดูแล', team_invite_failed:'ไม่สามารถสร้างคำเชิญได้',
+    team_invite_link_label:'ลิงก์คำเชิญ', team_invite_link_sub:'ส่งลิงก์นี้ให้คนที่คุณต้องการเชิญ — ใช้ได้ครั้งเดียว ภายใน 7 วัน',
+    team_remove_confirm:'ลบคนนี้ออกจากทีมหรือไม่? บัญชี Sidekick ของเขาจะยังอยู่ แค่ไม่มีสิทธิ์เข้าถึงข้อมูลที่แชร์นี้อีก',
+    team_remove_failed:'ไม่สามารถลบสมาชิกทีมนี้ได้',
+    team_invite_needs_account:'คุณต้องมีบัญชี Sidekick จริง (ไม่ใช่ผู้เยี่ยมชม) เพื่อเข้าร่วมทีม', team_joined_toast:'คุณเข้าร่วมทีมแล้ว',
     delete_job_confirm:'ลบเซสชันนี้หรือไม่?', name_saved:'บันทึกชื่อแล้ว',
     err_id_min3:'กรอกอีเมลหรือชื่อผู้ใช้ (อย่างน้อย 3 ตัวอักษร)', err_pw_min4:'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร',
     err_pw_mismatch:'รหัสผ่านไม่ตรงกัน', err_account_exists:'มีบัญชีนี้อยู่แล้วในเครื่องนี้',
@@ -1210,6 +1234,13 @@ function showPostLoginToast() {
 // login.html entry — already-authed devices skip to the app.
 async function bootLogin() {
   applyTheme();
+  // Captured before anything else — including before the already-logged-in
+  // fast-path a few lines down, which would otherwise redirect straight
+  // into index.html and never give this a chance to run. Redeemed in
+  // finishAppBoot() (app.js) once a real, non-guest, backend-enabled
+  // account is actually logged in — see maybeRedeemTeamInvite().
+  const teamInviteToken = new URLSearchParams(location.search).get('teamInvite');
+  if (teamInviteToken) sessionStorage.setItem('sidekick_team_invite', teamInviteToken);
   await openDB();
   await migrateLegacyStorageIfNeeded();
   // Runs before handleLineLoginRedirect() (not after, as `showPostLoginToast()`
@@ -1337,6 +1368,7 @@ async function finishAppBoot() {
   await seedServicesIfEmpty();
   switchScreen('home');
   await maybeShowCloudBackupModal();
+  await maybeRedeemTeamInvite();
   // Fire-and-forget: populates __entitlements for the Phase 1 feature
   // gates (planHasFeature()/planClientCap()) without delaying boot on a
   // network round trip guest/local-only accounts don't even need.
@@ -1874,7 +1906,7 @@ function planClientCap() {
   if (e.locked) return 0;
   return e.clientCap == null ? Infinity : e.clientCap;
 }
-const SUBSCRIPTION_PRICE_THB = { basic: 149, pro: 349 };
+const SUBSCRIPTION_PRICE_THB = { basic: 149, pro: 349, team: 349 };
 async function renderSubscriptionSection() {
   const el = document.getElementById('subscription-body');
   if (!el || typeof SidekickBackend === 'undefined') return;
@@ -1895,15 +1927,27 @@ async function renderSubscriptionSection() {
     ? t('subscription_status_trialing').replace('{n}', u.trialDaysLeft)
     : t(statusKey);
 
+  // A team member (admin/staff, not the owner) has nothing of their own to
+  // buy or manage here — the subscription belongs to whoever owns the
+  // org, api/billing-checkout.js/api/billing-portal.js both reject a
+  // non-owner outright. Just show what plan/status they're operating
+  // under and, for a member specifically, who that org belongs to.
+  const isTeamMember = !!(u.team && u.team.role !== 'owner');
+
   const upgradeBtns = [];
-  if (u.plan !== 'pro') {
-    upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="startSubscriptionCheckout('pro')">${htmlEsc(t('subscription_upgrade_pro_btn').replace('{price}', SUBSCRIPTION_PRICE_THB.pro))}</button>`);
-  }
-  if (u.plan === 'basic' && (u.locked || u.subscriptionStatus !== 'active')) {
-    upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="startSubscriptionCheckout('basic')">${htmlEsc(t('subscription_subscribe_basic_btn').replace('{price}', SUBSCRIPTION_PRICE_THB.basic))}</button>`);
-  }
-  if (u.hasStripeCustomer) {
-    upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="openBillingPortal()">${htmlEsc(t('subscription_manage_billing_btn'))}</button>`);
+  if (!isTeamMember) {
+    if (u.plan !== 'pro' && u.plan !== 'team') {
+      upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="startSubscriptionCheckout('pro')">${htmlEsc(t('subscription_upgrade_pro_btn').replace('{price}', SUBSCRIPTION_PRICE_THB.pro))}</button>`);
+    }
+    if (u.plan === 'basic' && (u.locked || u.subscriptionStatus !== 'active')) {
+      upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="startSubscriptionCheckout('basic')">${htmlEsc(t('subscription_subscribe_basic_btn').replace('{price}', SUBSCRIPTION_PRICE_THB.basic))}</button>`);
+    }
+    if (u.plan !== 'team') {
+      upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="startTeamCheckout()">${htmlEsc(t('subscription_upgrade_team_btn').replace('{price}', SUBSCRIPTION_PRICE_THB.team))}</button>`);
+    }
+    if (u.hasStripeCustomer) {
+      upgradeBtns.push(`<button type="button" class="qc-btn" style="width:100%" onclick="openBillingPortal()">${htmlEsc(t('subscription_manage_billing_btn'))}</button>`);
+    }
   }
 
   el.innerHTML = `<div class="list-card">
@@ -1912,11 +1956,117 @@ async function renderSubscriptionSection() {
         <div class="list-icon">💳</div>
         <div class="list-main">
           <div class="list-title">${htmlEsc(t('subscription_plan_' + u.plan))}</div>
-          <div class="list-sub">${htmlEsc(statusText)}</div>
+          <div class="list-sub">${htmlEsc(statusText)}${isTeamMember ? ' · ' + htmlEsc(t('subscription_team_member_of').replace('{name}', u.team.orgOwnerName || '')) : ''}</div>
         </div>
       </div>
       ${upgradeBtns.length ? `<div style="padding:0 16px 14px;display:flex;flex-direction:column;gap:8px">${upgradeBtns.join('')}</div>` : ''}
     </div>`;
+}
+async function startTeamCheckout() {
+  const input = prompt(t('team_seats_prompt'), '2');
+  if (input == null) return;
+  const seats = parseInt(input, 10);
+  if (!Number.isInteger(seats) || seats < 2) { toast(t('team_seats_invalid')); return; }
+  const r = await SidekickBackend.teamCheckout(seats);
+  if (!r.ok || !r.data.url) { toast((r.data && r.data.error) || t('subscription_checkout_failed')); return; }
+  window.location.href = r.data.url;
+}
+
+// ─── TEAM MANAGEMENT (Phase 2) ───────────────────────────────────────────
+// Settings > Team. Reads __entitlements (already refreshed by
+// renderSubscriptionSection() just before this in the same switchScreen
+// chain) purely to decide whether to show anything at all; the actual
+// roster/invite state comes live from api/team-members.js on every render,
+// same "always fetch fresh, membership can change from another device at
+// any moment" reasoning as the Subscription screen itself.
+async function renderTeamSection() {
+  const el = document.getElementById('team-body');
+  if (!el) return;
+  if (isGuest || typeof SidekickBackend === 'undefined' || !SidekickBackend.isEnabled()) { el.innerHTML = ''; return; }
+  const u = __entitlements;
+  if (!u) { el.innerHTML = ''; return; }
+  if (u.plan !== 'team' && !u.team) {
+    el.innerHTML = `<p style="font-size:12px;color:var(--text3);margin:0 16px 14px">${htmlEsc(t('team_needs_plan_hint'))}</p>`;
+    return;
+  }
+
+  const r = await SidekickBackend.teamMembersList();
+  if (!r.ok) { el.innerHTML = ''; return; }
+  const { owner, myRole, members } = r.data;
+  const canManage = myRole === 'owner' || myRole === 'admin';
+  const canInvite = canManage; // seat capacity is enforced server-side (api/team-invite.js), not gated here
+
+  const memberRowsHtml = members.length ? members.map(m => `
+      <div class="list-row" style="cursor:default">
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(m.name)}</div>
+          <div class="list-sub">${htmlEsc(t('team_role_' + m.role))}</div>
+        </div>
+        ${(myRole === 'owner' || (myRole === 'admin' && m.role === 'staff')) ? `<div class="list-right"><button type="button" class="qc-btn" aria-label="Remove" onclick="removeTeamMember('${m.cuid}')">✕</button></div>` : ''}
+      </div>`).join('') : `<div class="pkg-status"><span>${htmlEsc(t('no_team_members'))}</span></div>`;
+
+  el.innerHTML = `
+    <div class="list-card" style="margin:0 16px 14px">
+      <div class="list-row" style="cursor:default">
+        <div class="list-icon">👥</div>
+        <div class="list-main">
+          <div class="list-title">${owner ? htmlEsc(owner.name) : htmlEsc(t('team_you_title'))}</div>
+          <div class="list-sub">${myRole === 'owner' ? htmlEsc(t('team_seats_used').replace('{used}', members.length + 1).replace('{total}', u.team && u.team.seats ? u.team.seats : '—')) : htmlEsc(t('team_role_' + myRole))}</div>
+        </div>
+      </div>
+    </div>
+    <div class="section-title" style="font-size:12px;margin:14px 16px 8px">${htmlEsc(t('team_members_title'))}</div>
+    <div class="list-card" style="margin:0 16px 14px">${memberRowsHtml}</div>
+    ${canInvite ? `<div style="padding:0 16px 14px;display:flex;flex-direction:column;gap:8px">
+        <button type="button" class="qc-btn" style="width:100%" onclick="inviteTeamMember('staff')">${htmlEsc(t('team_invite_staff_btn'))}</button>
+        ${myRole === 'owner' ? `<button type="button" class="qc-btn" style="width:100%" onclick="inviteTeamMember('admin')">${htmlEsc(t('team_invite_admin_btn'))}</button>` : ''}
+      </div>` : ''}
+    <div id="team-invite-link-body"></div>
+  `;
+}
+async function inviteTeamMember(role) {
+  const r = await SidekickBackend.teamInvite(role);
+  const linkEl = document.getElementById('team-invite-link-body');
+  if (!r.ok || !r.data.inviteUrl) {
+    toast((r.data && r.data.error) || t('team_invite_failed'));
+    return;
+  }
+  if (linkEl) {
+    linkEl.innerHTML = `<div class="field" style="margin:0 16px 14px;padding:0;border:1px solid var(--border);border-radius:var(--radius-sm)">
+        <label style="display:block;font-size:11px;font-weight:700;color:var(--text3);padding:8px 12px 0;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(t('team_invite_link_label'))}</label>
+        <p style="font-size:11px;color:var(--text4);padding:0 12px;margin:2px 0 6px">${htmlEsc(t('team_invite_link_sub'))}</p>
+        <div style="display:flex;align-items:center;gap:6px;padding:2px 12px 10px">
+          <input readonly value="${attrEsc(r.data.inviteUrl)}" onclick="this.select()" style="flex:1;min-width:0;border:none;background:none;font-family:'Spline Sans Mono',monospace;font-size:11px;color:var(--text2)">
+          <button type="button" class="qc-btn" style="width:auto;padding:0 12px;flex:none" onclick="copyLineUrl('${attrEsc(r.data.inviteUrl)}')">${htmlEsc(t('copy_btn'))}</button>
+        </div>
+      </div>`;
+  }
+}
+async function removeTeamMember(memberCuid) {
+  if (!confirm(t('team_remove_confirm'))) return;
+  const r = await SidekickBackend.teamMemberRemove(memberCuid);
+  if (!r.ok) { toast((r.data && r.data.error) || t('team_remove_failed')); return; }
+  renderTeamSection();
+}
+// Set by bootLogin() when the URL carried ?teamInvite=<token> — checked
+// here, in finishAppBoot(), so it fires regardless of which auth path got
+// the invitee here (log in, register, or LINE). Team membership requires a
+// real backend `users` row (team_members references it) — guest mode has
+// no persistent identity to grant one to, and a brand-new local-only
+// account needs the exact same register-or-login-against-the-backend step
+// enableCloudBackup() already does, reused here rather than duplicated.
+async function maybeRedeemTeamInvite() {
+  const token = sessionStorage.getItem('sidekick_team_invite');
+  if (!token) return;
+  sessionStorage.removeItem('sidekick_team_invite');
+  if (isGuest || typeof SidekickBackend === 'undefined') { toast(t('team_invite_needs_account')); return; }
+  if (!SidekickBackend.isEnabled()) {
+    await enableCloudBackup();
+    if (!SidekickBackend.isEnabled()) { toast(t('team_invite_needs_account')); return; }
+  }
+  const r = await SidekickBackend.teamJoin(token);
+  if (!r.ok) { toast((r.data && r.data.error) || t('team_invite_failed')); return; }
+  toast(t('team_joined_toast'));
 }
 
 // ─── DOCUMENT BRANDING (Phase 1, Pro+) ──────────────────────────────────
@@ -4997,6 +5147,7 @@ function switchScreen(name) {
   if (name === 'more') renderSubscriptionSection();
   if (name === 'more') renderSellerLogoSection();
   if (name === 'more') renderLineChannelSection();
+  if (name === 'more') renderTeamSection();
   if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.

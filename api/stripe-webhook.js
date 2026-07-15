@@ -64,6 +64,14 @@ export default async function handler(request) {
     const status = mapStripeStatus(sub.status);
     const currentPeriodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null;
     const plan = (sub.metadata && sub.metadata.plan) || null;
+    // Team seat count (Phase 2): the subscription line item's quantity —
+    // set at Checkout (api/billing-checkout.js) and re-read here on every
+    // update, so a seat-count change made through the Billing Portal
+    // (api/billing-portal.js's own header explains why that's the intended
+    // path, not a bespoke in-app control) re-syncs automatically the
+    // moment Stripe fires this same event for the edit. Meaningless for
+    // basic/pro (always 1 there) but harmless to store regardless.
+    const quantity = sub.items && sub.items.data && sub.items.data[0] ? sub.items.data[0].quantity : null;
 
     const sql = db();
     try {
@@ -77,13 +85,13 @@ export default async function handler(request) {
       // nulling it out.
       if (plan) {
         await sql(
-          `update users set subscription_status = $1, current_period_end = $2, stripe_subscription_id = $3, plan = $4 where stripe_customer_id = $5`,
-          [status, currentPeriodEnd, sub.id, plan, sub.customer]
+          `update users set subscription_status = $1, current_period_end = $2, stripe_subscription_id = $3, plan = $4, team_seats = $5 where stripe_customer_id = $6`,
+          [status, currentPeriodEnd, sub.id, plan, quantity, sub.customer]
         );
       } else {
         await sql(
-          `update users set subscription_status = $1, current_period_end = $2, stripe_subscription_id = $3 where stripe_customer_id = $4`,
-          [status, currentPeriodEnd, sub.id, sub.customer]
+          `update users set subscription_status = $1, current_period_end = $2, stripe_subscription_id = $3, team_seats = $4 where stripe_customer_id = $5`,
+          [status, currentPeriodEnd, sub.id, quantity, sub.customer]
         );
       }
     } catch (err) {
