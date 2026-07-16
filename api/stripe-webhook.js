@@ -11,10 +11,12 @@
  * canonical state is simpler and more robust than juggling several
  * overlapping event types by hand.
  *
- * Same edge-runtime, raw-body-signature-verification shape as
- * api/line-webhook.js (see that file's header for why Request/Response
- * beats Vercel's classic (req,res) helper here) — Stripe's signature check
- * needs the exact untouched raw bytes too.
+ * Same raw-body-signature-verification shape as api/line-webhook.js (see
+ * that file's header for why Request/Response beats Vercel's classic
+ * (req,res) helper here) — Stripe's signature check needs the exact
+ * untouched raw bytes too. Runs on the Node.js runtime, not edge, unlike
+ * api/line-webhook.js — see the `config.runtime` line at the bottom of
+ * this file for why.
  */
 import { db } from '../lib/db.js';
 import { verifyStripeWebhook } from '../lib/stripe.js';
@@ -105,4 +107,15 @@ export default async function handler(request) {
   return new Response(JSON.stringify({ received: true }), { status: 200 });
 }
 
-export const config = { runtime: 'edge' };
+// Node.js runtime, not edge — see api/billing-checkout.js's header comment
+// on this same line: the `stripe` npm package needs real Node core modules
+// Edge Runtime doesn't provide, even though this specific handler's own
+// signature verification (verifyStripeWebhook) never makes an outbound
+// call — the crash happens at `import Stripe from 'stripe'` in
+// lib/stripe.js, before any handler code runs, so it hits every file that
+// imports it equally. Raw-body access for signature verification
+// (`request.text()`) is unaffected by this switch — Vercel's Node.js
+// runtime supports the same Web-standard Request/Response handler export
+// this file already uses, without applying the classic (req,res)
+// body-parsing middleware that would otherwise mangle the raw bytes.
+export const config = { runtime: 'nodejs' };
