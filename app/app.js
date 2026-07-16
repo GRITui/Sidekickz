@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.29';          // <-> sw.js SW_VERSION 'sidekick-v0.9.29'
+const APP_VERSION = '0.9.30';          // <-> sw.js SW_VERSION 'sidekick-v0.9.30'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -659,7 +659,7 @@ const I18N = {
     auth_hint:'Create an account to save your work on this device.<br>Everything stays local — no cloud, no tracking.<br>Guest mode is temporary.',
     tagline:'Get booked. Get hired. Get paid.',
     // nav
-    nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Task flow', nav_book:'Calendar', nav_more:'More',
+    nav_home:'Home', nav_docs:'Docs', nav_invoices:'Invoices', nav_docs_qa:'Documents', nav_pipeline:'Task flow', nav_book:'Calendar', nav_more:'More',
     pipeline_title:'Task flow', workflow_title:'Stage order', pipeline_glance_title:'Task flow at a glance',
     skip_stage:'Skip', mark_finished:'Finished', reschedule:'Reschedule', cash_job:'Cash job', active_count:'active',
     mark_lost_btn:'Lost', lost_badge:'Lost',
@@ -707,7 +707,7 @@ const I18N = {
     theme_auto:'Auto', theme_light:'Light', theme_dark:'Dark',
     business_info_title:'Business info (optional)', business_info_sub:'Fill these in to have them show up automatically on your quotes, invoices, and receipts — none of them are required.',
     business_name:'Business name', business_taxid:'Tax ID', business_address:'Address',
-    tax_defaults:'Tax defaults (for M2)', wht:'Withholding tax %', vat:'VAT %',
+    tax_defaults:'Tax defaults', wht:'Withholding tax %', vat:'VAT %',
     daily_goal:'Daily income goal', goal_target_month:'Monthly income goal', goal_target_quarter:'Quarterly income goal', goal_target_year:'Yearly income goal',
     business_type_label:'Business type', business_type_trainer:'Personal trainer', business_type_realestate:'Real estate agent',
     business_type_laundry:'Laundry service', business_type_insurance:'Insurance agent', business_type_garage:'Car garage',
@@ -961,7 +961,15 @@ const I18N = {
     // Pipeline Board/Timeline view toggle + timeline (Gantt) strings
     pl_view_board:'Board', pl_view_timeline:'Timeline',
     tl_today:'Today',
-    tl_empty:'No dated steps yet — add dates to a job’s sub-tasks to see them here.',
+    tl_empty:"No dated steps yet — add dates to a job's sub-tasks to see them here.",
+    // M3 — follow-ups (CRM queue copy-to-clipboard + delete failure messaging)
+    followup_copy_btn:'Copy message',
+    followup_copied_toast:'Message copied to clipboard',
+    followup_tpl_overdue:'Hi {name}, I noticed invoice {number} is overdue. Could you check on payment status? Thanks!',
+    followup_tpl_draft:'Hi {name}, I have invoice {number} ready for you. Shall I send it over?',
+    followup_tpl_stale:"Hi {name}, it's been a while! Would love to reconnect and see how things are going.",
+    followup_tpl_package:'Hi {name}, your {n}-session package is all used up. Ready for another round?',
+    delete_failed:'Could not delete — try again.',
   },
   // Thai — covers the static app chrome (nav, Settings/More menu, dashboard,
   // forms, toasts) via the same data-i18n/t() keys as `en`, plus the full
@@ -987,7 +995,7 @@ const I18N = {
     auth_hint:'สร้างบัญชีเพื่อบันทึกข้อมูลไว้ในเครื่องนี้<br>ทุกอย่างเก็บอยู่ในเครื่อง — ไม่มีคลาวด์ ไม่มีการติดตาม<br>โหมดผู้เยี่ยมชมใช้งานได้ชั่วคราวเท่านั้น',
     tagline:'จองคิวได้ ได้งาน ได้รับเงิน',
     // nav
-    nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_pipeline:'แผนงาน', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
+    nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_invoices:'ใบแจ้งหนี้', nav_docs_qa:'เอกสาร', nav_pipeline:'แผนงาน', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
     pipeline_title:'แผนงาน', workflow_title:'ลำดับขั้นตอน', pipeline_glance_title:'ภาพรวมแผนงาน',
     skip_stage:'ข้าม', mark_finished:'เสร็จสิ้น', reschedule:'เลื่อนนัด', cash_job:'จ่ายสด', active_count:'กำลังดำเนินการ',
     mark_lost_btn:'ไม่สำเร็จ', lost_badge:'ไม่สำเร็จ',
@@ -1287,6 +1295,14 @@ const I18N = {
     pl_view_board:'บอร์ด', pl_view_timeline:'ไทม์ไลน์',
     tl_today:'วันนี้',
     tl_empty:'ยังไม่มีขั้นตอนที่ระบุวันที่ — เพิ่มวันที่ให้ขั้นตอนย่อยของงาน แล้วจะแสดงที่นี่',
+    // M3 — follow-ups (CRM queue copy-to-clipboard + delete failure messaging)
+    followup_copy_btn:'คัดลอกข้อความ',
+    followup_copied_toast:'คัดลอกข้อความไปยังคลิปบอร์ดแล้ว',
+    followup_tpl_overdue:'สวัสดี {name} ฉันเห็นว่าใบแจ้งหนี้ {number} เกินกำหนดแล้ว คุณสามารถตรวจสอบสถานะการชำระเงินได้ไหม ขอบคุณ!',
+    followup_tpl_draft:'สวัสดี {name} ฉันมีใบแจ้งหนี้ {number} พร้อมให้คุณ ขอให้ฉันส่งต่อไหม',
+    followup_tpl_stale:'สวัสดี {name} ผ่านไปสักพักแล้ว อยากติดต่อใหม่และดูว่าเรื่องต่างๆ เป็นอย่างไร',
+    followup_tpl_package:'สวัสดี {name} แพ็กเกจ {n} เซสชันของคุณใช้จนหมดแล้ว พร้อมสำหรับรอบถัดไปไหม',
+    delete_failed:'ลบไม่สำเร็จ — ลองใหม่อีกครั้ง',
   },
 };
 function curLang() { return (settings && settings.lang) || localStorage.getItem('sidekick_ui_lang') || 'th'; }
@@ -3093,6 +3109,7 @@ async function saveFastPathDelivery() {
     invoiceId: null, quoteDocId: null, packageId: pkg.id, updatedAt: nowISO(),
   };
   await dbPut('jobs', obj);
+  mirrorJob(obj);
   logEvent('session_logged');
   closeJobModal();
   await reload();
@@ -3280,6 +3297,15 @@ async function deleteJob() {
 // A left-hand rail lists all 6 stages (icon + label + count); the main area
 // renders only the currently-selected ("active") stage's cards — never all
 // six at once — so there's no horizontal board to scroll through.
+
+// Fire-and-forget best-effort mirror of job writes that don't go through
+// saveJob(). Ensures cloud-backed accounts' server copy stays in sync even
+// for stage moves, gate resolution, and sub-task/milestone/timer/option edits.
+function mirrorJob(j) {
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+    SidekickBackend.mirrorJobSave(j).catch(() => {});
+}
+
 let _pipelineActiveStage = null;
 function selectPipelineStage(stage) {
   _pipelineActiveStage = stage;
@@ -3636,6 +3662,7 @@ async function confirmPackageDelivery(jobId) {
   if (!(val > 0) || val > remaining) { validatePackageConfirmQty(jobId, remaining); return; }
   j.count = val;
   await dbPut('jobs', j);
+  mirrorJob(j);
   window.__packageConfirmJobId = null;
   await advanceJobStage(jobId);
 }
@@ -3676,6 +3703,7 @@ async function advanceJobStage(jobId) {
   _pipelineActiveStage = j.stage;   // rail follows the card to wherever it just landed
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
   if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
@@ -3713,6 +3741,7 @@ async function cashJobPath(jobId) {
   _pipelineActiveStage = j.stage;
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
   if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
@@ -3734,6 +3763,7 @@ async function finishJobStage(jobId) {
   _pipelineActiveStage = j.stage;
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
 }
@@ -3758,6 +3788,7 @@ async function markJobLost(jobId) {
   _pipelineActiveStage = j.stage;
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
 }
@@ -3778,6 +3809,7 @@ async function moveJobStageBack(jobId) {
   _pipelineActiveStage = j.stage;   // rail follows the card back
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
 }
@@ -3813,6 +3845,7 @@ async function markJobPaid(jobId) {
   logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   _pipelineActiveStage = j.stage;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
   if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
@@ -3867,6 +3900,7 @@ window.onEngagementInvoiceCreated = async function (invoiceId, jobId) {
   logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   _pipelineActiveStage = j.stage;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
   if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
@@ -3888,6 +3922,7 @@ window.onEngagementQuoteCreated = async function (docId, jobId) {
   logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   _pipelineActiveStage = j.stage;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
   if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
@@ -4042,6 +4077,7 @@ async function saveApptModal() {
     }
     j.updatedAt = nowISO();
     await dbPut('jobs', j);
+    mirrorJob(j);
     closeApptModal();
     renderJobTracking(ctx.jobId);
     toast(t('appt_step_updated_toast'));
@@ -4064,6 +4100,7 @@ async function saveApptModal() {
   }
   j.updatedAt = nowISO();
   await dbPut('jobs', j);
+  mirrorJob(j);
   closeApptModal();
   if (ctx.mode === 'gate') renderPipeline(); else renderJobTracking(ctx.jobId);
   toast(t(ctx.mode === 'gate' ? 'appt_booked_toast' : 'appt_step_added_toast'));
@@ -4081,6 +4118,7 @@ async function resolveApptNone() {
     j.pendingGateStage = null;
     j.updatedAt = nowISO();
     await dbPut('jobs', j);
+    mirrorJob(j);
     logEvent('gate_skip:' + (ctx.stage || ''));
   }
   closeApptModal();
@@ -4850,6 +4888,7 @@ async function addSubTask(jobId) {
   j.subTasks = j.subTasks || [];
   j.subTasks.push({ id: cuid(), text, done: false });
   await dbPut('jobs', j);
+  mirrorJob(j);
   input.value = '';
   input.focus();   // stay focused so adding several in a row doesn't need re-tapping the field
   renderJobTracking(jobId);
@@ -4862,6 +4901,7 @@ async function toggleSubTask(jobId, subId) {
   if (!s) return;
   s.done = !s.done;
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderJobTracking(jobId);
 }
 window.toggleSubTask = toggleSubTask;
@@ -4871,6 +4911,7 @@ async function deleteSubTask(jobId, subId) {
   const st = j.subTasks.find(x => x.id === subId);
   j.subTasks = j.subTasks.filter(x => x.id !== subId);
   await dbPut('jobs', j);
+  mirrorJob(j);
   // A gate-created calendar booking must not outlive its step — leaving it
   // would accumulate ghost appointments on the calendar (the "delete
   // orphans the booking" gap the sub-task workflow assessment flagged).
@@ -4963,6 +5004,7 @@ async function addJobOption(jobId) {
   j.options.push({ id: cuid(), name, status: 'considering', note: '' });
   j.updatedAt = nowISO();
   await dbPut('jobs', j);
+  mirrorJob(j);
   input.value = '';
   input.focus();   // same add-several-in-a-row affordance as addSubTask
   renderJobOptions(jobId);
@@ -4981,6 +5023,7 @@ async function saveJobOptionField(jobId, optId, field, value) {
   }
   j.updatedAt = nowISO();
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderJobOptions(jobId);
 }
 window.saveJobOptionField = saveJobOptionField;
@@ -4990,6 +5033,7 @@ async function deleteJobOption(jobId, optId) {
   j.options = j.options.filter(x => x.id !== optId);
   j.updatedAt = nowISO();
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderJobOptions(jobId);
 }
 window.deleteJobOption = deleteJobOption;
@@ -5071,6 +5115,7 @@ async function saveMilestone(jobId) {
   j.milestones = j.milestones || [];
   j.milestones.push({ id: cuid(), pct, amount, gatingSubTaskId });
   await dbPut('jobs', j);
+  mirrorJob(j);
   window.__milestoneFormOpen = false;
   renderMilestones(jobId);
 }
@@ -5080,6 +5125,7 @@ async function deleteMilestone(jobId, msId) {
   if (!j || !j.milestones) return;
   j.milestones = j.milestones.filter(x => x.id !== msId);
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderMilestones(jobId);
 }
 window.deleteMilestone = deleteMilestone;
@@ -5112,6 +5158,7 @@ window.onMilestoneInvoiceCreated = async function (invoiceId, jobId, milestoneId
   m.invoiceId = invoiceId;
   j.updatedAt = nowISO();
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderMilestones(jobId);
 };
 
@@ -5171,6 +5218,7 @@ async function startJobTimer(jobId) {
   if (!j || j.timerStartedAt) return;
   j.timerStartedAt = new Date().toISOString();
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderJobTracking(jobId);
 }
 window.startJobTimer = startJobTimer;
@@ -5182,6 +5230,7 @@ async function stopJobTimer(jobId) {
   if (minutes >= 1) j.timeEntries.push({ id: cuid(), minutes, startedAt: j.timerStartedAt, endedAt: new Date().toISOString(), invoiced: false });
   j.timerStartedAt = null;
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderJobTracking(jobId);
 }
 window.stopJobTimer = stopJobTimer;
@@ -5219,6 +5268,7 @@ window.onUnbilledTimeInvoiceCreated = async function (invoiceId, jobId, timeEntr
   j.timeEntries.forEach(e => { if (ids.has(e.id)) { e.invoiced = true; e.invoiceId = invoiceId; } });
   j.updatedAt = nowISO();
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderJobTracking(jobId);
 };
 

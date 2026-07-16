@@ -11,6 +11,20 @@
  * canonical state is simpler and more robust than juggling several
  * overlapping event types by hand.
  *
+ * WEBHOOK DELIVERY ORDERING: Stripe webhooks may arrive out-of-order — a
+ * delayed 'customer.subscription.updated' can overwrite newer local state
+ * with stale event data. RECONCILIATION mitigates this by fetching the
+ * current subscription state directly from Stripe (stripeClient().subscriptions
+ * .retrieve(sub.id)) after webhook signature verification, then applying
+ * Stripe's authoritative status/current_period_end/metadata/items instead
+ * of the possibly-stale event payload. 'subscription.deleted' skips the
+ * retrieve entirely and uses the event payload as-is — Stripe's payload for
+ * this event is already the terminal 'canceled' state, so there's nothing
+ * to reconcile. Try/catch wraps retrieves: on failure we fall back to event payload
+ * (current behavior) and console.error, ensuring a failed reconciliation fetch
+ * never drops the update entirely. This approach is simpler than ordering
+ * bookkeeping (no schema column needed) and always picks the newest state.
+ *
  * Same raw-body-signature-verification shape as api/line-webhook.js (see
  * that file's header for why Request/Response beats Vercel's classic
  * (req,res) helper here) — Stripe's signature check needs the exact
@@ -19,7 +33,7 @@
  * this file for why.
  */
 import { db } from '../lib/db.js';
-import { verifyStripeWebhook } from '../lib/stripe.js';
+import { verifyStripeWebhook, stripeClient } from '../lib/stripe.js';
 
 const SUBSCRIPTION_EVENTS = new Set([
   'customer.subscription.created',
@@ -62,7 +76,24 @@ export default async function handler(request) {
   }
 
   if (SUBSCRIPTION_EVENTS.has(event.type)) {
-    const sub = event.data.object;
+    let sub = event.data.object;
+
+    // For subscription.created and subscription.updated, reconcile with
+    // Stripe's current state to guard against out-of-order delivery.
+    // subscription.deleted events use the event payload as-is since the
+    // retrieve would 404 or return status 'canceled' anyway.
+    if (event.type !== 'customer.subscription.deleted') {
+      try {
+        const current = await stripeClient().subscriptions.retrieve(sub.id);
+        // Apply Stripe's authoritative state instead of the possibly-stale event data.
+        sub = current;
+      } catch (err) {
+        // Reconciliation fetch failed (network, 5xx, etc). Fall back to event
+        // payload and continue — a failed fetch must never drop the update.
+        console.error('stripe-webhook reconciliation fetch failed', err.message);
+      }
+    }
+
     const status = mapStripeStatus(sub.status);
     const currentPeriodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null;
     const plan = (sub.metadata && sub.metadata.plan) || null;

@@ -907,7 +907,11 @@
       if (!isGuest && prev && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
         SidekickBackend.mirrorBookingDelete(prev.cuid).catch(() => {});
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      toast(t('delete_failed'));
+      return;
+    }
     closeModal('bk-form-modal');
     toast(t('booking_deleted'));
     renderBookings();

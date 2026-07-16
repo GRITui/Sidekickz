@@ -686,6 +686,8 @@
       inv.updatedAt = nowISO();
       try {
         await dbPut(STORE, inv);
+        if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+          SidekickBackend.mirrorInvoiceSave(inv).catch(() => {});
         toast(t('status_toast_prefix') + t(INV_STATUS_LABEL_KEYS[inv.status]));
       } catch (er) { console.error(er); }
       // Reverse hook: recording payment on the invoice is where users

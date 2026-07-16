@@ -67,6 +67,7 @@
             ? `Invoice ${inv.number || ''} is ${n} day${n === 1 ? '' : 's'} overdue`
             : `Invoice ${inv.number || ''} is marked overdue`,
           key: `overdue:${cid}:${inv.id}`,
+          msgData: { name, number: inv.number || '', n },
         });
       } else if (inv.status === 'draft' && inv.issueDate && daysBetween(inv.issueDate, today) >= DRAFT_STALE_DAYS) {
         const n = daysBetween(inv.issueDate, today);
@@ -74,6 +75,7 @@
           group: 1, sortN: n, icon: '🧾', title: name,
           reason: `Draft invoice ${inv.number || ''} has been sitting unsent for ${n} day${n === 1 ? '' : 's'}`,
           key: `draft:${cid}:${inv.id}`,
+          msgData: { name, number: inv.number || '', n },
         });
       }
     });
@@ -93,6 +95,7 @@
           group: 2, sortN: n, icon: '👤', title: c.name || 'Customer',
           reason: `No activity with ${c.name || 'this customer'} in ${n} days`,
           key: `stale:${c.id}:`,
+          msgData: { name: c.name || 'there', n },
         });
       }
     });
@@ -110,6 +113,7 @@
           group: 3, sortN: 0, icon: '📦', title: c.name || 'Customer',
           reason: `${c.name || 'This client'}'s ${latest.totalSessions}-session package is used up — ask about renewing`,
           key: `pkg-empty:${c.id}:${latest.id}`,
+          msgData: { name: c.name || 'there', n: latest.totalSessions },
         });
       });
     }
@@ -180,6 +184,53 @@
     renderFollowups();
   }
 
+  // Copy message template to clipboard, substituting placeholders from msgData.
+  async function copyMessage(msgData, groupType) {
+    const templates = {
+      0: t('followup_tpl_overdue'),    // overdue invoice
+      1: t('followup_tpl_draft'),      // draft invoice
+      2: t('followup_tpl_stale'),      // stale customer
+      3: t('followup_tpl_package'),    // package renewal
+    };
+    const template = templates[groupType] || templates[0];
+    let msg = template;
+    if (msgData) {
+      msg = msg.replace('{name}', msgData.name || '');
+      msg = msg.replace('{number}', msgData.number || '');
+      msg = msg.replace('{n}', msgData.n || '');
+    }
+
+    // Try modern clipboard API first, fall back to textarea method
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(msg);
+        toast(t('followup_copied_toast'));
+      } catch (e) {
+        console.error(e);
+        fallbackCopy(msg);
+      }
+    } else {
+      fallbackCopy(msg);
+    }
+  }
+
+  function fallbackCopy(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    try {
+      textarea.select();
+      document.execCommand('copy');
+      toast(t('followup_copied_toast'));
+    } catch (e) {
+      console.error(e);
+      toast('Could not copy — select and copy manually.');
+    }
+    document.body.removeChild(textarea);
+  }
+
   async function renderFollowups() {
     const el = document.getElementById('followups-body');
     if (!el) return;
@@ -203,6 +254,7 @@
           <div class="list-sub">${esc(it.reason)}</div>
         </div>
         <div class="list-right" style="display:flex;gap:6px">
+          <button type="button" data-fu-copy="${i}" style="padding:7px 9px;border:1px solid var(--border);background:var(--card);color:var(--text3);border-radius:var(--radius-sm);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">${esc(t('followup_copy_btn'))}</button>
           <button type="button" data-fu-snooze="${i}" style="padding:7px 9px;border:1px solid var(--border);background:var(--card);color:var(--text3);border-radius:var(--radius-sm);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Snooze 7d</button>
           <button type="button" data-fu-dismiss="${i}" style="padding:7px 9px;border:1px solid var(--overdue);background:none;color:var(--overdue);border-radius:var(--radius-sm);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">Dismiss</button>
         </div>
@@ -230,6 +282,12 @@
     const toggleBtn = document.getElementById('fu-toggle-dismissed');
     if (toggleBtn) toggleBtn.addEventListener('click', () => { showDismissed = !showDismissed; renderFollowups(); });
 
+    el.querySelectorAll('[data-fu-copy]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const it = queue[parseInt(btn.getAttribute('data-fu-copy'), 10)];
+        if (it) copyMessage(it.msgData, it.group);
+      });
+    });
     el.querySelectorAll('[data-fu-snooze]').forEach(btn => {
       btn.addEventListener('click', () => {
         const it = queue[parseInt(btn.getAttribute('data-fu-snooze'), 10)];

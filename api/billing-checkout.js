@@ -84,7 +84,8 @@ export default async function handler(request) {
         // `username` doubles as the login identifier for password accounts
         // (see api/auth-register.js) — not guaranteed to be a real email,
         // but it's the only contact-ish field this app collects today.
-        email: user.username.includes('@') ? user.username : undefined,
+        // Validate basic email format to prevent junk like 'a@b' in Stripe receipts.
+        email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(user.username) ? user.username : undefined,
         metadata: { userCuid: user.cuid },
       });
       customerId = customer.id;
