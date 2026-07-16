@@ -16,6 +16,7 @@ import { createResourceHandler } from '../lib/crudHandler.js';
 const FIELDS = [
   'customer_id', 'title', 'date', 'start_time', 'duration_min',
   'travel_buffer_min', 'location', 'notes', 'status',
+  'job_cuid',
 ];
 
 export default createResourceHandler('app_bookings', FIELDS);
