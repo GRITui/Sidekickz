@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.27';          // <-> sw.js SW_VERSION 'sidekick-v0.9.27'
+const APP_VERSION = '0.9.28';          // <-> sw.js SW_VERSION 'sidekick-v0.9.28'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -561,7 +561,12 @@ function jobComplete(j) {
 // later in its own stage order, or is otherwise complete — matches the
 // business meaning of "delivery" regardless of where a reorder puts it.
 function jobDelivered(j) {
-  if (jobComplete(j)) return true;
+  // A lost engagement (outcome 'lost') never shipped anything — it only
+  // counts as delivered if its stage genuinely reached Delivery before the
+  // client walked away (the stage check below), never via the blanket
+  // "complete ⇒ delivered" shortcut, which would wrongly burn package
+  // sessions (packageUsed()) for a deal that died at Pitch.
+  if (jobComplete(j) && j.outcome !== 'lost') return true;
   const order = jobOrder(j);
   const deliveryIdx = order.indexOf('delivery');
   const idx = order.indexOf(jobStage(j));
@@ -645,6 +650,15 @@ const I18N = {
     nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Task flow', nav_book:'Calendar', nav_more:'More',
     pipeline_title:'Task flow', workflow_title:'Stage order', pipeline_glance_title:'Task flow at a glance',
     skip_stage:'Skip', mark_finished:'Finished', reschedule:'Reschedule', cash_job:'Cash job', active_count:'active',
+    mark_lost_btn:'Lost', lost_badge:'Lost',
+    confirm_mark_lost:'Mark this engagement as lost? It keeps its history but leaves the active flow — you can reopen it with the ← button later.',
+    options_title:'Options compared', options_title_re:'Buildings',
+    option_name_ph:'Option name…', option_name_ph_re:'Building / property…',
+    option_add_btn:'+ Add', option_book_btn:'Book viewing', options_none:'Nothing being compared yet.',
+    options_chip:'{n} options · {m} interested', options_chip_re:'{n} buildings · {m} interested',
+    option_chosen_toast:'Chosen — the other options were marked dropped.',
+    option_status_considering:'Considering', option_status_viewing:'Viewing booked', option_status_interested:'Interested',
+    option_status_passed:'Passed', option_status_quoted:'Quoted', option_status_chosen:'Chosen ✓', option_status_dropped:'Dropped',
     stage_pitch_label:'Inquiry', stage_pitch_action:'Log inquiry', stage_pitch_done:'Inquired',
     stage_pitch_hint:'Inquiry — a prospective client reached out, not booked yet.',
     stage_quote_label:'Quote', stage_quote_action:'Send quote', stage_quote_done:'Quote sent',
@@ -956,6 +970,15 @@ const I18N = {
     nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_pipeline:'แผนงาน', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
     pipeline_title:'แผนงาน', workflow_title:'ลำดับขั้นตอน', pipeline_glance_title:'ภาพรวมแผนงาน',
     skip_stage:'ข้าม', mark_finished:'เสร็จสิ้น', reschedule:'เลื่อนนัด', cash_job:'จ่ายสด', active_count:'กำลังดำเนินการ',
+    mark_lost_btn:'ไม่สำเร็จ', lost_badge:'ไม่สำเร็จ',
+    confirm_mark_lost:'บันทึกงานนี้ว่าไม่สำเร็จ? ประวัติจะยังอยู่ แต่จะออกจากแผนงานที่กำลังดำเนินการ — กดปุ่ม ← เพื่อเปิดใหม่ได้ภายหลัง',
+    options_title:'ตัวเลือกที่เปรียบเทียบ', options_title_re:'อสังหาฯ ที่ดู',
+    option_name_ph:'ชื่อตัวเลือก…', option_name_ph_re:'อาคาร / ทรัพย์สิน…',
+    option_add_btn:'+ เพิ่ม', option_book_btn:'นัดดูสถานที่', options_none:'ยังไม่มีตัวเลือกที่เปรียบเทียบ',
+    options_chip:'{n} ตัวเลือก · สนใจ {m}', options_chip_re:'{n} แห่ง · สนใจ {m}',
+    option_chosen_toast:'เลือกแล้ว — ตัวเลือกอื่นถูกเปลี่ยนเป็นยกเลิก',
+    option_status_considering:'กำลังพิจารณา', option_status_viewing:'นัดดูแล้ว', option_status_interested:'สนใจ',
+    option_status_passed:'ไม่เอา', option_status_quoted:'เสนอราคาแล้ว', option_status_chosen:'เลือกแล้ว ✓', option_status_dropped:'ยกเลิก',
     stage_pitch_label:'สอบถาม', stage_pitch_action:'บันทึกการสอบถาม', stage_pitch_done:'สอบถามแล้ว',
     stage_pitch_hint:'สอบถาม — ลูกค้าที่มีแนวโน้มติดต่อมา ยังไม่ได้จองงาน',
     stage_quote_label:'เสนอราคา', stage_quote_action:'ส่งใบเสนอราคา', stage_quote_done:'ส่งใบเสนอราคาแล้ว',
@@ -3117,6 +3140,18 @@ async function saveJob() {
     obj.invoiceId = prev.invoiceId != null ? prev.invoiceId : null;
     obj.quoteDocId = prev.quoteDocId != null ? prev.quoteDocId : null;
     obj.pendingGateStage = prev.pendingGateStage ?? null;   // a detail re-save must never silently drop an unresolved stage gate
+    // Tracking state lives on the record, never on this form — and dbPut()
+    // REPLACES the stored object, so anything not carried forward here is
+    // silently destroyed by an ordinary detail edit (including the pipeline
+    // card's own "Reschedule" button). This block was missing for years:
+    // editing a job's fee wiped its sub-tasks, milestones, logged time, a
+    // running timer, and a completed engagement's extended/finished outcome.
+    obj.subTasks = prev.subTasks || [];
+    obj.milestones = prev.milestones || [];
+    obj.timeEntries = prev.timeEntries || [];
+    obj.timerStartedAt = prev.timerStartedAt ?? null;
+    obj.outcome = prev.outcome ?? null;
+    obj.options = prev.options || [];
   } else {
     obj.cuid = cuid();
     // New engagements snapshot the active stage order and start at its first stage.
@@ -3386,9 +3421,10 @@ function pipelineCard(j, stage) {
   const order = jobOrder(j);
   const canBack = complete || order.indexOf(jobStage(j)) > 0;
   const enter = (window.__kbMoved === j.id) ? ' kb-enter' : '';
-  const doneLabel = j.outcome === 'finished' ? t('mark_finished') : (t(meta.done) || 'Done');
+  const lost = j.outcome === 'lost';
+  const doneLabel = lost ? t('lost_badge') : j.outcome === 'finished' ? t('mark_finished') : (t(meta.done) || 'Done');
   const foot = complete
-    ? `<span class="pl-done">✓ ${htmlEsc(doneLabel)}</span>`
+    ? `<span class="pl-done${lost ? ' pl-lost' : ''}">${lost ? '✗' : '✓'} ${htmlEsc(doneLabel)}</span>`
     : `<button type="button" class="pl-action" onclick="event.stopPropagation();pipelineAction(${j.id})">${htmlEsc(t(meta.action) || 'Advance')} →</button>`;
   const skip = (!complete && meta.skippable)
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();skipJobStage(${j.id})">${htmlEsc(t('skip_stage'))}</button>`
@@ -3406,6 +3442,12 @@ function pipelineCard(j, stage) {
   const reschedule = !complete
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();openEditJob(${j.id})">${htmlEsc(t('reschedule'))}</button>`
     : '';
+  // The deal-died exit — available at every live stage, because clients walk
+  // away at Pitch and Quote far more often than at the end. Keeps the record
+  // (outcome 'lost', reopenable via ←) instead of forcing delete-or-clutter.
+  const lostBtn = !complete
+    ? `<button type="button" class="pl-skip pl-lost-btn" onclick="event.stopPropagation();markJobLost(${j.id})">${htmlEsc(t('mark_lost_btn'))}</button>`
+    : '';
   const back = canBack
     ? `<button type="button" class="kb-back" aria-label="Move back a stage" title="Move back" onclick="event.stopPropagation();moveJobStageBack(${j.id})">←</button>`
     : '';
@@ -3415,7 +3457,7 @@ function pipelineCard(j, stage) {
   const confirming = window.__packageConfirmJobId === j.id;
   const footRow = confirming
     ? packageConfirmCardHtml(j)
-    : `<div class="kb-card-foot">${back}${skip}${finish}${cashJob}${foot}${reschedule}</div>`;
+    : `<div class="kb-card-foot">${back}${skip}${finish}${cashJob}${foot}${reschedule}${lostBtn}</div>`;
   // Recovery path for a gate left unresolved across a reload (the flag is
   // persisted with the stage move) — the amber banner reopens the same modal.
   const pendingGate = (!complete && j.pendingGateStage)
@@ -3427,6 +3469,9 @@ function pipelineCard(j, stage) {
       <div class="kb-card-main">
         <div class="kb-card-title">${htmlEsc(who)}</div>
         <div class="kb-card-sub">${htmlEsc(svc)} · ${htmlEsc(amt)}${fmtDate(j.date) ? ' · ' + htmlEsc(fmtDate(j.date)) : ''}</div>
+        ${(j.options || []).length ? `<div class="kb-card-sub">${htmlEsc(t(businessType() === 'realestate' ? 'options_chip_re' : 'options_chip')
+          .replace('{n}', (j.options || []).length)
+          .replace('{m}', (j.options || []).filter(o => o.status === 'interested' || o.status === 'chosen').length))}</div>` : ''}
       </div>
       <button type="button" class="pl-edit" aria-label="Edit engagement" onclick="event.stopPropagation();openEditJob(${j.id})">✎</button>
     </div>
@@ -3609,6 +3654,30 @@ async function finishJobStage(jobId) {
 }
 window.finishJobStage = finishJobStage;
 
+// The failure exit at any live stage: the client walked away. Distinct from
+// 'finished' (success, end-of-flow only) — a lost deal keeps its stage (so
+// Insights can see WHERE deals die), keeps every sub-task/quote/option for
+// history, leaves the active board counts and the timeline (complete jobs
+// are excluded there), and never counts as delivered for package deduction
+// (see jobDelivered()). Reopenable with the ← button like any completed
+// engagement — moveJobStageBack already clears outcome.
+async function markJobLost(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || jobComplete(j)) return;
+  if (!confirm(t('confirm_mark_lost'))) return;
+  j.complete = true;
+  j.outcome = 'lost';
+  j.pendingGateStage = null;   // a dead deal has nothing left to book
+  j.updatedAt = nowISO();
+  logEvent('pipeline_stage:lost');
+  _pipelineActiveStage = j.stage;
+  window.__kbMoved = jobId;
+  await dbPut('jobs', j);
+  await reload();
+  renderPipeline();
+}
+window.markJobLost = markJobLost;
+
 // Move a card back one stage (or re-open a completed engagement at its final stage).
 async function moveJobStageBack(jobId) {
   const j = jobs.find(x => x.id === jobId);
@@ -3782,7 +3851,7 @@ function openApptModal(ctx) {
       <div class="modal-title" id="ap-title">${htmlEsc(title)}</div>
       <div class="form-body" style="padding:0 20px 4px">
         ${context ? `<p class="ap-context" id="ap-context">${htmlEsc(context)}</p>` : ''}
-        <div class="field"><input type="text" id="ap-step" placeholder="${attrEsc(t('appt_step_ph'))}" value="${attrEsc(src ? src.text : '')}"></div>
+        <div class="field"><input type="text" id="ap-step" placeholder="${attrEsc(t('appt_step_ph'))}" value="${attrEsc(src ? src.text : (ctx.prefillText || ''))}"></div>
         <div class="ap-seg">
           <button type="button" id="ap-type-exact" class="seg-active" onclick="setApptType('exact')">${htmlEsc(t('appt_type_exact'))}</button>
           <button type="button" id="ap-type-by" onclick="setApptType('by')">${htmlEsc(t('appt_type_by'))}</button>
@@ -3832,6 +3901,13 @@ async function saveApptModal() {
   j.subTasks.push(st);
   if (st.dateType === 'exact') await createBookingForStep(j, st);
   if (ctx.mode === 'gate') j.pendingGateStage = null;
+  // Booked from an option's 📅 button (bookViewingForOption) — flip that
+  // option to 'viewing' in this same write, but only from 'considering' so
+  // a re-booking never clobbers a verdict already recorded on it.
+  if (ctx.optionId) {
+    const o = (j.options || []).find(x => x.id === ctx.optionId);
+    if (o && o.status === 'considering') o.status = 'viewing';
+  }
   j.updatedAt = nowISO();
   await dbPut('jobs', j);
   closeApptModal();
@@ -4571,6 +4647,7 @@ function renderClientPersonaTracker(clientId) {
 function renderJobTracking(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
+  renderJobOptions(jobId);
   renderSubTasks(jobId);
   renderMilestones(jobId);
   renderJobTimer(jobId);
@@ -4652,6 +4729,104 @@ function repeatSubTask(jobId, subTaskId) {
   openApptModal({ mode: 'repeat', jobId, sourceSubTaskId: subTaskId });
 }
 window.repeatSubTask = repeatSubTask;
+
+// ── Options compared (job.options[]) ──
+// One deal, several candidates — the realestate "client is weighing 5
+// buildings" case (label becomes "Buildings" for that persona), but the same
+// shape serves an insurance broker comparing insurers' quotes or a garage
+// comparing repair approaches, so it's persona-generic like the tracker
+// system rather than a realestate one-off. Deliberately lives on the JOB
+// (deal-scoped: the same client can run a fresh search next year), not on
+// the client record, where the realestate persona tracker's deals[] remains
+// the long-term relationship view. Statuses are a flat select, not a strict
+// machine — the agent knows their funnel; picking 'chosen' is the one
+// moment with mechanics (every other still-live option flips to 'dropped',
+// since choosing one IS dropping the rest — see saveJobOptionField).
+const OPTION_STATUSES = ['considering', 'viewing', 'interested', 'passed', 'quoted', 'chosen', 'dropped'];
+function renderJobOptions(jobId) {
+  const wrap = document.getElementById('job-options-body');
+  if (!wrap) return;
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const re = businessType() === 'realestate';
+  const titleEl = document.getElementById('job-options-title');
+  if (titleEl) titleEl.textContent = t(re ? 'options_title_re' : 'options_title');
+  const opts = j.options || [];
+  const rows = opts.map(o => `
+      <div class="list-row" style="cursor:default;flex-wrap:wrap;gap:6px">
+        <input type="text" value="${attrEsc(o.name || '')}" onchange="saveJobOptionField(${jobId},'${o.id}','name',this.value)"
+               style="flex:1;min-width:110px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:13px">
+        <select onchange="saveJobOptionField(${jobId},'${o.id}','status',this.value)"
+                style="padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:13px">
+          ${OPTION_STATUSES.map(s => `<option value="${s}"${s === o.status ? ' selected' : ''}>${htmlEsc(t('option_status_' + s))}</option>`).join('')}
+        </select>
+        <button type="button" class="qc-btn" aria-label="${attrEsc(t('option_book_btn'))}" title="${attrEsc(t('option_book_btn'))}" onclick="bookViewingForOption(${jobId},'${o.id}')">📅</button>
+        <button type="button" class="qc-btn" aria-label="Delete option" onclick="deleteJobOption(${jobId},'${o.id}')">✕</button>
+      </div>`).join('');
+  wrap.innerHTML = `
+    ${opts.length ? `<div class="list-card">${rows}</div>` : `<div class="pkg-status"><span>${htmlEsc(t('options_none'))}</span></div>`}
+    <div class="form-row" style="margin-top:8px">
+      <input type="text" id="job-option-new" placeholder="${attrEsc(t(re ? 'option_name_ph_re' : 'option_name_ph'))}"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();addJobOption(${jobId});}"
+             style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+      <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addJobOption(${jobId})">${htmlEsc(t('option_add_btn'))}</button>
+    </div>`;
+}
+async function addJobOption(jobId) {
+  jobId = parseInt(jobId, 10);
+  const input = document.getElementById('job-option-new');
+  const name = (input && input.value || '').trim();
+  if (!name) return;
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  j.options = j.options || [];
+  j.options.push({ id: cuid(), name, status: 'considering', note: '' });
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  input.value = '';
+  input.focus();   // same add-several-in-a-row affordance as addSubTask
+  renderJobOptions(jobId);
+}
+window.addJobOption = addJobOption;
+async function saveJobOptionField(jobId, optId, field, value) {
+  const j = jobs.find(x => x.id === jobId);
+  const o = j && (j.options || []).find(x => x.id === optId);
+  if (!o) return;
+  o[field] = value;
+  if (field === 'status' && value === 'chosen') {
+    (j.options || []).forEach(x => {
+      if (x.id !== optId && x.status !== 'passed' && x.status !== 'dropped') x.status = 'dropped';
+    });
+    toast(t('option_chosen_toast'));
+  }
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  renderJobOptions(jobId);
+}
+window.saveJobOptionField = saveJobOptionField;
+async function deleteJobOption(jobId, optId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !j.options) return;
+  j.options = j.options.filter(x => x.id !== optId);
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  renderJobOptions(jobId);
+}
+window.deleteJobOption = deleteJobOption;
+// Opens the shared appointment modal prefilled for this option — an exact
+// date there becomes a real calendar booking + dated step (the whole
+// scheduling machinery for free). ctx.optionId lets saveApptModal flip the
+// option to 'viewing' in the SAME write, but only from 'considering' — a
+// later re-booking must not clobber an 'interested'/'passed' verdict the
+// agent already recorded.
+function bookViewingForOption(jobId, optId) {
+  jobId = parseInt(jobId, 10);
+  const j = jobs.find(x => x.id === jobId);
+  const o = j && (j.options || []).find(x => x.id === optId);
+  if (!o) return;
+  openApptModal({ mode: 'add', jobId, optionId: optId, prefillText: `${t('option_book_btn')} · ${o.name}` });
+}
+window.bookViewingForOption = bookViewingForOption;
 
 // ── Milestone payments ──
 // "Draft invoice" opens a pre-filled invoice form; the resulting invoiceId
