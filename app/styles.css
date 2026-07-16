@@ -565,3 +565,10 @@ select option{background:var(--select-option-bg);color:var(--select-option-fg);}
 /* Collapsed overdue 'by' deadline — no runway left, just a flag at the miss. */
 .tl-flag{position:absolute;top:8px;font-size:14px;line-height:1;color:var(--overdue);}
 .tl-flag.done{opacity:.4;color:var(--text3);}
+
+/* ── Lost-deal exit + options list (2026-07-16) ─────────────────────────── */
+/* Completed-as-lost badge: same shape as .pl-done, danger-toned. */
+.pl-done.pl-lost{color:var(--overdue);background:color-mix(in srgb,var(--overdue) 12%,var(--card));}
+/* The "Lost" foot button stays quiet until hovered — it's an escape hatch,
+   not a call to action alongside the primary advance button. */
+.pl-lost-btn:hover{border-color:var(--overdue);color:var(--overdue);}
