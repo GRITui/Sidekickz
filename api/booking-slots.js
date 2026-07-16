@@ -15,6 +15,8 @@
 import { db } from '../lib/db.js';
 import { requireSession } from '../lib/auth.js';
 import { corsHeaders, handlePreflight } from '../lib/cors.js';
+import { canWrite, hasFeature } from '../lib/entitlements.js';
+import { resolveDataOwner } from '../lib/teams.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -31,10 +33,30 @@ export default async function handler(request) {
   if (!secret) return json({ error: 'Server misconfigured' }, 500, request);
   const session = await requireSession(request, secret);
   if (!session) return json({ error: 'Not authenticated' }, 401, request);
-  const { userCuid } = session;
   const sql = db();
+  // Team members manage the org owner's slots (same resolution every
+  // crudHandler endpoint does) — this endpoint predates teams and was
+  // still scoping to the raw session cuid.
+  const userCuid = await resolveDataOwner(sql, session.userCuid);
 
   try {
+    // Writes are plan-gated server-side: LINE booking is a Pro/Team
+    // feature (lib/entitlements.js PLAN_FEATURES) and the client-side
+    // planHasFeature() check alone was trivially bypassable with a bare
+    // fetch — the gap the product re-assessment flagged as "billing
+    // unenforceable". Reads stay open (a downgraded account can still see
+    // its slots, matching the app-wide read-only-when-locked posture).
+    if (request.method === 'POST' || request.method === 'DELETE') {
+      const [user] = await sql(
+        `select plan, subscription_status, trial_ends_at from users where cuid = $1`,
+        [userCuid]
+      );
+      if (!canWrite(user)) return json({ error: 'Subscription required', code: 'locked' }, 402, request);
+      if (!hasFeature(user, 'lineBooking')) {
+        return json({ error: 'LINE booking needs a Pro or Team plan', code: 'plan' }, 403, request);
+      }
+    }
+
     if (request.method === 'GET') {
       const rows = await sql(
         `select id, starts_at, ends_at, status from availability_slots where user_cuid = $1 order by starts_at`,

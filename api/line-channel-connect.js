@@ -13,6 +13,8 @@ import { db } from '../lib/db.js';
 import { requireSession } from '../lib/auth.js';
 import { corsHeaders, handlePreflight } from '../lib/cors.js';
 import { getLineAccessToken, getLineBotUserId } from '../lib/line.js';
+import { canWrite, hasFeature } from '../lib/entitlements.js';
+import { resolveDataOwner } from '../lib/teams.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -42,10 +44,29 @@ export default async function handler(request) {
   if (!secret) return json({ error: 'Server misconfigured' }, 500, request);
   const session = await requireSession(request, secret);
   if (!session) return json({ error: 'Not authenticated' }, 401, request);
-  const { userCuid } = session;
   const sql = db();
+  // Team members operate on the org owner's channel — same resolution as
+  // every crudHandler endpoint; this one predates teams.
+  const userCuid = await resolveDataOwner(sql, session.userCuid);
 
   try {
+    // Connecting a channel is plan-gated server-side (the client-side
+    // planHasFeature('lineBooking') check alone was bypassable with a bare
+    // fetch). DELETE is deliberately auth-only: a locked or downgraded
+    // account must always be able to DISCONNECT its channel — holding a
+    // credential hostage behind a paywall would be hostile, and removing
+    // one reduces our stored-secret surface rather than expanding it.
+    if (request.method === 'POST') {
+      const [user] = await sql(
+        `select plan, subscription_status, trial_ends_at from users where cuid = $1`,
+        [userCuid]
+      );
+      if (!canWrite(user)) return json({ error: 'Subscription required', code: 'locked' }, 402, request);
+      if (!hasFeature(user, 'lineBooking')) {
+        return json({ error: 'LINE booking needs a Pro or Team plan', code: 'plan' }, 403, request);
+      }
+    }
+
     if (request.method === 'GET') {
       const [row] = await sql(
         `select channel_id, bot_user_id, freelancer_line_user_id, connected_at from line_channels where user_cuid = $1`,

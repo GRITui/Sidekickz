@@ -27,7 +27,7 @@
  */
 import { db } from '../lib/db.js';
 import { requireSession } from '../lib/auth.js';
-import { corsHeaders, handlePreflight, resolveOrigin } from '../lib/cors.js';
+import { corsHeaders, handlePreflight, appUrl } from '../lib/cors.js';
 import { stripeClient } from '../lib/stripe.js';
 import { isAccountOwner } from '../lib/teams.js';
 
@@ -91,7 +91,9 @@ export default async function handler(request) {
       await sql(`update users set stripe_customer_id = $1 where cuid = $2`, [customerId, user.cuid]);
     }
 
-    const origin = resolveOrigin(request);
+    // appUrl, not resolveOrigin: GitHub Pages serves the app under /Sidekickz —
+    // a bare-origin redirect 404s. See lib/cors.js appUrl().
+    const origin = appUrl(request);
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,

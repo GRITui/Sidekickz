@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.28';          // <-> sw.js SW_VERSION 'sidekick-v0.9.28'
+const APP_VERSION = '0.9.29';          // <-> sw.js SW_VERSION 'sidekick-v0.9.29'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -560,6 +560,18 @@ function jobComplete(j) {
 // A session "ships" (counts against a package) once it reaches Delivery or
 // later in its own stage order, or is otherwise complete — matches the
 // business meaning of "delivery" regardless of where a reorder puts it.
+// A job's money is EARNED once its own stage order reached 'paid' (same
+// stage-index test clientLifetimeSpend uses) — a complete non-lost job at
+// delivery/extend passes naturally, an inquiry-stage job or a deal lost at
+// quote does not. This is the single predicate behind Home's "Earned this
+// month" and the goal card, which used to count every job by date alone
+// (pitch-stage AND lost deals inflated the headline number — the honesty
+// bug the product re-assessment ranked first).
+function jobEarned(j) {
+  const order = jobOrder(j);
+  const paidIdx = order.indexOf('paid');
+  return paidIdx >= 0 && order.indexOf(jobStage(j)) >= paidIdx;
+}
 function jobDelivered(j) {
   // A lost engagement (outcome 'lost') never shipped anything — it only
   // counts as delivered if its stage genuinely reached Delivery before the
@@ -865,16 +877,16 @@ const I18N = {
     slot_status_open:'Open', slot_status_held:'Held (pending confirmation)', slot_status_booked:'Booked',
     add_slot_btn:'+ Add slot', slot_missing_fields:'Pick a start and end time.', slot_end_before_start:'End time must be after the start time.',
     slot_add_failed:'Could not add that slot.',
-    team_title:'Team', team_sub:'Share your client base, pipeline, and calendar with staff — everyone works from the same data under one subscription.',
+    team_title:'Team', team_sub:'Give staff their own logins under one subscription — the work they save goes to your account. (A shared in-app view of your existing data is coming later.)',
     subscription_upgrade_team_btn:'Upgrade to Team — ฿{price}/seat/mo', subscription_team_member_of:"part of {name}'s team",
     team_seats_prompt:'How many seats? (minimum 2, including you)', team_seats_invalid:'Enter a number of seats, at least 2.',
-    team_needs_plan_hint:'Upgrade to the Team plan above to share your data with staff.',
+    team_needs_plan_hint:'Upgrade to the Team plan above to add staff logins.',
     team_you_title:'Your team', team_seats_used:'{used} of {total} seats used',
     team_members_title:'Members', no_team_members:'No team members yet — invite someone below.',
     team_role_owner:'Owner', team_role_admin:'Admin', team_role_staff:'Staff',
     team_invite_staff_btn:'+ Invite staff', team_invite_admin_btn:'+ Invite an admin', team_invite_failed:'Could not create an invite.',
     team_invite_link_label:'Invite link', team_invite_link_sub:"Share this with the person you're inviting — it works once, for 7 days.",
-    team_remove_confirm:'Remove this person from your team? They\'ll keep their own Sidekick account, just lose access to this shared data.',
+    team_remove_confirm:'Remove this person from your team? They\'ll keep their own Sidekick account, just stop working under yours.',
     team_remove_failed:'Could not remove that team member.',
     team_invite_needs_account:'You need a real (non-guest) Sidekick account to join a team.', team_joined_toast:"You've joined the team.",
     delete_job_confirm:'Delete this job?', name_saved:'Name saved',
@@ -935,6 +947,14 @@ const I18N = {
     appt_pending_badge:'Book next step',
     appt_by_chip:'by {date}', appt_overdue:'Overdue',
     appt_repeat:'Repeat step', appt_repeat_title:'Repeat step',
+    appt_edit:'Edit step', appt_edit_title:'Reschedule step', appt_step_updated_toast:'Step updated',
+    backup_links_reset:'({n} broken links were reset)',
+    stage_gate_label:'Ask to book the next step when a card moves forward',
+    booking_requests_title:'Booking requests', no_booking_requests:'No pending requests.',
+    booking_confirm_btn:'Confirm', booking_decline_btn:'Decline',
+    booking_confirmed_toast:'Booking confirmed', booking_declined_toast:'Request declined',
+    booking_slot_taken_toast:'That slot was already booked by another confirmed request.',
+    booking_hold_expired_hint:'hold expired',
     appt_booking_note:'From pipeline job',
     appt_booked_toast:'Appointment booked', appt_step_added_toast:'Step added',
     appt_err_step:'Please enter a step name', appt_err_date:'Please pick a date',
@@ -1185,16 +1205,16 @@ const I18N = {
     slot_status_open:'เปิดให้จอง', slot_status_held:'กำลังรอยืนยัน', slot_status_booked:'จองแล้ว',
     add_slot_btn:'+ เพิ่มช่วงเวลา', slot_missing_fields:'เลือกเวลาเริ่มต้นและสิ้นสุด', slot_end_before_start:'เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น',
     slot_add_failed:'ไม่สามารถเพิ่มช่วงเวลานี้ได้',
-    team_title:'ทีม', team_sub:'แชร์ฐานข้อมูลลูกค้า แผนงาน และปฏิทินกับพนักงาน — ทุกคนทำงานบนข้อมูลเดียวกันภายใต้การสมัครสมาชิกเดียว',
+    team_title:'ทีม', team_sub:'ให้พนักงานมีบัญชีเข้าสู่ระบบของตัวเองภายใต้การสมัครสมาชิกเดียว — งานที่พนักงานบันทึกจะเก็บเข้าบัญชีของคุณ (มุมมองข้อมูลที่แชร์ร่วมกันในแอปจะตามมาภายหลัง)',
     subscription_upgrade_team_btn:'อัปเกรดเป็น Team — ฿{price}/ที่นั่ง/เดือน', subscription_team_member_of:'เป็นส่วนหนึ่งของทีม {name}',
     team_seats_prompt:'ต้องการกี่ที่นั่ง? (ขั้นต่ำ 2 รวมคุณด้วย)', team_seats_invalid:'กรอกจำนวนที่นั่ง อย่างน้อย 2 ที่นั่ง',
-    team_needs_plan_hint:'อัปเกรดเป็นแพ็กเกจ Team ด้านบนเพื่อแชร์ข้อมูลกับพนักงาน',
+    team_needs_plan_hint:'อัปเกรดเป็นแพ็กเกจ Team ด้านบนเพื่อเพิ่มบัญชีพนักงาน',
     team_you_title:'ทีมของคุณ', team_seats_used:'ใช้ไป {used} จาก {total} ที่นั่ง',
     team_members_title:'สมาชิก', no_team_members:'ยังไม่มีสมาชิกในทีม — เชิญคนด้านล่าง',
     team_role_owner:'เจ้าของ', team_role_admin:'ผู้ดูแล', team_role_staff:'พนักงาน',
     team_invite_staff_btn:'+ เชิญพนักงาน', team_invite_admin_btn:'+ เชิญผู้ดูแล', team_invite_failed:'ไม่สามารถสร้างคำเชิญได้',
     team_invite_link_label:'ลิงก์คำเชิญ', team_invite_link_sub:'ส่งลิงก์นี้ให้คนที่คุณต้องการเชิญ — ใช้ได้ครั้งเดียว ภายใน 7 วัน',
-    team_remove_confirm:'ลบคนนี้ออกจากทีมหรือไม่? บัญชี Sidekick ของเขาจะยังอยู่ แค่ไม่มีสิทธิ์เข้าถึงข้อมูลที่แชร์นี้อีก',
+    team_remove_confirm:'ลบคนนี้ออกจากทีมหรือไม่? บัญชี Sidekick ของเขาจะยังอยู่ แค่ไม่ได้ทำงานภายใต้บัญชีของคุณอีก',
     team_remove_failed:'ไม่สามารถลบสมาชิกทีมนี้ได้',
     team_invite_needs_account:'คุณต้องมีบัญชี Sidekick จริง (ไม่ใช่ผู้เยี่ยมชม) เพื่อเข้าร่วมทีม', team_joined_toast:'คุณเข้าร่วมทีมแล้ว',
     delete_job_confirm:'ลบเซสชันนี้หรือไม่?', name_saved:'บันทึกชื่อแล้ว',
@@ -1252,6 +1272,14 @@ const I18N = {
     appt_pending_badge:'นัดขั้นตอนถัดไป',
     appt_by_chip:'ภายใน {date}', appt_overdue:'เลยกำหนด',
     appt_repeat:'ทำซ้ำขั้นตอน', appt_repeat_title:'ทำซ้ำขั้นตอน',
+    appt_edit:'แก้ไขขั้นตอน', appt_edit_title:'เลื่อนนัดขั้นตอน', appt_step_updated_toast:'อัปเดตขั้นตอนแล้ว',
+    backup_links_reset:'(รีเซ็ตลิงก์ที่เสียหาย {n} รายการ)',
+    stage_gate_label:'ถามเพื่อนัดขั้นตอนถัดไปเมื่อการ์ดเลื่อนไปข้างหน้า',
+    booking_requests_title:'คำขอจอง', no_booking_requests:'ยังไม่มีคำขอที่รอยืนยัน',
+    booking_confirm_btn:'ยืนยัน', booking_decline_btn:'ปฏิเสธ',
+    booking_confirmed_toast:'ยืนยันการจองแล้ว', booking_declined_toast:'ปฏิเสธคำขอแล้ว',
+    booking_slot_taken_toast:'ช่วงเวลานี้ถูกยืนยันให้คำขออื่นไปแล้ว',
+    booking_hold_expired_hint:'การจองชั่วคราวหมดอายุ',
     appt_booking_note:'จากงานในแผนงาน',
     appt_booked_toast:'จองนัดหมายแล้ว', appt_step_added_toast:'เพิ่มขั้นตอนแล้ว',
     appt_err_step:'กรุณาใส่ชื่อขั้นตอน', appt_err_date:'กรุณาเลือกวันที่',
@@ -1382,6 +1410,8 @@ async function enterApp() {
   set('set-seller-address', settings.sellerAddress || '');
   const notifCheckbox = document.getElementById('set-notifications');
   if (notifCheckbox) notifCheckbox.checked = !!(settings.notificationsEnabled && typeof Notification !== 'undefined' && Notification.permission === 'granted');
+  const gateCheckbox = document.getElementById('set-stage-gate');
+  if (gateCheckbox) gateCheckbox.checked = !settings.stageGateOff;   // stored inverted — default (unset) = on
 
   // One-time migration: the old single "PromptPay ID" field becomes the
   // first entry in the new payment-channels list, if it was ever set.
@@ -2368,8 +2398,51 @@ async function renderBookingSlotsSection() {
       <input type="datetime-local" id="slot-end-input" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:13px">
     </div>
     <button type="button" class="btn-submit" style="margin:10px 16px 4px;width:calc(100% - 32px)" onclick="addBookingSlot()">${htmlEsc(t('add_slot_btn'))}</button>
+    <div id="booking-requests-body"></div>
   `;
+  renderBookingRequestsSection();
 }
+// Pending public booking requests — the freelancer's confirm/decline UI for
+// api/booking-requests.js. Until this existed, every request from the
+// public booking page silently died when its 15-minute slot hold lapsed
+// ('confirmed'/'booked' were unreachable states — the launch blocker the
+// product re-assessment ranked #5). Rendered inside the LINE booking
+// section because that's where the requests come from and where the slots
+// they claim are managed.
+async function renderBookingRequestsSection() {
+  const el = document.getElementById('booking-requests-body');
+  if (!el) return;
+  const r = await SidekickBackend.bookingRequestsList();
+  if (!r.ok) { el.innerHTML = ''; return; }
+  const rows = r.data.rows || [];
+  const fmtStart = (iso) => {
+    const d = new Date(iso);
+    return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+  };
+  const rowsHtml = rows.length ? rows.map(b => `
+      <div class="list-row" style="cursor:default;flex-wrap:wrap;gap:6px">
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(b.clientName || '')}${b.serviceName ? ' · ' + htmlEsc(b.serviceName) : ''}</div>
+          <div class="list-sub">${htmlEsc(fmtStart(b.startsAt))}${b.holdExpired ? ` · <span style="color:var(--overdue)">` + htmlEsc(t('booking_hold_expired_hint')) + '</span>' : ''}</div>
+        </div>
+        <button type="button" class="qc-btn" style="width:auto;padding:0 12px;color:var(--brand)" onclick="resolveBookingRequest(${b.id},'confirm')">${htmlEsc(t('booking_confirm_btn'))}</button>
+        <button type="button" class="qc-btn" style="width:auto;padding:0 12px;color:var(--text3)" onclick="resolveBookingRequest(${b.id},'decline')">${htmlEsc(t('booking_decline_btn'))}</button>
+      </div>`).join('') : `<div class="pkg-status"><span>${htmlEsc(t('no_booking_requests'))}</span></div>`;
+  el.innerHTML = `
+    <div class="section-title" style="font-size:12px;margin:14px 16px 8px">${htmlEsc(t('booking_requests_title'))}</div>
+    <div class="list-card" style="margin:0 16px 14px">${rowsHtml}</div>`;
+}
+async function resolveBookingRequest(bookingId, action) {
+  const r = await SidekickBackend.bookingRequestResolve(bookingId, action);
+  if (!r.ok) {
+    toast(r.data && r.data.code === 'slot_taken' ? t('booking_slot_taken_toast') : t('slot_add_failed'));
+    renderBookingRequestsSection();   // list is stale either way — refresh
+    return;
+  }
+  toast(t(action === 'confirm' ? 'booking_confirmed_toast' : 'booking_declined_toast'));
+  renderBookingSlotsSection();   // re-renders slots AND the requests list
+}
+window.resolveBookingRequest = resolveBookingRequest;
 async function addBookingSlot() {
   const startEl = document.getElementById('slot-start-input');
   const endEl = document.getElementById('slot-end-input');
@@ -2707,13 +2780,22 @@ async function onNotificationsToggle(checked) {
   await saveSetting('notificationsEnabled', checked);
   if (checked) checkAndFireNotifications();
 }
+// Stage-gate prompt on/off (see gateAfterForwardMove). Stored inverted
+// (stageGateOff) so the absent/legacy value means ON — no migration pass.
+async function onStageGateToggle(checked) {
+  await saveSetting('stageGateOff', !checked);
+}
+window.onStageGateToggle = onStageGateToggle;
 
 async function renderHome() {
   // greeting
   const greetEl = document.getElementById('home-greeting');
   if (greetEl) greetEl.textContent = `${t('greeting_' + greetingPeriod())}, ${displayName()}`;
 
-  const mj = jobsThisMonth();
+  // Only jobs whose stage actually reached Paid count as earned — see
+  // jobEarned(). Home's headline number must agree with the Invoices
+  // screen, not with the inquiry pipeline.
+  const mj = jobsThisMonth().filter(jobEarned);
   const gross = mj.reduce((s,j)=> s + (Number(j.amount)||0) + (Number(j.tip)||0), 0);
   const exp = mj.reduce((s,j)=> s + (Number(j.expense)||0), 0);
   const net = gross - exp;
@@ -2804,7 +2886,10 @@ window.renderIncomingPipeline = renderIncomingPipeline;
 // persisted switch selection.
 const GOAL_PERIODS = ['month', 'quarter', 'year'];
 function goalPeriodJobs(period) {
-  return period === 'quarter' ? jobsThisQuarter() : period === 'year' ? jobsThisYear() : jobsThisMonth();
+  // Same earned-only filter as Home's hero number (jobEarned) — the goal
+  // card and "Earned this month" must never disagree about the same month.
+  const inPeriod = period === 'quarter' ? jobsThisQuarter() : period === 'year' ? jobsThisYear() : jobsThisMonth();
+  return inPeriod.filter(jobEarned);
 }
 function renderGoal() {
   const card = document.getElementById('goal-card');
@@ -3750,6 +3835,23 @@ function openQuoteForJob(j) {
   window.__pendingQuoteJobId = j.id;
 }
 
+// Called by invoices.js whenever an invoice's status TRANSITIONS to 'paid'
+// (detail-modal select or an edit save) — the reverse of markJobPaid's own
+// invoice flip. Users record payment where the invoice lives; without this
+// they had to mark the same payment twice. Deliberately narrow:
+// - only a job LINKED to this invoice (j.invoiceId), sitting exactly at its
+//   'paid' stage, not complete — any other position means the pipeline is
+//   ahead of or behind the paperwork and a silent jump would be wrong;
+// - never package-linked jobs (j.packageId) — those must stop at the
+//   quantity-confirm card, which lives on the pipeline screen;
+// - no loop risk: markJobPaid's own invoice flip writes dbPut directly
+//   (not through invoices.js's handlers), so it can never re-fire this.
+window.onInvoiceMarkedPaid = async function (invoiceId) {
+  const j = jobs.find(x => x.invoiceId === invoiceId);
+  if (!j || jobComplete(j) || jobStage(j) !== 'paid' || j.packageId != null) return;
+  await markJobPaid(j.id);
+};
+
 // Called by invoices.js after an invoice is created from a pipeline session.
 window.onEngagementInvoiceCreated = async function (invoiceId, jobId) {
   if (jobId == null) return;
@@ -3800,6 +3902,11 @@ window.onEngagementQuoteCreated = async function (docId, jobId) {
 // step" banner and any advance tap reopens the modal instead of moving again.
 // Terminal moves (complete) never gate: there is no next step to book.
 function gateAfterForwardMove(j) {          // call BEFORE the commit point's dbPut
+  // Per-account off switch (Settings ▸ Manage): a high-volume persona (a
+  // laundry moving 10 orders/day answers ~50 gate prompts) can disable the
+  // prompt entirely; stored inverted (stageGateOff) so every existing
+  // account and fresh install stays gated by default with no migration.
+  if (settings.stageGateOff) { j.pendingGateStage = null; return; }
   if (!j.complete) j.pendingGateStage = j.stage; else j.pendingGateStage = null;
 }
 
@@ -3821,13 +3928,19 @@ async function createBookingForStep(j, st) {
 }
 
 // One dynamic overlay (same pattern as maybeShowCloudBackupModal — built on
-// demand, no index.html markup) serves all three flows:
+// demand, no index.html markup) serves all four flows:
 //   gate   — after a forward stage move; the ONLY exits are Save and
 //            "no appointment needed" (overlay-click is a locked door here,
 //            deliberately NOT wired into the shared overlay-click block at
 //            the bottom of this file — a stray tap must not skip the gate)
 //   add    — "+ Step with date" button inside the job edit modal
 //   repeat — clone an existing dated step with a fresh date (↻ button)
+//   edit   — reschedule an existing dated step in place (✎ button):
+//            everything prefilled INCLUDING the date, and save mutates the
+//            source step + moves/creates/removes its linked calendar
+//            booking in the same write — the reschedule affordance whose
+//            absence previously forced delete + recreate + an orphaned
+//            booking (the sub-task workflow assessment's top gap).
 window.__apCtx = null;      // { mode, jobId, stage?, sourceSubTaskId? } while open
 window.__apType = 'exact';  // 'exact' (calendar booking) | 'by' (deadline only)
 function openApptModal(ctx) {
@@ -3836,8 +3949,10 @@ function openApptModal(ctx) {
   document.getElementById('modal-appt')?.remove();   // never stack two
   window.__apCtx = ctx;
   const src = ctx.sourceSubTaskId ? (j.subTasks || []).find(s => s.id === ctx.sourceSubTaskId) : null;
+  if (ctx.mode === 'edit' && !src) return;   // step deleted underneath the ✎ tap
   const title = ctx.mode === 'gate' ? t('appt_gate_title')
-    : ctx.mode === 'repeat' ? t('appt_repeat_title') : t('appt_add_dated');
+    : ctx.mode === 'repeat' ? t('appt_repeat_title')
+    : ctx.mode === 'edit' ? t('appt_edit_title') : t('appt_add_dated');
   const stageMeta = ctx.stage ? (STAGE_META[ctx.stage] || {}) : {};
   const context = ctx.mode === 'gate'
     ? t('appt_gate_context').replace('{job}', j.client || '').replace('{stage}', (stageMeta.label && t(stageMeta.label)) || ctx.stage || '')
@@ -3856,8 +3971,8 @@ function openApptModal(ctx) {
           <button type="button" id="ap-type-exact" class="seg-active" onclick="setApptType('exact')">${htmlEsc(t('appt_type_exact'))}</button>
           <button type="button" id="ap-type-by" onclick="setApptType('by')">${htmlEsc(t('appt_type_by'))}</button>
         </div>
-        <div class="field" id="ap-date-row"><label id="ap-date-label">${htmlEsc(t('appt_date_label'))}</label><input type="date" id="ap-date"></div>
-        <div class="field" id="ap-time-row"><label>${htmlEsc(t('appt_time_label'))}</label><input type="time" id="ap-time" value="09:00"></div>
+        <div class="field" id="ap-date-row"><label id="ap-date-label">${htmlEsc(t('appt_date_label'))}</label><input type="date" id="ap-date" value="${attrEsc(ctx.mode === 'edit' && src ? (src.date || '') : '')}"></div>
+        <div class="field" id="ap-time-row"><label>${htmlEsc(t('appt_time_label'))}</label><input type="time" id="ap-time" value="${attrEsc(ctx.mode === 'edit' && src && src.startTime ? src.startTime : '09:00')}"></div>
       </div>
       <button type="button" class="btn-submit" id="ap-save" onclick="saveApptModal()">${htmlEsc(t('appt_save'))}</button>
       ${ctx.mode === 'gate' ? `<button type="button" class="btn-danger" id="ap-none" style="border-color:var(--border-mid);color:var(--text3)" onclick="resolveApptNone()">${htmlEsc(t('appt_none'))}</button>
@@ -3894,6 +4009,45 @@ async function saveApptModal() {
   if (!text) { toast(t('appt_err_step')); return; }   // validation keeps the modal open
   if (!date) { toast(t('appt_err_date')); return; }
   const timeVal = (document.getElementById('ap-time') || {}).value || '';
+
+  if (ctx.mode === 'edit') {
+    // Reschedule in place: mutate the source step, then reconcile its
+    // linked calendar booking in the SAME save — update it when it stays
+    // 'exact', remove it on exact→by (a deadline has no calendar entry),
+    // create one on by→exact. All-or-nothing with the step's own dbPut so
+    // the calendar can't drift from the step (assessment gap #3).
+    const st = (j.subTasks || []).find(s => s.id === ctx.sourceSubTaskId);
+    if (!st) { closeApptModal(); return; }
+    st.text = text;
+    st.dateType = window.__apType;
+    st.date = date;
+    st.startTime = window.__apType === 'exact' ? (timeVal || '09:00') : null;
+    if (st.bookingCuid && st.dateType === 'exact') {
+      const row = (await dbAll('bookings')).find(b => b.cuid === st.bookingCuid);
+      if (row) {
+        row.date = st.date; row.startTime = st.startTime;
+        row.title = st.text + (j.client ? ' — ' + j.client : '');
+        row.updatedAt = nowISO();
+        await dbPut('bookings', row);
+        if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+          SidekickBackend.mirrorBookingSave(row).catch(() => {});
+      } else {
+        await createBookingForStep(j, st);   // booking deleted elsewhere — recreate the link
+      }
+    } else if (st.bookingCuid && st.dateType === 'by') {
+      await deleteBookingByCuid(st.bookingCuid);
+      st.bookingCuid = null;
+    } else if (!st.bookingCuid && st.dateType === 'exact') {
+      await createBookingForStep(j, st);
+    }
+    j.updatedAt = nowISO();
+    await dbPut('jobs', j);
+    closeApptModal();
+    renderJobTracking(ctx.jobId);
+    toast(t('appt_step_updated_toast'));
+    return;
+  }
+
   const st = { id: cuid(), text, done: false, dateType: window.__apType, date,
     startTime: window.__apType === 'exact' ? (timeVal || '09:00') : null,
     bookingCuid: null, stage: ctx.stage ?? null, repeatOfId: ctx.sourceSubTaskId ?? null };
@@ -4669,7 +4823,8 @@ function renderSubTasks(jobId) {
       <div class="list-row" style="cursor:pointer" onclick="toggleSubTask(${jobId},'${s.id}')">
         <input type="checkbox" style="width:20px;height:20px;flex-shrink:0;pointer-events:none" ${s.done ? 'checked' : ''}>
         <div class="list-main"><div class="list-title" style="${s.done ? 'text-decoration:line-through;color:var(--text3)' : ''}">${htmlEsc(s.text)}</div>${subTaskDateChip(s)}</div>
-        ${s.dateType ? `<button type="button" class="qc-btn" aria-label="${attrEsc(t('appt_repeat'))}" onclick="event.stopPropagation();repeatSubTask(${jobId},'${s.id}')">↻</button>` : ''}
+        ${s.dateType ? `<button type="button" class="qc-btn" aria-label="${attrEsc(t('appt_edit'))}" onclick="event.stopPropagation();editSubTask(${jobId},'${s.id}')">✎</button>
+        <button type="button" class="qc-btn" aria-label="${attrEsc(t('appt_repeat'))}" onclick="event.stopPropagation();repeatSubTask(${jobId},'${s.id}')">↻</button>` : ''}
         <button type="button" class="qc-btn" aria-label="Delete sub-task" onclick="event.stopPropagation();deleteSubTask(${jobId},'${s.id}')">✕</button>
       </div>`).join('')}</div>
   `;
@@ -4713,11 +4868,26 @@ window.toggleSubTask = toggleSubTask;
 async function deleteSubTask(jobId, subId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j || !j.subTasks) return;
+  const st = j.subTasks.find(x => x.id === subId);
   j.subTasks = j.subTasks.filter(x => x.id !== subId);
   await dbPut('jobs', j);
+  // A gate-created calendar booking must not outlive its step — leaving it
+  // would accumulate ghost appointments on the calendar (the "delete
+  // orphans the booking" gap the sub-task workflow assessment flagged).
+  if (st && st.bookingCuid) await deleteBookingByCuid(st.bookingCuid);
   renderJobTracking(jobId);
 }
 window.deleteSubTask = deleteSubTask;
+// Booking rows are keyed by autoincrement id locally but linked from steps
+// by cuid (the only stable cross-device key) — resolve, delete, and mirror.
+async function deleteBookingByCuid(bookingCuid) {
+  const row = (await dbAll('bookings')).find(b => b.cuid === bookingCuid);
+  if (!row) return;
+  await dbDel('bookings', row.id);
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorBookingDelete(bookingCuid).catch(() => {});
+  }
+}
 // Repeat a dated step (↻): opens the shared appointment modal in repeat mode
 // with the source step's text + type prefilled and the date empty — one tap
 // plus one date = a new occurrence. The clone records repeatOfId (see
@@ -4729,6 +4899,16 @@ function repeatSubTask(jobId, subTaskId) {
   openApptModal({ mode: 'repeat', jobId, sourceSubTaskId: subTaskId });
 }
 window.repeatSubTask = repeatSubTask;
+// Reschedule a dated step (✎): same modal in edit mode — everything
+// prefilled including the current date/time; save mutates the step and
+// moves its linked calendar booking in the same write (see saveApptModal).
+function editSubTask(jobId, subTaskId) {
+  jobId = parseInt(jobId, 10);
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !(j.subTasks || []).some(s => s.id === subTaskId)) return;
+  openApptModal({ mode: 'edit', jobId, sourceSubTaskId: subTaskId });
+}
+window.editSubTask = editSubTask;
 
 // ── Options compared (job.options[]) ──
 // One deal, several candidates — the realestate "client is weighing 5
@@ -5689,12 +5869,72 @@ async function importBackup(inputEl) {
   await Promise.all(BACKUP_STORES.map(async s => {
     savedByStore[s] = (await dbAll(s)).filter(r => r.uid === uid);
   }));
+  let linksReset = 0;
   try {
     // Delete every existing row across every store first, then add every new
     // row across every store — matches the original jobs/expenses swap so a
     // failed add always rolls back cleanly (every old id was already gone).
     for (const s of BACKUP_STORES) { for (const row of savedByStore[s]) await dbDel(s, row.id); }
-    for (const s of BACKUP_STORES) { for (const row of byStore[s]) { const {id, ...rest} = row; await dbAdd(s, {...rest, uid}); } }
+    // dbAdd() re-mints every autoincrement id, so every id-based
+    // cross-reference in the backup (jobs.clientId → clients.id, etc.)
+    // would dangle if rows were re-added verbatim — the restore-corrupts-
+    // relationships bug. The legacy-DB migration solved this with put()
+    // (preserving ids), but a restore can't: the target DB may already own
+    // those ids under another account. So: insert referenced stores first,
+    // record oldId→newId per store, and rewrite every reference on the way
+    // in. Cuid-based links (subTasks[].bookingCuid, bookings.jobCuid) ride
+    // through untouched — cuids are globally unique and never re-minted.
+    // A reference whose target row is missing from the backup is nulled
+    // rather than left pointing at whatever row now happens to own that
+    // id; those are counted and surfaced in the success toast.
+    const idMap = {};   // store -> Map(oldId -> newId)
+    const remap = (store, oldId) => {
+      if (oldId == null) return null;
+      const m = idMap[store];
+      if (m && m.has(oldId)) return m.get(oldId);
+      linksReset++;
+      return null;
+    };
+    // Referenced stores first (targets), dependents after.
+    const IMPORT_ORDER = ['clients', 'services', 'invoices', 'documents', 'packages',
+      'jobs', 'bookings', 'followups', 'progressLogs', 'expenses', 'portfolio', 'research'];
+    for (const s of IMPORT_ORDER) {
+      idMap[s] = new Map();
+      for (const row of byStore[s]) {
+        const { id, ...rest } = row;
+        if (s === 'jobs') {
+          rest.clientId = remap('clients', rest.clientId);
+          rest.serviceId = remap('services', rest.serviceId);
+          rest.invoiceId = remap('invoices', rest.invoiceId);
+          rest.quoteDocId = remap('documents', rest.quoteDocId);
+          rest.packageId = remap('packages', rest.packageId);
+          if (Array.isArray(rest.milestones)) rest.milestones = rest.milestones.map(m => ({ ...m, invoiceId: remap('invoices', m.invoiceId) }));
+          if (Array.isArray(rest.timeEntries)) rest.timeEntries = rest.timeEntries.map(e => e.invoiceId != null ? { ...e, invoiceId: remap('invoices', e.invoiceId) } : e);
+        } else if (s === 'bookings') {
+          rest.customerId = remap('clients', rest.customerId);
+        } else if (s === 'invoices') {
+          rest.clientId = remap('clients', rest.clientId);
+        } else if (s === 'documents') {
+          rest.clientId = remap('clients', rest.clientId);
+          rest.invoiceId = remap('invoices', rest.invoiceId);
+        } else if (s === 'packages' || s === 'progressLogs') {
+          rest.clientId = remap('clients', rest.clientId);
+        } else if (s === 'followups' && typeof rest.key === 'string') {
+          // Keys embed ids as strings: `overdue:CID:INVID`, `draft:CID:INVID`,
+          // `stale:CID:` — rewrite the embedded ids, leave unknown shapes as-is.
+          const parts = rest.key.split(':');
+          if ((parts[0] === 'overdue' || parts[0] === 'draft') && parts.length >= 3) {
+            const c = remap('clients', parseInt(parts[1], 10)), i = remap('invoices', parseInt(parts[2], 10));
+            if (c != null && i != null) rest.key = `${parts[0]}:${c}:${i}`;
+          } else if (parts[0] === 'stale' && parts.length >= 2) {
+            const c = remap('clients', parseInt(parts[1], 10));
+            if (c != null) rest.key = `stale:${c}:${parts.slice(2).join(':')}`;
+          }
+        }
+        const newId = await dbAdd(s, { ...rest, uid });
+        if (id != null) idMap[s].set(id, newId);
+      }
+    }
   } catch (err) {
     // Roll back: restore the pre-import rows so a failed swap doesn't lose data.
     for (const s of BACKUP_STORES) {
@@ -5716,7 +5956,8 @@ async function importBackup(inputEl) {
   }
   await reload();
   applyLang();
-  toast(t('restore_done').replace('{n}', n));
+  toast(t('restore_done').replace('{n}', n)
+    + (linksReset > 0 ? ' ' + t('backup_links_reset').replace('{n}', linksReset) : ''));
 }
 
 // ─── NAV / SCREENS ────────────────────────────────────────────────────

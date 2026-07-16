@@ -127,6 +127,15 @@
   async function bookingSlotDelete(id) {
     return apiFetch(`/api/booking-slots?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
   }
+  // Pending public booking requests + their confirm/decline resolution —
+  // the freelancer side of api/booking-request.js's 15-minute holds (see
+  // api/booking-requests.js).
+  async function bookingRequestsList() {
+    return apiFetch('/api/booking-requests');
+  }
+  async function bookingRequestResolve(bookingId, action) {
+    return apiFetch('/api/booking-requests', { method: 'POST', body: { bookingId, action } });
+  }
 
   // ── Team (Phase 2) ──────────────────────────────────────────────────────
   // See api/team-invite.js/api/team-join.js/api/team-members.js — a Team
@@ -284,6 +293,7 @@
     billingCheckout, billingPortal,
     lineChannelStatus, lineChannelConnect, lineChannelDisconnect,
     bookingSlotsList, bookingSlotCreate, bookingSlotDelete,
+    bookingRequestsList, bookingRequestResolve,
     teamCheckout, teamInvite, teamJoin, teamMembersList, teamMemberRemove,
     mirrorClientSave, mirrorClientDelete,
     mirrorJobSave: jobsMirror.mirrorSave, mirrorJobDelete: jobsMirror.mirrorDelete,

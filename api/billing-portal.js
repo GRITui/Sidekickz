@@ -17,7 +17,7 @@
  */
 import { db } from '../lib/db.js';
 import { requireSession } from '../lib/auth.js';
-import { corsHeaders, handlePreflight, resolveOrigin } from '../lib/cors.js';
+import { corsHeaders, handlePreflight, appUrl } from '../lib/cors.js';
 import { stripeClient } from '../lib/stripe.js';
 import { isAccountOwner } from '../lib/teams.js';
 
@@ -54,7 +54,7 @@ export default async function handler(request) {
 
     const portalSession = await stripeClient().billingPortal.sessions.create({
       customer: user.stripe_customer_id,
-      return_url: `${resolveOrigin(request)}/?screen=more`,
+      return_url: `${appUrl(request)}/?screen=more`,
     });
 
     return json({ url: portalSession.url }, 200, request);

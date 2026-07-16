@@ -24,6 +24,7 @@
 import { db } from '../lib/db.js';
 import { corsHeaders, handlePreflight } from '../lib/cors.js';
 import { getLineAccessToken, linePush } from '../lib/line.js';
+import { rateLimit } from '../lib/rateLimit.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -37,6 +38,11 @@ const HOLD_MINUTES = 15;
 export default async function handler(request) {
   const preflight = handlePreflight(request);
   if (preflight) return preflight;
+  // Best-effort per-instance rate limit (see lib/rateLimit.js's honest
+  // limitation note): public + unauthenticated: a loop can 'hold' every open slot and close the booking page for 15 minutes at a time.
+  const limited = rateLimit(request, { key: 'booking-request', limit: 10, windowMs: 60_000 });
+  if (limited) return limited;
+
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405, request);
 
   let body;
