@@ -229,11 +229,18 @@ create table if not exists app_bookings (
   location          text,
   notes             text,
   status            text,
+  job_cuid          text,
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );
 
 create index if not exists idx_app_bookings_user on app_bookings(user_cuid);
+
+-- 2026-07-16 addition: link a booking back to the pipeline job whose dated
+-- step created it (app.js createBookingForStep). Idempotent so already-created
+-- databases pick the column up on re-run; nullable, no FK — a dangling link is
+-- harmless and form-created bookings never have one.
+alter table app_bookings add column if not exists job_cuid text;
 
 create table if not exists followups (
   cuid              text primary key,

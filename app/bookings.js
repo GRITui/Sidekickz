@@ -842,12 +842,14 @@
         base.id = editing.id;
         base.cuid = editing.cuid || cuid();
         base.createdAt = editing.createdAt || nowISO();
+        base.jobCuid = editing.jobCuid ?? null;   // keep a gate-created booking linked to its pipeline job through form edits
         await dbPut(STORE, base);
         if (mirrorEnabled) SidekickBackend.mirrorBookingSave(base).catch(() => {});
         toast(t('booking_updated'));
       } else {
         base.cuid = cuid();
         base.createdAt = nowISO();
+        base.jobCuid = null;   // form-created bookings have no pipeline-job link (only createBookingForStep sets one)
         await dbAdd(STORE, base);
         if (mirrorEnabled) SidekickBackend.mirrorBookingSave(base).catch(() => {});
 

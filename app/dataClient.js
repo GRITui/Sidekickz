@@ -239,6 +239,7 @@
     cuid: b.cuid, customer_id: b.customerId, title: b.title, date: b.date,
     start_time: b.startTime, duration_min: b.durationMin, travel_buffer_min: b.travelBufferMin,
     location: b.location, notes: b.notes, status: b.status,
+    job_cuid: b.jobCuid,
   }));
 
   const followupsMirror = createMirror('followups', f => ({

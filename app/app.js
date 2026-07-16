@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.26';          // <-> sw.js SW_VERSION 'sidekick-v0.9.26'
+const APP_VERSION = '0.9.27';          // <-> sw.js SW_VERSION 'sidekick-v0.9.27'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -909,6 +909,25 @@ const I18N = {
     insights_feature_usage:'Feature usage', insights_pipeline_activity:'Task flow activity', insights_no_pipeline_activity:'No task flow activity yet',
     insights_stage_done:'Completed', insights_clear:'Clear usage data', insights_clear_confirm:'Clear all local usage data? This cannot be undone.',
     insights_cleared:'Usage data cleared', insights_unlocked:'Insights unlocked',
+    // Dated steps + stage-gate appointment modal (see openApptModal / gateAfterForwardMove)
+    appt_gate_title:'Book the next step',
+    appt_gate_context:'"{job}" moved to {stage}. When’s the next appointment?',
+    appt_step_ph:'Step name, e.g. health check-up',
+    appt_type_exact:'Exact date', appt_type_by:'Within a deadline',
+    appt_date_label:'Date', appt_by_label:'Due by', appt_time_label:'Time',
+    appt_save:'Book it', appt_none:'No appointment needed',
+    appt_none_hint:'You can add one later from the job.',
+    appt_add_dated:'+ Step with date',
+    appt_pending_badge:'Book next step',
+    appt_by_chip:'by {date}', appt_overdue:'Overdue',
+    appt_repeat:'Repeat step', appt_repeat_title:'Repeat step',
+    appt_booking_note:'From pipeline job',
+    appt_booked_toast:'Appointment booked', appt_step_added_toast:'Step added',
+    appt_err_step:'Please enter a step name', appt_err_date:'Please pick a date',
+    // Pipeline Board/Timeline view toggle + timeline (Gantt) strings
+    pl_view_board:'Board', pl_view_timeline:'Timeline',
+    tl_today:'Today',
+    tl_empty:'No dated steps yet — add dates to a job’s sub-tasks to see them here.',
   },
   // Thai — covers the static app chrome (nav, Settings/More menu, dashboard,
   // forms, toasts) via the same data-i18n/t() keys as `en`, plus the full
@@ -1198,6 +1217,25 @@ const I18N = {
     insights_feature_usage:'การใช้งานฟีเจอร์', insights_pipeline_activity:'กิจกรรมแผนงาน', insights_no_pipeline_activity:'ยังไม่มีกิจกรรมแผนงาน',
     insights_stage_done:'เสร็จสมบูรณ์', insights_clear:'ล้างข้อมูลการใช้งาน', insights_clear_confirm:'ล้างข้อมูลการใช้งานทั้งหมดในเครื่องหรือไม่? ไม่สามารถย้อนกลับได้',
     insights_cleared:'ล้างข้อมูลการใช้งานแล้ว', insights_unlocked:'ปลดล็อกข้อมูลเชิงลึกแล้ว',
+    // Dated steps + stage-gate appointment modal
+    appt_gate_title:'นัดขั้นตอนถัดไป',
+    appt_gate_context:'"{job}" ย้ายไปขั้น{stage}แล้ว นัดหมายครั้งถัดไปเมื่อไหร่?',
+    appt_step_ph:'ชื่อขั้นตอน เช่น ตรวจสุขภาพ',
+    appt_type_exact:'ระบุวันแน่นอน', appt_type_by:'ภายในกำหนด',
+    appt_date_label:'วันที่', appt_by_label:'ภายในวันที่', appt_time_label:'เวลา',
+    appt_save:'จองเลย', appt_none:'ไม่ต้องนัดหมาย',
+    appt_none_hint:'เพิ่มนัดหมายภายหลังได้จากหน้างาน',
+    appt_add_dated:'+ ขั้นตอนพร้อมวันที่',
+    appt_pending_badge:'นัดขั้นตอนถัดไป',
+    appt_by_chip:'ภายใน {date}', appt_overdue:'เลยกำหนด',
+    appt_repeat:'ทำซ้ำขั้นตอน', appt_repeat_title:'ทำซ้ำขั้นตอน',
+    appt_booking_note:'จากงานในแผนงาน',
+    appt_booked_toast:'จองนัดหมายแล้ว', appt_step_added_toast:'เพิ่มขั้นตอนแล้ว',
+    appt_err_step:'กรุณาใส่ชื่อขั้นตอน', appt_err_date:'กรุณาเลือกวันที่',
+    // Pipeline Board/Timeline view toggle + timeline (Gantt) strings
+    pl_view_board:'บอร์ด', pl_view_timeline:'ไทม์ไลน์',
+    tl_today:'วันนี้',
+    tl_empty:'ยังไม่มีขั้นตอนที่ระบุวันที่ — เพิ่มวันที่ให้ขั้นตอนย่อยของงาน แล้วจะแสดงที่นี่',
   },
 };
 function curLang() { return (settings && settings.lang) || localStorage.getItem('sidekick_ui_lang') || 'th'; }
@@ -1296,6 +1334,10 @@ async function enterApp() {
   const sAll = await dbAll('settings');
   const prefix = isGuest ? 'guest:' : (currentUser.id + ':');
   sAll.forEach(s => { if (s.key.startsWith(prefix)) settings[s.key.slice(prefix.length)] = s.value; });
+  // Pipeline view mode (board | timeline) — persisted like bookings' calViewMode,
+  // mirrored in-memory so renderPipeline (sync) never awaits IDB. Must be set
+  // before the reload() below, which triggers the first renderPipeline().
+  window.__plView = settings.plViewMode === 'timeline' ? 'timeline' : 'board';
 
   await reload();
   applyUser();
@@ -3074,6 +3116,7 @@ async function saveJob() {
     obj.complete = prev.complete || false;
     obj.invoiceId = prev.invoiceId != null ? prev.invoiceId : null;
     obj.quoteDocId = prev.quoteDocId != null ? prev.quoteDocId : null;
+    obj.pendingGateStage = prev.pendingGateStage ?? null;   // a detail re-save must never silently drop an unresolved stage gate
   } else {
     obj.cuid = cuid();
     // New engagements snapshot the active stage order and start at its first stage.
@@ -3133,6 +3176,10 @@ window.openPipelineAt = openPipelineAt;
 function renderPipeline() {
   const el = document.getElementById('pipeline-body');
   if (!el) return;
+  // Two persisted views share this entry point: the stage board (below) and
+  // the read-only timeline. Branching here (rather than in switchScreen) means
+  // every existing renderPipeline() call site refreshes whichever view is on.
+  if (window.__plView === 'timeline') return renderPipelineTimeline();
   const order = getStageOrder();
   const groups = {}; order.forEach(s => groups[s] = []);
   // Group each session under its own stage NAME. A session whose stage isn't
@@ -3172,6 +3219,7 @@ function renderPipeline() {
     : `<div class="kb-empty">${htmlEsc(t('pl_nothing_here'))}</div>`;
 
   el.innerHTML = `
+    ${plViewToggleHtml()}
     <div class="pl-chip-rail" role="tablist" aria-label="Task flow stages">${chips}</div>
     <div class="pl-minimap">${minimap}</div>
     <p class="pl-stage-hint">${htmlEsc((activeMeta.hint && t(activeMeta.hint)) || (activeMeta.label && t(activeMeta.label)) || activeStage)}</p>
@@ -3180,6 +3228,154 @@ function renderPipeline() {
   if (window.__kbMoved != null) setTimeout(() => { window.__kbMoved = null; }, 500);
 }
 window.renderPipeline = renderPipeline;
+
+// ─── PIPELINE TIMELINE (read-only Gantt view) ───────────────────────────
+// The board answers "what stage is each job in"; the timeline answers "when
+// is everything happening". Marks are plain absolutely-positioned divs on a
+// 28px-per-day ruler — no canvas/SVG/library — because at phone width the
+// whole thing is just a horizontal scroller with dots and bars.
+window.__plView = 'board';   // in-memory mirror of the plViewMode setting; enterApp loads the persisted value
+
+function setPipelineView(mode) {
+  mode = mode === 'timeline' ? 'timeline' : 'board';
+  if (window.__plView === mode) return;
+  window.__plView = mode;
+  // Fire-and-forget persist (same setting store as calViewMode) — the render
+  // below must not wait on IDB, and a failed write only loses the preference.
+  saveSetting('plViewMode', mode).catch(() => {});
+  renderPipeline();
+}
+window.setPipelineView = setPipelineView;
+
+// Board/Timeline segmented toggle shared by both views (reuses the
+// appointment modal's .ap-seg pill styling rather than inventing a third
+// segmented-control look).
+function plViewToggleHtml() {
+  const tl = window.__plView === 'timeline';
+  return `<div class="ap-seg pl-view-seg" role="tablist" aria-label="${attrEsc(t('pl_view_board') + ' / ' + t('pl_view_timeline'))}">
+    <button type="button" role="tab" aria-selected="${!tl}" class="${tl ? '' : 'seg-active'}" onclick="setPipelineView('board')">${htmlEsc(t('pl_view_board'))}</button>
+    <button type="button" role="tab" aria-selected="${tl}" class="${tl ? 'seg-active' : ''}" onclick="setPipelineView('timeline')">${htmlEsc(t('pl_view_timeline'))}</button>
+  </div>`;
+}
+
+// Noon-anchored day math (bookings.js addDays convention, private to its
+// IIFE so restated here): anchoring at 12:00 means a ±1h DST shift can't
+// flip the calendar day, so day arithmetic is safe in any timezone.
+function tlAddDays(iso, days) {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function tlDaysBetween(a, b) {
+  return Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5);
+}
+
+function renderPipelineTimeline() {
+  const el = document.getElementById('pipeline-body');
+  if (!el) return;
+  const today = todayISO();
+  const DAY_W = 28;
+  // Active (non-complete) jobs only, and only their dated steps — undated
+  // legacy sub-tasks have no place on a calendar ruler. A job with zero
+  // dated steps is omitted entirely rather than shown as an empty row.
+  const rows = [];
+  jobs.forEach(j => {
+    if (jobComplete(j)) return;
+    const pts = (j.subTasks || []).filter(st => st.dateType && st.date);
+    if (!pts.length) return;
+    // Sort key: the job's most urgent open date; all-done jobs fall back to
+    // their earliest date so they sink naturally relative to live work.
+    const open = pts.filter(st => !st.done).map(st => st.date).sort();
+    const all = pts.map(st => st.date).sort();
+    rows.push({ j, pts, sortKey: open[0] || all[0] });
+  });
+  const countEl = document.getElementById('pl-active-count');
+  if (countEl) countEl.textContent = `${jobs.length} ${t('active_count')}`;
+  if (!rows.length) {
+    el.innerHTML = `${plViewToggleHtml()}<div class="kb-empty">${htmlEsc(t('tl_empty'))}</div>`;
+    return;
+  }
+  rows.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+
+  // Ruler bounds: 3 days of breathing room on each side of the data, then
+  // clamped to always include today — so the today-rule (and the initial
+  // scroll anchor) can never fall off the edge of the ruler.
+  const dates = [];
+  rows.forEach(r => r.pts.forEach(st => dates.push(st.date)));
+  dates.sort();
+  let min = tlAddDays(dates[0], -3), max = tlAddDays(dates[dates.length - 1], 3);
+  if (today < min) min = today;
+  if (today > max) max = today;
+  const nDays = tlDaysBetween(min, max) + 1;
+  const x = d => tlDaysBetween(min, d) * DAY_W;
+
+  // Day-number header row; weekends tinted so a week's rhythm is readable
+  // without month labels.
+  let dayCells = '';
+  for (let i = 0; i < nDays; i++) {
+    const iso = tlAddDays(min, i);
+    const dow = new Date(iso + 'T12:00:00').getDay();
+    dayCells += `<span class="tl-day${(dow === 0 || dow === 6) ? ' wk' : ''}${iso === today ? ' is-today' : ''}">${parseInt(iso.slice(8), 10)}</span>`;
+  }
+
+  const rowsHtml = rows.map(({ j, pts }) => {
+    const marks = pts.map(st => {
+      const overdue = !st.done && st.date < today;
+      const stateCls = (st.done ? ' done' : '') + (overdue ? ' late' : '');
+      const tip = attrEsc(`${st.text} · ${fmtDate(st.date)}${st.dateType === 'exact' && st.startTime ? ' ' + st.startTime : ''}`);
+      if (st.dateType === 'exact') {
+        // 10px dot centered in its 28px day cell → left offset +9.
+        return `<div class="tl-pt${stateCls}" style="left:${x(st.date) + 9}px" title="${tip}"></div>`;
+      }
+      // 'by' deadline: the bar is the remaining runway (today → deadline);
+      // its hard right border IS the deadline. min/max are clamped to
+      // include today, so max(today, min) is always just `today`.
+      const barStart = today;
+      if (barStart > st.date) {
+        // Deadline already behind us — no runway left to draw, so the bar
+        // collapses to a single flag pinned at the missed date (danger when
+        // still open, dimmed like every other done mark when done).
+        return `<div class="tl-flag${stateCls}" style="left:${x(st.date) + 5}px" title="${tip}">⚑</div>`;
+      }
+      return `<div class="tl-bar${stateCls}" style="left:${x(barStart)}px;width:${x(st.date) - x(barStart) + DAY_W}px" title="${tip}"></div>`;
+    }).join('');
+    const label = `${j.client || t('field_client')} · ${j.serviceName || unitWord()}`;
+    // The label is position:sticky so it stays readable while the marks
+    // scroll underneath; tapping it opens the job editor (the timeline
+    // itself is read-only — no drag-to-reschedule).
+    return `<div class="tl-row">
+      <button type="button" class="tl-label" onclick="openEditJob(${j.id})" aria-label="${attrEsc(label)}">${htmlEsc(label)}</button>
+      ${marks}
+    </div>`;
+  }).join('');
+
+  // Keep the user's scroll position across re-renders (e.g. after editing a
+  // job from a row label); only the first paint auto-centers around today.
+  // "First paint" is tracked via data-init rather than mere element existence
+  // because boot renders this while the pipeline screen is still display:none,
+  // where scrollLeft assignment silently no-ops — that hidden render must not
+  // count as initialized or the first visible render would "preserve" 0.
+  const prevScroll = el.querySelector('.tl-scroll');
+  const keepX = (prevScroll && prevScroll.dataset.init === '1') ? prevScroll.scrollLeft : null;
+  el.innerHTML = `
+    ${plViewToggleHtml()}
+    <div class="tl-scroll">
+      <div class="tl-inner" style="width:${nDays * DAY_W}px">
+        <div class="tl-days" style="grid-template-columns:repeat(${nDays},${DAY_W}px)">${dayCells}</div>
+        <div class="tl-today" style="left:${x(today) + 14}px" aria-label="${attrEsc(t('tl_today'))}"><span class="tl-today-label">${htmlEsc(t('tl_today'))}</span></div>
+        ${rowsHtml}
+      </div>
+    </div>`;
+  const sc = el.querySelector('.tl-scroll');
+  // First visible render: put today at the 1/3 point so most of the ruler
+  // shows the upcoming days (the actionable part), not the past. A hidden
+  // render (clientWidth 0) sets nothing and stays uninitialized.
+  if (sc) {
+    if (keepX != null) { sc.scrollLeft = keepX; sc.dataset.init = '1'; }
+    else if (sc.clientWidth > 0) { sc.scrollLeft = Math.max(0, x(today) - sc.clientWidth / 3); sc.dataset.init = '1'; }
+  }
+}
+window.renderPipelineTimeline = renderPipelineTimeline;
 
 function pipelineCard(j, stage) {
   const meta = STAGE_META[stage] || {};
@@ -3220,7 +3416,13 @@ function pipelineCard(j, stage) {
   const footRow = confirming
     ? packageConfirmCardHtml(j)
     : `<div class="kb-card-foot">${back}${skip}${finish}${cashJob}${foot}${reschedule}</div>`;
+  // Recovery path for a gate left unresolved across a reload (the flag is
+  // persisted with the stage move) — the amber banner reopens the same modal.
+  const pendingGate = (!complete && j.pendingGateStage)
+    ? `<button type="button" class="pl-pending" onclick="event.stopPropagation();openApptModal({mode:'gate',jobId:${j.id},stage:'${j.pendingGateStage}'})">${htmlEsc(t('appt_pending_badge'))} →</button>`
+    : '';
   return `<div class="kb-card${enter}" onclick="openEditJob(${j.id})">
+    ${pendingGate}
     <div class="kb-card-top">
       <div class="kb-card-main">
         <div class="kb-card-title">${htmlEsc(who)}</div>
@@ -3237,6 +3439,9 @@ function pipelineCard(j, stage) {
 function pipelineAction(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
+  // An unresolved stage gate blocks every further forward action — reopen the
+  // prompt instead of advancing (the card can never move twice past one gate).
+  if (j.pendingGateStage) { openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage }); return; }
   const stage = jobStage(j);
   if (stage === 'quote') {
     // docgen.js fires window.onEngagementQuoteCreated(docId, jobId) on save,
@@ -3335,6 +3540,7 @@ async function advanceJobStage(jobId) {
   if (idx < 0) { j.stage = order[0]; j.complete = false; }
   else if (idx >= order.length - 1) { j.stage = order[idx]; j.complete = true; j.outcome = 'extended'; }
   else { j.stage = order[idx + 1]; j.complete = false; }
+  gateAfterForwardMove(j);   // persisted in the same put as the move — see the stage-gate section
   j.updatedAt = nowISO();
   logEvent('pipeline_stage:' + (j.complete ? (j.outcome || 'done') : j.stage));
   _pipelineActiveStage = j.stage;   // rail follows the card to wherever it just landed
@@ -3342,6 +3548,7 @@ async function advanceJobStage(jobId) {
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
+  if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
 }
 
 // Skip the current stage's linked action (no quote/invoice document required) and
@@ -3371,12 +3578,14 @@ async function cashJobPath(jobId) {
   logEvent('pipeline_stage_skipped:cash_job');
   j.stage = order[paidIdx];
   j.complete = false;
+  gateAfterForwardMove(j);
   j.updatedAt = nowISO();
   _pipelineActiveStage = j.stage;
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
+  if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
 }
 window.cashJobPath = cashJobPath;
 
@@ -3389,6 +3598,7 @@ async function finishJobStage(jobId) {
   if (!j) return;
   j.complete = true;
   j.outcome = 'finished';
+  j.pendingGateStage = null;   // terminal — nothing left to book
   j.updatedAt = nowISO();
   logEvent('pipeline_stage:finished');
   _pipelineActiveStage = j.stage;
@@ -3409,6 +3619,7 @@ async function moveJobStageBack(jobId) {
   else if (!jobComplete(j)) return;                     // already at the first stage, nothing to undo
   j.complete = false;
   j.outcome = null;   // stepping back out of a completed engagement clears its extended/finished outcome
+  j.pendingGateStage = null;   // going backward never gates — an unresolved gate is void once the move is undone
   j.updatedAt = nowISO();
   _pipelineActiveStage = j.stage;   // rail follows the card back
   window.__kbMoved = jobId;
@@ -3443,12 +3654,14 @@ async function markJobPaid(jobId) {
   const idx = order.indexOf(jobStage(j));
   if (idx >= order.length - 1) { j.complete = true; }
   else { j.stage = order[idx + 1]; j.complete = false; }
+  gateAfterForwardMove(j);
   j.updatedAt = nowISO();
   logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   _pipelineActiveStage = j.stage;
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
+  if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
 }
 
 // Open the doc-gen quote flow prefilled from this session's customer + service.
@@ -3478,12 +3691,14 @@ window.onEngagementInvoiceCreated = async function (invoiceId, jobId) {
   const idx = order.indexOf(jobStage(j));
   if (idx >= 0 && idx < order.length - 1) { j.stage = order[idx + 1]; j.complete = false; }
   else if (idx >= order.length - 1) { j.complete = true; }
+  gateAfterForwardMove(j);
   j.updatedAt = nowISO();
   logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   _pipelineActiveStage = j.stage;
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
+  if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
 };
 
 // Called by docgen.js after a quote document is saved from a pipeline session:
@@ -3497,13 +3712,157 @@ window.onEngagementQuoteCreated = async function (docId, jobId) {
   const idx = order.indexOf(jobStage(j));
   if (idx >= 0 && idx < order.length - 1) { j.stage = order[idx + 1]; j.complete = false; }
   else if (idx >= order.length - 1) { j.complete = true; }
+  gateAfterForwardMove(j);
   j.updatedAt = nowISO();
   logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   _pipelineActiveStage = j.stage;
   await dbPut('jobs', j);
   await reload();
   renderPipeline();
+  if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
 };
+
+// ─── STAGE-GATE + APPOINTMENT MODAL (dated steps) ──────────────────────
+// Every forward stage move must answer "when's the next appointment?" before
+// the user can act on the card again — a card can never advance silently and
+// leave the follow-up unscheduled. The gate is persisted-first: pendingGateStage
+// is written in the SAME dbPut as the stage move itself, so killing the tab
+// mid-prompt can't lose it — on reload the card shows an amber "book next
+// step" banner and any advance tap reopens the modal instead of moving again.
+// Terminal moves (complete) never gate: there is no next step to book.
+function gateAfterForwardMove(j) {          // call BEFORE the commit point's dbPut
+  if (!j.complete) j.pendingGateStage = j.stage; else j.pendingGateStage = null;
+}
+
+// Create the calendar booking behind an 'exact' dated step. saveBooking
+// (bookings.js) is IIFE-private and reads its own form DOM, so it can't be
+// called from here — instead this mirrors its create path (dbAdd + backend
+// mirror) directly. jobCuid is the only link back; the booking renders on the
+// calendar with zero changes (dot logic keys only on uid/date/status).
+async function createBookingForStep(j, st) {
+  const row = { uid: j.uid, cuid: cuid(), customerId: j.clientId ?? null,
+    title: st.text + (j.client ? ' — ' + j.client : ''),
+    date: st.date, startTime: st.startTime || '09:00', durationMin: 60, travelBufferMin: 0,
+    location: '', notes: t('appt_booking_note'), status: 'scheduled',
+    jobCuid: j.cuid, createdAt: nowISO(), updatedAt: nowISO() };
+  const key = await dbAdd('bookings', row); row.id = key;
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+    SidekickBackend.mirrorBookingSave(row).catch(() => {});
+  st.bookingCuid = row.cuid;
+}
+
+// One dynamic overlay (same pattern as maybeShowCloudBackupModal — built on
+// demand, no index.html markup) serves all three flows:
+//   gate   — after a forward stage move; the ONLY exits are Save and
+//            "no appointment needed" (overlay-click is a locked door here,
+//            deliberately NOT wired into the shared overlay-click block at
+//            the bottom of this file — a stray tap must not skip the gate)
+//   add    — "+ Step with date" button inside the job edit modal
+//   repeat — clone an existing dated step with a fresh date (↻ button)
+window.__apCtx = null;      // { mode, jobId, stage?, sourceSubTaskId? } while open
+window.__apType = 'exact';  // 'exact' (calendar booking) | 'by' (deadline only)
+function openApptModal(ctx) {
+  const j = jobs.find(x => x.id === ctx.jobId);
+  if (!j) return;
+  document.getElementById('modal-appt')?.remove();   // never stack two
+  window.__apCtx = ctx;
+  const src = ctx.sourceSubTaskId ? (j.subTasks || []).find(s => s.id === ctx.sourceSubTaskId) : null;
+  const title = ctx.mode === 'gate' ? t('appt_gate_title')
+    : ctx.mode === 'repeat' ? t('appt_repeat_title') : t('appt_add_dated');
+  const stageMeta = ctx.stage ? (STAGE_META[ctx.stage] || {}) : {};
+  const context = ctx.mode === 'gate'
+    ? t('appt_gate_context').replace('{job}', j.client || '').replace('{stage}', (stageMeta.label && t(stageMeta.label)) || ctx.stage || '')
+    : '';
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'modal-appt';
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-label="${attrEsc(title)}">
+      <div class="modal-handle"></div>
+      <div class="modal-title" id="ap-title">${htmlEsc(title)}</div>
+      <div class="form-body" style="padding:0 20px 4px">
+        ${context ? `<p class="ap-context" id="ap-context">${htmlEsc(context)}</p>` : ''}
+        <div class="field"><input type="text" id="ap-step" placeholder="${attrEsc(t('appt_step_ph'))}" value="${attrEsc(src ? src.text : '')}"></div>
+        <div class="ap-seg">
+          <button type="button" id="ap-type-exact" class="seg-active" onclick="setApptType('exact')">${htmlEsc(t('appt_type_exact'))}</button>
+          <button type="button" id="ap-type-by" onclick="setApptType('by')">${htmlEsc(t('appt_type_by'))}</button>
+        </div>
+        <div class="field" id="ap-date-row"><label id="ap-date-label">${htmlEsc(t('appt_date_label'))}</label><input type="date" id="ap-date"></div>
+        <div class="field" id="ap-time-row"><label>${htmlEsc(t('appt_time_label'))}</label><input type="time" id="ap-time" value="09:00"></div>
+      </div>
+      <button type="button" class="btn-submit" id="ap-save" onclick="saveApptModal()">${htmlEsc(t('appt_save'))}</button>
+      ${ctx.mode === 'gate' ? `<button type="button" class="btn-danger" id="ap-none" style="border-color:var(--border-mid);color:var(--text3)" onclick="resolveApptNone()">${htmlEsc(t('appt_none'))}</button>
+      <div class="ap-hint" id="ap-none-hint">${htmlEsc(t('appt_none_hint'))}</div>` : ''}
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay && window.__apCtx && window.__apCtx.mode !== 'gate') closeApptModal();
+  });
+  // Repeat mode inherits the source step's type; everything else starts on 'exact'.
+  setApptType(src && src.dateType === 'by' ? 'by' : 'exact');
+}
+window.openApptModal = openApptModal;
+
+function setApptType(type) {
+  window.__apType = type === 'by' ? 'by' : 'exact';
+  const ex = document.getElementById('ap-type-exact'), by = document.getElementById('ap-type-by');
+  if (ex) ex.classList.toggle('seg-active', window.__apType === 'exact');
+  if (by) by.classList.toggle('seg-active', window.__apType === 'by');
+  const dl = document.getElementById('ap-date-label');
+  if (dl) dl.textContent = window.__apType === 'by' ? t('appt_by_label') : t('appt_date_label');
+  const tr = document.getElementById('ap-time-row');
+  if (tr) tr.style.display = window.__apType === 'by' ? 'none' : '';   // a deadline has no start time
+}
+window.setApptType = setApptType;
+
+async function saveApptModal() {
+  const ctx = window.__apCtx;
+  if (!ctx) return;
+  const j = jobs.find(x => x.id === ctx.jobId);
+  if (!j) { closeApptModal(); return; }
+  const text = ((document.getElementById('ap-step') || {}).value || '').trim();
+  const date = (document.getElementById('ap-date') || {}).value || '';
+  if (!text) { toast(t('appt_err_step')); return; }   // validation keeps the modal open
+  if (!date) { toast(t('appt_err_date')); return; }
+  const timeVal = (document.getElementById('ap-time') || {}).value || '';
+  const st = { id: cuid(), text, done: false, dateType: window.__apType, date,
+    startTime: window.__apType === 'exact' ? (timeVal || '09:00') : null,
+    bookingCuid: null, stage: ctx.stage ?? null, repeatOfId: ctx.sourceSubTaskId ?? null };
+  j.subTasks = j.subTasks || [];
+  j.subTasks.push(st);
+  if (st.dateType === 'exact') await createBookingForStep(j, st);
+  if (ctx.mode === 'gate') j.pendingGateStage = null;
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  closeApptModal();
+  if (ctx.mode === 'gate') renderPipeline(); else renderJobTracking(ctx.jobId);
+  toast(t(ctx.mode === 'gate' ? 'appt_booked_toast' : 'appt_step_added_toast'));
+}
+window.saveApptModal = saveApptModal;
+
+// Gate mode's explicit opt-out — the deliberate "nothing to book" answer, as
+// opposed to dismissing the question (which the gate doesn't allow). Logged
+// so Insights can tell skipped gates apart from booked ones.
+async function resolveApptNone() {
+  const ctx = window.__apCtx;
+  if (!ctx || ctx.mode !== 'gate') { closeApptModal(); return; }
+  const j = jobs.find(x => x.id === ctx.jobId);
+  if (j) {
+    j.pendingGateStage = null;
+    j.updatedAt = nowISO();
+    await dbPut('jobs', j);
+    logEvent('gate_skip:' + (ctx.stage || ''));
+  }
+  closeApptModal();
+  renderPipeline();
+}
+window.resolveApptNone = resolveApptNone;
+
+function closeApptModal() {
+  document.getElementById('modal-appt')?.remove();
+  window.__apCtx = null;
+}
+window.closeApptModal = closeApptModal;
 
 // ─── WORKFLOW SETTINGS (reorder only) ───────────────────────────────────
 // All 6 stages are mandatory and always present, so this is just a reorder
@@ -4232,10 +4591,22 @@ function renderSubTasks(jobId) {
     <div class="list-card">${subs.map(s => `
       <div class="list-row" style="cursor:pointer" onclick="toggleSubTask(${jobId},'${s.id}')">
         <input type="checkbox" style="width:20px;height:20px;flex-shrink:0;pointer-events:none" ${s.done ? 'checked' : ''}>
-        <div class="list-main"><div class="list-title" style="${s.done ? 'text-decoration:line-through;color:var(--text3)' : ''}">${htmlEsc(s.text)}</div></div>
+        <div class="list-main"><div class="list-title" style="${s.done ? 'text-decoration:line-through;color:var(--text3)' : ''}">${htmlEsc(s.text)}</div>${subTaskDateChip(s)}</div>
+        ${s.dateType ? `<button type="button" class="qc-btn" aria-label="${attrEsc(t('appt_repeat'))}" onclick="event.stopPropagation();repeatSubTask(${jobId},'${s.id}')">↻</button>` : ''}
         <button type="button" class="qc-btn" aria-label="Delete sub-task" onclick="event.stopPropagation();deleteSubTask(${jobId},'${s.id}')">✕</button>
       </div>`).join('')}</div>
   `;
+}
+// Date chip under a dated sub-task's title. Falsy dateType = undated legacy
+// row → empty string, so those rows render byte-identically to before dated
+// steps existed (hard compat rule: no migration pass, nothing new to see).
+function subTaskDateChip(s) {
+  if (!s.dateType) return '';
+  const overdue = !s.done && s.date && s.date < todayISO();
+  const label = s.dateType === 'by'
+    ? t('appt_by_chip').replace('{date}', fmtDate(s.date))
+    : `📅 ${fmtDate(s.date)}${s.startTime ? ' ' + s.startTime : ''}`;
+  return `<div><span class="chip st-chip${overdue ? ' chip-overdue' : ''}">${overdue ? htmlEsc(t('appt_overdue')) + ' · ' : ''}${htmlEsc(label)}</span></div>`;
 }
 async function addSubTask(jobId) {
   jobId = parseInt(jobId, 10);
@@ -4270,6 +4641,17 @@ async function deleteSubTask(jobId, subId) {
   renderJobTracking(jobId);
 }
 window.deleteSubTask = deleteSubTask;
+// Repeat a dated step (↻): opens the shared appointment modal in repeat mode
+// with the source step's text + type prefilled and the date empty — one tap
+// plus one date = a new occurrence. The clone records repeatOfId (see
+// saveApptModal); the source row is never touched.
+function repeatSubTask(jobId, subTaskId) {
+  jobId = parseInt(jobId, 10);
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !(j.subTasks || []).some(s => s.id === subTaskId)) return;
+  openApptModal({ mode: 'repeat', jobId, sourceSubTaskId: subTaskId });
+}
+window.repeatSubTask = repeatSubTask;
 
 // ── Milestone payments ──
 // "Draft invoice" opens a pre-filled invoice form; the resulting invoiceId
