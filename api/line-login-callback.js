@@ -11,7 +11,7 @@
  * is no server-side user record to create, matching the rest of the app's
  * local-first model.
  */
-import { verifyState, exchangeCodeForToken, verifyIdToken, constantTimeEqual } from '../lib/lineLogin.js';
+import { verifyState, exchangeCodeForToken, verifyIdToken, constantTimeEqual, signLineIdentity } from '../lib/lineLogin.js';
 
 const STATE_COOKIE = 'line_login_nonce';
 
@@ -83,7 +83,12 @@ export default async function handler(request) {
   const profile = { sub: claims.sub, name: claims.name || '', picture: claims.picture || '' };
   const encoded = btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(profile))))
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  return redirectTo(base, { line: encoded });
+  // A signed proof of this exact, just-verified LINE identity, handed to
+  // the client alongside the plain profile so it can enable cloud backup
+  // later (api/auth-register-line.js) without a second OAuth round trip —
+  // see signLineIdentity()'s own header comment in lib/lineLogin.js.
+  const lineToken = await signLineIdentity({ sub: claims.sub, name: claims.name || '', picture: claims.picture || '' }, stateSecret);
+  return redirectTo(base, { line: encoded, lineToken });
 }
 
 export const config = { runtime: 'edge' };

@@ -110,4 +110,14 @@ export default async function handler(request) {
   }
 }
 
-export const config = { runtime: 'edge' };
+// Node.js runtime, not edge: the `stripe` npm package's Node SDK relies on
+// Node core modules (its default HTTP client, certificate/agent handling)
+// that Vercel's Edge Runtime doesn't support — importing it there crashes
+// at module-load time, before this handler ever runs, producing a bare
+// platform-level 500 with zero outgoing requests logged (not this file's
+// own try/catch's 502). Every other api/*.js endpoint stays on 'edge'
+// because none of them import lib/stripe.js. This still exports the same
+// Web-standard Request/Response handler shape as the rest of this
+// codebase — Vercel's Node.js runtime supports that export style too, so
+// nothing else about this file needed to change.
+export const config = { runtime: 'nodejs' };

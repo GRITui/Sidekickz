@@ -64,4 +64,7 @@ export default async function handler(request) {
   }
 }
 
-export const config = { runtime: 'edge' };
+// Node.js runtime, not edge — see api/billing-checkout.js's header comment
+// on this same line: the `stripe` npm package needs real Node core modules
+// that Edge Runtime doesn't provide.
+export const config = { runtime: 'nodejs' };
