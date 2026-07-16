@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.25';          // <-> sw.js SW_VERSION 'sidekick-v0.9.25'
+const APP_VERSION = '0.9.26';          // <-> sw.js SW_VERSION 'sidekick-v0.9.26'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -317,6 +317,12 @@ async function handleLineLoginRedirect() {
   const params = new URLSearchParams(hash.slice(1));
   const errCode = params.get('line_error');
   const encoded = params.get('line');
+  // Signed proof of this exact, server-verified LINE identity — stored on
+  // the local account so a later "Enable cloud backup" click
+  // (enableCloudBackup()) can register a real backend account for a
+  // password-less LINE login without redoing the OAuth dance. See
+  // lib/lineLogin.js's signLineIdentity() header for the full reasoning.
+  const lineToken = params.get('lineToken') || null;
   history.replaceState(null, '', location.pathname + location.search);
   if (!errCode && !encoded) return false;
   if (errCode) { authError(t('err_line_login')); return false; }
@@ -332,13 +338,20 @@ async function handleLineLoginRedirect() {
     const id = await dbAdd('users', {
       username, salt: null, hash: null, iters: null,
       firstName: profile.name || '', linePicture: profile.picture || '',
-      lineAuth: true, profileComplete: false, createdAt: nowISO(),
+      lineAuth: true, lineIdentityToken: lineToken, profileComplete: false, createdAt: nowISO(),
     });
     // Re-fetch the full stored row rather than hand-assembling a slim one —
     // completeLineProfile() below does a keyPath put() of this same object,
     // which replaces the whole record, so it must carry every field
     // (salt/hash/iters/linePicture/etc.), not just the ones used here.
     user = await dbGet('users', id);
+  } else if (lineToken && user.lineIdentityToken !== lineToken) {
+    // Refresh on every re-login (covers accounts created before this
+    // token existed, and just keeps the stored proof from ever going
+    // stale) — a plain field update via the same full-object put()
+    // pattern used everywhere else in this function.
+    user.lineIdentityToken = lineToken;
+    await dbPut('users', user);
   }
   // profileComplete is undefined on any account created before this gate
   // existed (password accounts always had a name up front, and earlier LINE
@@ -803,6 +816,7 @@ const I18N = {
     cloud_backup_enabled_sub:'Your clients are backed up to your account.', cloud_backup_enable_btn:'Enable cloud backup',
     cloud_backup_reenter_password:'Enter your password to finish enabling cloud backup:',
     cloud_backup_failed:'Could not enable cloud backup — try again in a moment.',
+    cloud_backup_line_relogin_needed:'Please log out and log back in with LINE, then try again.',
     cloud_backup_upload_failed:'Enabled, but the first backup failed — it will retry next time you save a client.',
     cloud_backup_enabled_toast:'Cloud backup enabled — {n} client(s) backed up.',
     cloud_backup_modal_body:'Right now your clients only live on this device — if it\'s lost or reset, they\'re gone. Turn on cloud backup to also keep a copy in your account. You can always do this later from Settings.',
@@ -1094,6 +1108,7 @@ const I18N = {
     cloud_backup_enabled_sub:'ข้อมูลลูกค้าของคุณสำรองไว้ในบัญชีแล้ว', cloud_backup_enable_btn:'เปิดใช้งานสำรองข้อมูลบนคลาวด์',
     cloud_backup_reenter_password:'กรอกรหัสผ่านของคุณเพื่อเปิดใช้งานสำรองข้อมูลบนคลาวด์:',
     cloud_backup_failed:'ไม่สามารถเปิดใช้งานสำรองข้อมูลบนคลาวด์ได้ — ลองใหม่อีกครั้ง',
+    cloud_backup_line_relogin_needed:'กรุณาออกจากระบบแล้วเข้าสู่ระบบด้วย LINE อีกครั้ง แล้วลองใหม่',
     cloud_backup_upload_failed:'เปิดใช้งานแล้ว แต่การสำรองข้อมูลครั้งแรกล้มเหลว — ระบบจะลองใหม่เมื่อคุณบันทึกข้อมูลลูกค้าครั้งถัดไป',
     cloud_backup_enabled_toast:'เปิดใช้งานสำรองข้อมูลบนคลาวด์แล้ว — สำรองข้อมูลลูกค้า {n} รายการ',
     cloud_backup_modal_body:'ตอนนี้ข้อมูลลูกค้าของคุณอยู่ในเครื่องนี้เท่านั้น — หากเครื่องหายหรือถูกรีเซ็ต ข้อมูลจะหายไปด้วย เปิดใช้งานสำรองข้อมูลบนคลาวด์เพื่อเก็บสำเนาไว้ในบัญชีของคุณด้วย คุณสามารถทำภายหลังได้จากหน้าตั้งค่า',
@@ -1826,23 +1841,42 @@ function renderCloudBackupSection() {
 // hashPassword() produced at local registration/login), so enabling this
 // never needs the user to re-enter their password — mirroring exactly how
 // the one-time local->server migration upload is meant to work (see
-// api/migrate-upload.js's header).
+// api/migrate-upload.js's header). LINE-authenticated accounts (no
+// password at all — see sql/schema-core.sql's users.line_sub comment)
+// branch to registerLine() instead, reusing the signed identity proof
+// handleLineLoginRedirect() stored at login time (see api/auth-register-
+// line.js's header for the full reasoning).
 async function enableCloudBackup() {
   if (isGuest || typeof SidekickBackend === 'undefined') return;
   const localUser = await dbGet('users', currentUser.id);
   if (!localUser) return;
-  let result = await SidekickBackend.register({
-    username: localUser.username, salt: localUser.salt, hash: localUser.hash,
-    iters: localUser.iters, firstName: localUser.firstName,
-  });
-  if (!result.ok && result.status === 409) {
-    // This account already exists server-side (a previous attempt, or
-    // already enabled on another device) — the register endpoint never
-    // sees a plaintext password, so there's no hash to "log in" with here;
-    // ask for it once, this one time, same as any normal login would.
-    const password = prompt(t('cloud_backup_reenter_password'));
-    if (!password) return;
-    result = await SidekickBackend.login({ username: localUser.username, password });
+
+  let result;
+  if (localUser.lineAuth) {
+    if (!localUser.lineIdentityToken) {
+      // Account was created via LINE before this token existed — nothing
+      // stored to prove identity with, and no OAuth round trip to launch
+      // from here. Re-logging in via LINE is what refreshes it (see the
+      // `else if` branch in handleLineLoginRedirect()).
+      toast(t('cloud_backup_line_relogin_needed'));
+      return;
+    }
+    result = await SidekickBackend.registerLine(localUser.lineIdentityToken);
+  } else {
+    result = await SidekickBackend.register({
+      username: localUser.username, salt: localUser.salt, hash: localUser.hash,
+      iters: localUser.iters, firstName: localUser.firstName,
+    });
+    if (!result.ok && result.status === 409) {
+      // This account already exists server-side (a previous attempt, or
+      // already enabled on another device) — the register endpoint never
+      // sees a plaintext password, so there's no hash to "log in" with
+      // here; ask for it once, this one time, same as any normal login
+      // would.
+      const password = prompt(t('cloud_backup_reenter_password'));
+      if (!password) return;
+      result = await SidekickBackend.login({ username: localUser.username, password });
+    }
   }
   if (!result.ok) { toast(t('cloud_backup_failed')); return; }
 
@@ -2494,10 +2528,13 @@ async function maybeShowCloudBackupModal() {
   if (localStorage.getItem(seenKey)) return;
   localStorage.setItem(seenKey, '1');
   const localUser = await dbGet('users', currentUser.id);
-  // LINE-only accounts have no password hash to register with server-side
-  // (Phase 1's register endpoint requires one) — an "Enable" button that's
-  // guaranteed to fail would be worse than no prompt at all.
-  if (!localUser || !localUser.hash) return;
+  // A password account always has a hash to register with (api/auth-
+  // register.js). A LINE account (no password at all) instead needs its
+  // stored signed identity proof (api/auth-register-line.js,
+  // 2026-07-16) — only missing for a LINE account that signed in before
+  // that token existed, where an "Enable" button really would be
+  // guaranteed to fail (see enableCloudBackup()'s own matching check).
+  if (!localUser || !(localUser.hash || (localUser.lineAuth && localUser.lineIdentityToken))) return;
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay open';
   overlay.id = 'cloud-backup-modal';

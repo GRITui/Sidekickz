@@ -80,6 +80,13 @@
     if (r.ok) setToken(r.data.token);
     return r;
   }
+  // LINE-authenticated accounts have no password — see api/auth-register-
+  // line.js's header for why this is a separate call from register().
+  async function registerLine(lineToken) {
+    const r = await apiFetch('/api/auth-register-line', { method: 'POST', auth: false, body: { lineToken } });
+    if (r.ok) setToken(r.data.token);
+    return r;
+  }
   async function session() {
     if (!getToken()) return { ok: false, status: 401, data: {} };
     return apiFetch('/api/auth-session');
@@ -272,7 +279,7 @@
   }
 
   window.SidekickBackend = {
-    isEnabled, register, login, session, logout, migrateUpload,
+    isEnabled, register, login, registerLine, session, logout, migrateUpload,
     billingCheckout, billingPortal,
     lineChannelStatus, lineChannelConnect, lineChannelDisconnect,
     bookingSlotsList, bookingSlotCreate, bookingSlotDelete,
