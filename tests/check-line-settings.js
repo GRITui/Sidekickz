@@ -60,6 +60,8 @@ const { chromium } = require('playwright');
         lineChannelConnect: async (payload) => ({ ok: true, data: await window.__fakeLineConnect(payload) }),
         lineChannelDisconnect: async () => { await window.__fakeLineDisconnect(); return { ok: true, data: { connected: false } }; },
         bookingSlotsList: async () => ({ ok: true, data: { rows: await window.__fakeSlotsList() } }),
+        bookingRequestsList: async () => ({ ok: true, data: { rows: [] } }),
+        bookingRequestResolve: async () => ({ ok: true, data: {} }),
         bookingSlotCreate: async (payload) => ({ ok: true, data: { row: await window.__fakeSlotCreate(payload) } }),
         bookingSlotDelete: async (id) => { await window.__fakeSlotDelete(id); return { ok: true, data: { deleted: true } }; },
       };

@@ -847,6 +847,11 @@ const I18N = {
     cloud_backup_enabled_toast:'Cloud backup enabled — {n} client(s) backed up.',
     cloud_backup_modal_body:'Right now your clients only live on this device — if it\'s lost or reset, they\'re gone. Turn on cloud backup to also keep a copy in your account. You can always do this later from Settings.',
     cloud_backup_later_btn:'Not now',
+    restore_cloud_btn:'Restore from cloud', team_load_data:"Load your team's data",
+    restore_cloud_confirm:'Restore from the cloud? This REPLACES this device\'s data for this account. This cannot be undone.',
+    restore_cloud_done:'Restored {n} records from the cloud.',
+    restore_cloud_failed:'Could not reach the cloud — try again in a moment.',
+    restore_cloud_partial:'Some data could not be fetched: {stores}',
     subscription_needs_account_hint:'Enable cloud backup above to start your 15-day free trial and manage billing.',
     subscription_plan_basic:'Basic plan', subscription_plan_pro:'Pro plan', subscription_plan_team:'Team plan',
     subscription_status_trialing:'Free trial — {n} day(s) left', subscription_status_active:'Active',
@@ -877,7 +882,7 @@ const I18N = {
     slot_status_open:'Open', slot_status_held:'Held (pending confirmation)', slot_status_booked:'Booked',
     add_slot_btn:'+ Add slot', slot_missing_fields:'Pick a start and end time.', slot_end_before_start:'End time must be after the start time.',
     slot_add_failed:'Could not add that slot.',
-    team_title:'Team', team_sub:'Give staff their own logins under one subscription — the work they save goes to your account. (A shared in-app view of your existing data is coming later.)',
+    team_title:'Team', team_sub:"Give staff their own logins under one subscription — the work they save goes to your account. Staff can load your existing data anytime from Settings ▸ Cloud backup.",
     subscription_upgrade_team_btn:'Upgrade to Team — ฿{price}/seat/mo', subscription_team_member_of:"part of {name}'s team",
     team_seats_prompt:'How many seats? (minimum 2, including you)', team_seats_invalid:'Enter a number of seats, at least 2.',
     team_needs_plan_hint:'Upgrade to the Team plan above to add staff logins.',
@@ -1183,6 +1188,11 @@ const I18N = {
     cloud_backup_enabled_toast:'เปิดใช้งานสำรองข้อมูลบนคลาวด์แล้ว — สำรองข้อมูลลูกค้า {n} รายการ',
     cloud_backup_modal_body:'ตอนนี้ข้อมูลลูกค้าของคุณอยู่ในเครื่องนี้เท่านั้น — หากเครื่องหายหรือถูกรีเซ็ต ข้อมูลจะหายไปด้วย เปิดใช้งานสำรองข้อมูลบนคลาวด์เพื่อเก็บสำเนาไว้ในบัญชีของคุณด้วย คุณสามารถทำภายหลังได้จากหน้าตั้งค่า',
     cloud_backup_later_btn:'ไว้ทีหลัง',
+    restore_cloud_btn:'กู้คืนจากคลาวด์', team_load_data:'โหลดข้อมูลของทีมคุณ',
+    restore_cloud_confirm:'กู้คืนข้อมูลจากคลาวด์หรือไม่? การทำเช่นนี้จะแทนที่ข้อมูลทั้งหมดบนเครื่องนี้สำหรับบัญชีนี้ และไม่สามารถย้อนกลับได้',
+    restore_cloud_done:'กู้คืนข้อมูลจากคลาวด์แล้ว {n} รายการ',
+    restore_cloud_failed:'ไม่สามารถเชื่อมต่อคลาวด์ได้ — ลองใหม่อีกครั้งในอีกสักครู่',
+    restore_cloud_partial:'บางข้อมูลดึงมาไม่ได้: {stores}',
     subscription_needs_account_hint:'เปิดใช้งานสำรองข้อมูลบนคลาวด์ด้านบนเพื่อเริ่มทดลองใช้ฟรี 15 วันและจัดการการเรียกเก็บเงิน',
     subscription_plan_basic:'แพ็กเกจ Basic', subscription_plan_pro:'แพ็กเกจ Pro', subscription_plan_team:'แพ็กเกจ Team',
     subscription_status_trialing:'ทดลองใช้ฟรี — เหลืออีก {n} วัน', subscription_status_active:'ใช้งานอยู่',
@@ -1213,7 +1223,7 @@ const I18N = {
     slot_status_open:'เปิดให้จอง', slot_status_held:'กำลังรอยืนยัน', slot_status_booked:'จองแล้ว',
     add_slot_btn:'+ เพิ่มช่วงเวลา', slot_missing_fields:'เลือกเวลาเริ่มต้นและสิ้นสุด', slot_end_before_start:'เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น',
     slot_add_failed:'ไม่สามารถเพิ่มช่วงเวลานี้ได้',
-    team_title:'ทีม', team_sub:'ให้พนักงานมีบัญชีเข้าสู่ระบบของตัวเองภายใต้การสมัครสมาชิกเดียว — งานที่พนักงานบันทึกจะเก็บเข้าบัญชีของคุณ (มุมมองข้อมูลที่แชร์ร่วมกันในแอปจะตามมาภายหลัง)',
+    team_title:'ทีม', team_sub:'ให้พนักงานมีบัญชีเข้าสู่ระบบของตัวเองภายใต้การสมัครสมาชิกเดียว — งานที่พนักงานบันทึกจะเก็บเข้าบัญชีของคุณ พนักงานสามารถโหลดข้อมูลของคุณได้ทุกเมื่อจากหน้าตั้งค่า ▸ สำรองข้อมูลบนคลาวด์',
     subscription_upgrade_team_btn:'อัปเกรดเป็น Team — ฿{price}/ที่นั่ง/เดือน', subscription_team_member_of:'เป็นส่วนหนึ่งของทีม {name}',
     team_seats_prompt:'ต้องการกี่ที่นั่ง? (ขั้นต่ำ 2 รวมคุณด้วย)', team_seats_invalid:'กรอกจำนวนที่นั่ง อย่างน้อย 2 ที่นั่ง',
     team_needs_plan_hint:'อัปเกรดเป็นแพ็กเกจ Team ด้านบนเพื่อเพิ่มบัญชีพนักงาน',
@@ -1934,6 +1944,17 @@ function renderCloudBackupSection() {
   if (!el || typeof SidekickBackend === 'undefined') return;
   if (isGuest) { el.innerHTML = ''; return; }
   const enabled = SidekickBackend.isEnabled();
+  // A team member (not the org owner) pulling their own account's cloud
+  // data would get back... the owner's data anyway (see restoreFromCloud()'s
+  // header) — so the button is the same call, just honestly labeled for
+  // what it does from a staff member's point of view. __entitlements may
+  // still be null/stale on this screen's very first render (renderSubscript
+  // ionSection(), which populates it, is called separately and re-renders
+  // this section once it resolves) — that's fine, it just means the label
+  // briefly shows the generic (still correct) "Restore from cloud" text.
+  const u = __entitlements;
+  const isTeamMember = !!(u && u.team && !u.team.isOwner);
+  const restoreLabel = isTeamMember ? t('team_load_data') : t('restore_cloud_btn');
   el.innerHTML = `<div class="list-card">
       <div class="list-row" style="cursor:default">
         <div class="list-icon">${enabled ? '☁️' : '🔒'}</div>
@@ -1942,7 +1963,9 @@ function renderCloudBackupSection() {
           <div class="list-sub">${htmlEsc(enabled ? t('cloud_backup_enabled_sub') : t('cloud_backup_disabled_sub'))}</div>
         </div>
       </div>
-      ${enabled ? '' : `<div style="padding:0 16px 14px">
+      ${enabled ? `<div style="padding:0 16px 14px">
+        <button type="button" onclick="restoreFromCloud()" style="width:100%;padding:10px;border:1px solid var(--border);background:none;color:var(--text2);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(restoreLabel)}</button>
+      </div>` : `<div style="padding:0 16px 14px">
         <button type="button" onclick="enableCloudBackup()" style="width:100%;padding:10px;border:none;background:var(--brand);color:#fff;border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('cloud_backup_enable_btn'))}</button>
       </div>`}
     </div>`;
@@ -2062,6 +2085,11 @@ async function renderSubscriptionSection() {
     return;
   }
   const u = await refreshEntitlements();
+  // cloud-backup-body renders earlier in the same switchScreen('more') chain
+  // (before __entitlements is populated) — re-render it now so a team
+  // member's Restore button picks up the team_load_data label on this same
+  // screen visit, not only on the next one.
+  if (typeof renderCloudBackupSection === 'function') renderCloudBackupSection();
   if (!u) { el.innerHTML = ''; return; }
   const statusKey = u.locked ? 'subscription_status_locked'
     : u.subscriptionStatus === 'trialing' ? 'subscription_status_trialing'
@@ -5890,43 +5918,48 @@ async function exportBackup() {
   toast(t('exported'));
 }
 function pickBackupFile() { const inp = document.getElementById('backup-file'); if (inp) inp.click(); }
-async function importBackup(inputEl) {
-  const file = inputEl && inputEl.files && inputEl.files[0];
-  inputEl.value = '';
-  if (!file) return;
-  let data;
-  try { data = JSON.parse(await file.text()); }
-  catch(e) { toast(t('restore_bad_file')); return; }
-  // Accepts backups from either the current 'Sidekick' tag or the pre-rebrand
-  // 'FreelanzGym' one, so a backup file exported before the rename still restores.
-  if (!data || (data.app !== 'Sidekick' && data.app !== 'FreelanzGym') || !Array.isArray(data.jobs)) { toast(t('restore_bad_file')); return; }
-  // Validate the ENTIRE payload before touching the DB: every row in every
-  // store must be a plain, non-null object. Reject malformed backups up front
-  // so a bad file (e.g. jobs:[null]) can never delete data mid-import. A
-  // backup from an older app version simply won't have the newer stores'
-  // keys — Array.isArray(undefined) is false, so those default to [].
-  const isPlainObj = o => o != null && typeof o === 'object' && !Array.isArray(o);
-  const byStore = {};
-  for (const s of BACKUP_STORES) {
-    const rows = Array.isArray(data[s]) ? data[s] : [];
-    if (!rows.every(isPlainObj)) { toast(t('restore_bad_file')); return; }
-    byStore[s] = rows;
-  }
-  const n = BACKUP_STORES.reduce((sum, s) => sum + byStore[s].length, 0);
-  if (!confirm(t('restore_confirm').replace('{n}', n))) return;
-  const uid = isGuest ? 'guest' : currentUser.id;
+
+// Referenced stores first (targets), dependents after — shared ordering for
+// both the delete phase and the insert-with-remap phase below.
+const IMPORT_ORDER = ['clients', 'services', 'invoices', 'documents', 'packages',
+  'jobs', 'bookings', 'followups', 'progressLogs', 'expenses', 'portfolio', 'research'];
+
+// The delete-then-insert swap (with per-store oldId→newId remap of every
+// id-based cross-reference, rollback on failure) that used to live inline in
+// importBackup() — extracted so restoreFromCloud() (below) can drive the
+// exact same, already id-remap-tested machinery from a cloud pull instead of
+// a parsed backup file. The two sources look different (a JSON file dump vs.
+// dataClient.js's pullAll() reshaping server rows) but reduce to the same
+// shape once they reach here: a plain { storeName: [rows] } object.
+//
+// Only touches stores that are actually keys on `byStore` — importBackup()
+// below still explicitly sets every BACKUP_STORES key (defaulting an absent
+// one to []), so its behavior is unchanged (a backup missing a store's key
+// still wipes that store locally, exactly as before). restoreFromCloud()
+// deliberately does NOT include an 'expenses' key at all (dataClient.js's
+// pullAll() has nothing to fetch for it — no server table exists), so this
+// loop leaves local expenses completely untouched on a cloud restore rather
+// than wiping them because the cloud has no copy.
+//
+// BE SURGICAL note for future edits: the remap logic below is the same code
+// that shipped with the file-based restore and is covered by
+// tests/check-blockers-p1.js's id-remap roundtrip — change it with that test
+// in mind.
+async function importDataset(byStore, uid) {
+  const stores = IMPORT_ORDER.filter(s => Object.prototype.hasOwnProperty.call(byStore, s));
   const savedByStore = {};
-  await Promise.all(BACKUP_STORES.map(async s => {
+  await Promise.all(stores.map(async s => {
     savedByStore[s] = (await dbAll(s)).filter(r => r.uid === uid);
   }));
   let linksReset = 0;
+  let inserted = 0;
   try {
     // Delete every existing row across every store first, then add every new
     // row across every store — matches the original jobs/expenses swap so a
     // failed add always rolls back cleanly (every old id was already gone).
-    for (const s of BACKUP_STORES) { for (const row of savedByStore[s]) await dbDel(s, row.id); }
+    for (const s of stores) { for (const row of savedByStore[s]) await dbDel(s, row.id); }
     // dbAdd() re-mints every autoincrement id, so every id-based
-    // cross-reference in the backup (jobs.clientId → clients.id, etc.)
+    // cross-reference in the dataset (jobs.clientId → clients.id, etc.)
     // would dangle if rows were re-added verbatim — the restore-corrupts-
     // relationships bug. The legacy-DB migration solved this with put()
     // (preserving ids), but a restore can't: the target DB may already own
@@ -5934,9 +5967,9 @@ async function importBackup(inputEl) {
     // record oldId→newId per store, and rewrite every reference on the way
     // in. Cuid-based links (subTasks[].bookingCuid, bookings.jobCuid) ride
     // through untouched — cuids are globally unique and never re-minted.
-    // A reference whose target row is missing from the backup is nulled
+    // A reference whose target row is missing from this batch is nulled
     // rather than left pointing at whatever row now happens to own that
-    // id; those are counted and surfaced in the success toast.
+    // id; those are counted and surfaced in the caller's success toast.
     const idMap = {};   // store -> Map(oldId -> newId)
     const remap = (store, oldId) => {
       if (oldId == null) return null;
@@ -5945,10 +5978,7 @@ async function importBackup(inputEl) {
       linksReset++;
       return null;
     };
-    // Referenced stores first (targets), dependents after.
-    const IMPORT_ORDER = ['clients', 'services', 'invoices', 'documents', 'packages',
-      'jobs', 'bookings', 'followups', 'progressLogs', 'expenses', 'portfolio', 'research'];
-    for (const s of IMPORT_ORDER) {
+    for (const s of stores) {
       idMap[s] = new Map();
       for (const row of byStore[s]) {
         const { id, ...rest } = row;
@@ -5983,13 +6013,48 @@ async function importBackup(inputEl) {
         }
         const newId = await dbAdd(s, { ...rest, uid });
         if (id != null) idMap[s].set(id, newId);
+        inserted++;
       }
     }
   } catch (err) {
     // Roll back: restore the pre-import rows so a failed swap doesn't lose data.
-    for (const s of BACKUP_STORES) {
+    for (const s of stores) {
       for (const row of savedByStore[s]) { const {id, ...rest} = row; await dbAdd(s, {...rest, uid}).catch(()=>{}); }
     }
+    throw err;
+  }
+  return { inserted, linksReset };
+}
+
+async function importBackup(inputEl) {
+  const file = inputEl && inputEl.files && inputEl.files[0];
+  inputEl.value = '';
+  if (!file) return;
+  let data;
+  try { data = JSON.parse(await file.text()); }
+  catch(e) { toast(t('restore_bad_file')); return; }
+  // Accepts backups from either the current 'Sidekick' tag or the pre-rebrand
+  // 'FreelanzGym' one, so a backup file exported before the rename still restores.
+  if (!data || (data.app !== 'Sidekick' && data.app !== 'FreelanzGym') || !Array.isArray(data.jobs)) { toast(t('restore_bad_file')); return; }
+  // Validate the ENTIRE payload before touching the DB: every row in every
+  // store must be a plain, non-null object. Reject malformed backups up front
+  // so a bad file (e.g. jobs:[null]) can never delete data mid-import. A
+  // backup from an older app version simply won't have the newer stores'
+  // keys — Array.isArray(undefined) is false, so those default to [].
+  const isPlainObj = o => o != null && typeof o === 'object' && !Array.isArray(o);
+  const byStore = {};
+  for (const s of BACKUP_STORES) {
+    const rows = Array.isArray(data[s]) ? data[s] : [];
+    if (!rows.every(isPlainObj)) { toast(t('restore_bad_file')); return; }
+    byStore[s] = rows;
+  }
+  const n = BACKUP_STORES.reduce((sum, s) => sum + byStore[s].length, 0);
+  if (!confirm(t('restore_confirm').replace('{n}', n))) return;
+  const uid = isGuest ? 'guest' : currentUser.id;
+  let result;
+  try {
+    result = await importDataset(byStore, uid);
+  } catch (err) {
     await reload();
     toast(t('restore_failed'));
     return;
@@ -6006,9 +6071,48 @@ async function importBackup(inputEl) {
   }
   await reload();
   applyLang();
-  toast(t('restore_done').replace('{n}', n)
-    + (linksReset > 0 ? ' ' + t('backup_links_reset').replace('{n}', linksReset) : ''));
+  toast(t('restore_done').replace('{n}', result.inserted)
+    + (result.linksReset > 0 ? ' ' + t('backup_links_reset').replace('{n}', result.linksReset) : ''));
 }
+
+// ─── Cloud restore + Team read cutover (same mechanism) ────────────────
+// lib/crudHandler.js's GET already resolves to the DATA OWNER's rows, not
+// the caller's own (lib/teams.js's resolveDataOwner()) — a team member's
+// pull already comes back as the org owner's data. That means "restore this
+// device from the cloud" (a solo account after a wipe/reinstall) and "let
+// staff see the owner's data" (Team plan) are literally the same operation
+// from here: pull everything, then hand it to the exact same importDataset()
+// swap importBackup() above already uses for a file-based restore. No
+// separate "team view" code path to build or keep in sync.
+async function restoreFromCloud() {
+  if (isGuest || typeof SidekickBackend === 'undefined' || !SidekickBackend.isEnabled()) return;
+  if (!confirm(t('restore_cloud_confirm'))) return;
+  const pulled = await SidekickBackend.pullAll();
+  if (!pulled.ok) { toast(t('restore_cloud_failed')); return; }
+  const uid = isGuest ? 'guest' : currentUser.id;
+  let result;
+  try {
+    result = await importDataset(pulled.byStore, uid);
+  } catch (err) {
+    await reload();
+    toast(t('restore_failed'));
+    return;
+  }
+  // Same device-global exclusions importBackup() applies above, same reason:
+  // never let a restore change this device's language or persona (workType)
+  // choice, even though both are legitimately stored server-side too.
+  for (const row of pulled.settingsRows) {
+    if (row.key === 'lang' || row.key === 'workType') continue;
+    await saveSetting(row.key, row.value);
+  }
+  await reload();
+  applyLang();
+  let msg = t('restore_cloud_done').replace('{n}', result.inserted);
+  if (result.linksReset > 0) msg += ' ' + t('backup_links_reset').replace('{n}', result.linksReset);
+  if (pulled.failed && pulled.failed.length) msg += ' ' + t('restore_cloud_partial').replace('{stores}', pulled.failed.join(', '));
+  toast(msg);
+}
+window.restoreFromCloud = restoreFromCloud;
 
 // ─── NAV / SCREENS ────────────────────────────────────────────────────
 function switchScreen(name) {

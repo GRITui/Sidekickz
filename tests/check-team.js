@@ -45,6 +45,8 @@ const { chromium } = require('playwright');
         mirrorProgressLogSave: noop, mirrorProgressLogDelete: noop, mirrorSettingSave: noop,
         lineChannelStatus: async () => ({ ok: true, data: { connected: false, webhookUrl: 'https://x/api/line-webhook', bookingPageUrl: 'https://x/book.html' } }),
         bookingSlotsList: async () => ({ ok: true, data: { rows: [] } }),
+        bookingRequestsList: async () => ({ ok: true, data: { rows: [] } }),
+        bookingRequestResolve: async () => ({ ok: true, data: {} }),
         // Fake server-side team state, driven from this test's own
         // Node-side closures below (set via window.__fakeTeam*).
         teamCheckout: async (seats) => ({ ok: true, data: await window.__fakeTeamCheckout(seats) }),

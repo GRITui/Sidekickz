@@ -157,6 +157,14 @@
     return apiFetch(`/api/team-members?memberCuid=${encodeURIComponent(memberCuid)}`, { method: 'DELETE' });
   }
 
+  // Numeric/integer/decimal columns come back over the wire as whatever
+  // res.json() gave them — a Postgres `numeric`/`text`-holding-a-number
+  // column round-trips as a JS string via Neon's serverless driver, not a
+  // number — so every reverse map below runs id/amount-shaped fields
+  // through this rather than handing the raw string to app.js code that
+  // does real arithmetic (netOf(), stage-cap comparisons, ...) on it.
+  function num(v) { return v == null || v === '' ? null : Number(v); }
+
   // ── clients mirror ────────────────────────────────────────────────────
   // Always tries create first; a 409 (this cuid already exists server-side
   // — e.g. this record was already uploaded, or already mirrored from a
@@ -169,6 +177,18 @@
     return {
       cuid: c.cuid, name: c.name, phone: c.phone, email: c.email, tags: c.tags,
       notes: c.notes, tax_id: c.taxId, billing_address: c.billingAddress, member_no: c.memberNo,
+    };
+  }
+  // Reverse of toClientPayload() above, kept right below it so any column
+  // added to one is obviously missing from the other. Deliberately does NOT
+  // reconstruct a local `id` — a client's own local autoincrement id was
+  // never part of the mirror payload (only its cuid), so pullAll() can't
+  // hand one back either. See pullAll()'s header for what that means for
+  // id-based cross-references (jobs.clientId etc.) on a cloud restore.
+  function fromClientRow(row) {
+    return {
+      cuid: row.cuid, name: row.name, phone: row.phone, email: row.email, tags: row.tags,
+      notes: row.notes, taxId: row.tax_id, billingAddress: row.billing_address, memberNo: row.member_no,
     };
   }
   async function mirrorClientSave(c) {
@@ -220,10 +240,33 @@
     sub_tasks: j.subTasks, milestones: j.milestones, time_entries: j.timeEntries,
     timer_started_at: j.timerStartedAt,
   }));
+  // Reverse of the toPayload above. `stage_order`/`sub_tasks`/`milestones`/
+  // `time_entries` are jsonb columns — they arrive already parsed into
+  // plain arrays/objects by res.json(), not as JSON strings needing a
+  // second parse. `clientId`/`serviceId`/`invoiceId`/`quoteDocId`/
+  // `packageId` come back as the numeric local id the mirroring device had
+  // for that row at save time — see fromClientRow()'s comment; importDataset()
+  // (app.js) already treats an id it can't resolve within the same restore
+  // batch as "target missing" and nulls it, same as a file-based restore
+  // whose backup is missing a referenced row.
+  function fromJobRow(row) {
+    return {
+      cuid: row.cuid, date: row.date, client: row.client_name, clientId: num(row.client_id),
+      serviceId: num(row.service_id), serviceName: row.service_name, jobType: row.job_type,
+      amount: num(row.amount), tip: num(row.tip), expense: num(row.expense), count: num(row.count),
+      notes: row.notes, netAmount: num(row.net_amount), stageOrder: row.stage_order, stage: row.stage,
+      complete: row.complete, invoiceId: num(row.invoice_id), quoteDocId: num(row.quote_doc_id),
+      packageId: num(row.package_id), subTasks: row.sub_tasks, milestones: row.milestones,
+      timeEntries: row.time_entries, timerStartedAt: row.timer_started_at,
+    };
+  }
 
   const servicesMirror = createMirror('services', s => ({
     cuid: s.cuid, name: s.name, rate: s.rate, unit: s.unit, usage_qty: s.usageQty,
   }));
+  function fromServiceRow(row) {
+    return { cuid: row.cuid, name: row.name, rate: num(row.rate), unit: row.unit, usageQty: num(row.usage_qty) };
+  }
 
   const invoicesMirror = createMirror('invoices', i => ({
     cuid: i.cuid, number: i.number, issue_date: i.issueDate, due_date: i.dueDate,
@@ -233,12 +276,31 @@
     client_pays: i.clientPays, you_receive: i.youReceive, deposit_pct: i.depositPct,
     status: i.status, payment_channels: i.paymentChannels, notes: i.notes,
   }));
+  // `line_items`/`payment_channels` are jsonb — already-parsed arrays/
+  // objects, same as jobs' jsonb columns above.
+  function fromInvoiceRow(row) {
+    return {
+      cuid: row.cuid, number: row.number, issueDate: row.issue_date, dueDate: row.due_date,
+      clientId: num(row.client_id), clientName: row.client_name, clientTaxId: row.client_tax_id,
+      clientAddress: row.client_address, lineItems: row.line_items, subtotal: num(row.subtotal),
+      whtPct: num(row.wht_pct), vatPct: num(row.vat_pct), vat: num(row.vat), wht: num(row.wht),
+      clientPays: num(row.client_pays), youReceive: num(row.you_receive), depositPct: num(row.deposit_pct),
+      status: row.status, paymentChannels: row.payment_channels, notes: row.notes,
+    };
+  }
 
   const documentsMirror = createMirror('documents', d => ({
     cuid: d.cuid, type: d.type, title: d.title, client_id: d.clientId,
     client_name: d.clientName, invoice_id: d.invoiceId, fields: d.fields,
     content: d.content, number: d.number, issue_date: d.issueDate,
   }));
+  function fromDocumentRow(row) {
+    return {
+      cuid: row.cuid, type: row.type, title: row.title, clientId: num(row.client_id),
+      clientName: row.client_name, invoiceId: num(row.invoice_id), fields: row.fields,
+      content: row.content, number: row.number, issueDate: row.issue_date,
+    };
+  }
 
   // Local IndexedDB store is still named 'bookings' (app/bookings.js) — the
   // api-path/table rename to app_bookings/app-bookings.js is a backend-only
@@ -250,10 +312,26 @@
     location: b.location, notes: b.notes, status: b.status,
     job_cuid: b.jobCuid,
   }));
+  // `job_cuid` rides through untouched (it's a cuid, not a local id — same
+  // "cuid-based links never get remapped" rule importDataset()'s IMPORT_ORDER
+  // loop already follows for subTasks[].bookingCuid).
+  function fromBookingRow(row) {
+    return {
+      cuid: row.cuid, customerId: num(row.customer_id), title: row.title, date: row.date,
+      startTime: row.start_time, durationMin: num(row.duration_min), travelBufferMin: num(row.travel_buffer_min),
+      location: row.location, notes: row.notes, status: row.status, jobCuid: row.job_cuid,
+    };
+  }
 
   const followupsMirror = createMirror('followups', f => ({
     cuid: f.cuid, key: f.key, dismissed: f.dismissed, snoozed_until: f.snoozedUntil,
   }));
+  // `key` embeds ids as a string (`overdue:CID:INVID`, ...) — left as-is,
+  // same as bookings' job_cuid above; importDataset()'s followups branch is
+  // what rewrites the embedded numbers, not this map.
+  function fromFollowupRow(row) {
+    return { cuid: row.cuid, key: row.key, dismissed: row.dismissed, snoozedUntil: row.snoozed_until };
+  }
 
   // Local field is `order` (app/portfolio.js), not `orderIndex` — mapped to
   // the schema's `order_index` column name here, at the boundary.
@@ -261,19 +339,37 @@
     cuid: p.cuid, title: p.title, description: p.description, tags: p.tags,
     image_data_url: p.imageDataUrl, order_index: p.order,
   }));
+  function fromPortfolioRow(row) {
+    return {
+      cuid: row.cuid, title: row.title, description: row.description, tags: row.tags,
+      imageDataUrl: row.image_data_url, order: num(row.order_index),
+    };
+  }
 
   const researchMirror = createMirror('research', r => ({
     cuid: r.cuid, title: r.title, category: r.category, body: r.body, is_premium: r.isPremium,
   }));
+  function fromResearchRow(row) {
+    return { cuid: row.cuid, title: row.title, category: row.category, body: row.body, isPremium: row.is_premium };
+  }
 
   const packagesMirror = createMirror('packages', p => ({
     cuid: p.cuid, client_id: p.clientId, total_sessions: p.totalSessions, price: p.price,
     purchased_date: p.purchasedDate, expires_at: p.expiresAt, notes: p.notes,
   }));
+  function fromPackageRow(row) {
+    return {
+      cuid: row.cuid, clientId: num(row.client_id), totalSessions: num(row.total_sessions), price: num(row.price),
+      purchasedDate: row.purchased_date, expiresAt: row.expires_at, notes: row.notes,
+    };
+  }
 
   const progressLogsMirror = createMirror('progress-logs', p => ({
     cuid: p.cuid, client_id: p.clientId, date: p.date, weight: p.weight, notes: p.notes,
   }));
+  function fromProgressLogRow(row) {
+    return { cuid: row.cuid, clientId: num(row.client_id), date: row.date, weight: num(row.weight), notes: row.notes };
+  }
 
   // Bespoke, not createMirror(): api/settings.js's row key is (user_cuid,
   // key), no cuid at all (see that file's own header for why). The local
@@ -286,6 +382,72 @@
     const sep = prefixedKey.indexOf(':');
     const bareKey = sep >= 0 ? prefixedKey.slice(sep + 1) : prefixedKey;
     await apiFetch(`/api/settings?key=${encodeURIComponent(bareKey)}`, { method: 'PUT', body: { value } });
+  }
+
+  // ── pullAll(): the other half of the mirror — closes both "cloud restore
+  // path" and "Team read cutover" at once ──────────────────────────────────
+  // Every resource endpoint's GET (lib/crudHandler.js) already scopes its
+  // rows by resolveDataOwner(), not the caller's own cuid (lib/teams.js) —
+  // so a team member's GET already comes back as the ORG OWNER's rows, no
+  // extra server work needed. That means "restore this device from the
+  // cloud" (solo account, after a wipe/reinstall) and "let a team member see
+  // the owner's data" (Team plan, Phase 2) are the exact same client-side
+  // operation: fetch every resource, reshape each row back to the local
+  // record shape, and hand the whole batch to importDataset() (app.js) —
+  // which was already built, and is already id-remap-tested, for the
+  // file-based restore. This function is purely that fetch-and-reshape; it
+  // does not touch IndexedDB itself (app.js's restoreFromCloud() does).
+  //
+  // Deliberately excludes 'expenses': that local IndexedDB store has no
+  // server-side table/endpoint at all (see BACKUP_STORES in app.js and this
+  // file's own header on why `clients` was the only store Phase 1 mirrored,
+  // since fanned out but never to expenses) — there is nothing to pull for
+  // it, and it must stay OUT of the returned byStore entirely (not present
+  // as an empty array) so importDataset() leaves this device's expenses
+  // rows untouched rather than wiping them on every cloud restore.
+  //
+  // All GETs run in parallel and are independently fault-tolerant: one
+  // store's fetch failing (a transient 502, a locked/misconfigured server)
+  // is reported via `failed` rather than discarding the stores that did
+  // come back successfully.
+  const PULL_RESOURCES = [
+    ['clients', 'clients', fromClientRow],
+    ['jobs', 'jobs', fromJobRow],
+    ['services', 'services', fromServiceRow],
+    ['invoices', 'invoices', fromInvoiceRow],
+    ['documents', 'documents', fromDocumentRow],
+    ['bookings', 'app-bookings', fromBookingRow],
+    ['followups', 'followups', fromFollowupRow],
+    ['portfolio', 'portfolio', fromPortfolioRow],
+    ['research', 'research', fromResearchRow],
+    ['packages', 'packages', fromPackageRow],
+    ['progressLogs', 'progress-logs', fromProgressLogRow],
+  ];
+  async function pullAll() {
+    if (!isEnabled()) return { ok: false, byStore: {}, settingsRows: [], failed: [] };
+    const [resourceResults, settingsResult] = await Promise.all([
+      Promise.all(PULL_RESOURCES.map(([, apiPath]) => apiFetch(`/api/${apiPath}`))),
+      apiFetch('/api/settings'),
+    ]);
+    const byStore = {};
+    const failed = [];
+    PULL_RESOURCES.forEach(([storeName, , toLocal], idx) => {
+      const r = resourceResults[idx];
+      if (r.ok && Array.isArray(r.data.rows)) byStore[storeName] = r.data.rows.map(toLocal);
+      else failed.push(storeName);
+    });
+    const settingsOk = settingsResult.ok && Array.isArray(settingsResult.data.rows);
+    if (!settingsOk) failed.push('settings');
+    // ok=false only when NOTHING came back usable (e.g. an invalid/expired
+    // token failing every request identically) — a partial failure still
+    // returns ok=true with byStore holding whatever did succeed, so the
+    // caller can still hydrate most of the account's data and just say so.
+    return {
+      ok: failed.length < PULL_RESOURCES.length + 1,
+      byStore,
+      settingsRows: settingsOk ? settingsResult.data.rows : [],
+      failed,
+    };
   }
 
   window.SidekickBackend = {
@@ -306,6 +468,6 @@
     mirrorResearchSave: researchMirror.mirrorSave, mirrorResearchDelete: researchMirror.mirrorDelete,
     mirrorPackageSave: packagesMirror.mirrorSave,
     mirrorProgressLogSave: progressLogsMirror.mirrorSave, mirrorProgressLogDelete: progressLogsMirror.mirrorDelete,
-    mirrorSettingSave,
+    mirrorSettingSave, pullAll,
   };
 })();
