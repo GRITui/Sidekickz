@@ -847,6 +847,10 @@ const I18N = {
     cloud_backup_enabled_toast:'Cloud backup enabled — {n} client(s) backed up.',
     cloud_backup_modal_body:'Right now your clients only live on this device — if it\'s lost or reset, they\'re gone. Turn on cloud backup to also keep a copy in your account. You can always do this later from Settings.',
     cloud_backup_later_btn:'Not now',
+    guest_adopt_title:'Bring in your guest data?',
+    guest_adopt_body:'This device has {n} records from guest mode. Move them into this account? If you choose Not now, they stay right where they are — still reachable any time by continuing as a guest on this device.',
+    guest_adopt_btn:'Bring my data', guest_adopt_later:'Not now',
+    guest_adopt_done:'Moved {n} records into your account.',
     restore_cloud_btn:'Restore from cloud', team_load_data:"Load your team's data",
     restore_cloud_confirm:'Restore from the cloud? This REPLACES this device\'s data for this account. This cannot be undone.',
     restore_cloud_done:'Restored {n} records from the cloud.',
@@ -1188,6 +1192,10 @@ const I18N = {
     cloud_backup_enabled_toast:'เปิดใช้งานสำรองข้อมูลบนคลาวด์แล้ว — สำรองข้อมูลลูกค้า {n} รายการ',
     cloud_backup_modal_body:'ตอนนี้ข้อมูลลูกค้าของคุณอยู่ในเครื่องนี้เท่านั้น — หากเครื่องหายหรือถูกรีเซ็ต ข้อมูลจะหายไปด้วย เปิดใช้งานสำรองข้อมูลบนคลาวด์เพื่อเก็บสำเนาไว้ในบัญชีของคุณด้วย คุณสามารถทำภายหลังได้จากหน้าตั้งค่า',
     cloud_backup_later_btn:'ไว้ทีหลัง',
+    guest_adopt_title:'นำข้อมูลผู้เยี่ยมชมเข้าบัญชีนี้ไหม?',
+    guest_adopt_body:'อุปกรณ์นี้มีข้อมูลจากโหมดผู้เยี่ยมชมอยู่ {n} รายการ ต้องการย้ายเข้าบัญชีนี้ไหม? ถ้าเลือกไว้ทีหลัง ข้อมูลจะยังอยู่ที่เดิม สามารถเข้าถึงได้ทุกเมื่อโดยเข้าสู่โหมดผู้เยี่ยมชมบนอุปกรณ์นี้อีกครั้ง',
+    guest_adopt_btn:'นำข้อมูลของฉันเข้ามา', guest_adopt_later:'ไว้ทีหลัง',
+    guest_adopt_done:'ย้ายข้อมูล {n} รายการเข้าบัญชีของคุณแล้ว',
     restore_cloud_btn:'กู้คืนจากคลาวด์', team_load_data:'โหลดข้อมูลของทีมคุณ',
     restore_cloud_confirm:'กู้คืนข้อมูลจากคลาวด์หรือไม่? การทำเช่นนี้จะแทนที่ข้อมูลทั้งหมดบนเครื่องนี้สำหรับบัญชีนี้ และไม่สามารถย้อนกลับได้',
     restore_cloud_done:'กู้คืนข้อมูลจากคลาวด์แล้ว {n} รายการ',
@@ -1505,6 +1513,7 @@ async function finishAppBoot() {
   switchScreen('home');
   await maybeShowCloudBackupModal();
   await maybeRedeemTeamInvite();
+  await maybeOfferGuestAdoption();
   // Fire-and-forget: populates __entitlements for the Phase 1 feature
   // gates (planHasFeature()/planClientCap()) without delaying boot on a
   // network round trip guest/local-only accounts don't even need.
@@ -2240,6 +2249,96 @@ async function maybeRedeemTeamInvite() {
   const r = await SidekickBackend.teamJoin(token);
   if (!r.ok) { toast((r.data && r.data.error) || t('team_invite_failed')); return; }
   toast(t('team_joined_toast'));
+}
+
+// ─── GUEST → ACCOUNT DATA ADOPTION ──────────────────────────────────────
+// The only path off a guest workspace used to be export-then-restore — a
+// silent trap for anyone who tried the app as a guest, then registered a
+// real account on the SAME device: the fresh account boots empty and the
+// guest data just sits there under uid 'guest', invisible unless you already
+// know to dig through Settings > Restore. This offers the obvious move.
+//
+// Cheap because it's a same-device uid swap, not a cross-device restore:
+// BACKUP_STORES rows keep their existing autoincrement id — dbPut() with
+// that same id just re-labels which account owns the row in place — so
+// every id-based cross-reference (job.clientId -> client.id, etc.) survives
+// untouched. None of importDataset()'s oldId->newId remap machinery
+// (needed there because a cloud pull/file restore can land on a device that
+// already owns those same ids under another account) applies here.
+async function maybeOfferGuestAdoption() {
+  if (isGuest) return;
+  if (!(await guestDataExists())) return;
+  const seenKey = 'sidekick_guest_adopt_seen_' + currentUser.id;
+  if (localStorage.getItem(seenKey)) return;
+  localStorage.setItem(seenKey, '1');   // one offer per account, ever — same posture as maybeShowCloudBackupModal()
+  const allByStore = await Promise.all(BACKUP_STORES.map(s => dbAll(s)));
+  const n = allByStore.reduce((sum, rows) => sum + rows.filter(r => r.uid === 'guest').length, 0);
+  if (n === 0) return;   // guestDataExists() already true above, but stay defensive rather than show "0 records"
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'guest-adopt-modal';
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-label="${attrEsc(t('guest_adopt_title'))}">
+      <div class="modal-handle"></div>
+      <div class="modal-title">${htmlEsc(t('guest_adopt_title'))}</div>
+      <div class="form-body" style="padding:0 20px 4px">
+        <p style="color:var(--text2);font-size:14px;line-height:1.5;margin:0 0 16px">${htmlEsc(t('guest_adopt_body').replace('{n}', n))}</p>
+      </div>
+      <button type="button" class="btn-submit" id="guest-adopt-modal-adopt">${htmlEsc(t('guest_adopt_btn'))}</button>
+      <button type="button" class="btn-danger" id="guest-adopt-modal-later" style="border-color:var(--border-mid);color:var(--text3)">${htmlEsc(t('guest_adopt_later'))}</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  // Not-now just closes — the data isn't touched, it stays reachable by
+  // signing back into guest mode on this same device (loginGuest()'s
+  // resume/start-fresh choice already handles "which guest" if more than
+  // one guest session ever piles up here).
+  document.getElementById('guest-adopt-modal-later').addEventListener('click', () => overlay.remove());
+  document.getElementById('guest-adopt-modal-adopt').addEventListener('click', async () => {
+    overlay.remove();
+    await adoptGuestData();
+  });
+}
+// Moves every guest-uid row across BACKUP_STORES onto the current account
+// (in place — see the header comment above), then copies over any
+// guest-prefixed setting the account doesn't already have one for.
+// Current-account keys always win: a fresh account may have just chosen its
+// own businessType (and packageUnitLabel/goalTargets/etc that come with it)
+// during onboarding, and that choice is deliberately not overwritten by
+// whatever the guest session happened to have — a residual persona mismatch
+// between the adopted data and the already-chosen businessType is accepted
+// here, since the user picked both.
+//
+// Guest-prefixed settings rows themselves are left behind under their
+// 'guest:' keys rather than deleted — harmless, since guestDataExists()
+// (and this offer's own re-trigger check) only ever looks at BACKUP_STORES,
+// never at settings.
+async function adoptGuestData() {
+  const uid = currentUser.id;
+  let n = 0;
+  const adoptedClients = [];
+  for (const s of BACKUP_STORES) {
+    const rows = (await dbAll(s)).filter(r => r.uid === 'guest');
+    for (const row of rows) {
+      row.uid = uid;
+      await dbPut(s, row);   // same id -> in-place ownership transfer, zero remap
+      n++;
+      if (s === 'clients') adoptedClients.push(row);
+    }
+  }
+  const guestSettings = (await dbAll('settings')).filter(r => r.key.startsWith('guest:'));
+  for (const row of guestSettings) {
+    const key = row.key.slice('guest:'.length);
+    if (settings[key] === undefined) await saveSetting(key, row.value);
+  }
+  // Clients reach the server right away via the same idempotent bulk-upload
+  // path enableCloudBackup() uses; every other adopted store mirrors on its
+  // own next individual save, same as any other locally-made edit — no
+  // separate "adopted" upload path needed for those.
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled() && adoptedClients.length) {
+    SidekickBackend.migrateUpload(adoptedClients).catch(() => {});
+  }
+  await reload();
+  toast(t('guest_adopt_done').replace('{n}', n));
 }
 
 // ─── DOCUMENT BRANDING (Phase 1, Pro+) ──────────────────────────────────
