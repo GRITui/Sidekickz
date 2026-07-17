@@ -5970,7 +5970,23 @@ async function importDataset(byStore, uid) {
     // A reference whose target row is missing from this batch is nulled
     // rather than left pointing at whatever row now happens to own that
     // id; those are counted and surfaced in the caller's success toast.
-    const idMap = {};   // store -> Map(oldId -> newId)
+    //
+    // 2026-07-16: TWO-TIER resolution, cuid first. A file-based backup's
+    // rows only ever carry the raw id (oldId → newId, "same-file identity" —
+    // meaningful because referrer and target came from the same export/
+    // import batch). A real cloud pull (dataClient.js pullAll()) is
+    // different: the id on e.g. a job's clientId is the MIRRORING DEVICE's
+    // own local autoincrement id, meaningless on this device — but
+    // fromJobRow() etc. now also attach a `__clientCuid` (etc.) transient
+    // field carrying that ref's actual cuid, which IS globally stable
+    // ("cross-device identity"). resolveRef() below tries that first; only
+    // when no ref cuid was captured at all (a file backup, or a row
+    // mirrored before this pass shipped) does it fall back to the same
+    // oldId map file-based restores already relied on. Whichever tier
+    // fires, the __*Cuid field itself is always stripped before dbAdd() —
+    // it must never end up as a persisted column on the local record.
+    const idMap = {};     // store -> Map(oldId -> newId): same-file identity.
+    const cuidMap = {};   // store -> Map(cuid -> newId): cross-device identity.
     const remap = (store, oldId) => {
       if (oldId == null) return null;
       const m = idMap[store];
@@ -5978,30 +5994,54 @@ async function importDataset(byStore, uid) {
       linksReset++;
       return null;
     };
+    // Resolves one ref (`rest[idField]`) using `rest[cuidField]` (a
+    // __*Cuid transient field) if present, else falls back to remap() on
+    // the raw id. A present-but-unresolvable ref cuid nulls the ref and
+    // counts a reset WITHOUT ever consulting the raw id — a ref cuid that
+    // was captured but can't be resolved means the target genuinely isn't
+    // in this batch, same conclusion the id-only path would reach anyway.
+    const resolveRef = (store, rest, idField, cuidField) => {
+      const refCuid = rest[cuidField];
+      delete rest[cuidField];
+      if (refCuid != null) {
+        const m = cuidMap[store];
+        if (m && m.has(refCuid)) { rest[idField] = m.get(refCuid); return; }
+        linksReset++;
+        rest[idField] = null;
+        return;
+      }
+      rest[idField] = remap(store, rest[idField]);
+    };
     for (const s of stores) {
       idMap[s] = new Map();
+      cuidMap[s] = new Map();
       for (const row of byStore[s]) {
         const { id, ...rest } = row;
         if (s === 'jobs') {
-          rest.clientId = remap('clients', rest.clientId);
-          rest.serviceId = remap('services', rest.serviceId);
-          rest.invoiceId = remap('invoices', rest.invoiceId);
-          rest.quoteDocId = remap('documents', rest.quoteDocId);
-          rest.packageId = remap('packages', rest.packageId);
+          resolveRef('clients', rest, 'clientId', '__clientCuid');
+          resolveRef('services', rest, 'serviceId', '__serviceCuid');
+          resolveRef('invoices', rest, 'invoiceId', '__invoiceCuid');
+          resolveRef('documents', rest, 'quoteDocId', '__quoteDocCuid');
+          resolveRef('packages', rest, 'packageId', '__packageCuid');
+          // Residual gap, accepted this pass: nested milestone/timeEntry
+          // invoiceIds are NOT mirrored as cuids (see sql/schema-core.sql's
+          // jobs comment) — still id-only, still reset exactly as today.
           if (Array.isArray(rest.milestones)) rest.milestones = rest.milestones.map(m => ({ ...m, invoiceId: remap('invoices', m.invoiceId) }));
           if (Array.isArray(rest.timeEntries)) rest.timeEntries = rest.timeEntries.map(e => e.invoiceId != null ? { ...e, invoiceId: remap('invoices', e.invoiceId) } : e);
         } else if (s === 'bookings') {
-          rest.customerId = remap('clients', rest.customerId);
+          resolveRef('clients', rest, 'customerId', '__customerCuid');
         } else if (s === 'invoices') {
-          rest.clientId = remap('clients', rest.clientId);
+          resolveRef('clients', rest, 'clientId', '__clientCuid');
         } else if (s === 'documents') {
-          rest.clientId = remap('clients', rest.clientId);
-          rest.invoiceId = remap('invoices', rest.invoiceId);
+          resolveRef('clients', rest, 'clientId', '__clientCuid');
+          resolveRef('invoices', rest, 'invoiceId', '__invoiceCuid');
         } else if (s === 'packages' || s === 'progressLogs') {
-          rest.clientId = remap('clients', rest.clientId);
+          resolveRef('clients', rest, 'clientId', '__clientCuid');
         } else if (s === 'followups' && typeof rest.key === 'string') {
           // Keys embed ids as strings: `overdue:CID:INVID`, `draft:CID:INVID`,
           // `stale:CID:` — rewrite the embedded ids, leave unknown shapes as-is.
+          // Residual gap, accepted this pass: no ref-cuid mirroring for
+          // followups' embedded ids either — still id-only, same as today.
           const parts = rest.key.split(':');
           if ((parts[0] === 'overdue' || parts[0] === 'draft') && parts.length >= 3) {
             const c = remap('clients', parseInt(parts[1], 10)), i = remap('invoices', parseInt(parts[2], 10));
@@ -6013,6 +6053,7 @@ async function importDataset(byStore, uid) {
         }
         const newId = await dbAdd(s, { ...rest, uid });
         if (id != null) idMap[s].set(id, newId);
+        if (rest.cuid) cuidMap[s].set(rest.cuid, newId);
         inserted++;
       }
     }

@@ -172,6 +172,86 @@ const { chromium } = require('playwright');
   }, preExistingExpenseId);
   assert(expenseStillThere, "4: pre-existing local expense survives a cloud restore (byStore has no 'expenses' key at all)");
 
+  // ── 5. Pass A.2: the REAL pullAll() shape — no `id` field at all (server
+  // rows never carry one, see fromClientRow()'s comment in dataClient.js),
+  // only __clientCuid/__invoiceCuid transient refs. Section 3 above uses a
+  // synthetic id-remap fixture (same shape as check-blockers-p1.js's file-
+  // backup test) to prove the oldId tier still works; this section proves
+  // the cuid tier importDataset() now tries FIRST actually resolves links
+  // when there is no id to fall back on. jobs.clientId/invoiceId are seeded
+  // with deliberately-wrong foreign numbers (7777/8888, matching nothing in
+  // this batch) alongside the correct __clientCuid/__invoiceCuid, so a pass
+  // here can only mean the cuid tier fired — reusing the raw id by luck is
+  // not possible when it's wrong on purpose.
+  async function setPullAllStubCuidOnly(sessionUser) {
+    await page.evaluate(({ sessionUser }) => {
+      const noop = async () => ({ ok: true, data: {} });
+      const stageOrder = getStageOrder().slice();
+      window.SidekickBackend = {
+        isEnabled: () => true,
+        session: async () => ({ ok: true, data: { user: sessionUser } }),
+        billingCheckout: async () => ({ ok: false }), billingPortal: async () => ({ ok: false }),
+        mirrorClientSave: noop, mirrorClientDelete: noop, mirrorJobSave: noop, mirrorJobDelete: noop,
+        mirrorServiceSave: noop, mirrorServiceDelete: noop, mirrorInvoiceSave: noop, mirrorInvoiceDelete: noop,
+        mirrorDocumentSave: noop, mirrorDocumentDelete: noop, mirrorBookingSave: noop, mirrorBookingDelete: noop,
+        mirrorFollowupSave: noop, mirrorPortfolioSave: noop, mirrorPortfolioDelete: noop,
+        mirrorResearchSave: noop, mirrorResearchDelete: noop, mirrorPackageSave: noop,
+        mirrorProgressLogSave: noop, mirrorProgressLogDelete: noop, mirrorSettingSave: noop,
+        lineChannelStatus: async () => ({ ok: true, data: { connected: false, webhookUrl: 'https://x/api/line-webhook', bookingPageUrl: 'https://x/book.html' } }),
+        bookingSlotsList: async () => ({ ok: true, data: { rows: [] } }),
+        bookingRequestsList: async () => ({ ok: true, data: { rows: [] } }),
+        bookingRequestResolve: async () => ({ ok: true, data: {} }),
+        teamMembersList: async () => ({ ok: true, data: { owner: { cuid: 'o1', name: 'Owner' }, myRole: (sessionUser.team && sessionUser.team.role) || 'owner', members: [] } }),
+        pullAll: async () => ({
+          ok: true,
+          byStore: {
+            clients: [{ name: 'Cuid-Only Client', cuid: 'cc2-901', updatedAt: nowISOStub() }],
+            services: [], documents: [], packages: [], bookings: [], portfolio: [], research: [], progressLogs: [],
+            invoices: [{ number: 'INV-C2', clientId: 7777, status: 'sent', cuid: 'ci2-903', lineItems: [],
+              __clientCuid: 'cc2-901', updatedAt: nowISOStub() }],
+            jobs: [{ date: todayISO(), client: 'Cuid-Only Client', clientId: 7777, serviceId: null,
+              serviceName: null, amount: 500, cuid: 'cj2-904', stageOrder, stage: 'invoice', complete: false,
+              invoiceId: 8888, quoteDocId: null, packageId: null,
+              __clientCuid: 'cc2-901', __invoiceCuid: 'ci2-903', __serviceCuid: null,
+              __quoteDocCuid: null, __packageCuid: null, updatedAt: nowISOStub() }],
+            followups: [],
+          },
+          settingsRows: window.__settingsRowsStub,
+          failed: [],
+        }),
+      };
+      function nowISOStub() { return new Date().toISOString(); }
+    }, { sessionUser });
+    await page.evaluate((rows) => { window.__settingsRowsStub = rows; }, settingsRows);
+    await page.evaluate(() => window.refreshEntitlements && window.refreshEntitlements());
+    await page.waitForTimeout(100);
+  }
+  await setPullAllStubCuidOnly(soloUser);
+  const cuidResult = await page.evaluate(async () => {
+    await window.restoreFromCloud();
+    await new Promise(r => setTimeout(r, 300));
+    const j = jobs.find(x => x.cuid === 'cj2-904');
+    const c = customers.find(x => x.cuid === 'cc2-901');
+    const inv = (await dbAll('invoices')).find(x => x.cuid === 'ci2-903');
+    return {
+      ok: !!(j && c && inv),
+      clientLink: j && c && j.clientId === c.id,
+      invoiceLink: j && inv && j.invoiceId === inv.id,
+      invClientLink: inv && c && inv.clientId === c.id,
+      noStaleForeignId: j && j.clientId !== 7777 && j.invoiceId !== 8888,
+      noTransientFields: j && !('__clientCuid' in j) && !('__invoiceCuid' in j) && !('__serviceCuid' in j)
+        && !('__quoteDocCuid' in j) && !('__packageCuid' in j) && inv && !('__clientCuid' in inv),
+    };
+  });
+  assert(cuidResult.ok, '5: all restored rows present after a cuid-only (no id fields) restoreFromCloud()');
+  assert(cuidResult.clientLink, '5: jobs.clientId resolved purely via __clientCuid, no id field on the pulled row at all');
+  assert(cuidResult.invoiceLink, '5: jobs.invoiceId resolved purely via __invoiceCuid');
+  assert(cuidResult.invClientLink, '5: invoices.clientId resolved purely via __clientCuid');
+  assert(cuidResult.noStaleForeignId, '5: the deliberately-wrong foreign clientId/invoiceId (7777/8888) was never reused');
+  assert(cuidResult.noTransientFields, '5: __*Cuid transient fields stripped before dbAdd(), never persisted on the local record');
+  const cuidToastText = await page.locator('#toast').textContent();
+  assert(!/broken links/i.test(cuidToastText), '5: linksReset stayed 0 — no "broken links" reset phrase in the toast, got: ' + cuidToastText);
+
   console.log(`\n${pass} passed, ${fail} failed`);
   console.log('Console/page errors:', errors.length ? errors : 'none');
   await browser.close();

@@ -165,6 +165,28 @@
   // does real arithmetic (netOf(), stage-cap comparisons, ...) on it.
   function num(v) { return v == null || v === '' ? null : Number(v); }
 
+  // 2026-07-16: resolves a local id-ref (job.clientId, invoice.clientId, ...)
+  // to the cuid of the row it points at, AT MIRROR TIME — this is what lets
+  // pullAll()/importDataset() (app.js) resolve the link by cuid on another
+  // device instead of nulling it, since the local autoincrement id this
+  // device minted means nothing anywhere else (see this file's own header
+  // and sql/schema-core.sql's ref-cuid comment). `dbGet` is app.js's
+  // IndexedDB helper — a classic-script global, not something this file
+  // imports, hence the `typeof` guard (defensive; app.js always loads before
+  // this file per index.html's script order, but there's no reason to trust
+  // that here). Every failure mode (no id, missing row, a lookup that throws)
+  // resolves to null rather than propagating — a best-effort mirror should
+  // never fail the whole save over an unresolved ref.
+  async function refCuid(store, id) {
+    if (id == null || typeof dbGet !== 'function') return null;
+    try {
+      const row = await dbGet(store, id);
+      return (row && row.cuid) || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   // ── clients mirror ────────────────────────────────────────────────────
   // Always tries create first; a 409 (this cuid already exists server-side
   // — e.g. this record was already uploaded, or already mirrored from a
@@ -216,10 +238,21 @@
   // save mirror even though nothing in app.js currently deletes a package
   // (no delete call site exists yet) — for parity/future use, harmless
   // either way since mirrorDelete is simply never called for it today.
+  //
+  // 2026-07-16: `toPayload` is `await`ed here rather than called for its
+  // return value directly — every affected store's toPayload (jobs,
+  // invoices, documents, packages, progressLogs, bookings) now resolves its
+  // id-refs to ref cuids via refCuid() above, which is async (an IndexedDB
+  // lookup). Every caller of mirrorSave/mirrorDelete across app.js/
+  // bookings.js/invoices.js/docgen.js already treats the call as
+  // fire-and-forget (`SidekickBackend.mirrorXSave(record).catch(() => {})`)
+  // and never inspected toPayload's return value directly, so making this
+  // function's internals async doesn't change any call site — verified via
+  // grep across app/*.js before this change.
   function createMirror(apiPath, toPayload) {
     async function mirrorSave(record) {
       if (!isEnabled() || !record || !record.cuid) return;
-      const payload = toPayload(record);
+      const payload = await toPayload(record);
       const created = await apiFetch(`/api/${apiPath}`, { method: 'POST', body: payload });
       if (created.ok || created.status !== 409) return;
       await apiFetch(`/api/${apiPath}?cuid=${encodeURIComponent(record.cuid)}`, { method: 'PUT', body: payload });
@@ -231,7 +264,7 @@
     return { mirrorSave, mirrorDelete };
   }
 
-  const jobsMirror = createMirror('jobs', j => ({
+  const jobsMirror = createMirror('jobs', async j => ({
     cuid: j.cuid, date: j.date, client_name: j.client, client_id: j.clientId,
     service_id: j.serviceId, service_name: j.serviceName, job_type: j.jobType,
     amount: j.amount, tip: j.tip, expense: j.expense, count: j.count, notes: j.notes,
@@ -239,6 +272,15 @@
     invoice_id: j.invoiceId, quote_doc_id: j.quoteDocId, package_id: j.packageId,
     sub_tasks: j.subTasks, milestones: j.milestones, time_entries: j.timeEntries,
     timer_started_at: j.timerStartedAt,
+    // 2026-07-16: ref cuids for the id-refs above — see refCuid()'s comment.
+    // milestones[]/timeEntries[]'s own embedded invoiceId is NOT resolved
+    // here (accepted residual gap, see app.js importDataset()'s comment) —
+    // only the job's own top-level refs get this treatment this pass.
+    client_cuid: await refCuid('clients', j.clientId),
+    service_cuid: await refCuid('services', j.serviceId),
+    invoice_cuid: await refCuid('invoices', j.invoiceId),
+    quote_doc_cuid: await refCuid('documents', j.quoteDocId),
+    package_cuid: await refCuid('packages', j.packageId),
   }));
   // Reverse of the toPayload above. `stage_order`/`sub_tasks`/`milestones`/
   // `time_entries` are jsonb columns — they arrive already parsed into
@@ -248,7 +290,12 @@
   // for that row at save time — see fromClientRow()'s comment; importDataset()
   // (app.js) already treats an id it can't resolve within the same restore
   // batch as "target missing" and nulls it, same as a file-based restore
-  // whose backup is missing a referenced row.
+  // whose backup is missing a referenced row. `__clientCuid`/`__serviceCuid`/
+  // `__invoiceCuid`/`__quoteDocCuid`/`__packageCuid` are transient fields
+  // (double-underscore = never rendered anywhere, stripped by importDataset()
+  // before insert) that carry the ref cuids through so importDataset() can
+  // try resolving each ref by cuid FIRST, before falling back to the same-
+  // file oldId map.
   function fromJobRow(row) {
     return {
       cuid: row.cuid, date: row.date, client: row.client_name, clientId: num(row.client_id),
@@ -258,6 +305,9 @@
       complete: row.complete, invoiceId: num(row.invoice_id), quoteDocId: num(row.quote_doc_id),
       packageId: num(row.package_id), subTasks: row.sub_tasks, milestones: row.milestones,
       timeEntries: row.time_entries, timerStartedAt: row.timer_started_at,
+      __clientCuid: row.client_cuid || null, __serviceCuid: row.service_cuid || null,
+      __invoiceCuid: row.invoice_cuid || null, __quoteDocCuid: row.quote_doc_cuid || null,
+      __packageCuid: row.package_cuid || null,
     };
   }
 
@@ -268,16 +318,20 @@
     return { cuid: row.cuid, name: row.name, rate: num(row.rate), unit: row.unit, usageQty: num(row.usage_qty) };
   }
 
-  const invoicesMirror = createMirror('invoices', i => ({
+  const invoicesMirror = createMirror('invoices', async i => ({
     cuid: i.cuid, number: i.number, issue_date: i.issueDate, due_date: i.dueDate,
     client_id: i.clientId, client_name: i.clientName, client_tax_id: i.clientTaxId,
     client_address: i.clientAddress, line_items: i.lineItems, subtotal: i.subtotal,
     wht_pct: i.whtPct, vat_pct: i.vatPct, vat: i.vat, wht: i.wht,
     client_pays: i.clientPays, you_receive: i.youReceive, deposit_pct: i.depositPct,
     status: i.status, payment_channels: i.paymentChannels, notes: i.notes,
+    // 2026-07-16: ref cuid for client_id — see refCuid()'s comment.
+    client_cuid: await refCuid('clients', i.clientId),
   }));
   // `line_items`/`payment_channels` are jsonb — already-parsed arrays/
-  // objects, same as jobs' jsonb columns above.
+  // objects, same as jobs' jsonb columns above. `__clientCuid` is a
+  // transient field (see fromJobRow's comment) carrying client_cuid through
+  // for importDataset() to resolve by cuid first.
   function fromInvoiceRow(row) {
     return {
       cuid: row.cuid, number: row.number, issueDate: row.issue_date, dueDate: row.due_date,
@@ -286,19 +340,26 @@
       whtPct: num(row.wht_pct), vatPct: num(row.vat_pct), vat: num(row.vat), wht: num(row.wht),
       clientPays: num(row.client_pays), youReceive: num(row.you_receive), depositPct: num(row.deposit_pct),
       status: row.status, paymentChannels: row.payment_channels, notes: row.notes,
+      __clientCuid: row.client_cuid || null,
     };
   }
 
-  const documentsMirror = createMirror('documents', d => ({
+  const documentsMirror = createMirror('documents', async d => ({
     cuid: d.cuid, type: d.type, title: d.title, client_id: d.clientId,
     client_name: d.clientName, invoice_id: d.invoiceId, fields: d.fields,
     content: d.content, number: d.number, issue_date: d.issueDate,
+    // 2026-07-16: ref cuids for client_id/invoice_id — see refCuid()'s comment.
+    client_cuid: await refCuid('clients', d.clientId),
+    invoice_cuid: await refCuid('invoices', d.invoiceId),
   }));
+  // `__clientCuid`/`__invoiceCuid` are transient fields (see fromJobRow's
+  // comment) carrying the ref cuids through for importDataset().
   function fromDocumentRow(row) {
     return {
       cuid: row.cuid, type: row.type, title: row.title, clientId: num(row.client_id),
       clientName: row.client_name, invoiceId: num(row.invoice_id), fields: row.fields,
       content: row.content, number: row.number, issueDate: row.issue_date,
+      __clientCuid: row.client_cuid || null, __invoiceCuid: row.invoice_cuid || null,
     };
   }
 
@@ -306,20 +367,25 @@
   // api-path/table rename to app_bookings/app-bookings.js is a backend-only
   // detail to avoid colliding with the LINE pilot's own `bookings` table
   // (see sql/schema-core.sql), not something the client needs to know about.
-  const bookingsMirror = createMirror('app-bookings', b => ({
+  const bookingsMirror = createMirror('app-bookings', async b => ({
     cuid: b.cuid, customer_id: b.customerId, title: b.title, date: b.date,
     start_time: b.startTime, duration_min: b.durationMin, travel_buffer_min: b.travelBufferMin,
     location: b.location, notes: b.notes, status: b.status,
     job_cuid: b.jobCuid,
+    // 2026-07-16: ref cuid for customer_id — see refCuid()'s comment.
+    customer_cuid: await refCuid('clients', b.customerId),
   }));
   // `job_cuid` rides through untouched (it's a cuid, not a local id — same
   // "cuid-based links never get remapped" rule importDataset()'s IMPORT_ORDER
-  // loop already follows for subTasks[].bookingCuid).
+  // loop already follows for subTasks[].bookingCuid). `__customerCuid` is a
+  // transient field (see fromJobRow's comment) carrying customer_cuid through
+  // for importDataset().
   function fromBookingRow(row) {
     return {
       cuid: row.cuid, customerId: num(row.customer_id), title: row.title, date: row.date,
       startTime: row.start_time, durationMin: num(row.duration_min), travelBufferMin: num(row.travel_buffer_min),
       location: row.location, notes: row.notes, status: row.status, jobCuid: row.job_cuid,
+      __customerCuid: row.customer_cuid || null,
     };
   }
 
@@ -353,22 +419,32 @@
     return { cuid: row.cuid, title: row.title, category: row.category, body: row.body, isPremium: row.is_premium };
   }
 
-  const packagesMirror = createMirror('packages', p => ({
+  const packagesMirror = createMirror('packages', async p => ({
     cuid: p.cuid, client_id: p.clientId, total_sessions: p.totalSessions, price: p.price,
     purchased_date: p.purchasedDate, expires_at: p.expiresAt, notes: p.notes,
+    // 2026-07-16: ref cuid for client_id — see refCuid()'s comment.
+    client_cuid: await refCuid('clients', p.clientId),
   }));
+  // `__clientCuid` is a transient field (see fromJobRow's comment) carrying
+  // client_cuid through for importDataset().
   function fromPackageRow(row) {
     return {
       cuid: row.cuid, clientId: num(row.client_id), totalSessions: num(row.total_sessions), price: num(row.price),
       purchasedDate: row.purchased_date, expiresAt: row.expires_at, notes: row.notes,
+      __clientCuid: row.client_cuid || null,
     };
   }
 
-  const progressLogsMirror = createMirror('progress-logs', p => ({
+  const progressLogsMirror = createMirror('progress-logs', async p => ({
     cuid: p.cuid, client_id: p.clientId, date: p.date, weight: p.weight, notes: p.notes,
+    // 2026-07-16: ref cuid for client_id — see refCuid()'s comment.
+    client_cuid: await refCuid('clients', p.clientId),
   }));
   function fromProgressLogRow(row) {
-    return { cuid: row.cuid, clientId: num(row.client_id), date: row.date, weight: num(row.weight), notes: row.notes };
+    return {
+      cuid: row.cuid, clientId: num(row.client_id), date: row.date, weight: num(row.weight), notes: row.notes,
+      __clientCuid: row.client_cuid || null,
+    };
   }
 
   // Bespoke, not createMirror(): api/settings.js's row key is (user_cuid,
