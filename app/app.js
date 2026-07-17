@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.40';          // <-> sw.js SW_VERSION 'sidekick-v0.9.40'
+const APP_VERSION = '0.9.41';          // <-> sw.js SW_VERSION 'sidekick-v0.9.41'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -898,6 +898,23 @@ const I18N = {
     // calculator + card-payments waitlist row.
     doc_lang_label:'Document language', doc_lang_th:'Thai', doc_lang_en:'English',
     tax_calc_title:'Tax calculator',
+    // M4 Pass P4 — annual ภ.ง.ด.90/94 filing-prep roll-up (report-only,
+    // second block inside #docs-tax-details, owned by tax.js's
+    // renderTaxRollup()).
+    taxr_title:'Annual tax summary',
+    taxr_income_invoices:'Paid invoices', taxr_income_cash:'Cash engagements', taxr_income_total:'Assessable income',
+    taxr_category_label:'Income category',
+    taxr_cat_40_2:'Service fees / commissions — §40(2)', taxr_cat_40_6:'Liberal profession — §40(6)', taxr_cat_40_7_8:'Contracting / business — §40(7)(8)',
+    taxr_deduct_std:'Standard', taxr_deduct_actual:'Actual expenses', taxr_deduction:'Expense deduction',
+    taxr_allowance:'Personal allowance (add your own others)',
+    taxr_net_income:'Net taxable income', taxr_est_tax:'Estimated tax', taxr_wht_credit:'WHT already withheld',
+    taxr_tawi_hint:'{n} of {m} 50-Tawi certificates received',
+    taxr_net_due:'Estimated payable', taxr_refund:'Estimated refund',
+    taxr_deadlines:'Filing windows',
+    taxr_due_94:'ภ.ง.ด.94 (Jan–Jun income) — due 30 Sep (e-file 8 Oct)',
+    taxr_due_90:'ภ.ง.ด.90 (annual) — due 31 Mar (e-file 8 Apr)',
+    taxr_days_left:'{n} days left',
+    taxr_disclaimer:'Estimate only — not tax advice. Rates and deductions verified Jul 2026; confirm current rules and your own allowances with the Revenue Department (rd.go.th).',
     card_waitlist_label:'Accept card payments',
     card_waitlist_sub:'Coming later — tap to register interest so we build it sooner.',
     card_waitlist_thanks:'Noted — you’re on the list ✓',
@@ -1324,6 +1341,22 @@ const I18N = {
     // M4 Pass P1 — ตัวเลือกภาษาเอกสารต่อฉบับ + คำนวณภาษีในหน้าเอกสาร + คิวรอรับบัตร
     doc_lang_label:'ภาษาของเอกสาร', doc_lang_th:'ไทย', doc_lang_en:'อังกฤษ',
     tax_calc_title:'คำนวณภาษี',
+    // M4 Pass P4 — สรุปภาษีทั้งปีสำหรับเตรียมยื่น ภ.ง.ด.90/94 (สำหรับดูข้อมูล
+    // ประกอบการยื่นแบบเท่านั้น อยู่ในบล็อกที่สองภายใน #docs-tax-details)
+    taxr_title:'สรุปภาษีทั้งปี',
+    taxr_income_invoices:'ใบแจ้งหนี้ที่ชำระแล้ว', taxr_income_cash:'งานเงินสด', taxr_income_total:'เงินได้พึงประเมิน',
+    taxr_category_label:'ประเภทเงินได้',
+    taxr_cat_40_2:'ค่ารับจ้าง/นายหน้า — ม.40(2)', taxr_cat_40_6:'วิชาชีพอิสระ — ม.40(6)', taxr_cat_40_7_8:'รับเหมา/ธุรกิจ — ม.40(7)(8)',
+    taxr_deduct_std:'เหมาจ่าย', taxr_deduct_actual:'ตามจริง', taxr_deduction:'หักค่าใช้จ่าย',
+    taxr_allowance:'ค่าลดหย่อนส่วนตัว (เพิ่มรายการอื่นเอง)',
+    taxr_net_income:'เงินได้สุทธิ', taxr_est_tax:'ภาษีโดยประมาณ', taxr_wht_credit:'ถูกหัก ณ ที่จ่ายแล้ว',
+    taxr_tawi_hint:'ได้รับ 50 ทวิ {n} จาก {m} ใบ',
+    taxr_net_due:'ประมาณต้องชำระเพิ่ม', taxr_refund:'ประมาณได้คืน',
+    taxr_deadlines:'กำหนดยื่นแบบ',
+    taxr_due_94:'ภ.ง.ด.94 (เงินได้ ม.ค.–มิ.ย.) — ยื่นภายใน 30 ก.ย. (ออนไลน์ 8 ต.ค.)',
+    taxr_due_90:'ภ.ง.ด.90 (ทั้งปี) — ยื่นภายใน 31 มี.ค. (ออนไลน์ 8 เม.ย.)',
+    taxr_days_left:'เหลือ {n} วัน',
+    taxr_disclaimer:'เป็นการประมาณการเท่านั้น ไม่ใช่คำแนะนำทางภาษี — อัตราและค่าลดหย่อนตรวจสอบเมื่อ ก.ค. 2569 โปรดยืนยันกฎปัจจุบันและค่าลดหย่อนของคุณกับกรมสรรพากร (rd.go.th)',
     card_waitlist_label:'รับชำระด้วยบัตรเครดิต',
     card_waitlist_sub:'เร็ว ๆ นี้ — แตะเพื่อแจ้งความสนใจ ให้เราสร้างเร็วขึ้น',
     card_waitlist_thanks:'รับทราบแล้ว — อยู่ในรายชื่อ ✓',
@@ -7224,6 +7257,9 @@ function switchScreen(name) {
   // whenever the Docs screen shows so it's ready the moment the details
   // block is expanded (either by hand or via openDocsTaxCalculator()).
   if (name === 'docs' && typeof renderTax === 'function') renderTax();
+  // M4 Pass P4: the annual tax roll-up is a second block inside the same
+  // details area — render it alongside the calculator above.
+  if (name === 'docs' && typeof renderTaxRollup === 'function') renderTaxRollup();
   // M3 modules (bookings.js / followups.js / portfolio.js).
   if (name === 'book' && typeof renderBookings === 'function') renderBookings();
   if (name === 'followups' && typeof renderFollowups === 'function') renderFollowups();
@@ -7243,6 +7279,7 @@ function openDocsTaxCalculator() {
   if (det) {
     det.open = true;
     if (typeof renderTax === 'function') renderTax();
+    if (typeof renderTaxRollup === 'function') renderTaxRollup();
     det.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
@@ -7258,7 +7295,10 @@ function applyLang() {
   if (hintEl) hintEl.innerHTML = t('auth_hint');
   const submitBtn = document.getElementById('auth-submit');
   if (submitBtn) submitBtn.textContent = authMode === 'register' ? t('create_account') : t('login');
-  try { if (currentUser) { renderHome(); applyUser(); renderPaymentChannels(); } } catch(e) {}
+  // M4 Pass P4: the tax roll-up (unlike tax.js's English-only calculator)
+  // is fully localized — keep it in sync with a live language switch too,
+  // not just the next time Docs re-renders.
+  try { if (currentUser) { renderHome(); applyUser(); renderPaymentChannels(); if (typeof renderTaxRollup === 'function') renderTaxRollup(); } } catch(e) {}
 }
 
 // ─── UTILS ────────────────────────────────────────────────────────────
