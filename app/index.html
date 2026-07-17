@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>(function(){var K='sidekick_ui_theme',t=localStorage.getItem(K);if(t==='dark')document.documentElement.dataset.theme='dark';else if(t!=='auto')document.documentElement.dataset.theme='light';})();</script><!-- light by default: set before CSS paints to avoid a flash of the wrong theme -->
-<link rel="stylesheet" href="styles.css?v=0.9.32">
+<link rel="stylesheet" href="styles.css?v=0.9.33">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -359,7 +359,7 @@
 
     <div class="settings-list" style="margin-top:16px">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.32</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.33</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
@@ -635,22 +635,22 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.9.32"></script>
+<script src="app.js?v=0.9.33"></script>
 <!-- Phase 1 of the local-first -> backend migration: a fetch()-only mirror
      for the `clients` store, exposing window.SidekickBackend. Local
      IndexedDB stays authoritative for every read/write in this phase; see
      dataClient.js's own header for why. -->
-<script src="dataClient.js?v=0.9.32"></script>
+<script src="dataClient.js?v=0.9.33"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.9.32"></script>
-<script src="invoices.js?v=0.9.32"></script>
-<script src="docgen.js?v=0.9.32"></script>
+<script src="tax.js?v=0.9.33"></script>
+<script src="invoices.js?v=0.9.33"></script>
+<script src="docgen.js?v=0.9.33"></script>
 <!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
      the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
-<script src="bookings.js?v=0.9.32"></script>
-<script src="followups.js?v=0.9.32"></script>
-<script src="portfolio.js?v=0.9.32"></script>
+<script src="bookings.js?v=0.9.33"></script>
+<script src="followups.js?v=0.9.33"></script>
+<script src="portfolio.js?v=0.9.33"></script>
 <!-- M5: research.js (content library, subscription UI stubbed open — no
      payment verification yet; see project-changelog-handshake.md). -->
-<script src="research.js?v=0.9.32"></script>
+<script src="research.js?v=0.9.33"></script>

@@ -16,6 +16,8 @@ const FIELDS = [
   'client_pays', 'you_receive', 'deposit_pct', 'status', 'payment_channels', 'notes',
   // 2026-07-16: ref cuid for client_id — see sql/schema-core.sql.
   'client_cuid',
+  // 2026-07-17: embedded payment-slip array (Pass M2a) — see sql/schema-core.sql.
+  'slips',
 ];
 
 export default createResourceHandler('invoices', FIELDS);

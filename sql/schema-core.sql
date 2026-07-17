@@ -240,6 +240,12 @@ create index if not exists idx_invoices_user on invoices(user_cuid);
 
 alter table invoices add column if not exists client_cuid text;
 
+-- 2026-07-17: Pass M2a — payment slips (embedded array, same convention as
+-- line_items: [{id, dataUrl, at}]). Client downscales to longest-side-1200px
+-- JPEG q0.8 before it ever reaches this column, so rows stay small despite
+-- holding raw base64 image data.
+alter table invoices add column if not exists slips jsonb;
+
 create table if not exists documents (
   cuid              text primary key,
   user_cuid         text not null references users(cuid) on delete cascade,

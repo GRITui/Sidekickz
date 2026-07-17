@@ -515,6 +515,7 @@
         base.id = editing.id;
         base.cuid = editing.cuid || cuid();
         if (editing.paymentChannels) base.paymentChannels = editing.paymentChannels; // preserve issue-time snapshot
+        if (editing.slips) base.slips = editing.slips; // preserve attached payment slips (edit form has no slip UI)
         await dbPut(STORE, base);
         if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
           SidekickBackend.mirrorInvoiceSave(base).catch(() => {});
@@ -596,6 +597,35 @@
   // ══════════════════════════════════════════════════════════════════════
   //  INVOICE DETAIL (view + QR + print + actions)
   // ══════════════════════════════════════════════════════════════════════
+  const INV_STATUS_LABEL_KEYS = { draft: 'inv_status_draft', sent: 'inv_status_sent', paid: 'inv_status_paid', overdue: 'inv_status_overdue' };
+
+  // Shared by the status <select> and the payment-slip "Confirm payment
+  // received" one-tap button — both are the same event (status → 'paid'),
+  // so the save + mirror + reverse-hook logic lives in one place.
+  async function transitionInvoiceStatus(inv, overlay, newStatus) {
+    const wasPaid = inv.status === 'paid';
+    inv.status = newStatus;
+    inv.updatedAt = nowISO();
+    try {
+      await dbPut(STORE, inv);
+      if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+        SidekickBackend.mirrorInvoiceSave(inv).catch(() => {});
+      toast(t('status_toast_prefix') + t(INV_STATUS_LABEL_KEYS[inv.status]));
+    } catch (er) { console.error(er); }
+    // Reverse hook: recording payment on the invoice is where users
+    // actually mark money received — the linked pipeline card should
+    // advance without a second manual "mark paid" over there. app.js
+    // decides whether the job qualifies (see onInvoiceMarkedPaid).
+    if (!wasPaid && inv.status === 'paid' && typeof window.onInvoiceMarkedPaid === 'function') {
+      try { window.onInvoiceMarkedPaid(inv.id); } catch (er) { /* non-fatal */ }
+    }
+    const chip = overlay.querySelector('.modal-title .chip');
+    if (chip) chip.outerHTML = statusChip(inv.status);
+    const statusSelect = overlay.querySelector('#inv-d-status');
+    if (statusSelect) statusSelect.value = inv.status;
+    renderInvoices();
+  }
+
   async function openInvoiceDetail(id) {
     const inv = await dbGet(STORE, id);
     if (!inv || inv.uid !== uidNow()) { toast(t('invoice_not_found')); return; }
@@ -616,7 +646,6 @@
     const trow = (label, val, strong) =>
       `<div style="display:flex;justify-content:space-between;margin:3px 0;${strong ? 'font-weight:800;color:var(--brand);font-size:15px' : 'font-size:13px;color:var(--text2)'}">
         <span>${esc(label)}</span><span class="tnum">${esc(val)}</span></div>`;
-    const INV_STATUS_LABEL_KEYS = { draft: 'inv_status_draft', sent: 'inv_status_sent', paid: 'inv_status_paid', overdue: 'inv_status_overdue' };
 
     overlay.innerHTML = `
       <div class="modal" role="dialog" aria-modal="true" aria-label="${aesc(t('invoice_detail_aria'))}">
@@ -650,6 +679,8 @@
 
         <div id="inv-qr-wrap" style="padding:6px 20px 10px;text-align:center"></div>
 
+        <div id="inv-slip-wrap" style="padding:0 20px 14px"></div>
+
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px 10px">
           <button type="button" id="inv-d-edit" style="padding:13px;border:1.5px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">${esc(t('edit_btn'))}</button>
           <button type="button" id="inv-d-print" style="padding:13px;border:1.5px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">${esc(t('print_pdf_btn'))}</button>
@@ -668,6 +699,8 @@
 
     // Payment channels (PromptPay QR + any bank/cash/other reference text)
     renderPaymentChannelsInto(document.getElementById('inv-qr-wrap'), inv);
+    // Payment slips (attach/view/remove + one-tap "confirm paid")
+    renderSlipSection(overlay, inv);
 
     overlay.querySelector('#inv-d-edit').addEventListener('click', () => { closeModal('inv-detail-modal'); openInvoiceEdit(inv); });
     overlay.querySelector('#inv-d-print').addEventListener('click', () => printInvoice(inv));
@@ -681,31 +714,137 @@
       openInvoiceDetail(id);
     });
     overlay.querySelector('#inv-d-status').addEventListener('change', async (e) => {
-      const wasPaid = inv.status === 'paid';
-      inv.status = e.target.value;
-      inv.updatedAt = nowISO();
-      try {
-        await dbPut(STORE, inv);
-        if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
-          SidekickBackend.mirrorInvoiceSave(inv).catch(() => {});
-        toast(t('status_toast_prefix') + t(INV_STATUS_LABEL_KEYS[inv.status]));
-      } catch (er) { console.error(er); }
-      // Reverse hook: recording payment on the invoice is where users
-      // actually mark money received — the linked pipeline card should
-      // advance without a second manual "mark paid" over there. app.js
-      // decides whether the job qualifies (see onInvoiceMarkedPaid).
-      if (!wasPaid && inv.status === 'paid' && typeof window.onInvoiceMarkedPaid === 'function') {
-        try { window.onInvoiceMarkedPaid(inv.id); } catch (er) { /* non-fatal */ }
-      }
-      const chip = overlay.querySelector('.modal-title .chip');
-      if (chip) chip.outerHTML = statusChip(inv.status);
-      renderInvoices();
+      await transitionInvoiceStatus(inv, overlay, e.target.value);
+      renderSlipSection(overlay, inv); // confirm-paid button hides once status is 'paid'
     });
   }
 
   function closeModal(idStr) {
     const el = document.getElementById(idStr);
     if (el) el.remove();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  PAYMENT SLIPS (attach/view/remove + one-tap "confirm paid")
+  //  inv.slips = [{id, dataUrl, at}], an embedded array like lineItems — no
+  //  DB_VER bump, it's just a new field on an existing record. Photos are
+  //  downscaled client-side (readSlipFile) before storage so IndexedDB rows
+  //  and the mirror POST body stay well under Vercel's ~4.5MB cap.
+  // ══════════════════════════════════════════════════════════════════════
+  function slipSectionHtml(inv) {
+    const slips = Array.isArray(inv.slips) ? inv.slips : [];
+    const thumbs = slips.map(s => `
+        <div style="position:relative;display:inline-block;margin:0 8px 8px 0">
+          <img src="${aesc(s.dataUrl)}" data-slip-view="${aesc(s.id)}" style="height:72px;width:72px;object-fit:cover;border-radius:10px;border:1px solid var(--border);cursor:pointer;display:block">
+          <button type="button" data-slip-remove="${aesc(s.id)}" aria-label="${aesc(t('slip_remove_confirm'))}" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--overdue);color:#fff;font-size:12px;line-height:20px;text-align:center;cursor:pointer;padding:0">✕</button>
+        </div>`).join('');
+    return `
+      <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px">${esc(t('slip_section_title'))}</div>
+      ${slips.length
+        ? `<div style="display:flex;flex-wrap:wrap">${thumbs}</div>`
+        : `<div style="font-size:12px;color:var(--text3);margin-bottom:8px">${esc(t('slip_none_hint'))}</div>`}
+      <input type="file" accept="image/*" id="inv-slip-file" style="display:none">
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button type="button" id="inv-slip-attach" style="flex:1;padding:11px;border:1.5px dashed var(--border-mid);background:none;color:var(--text2);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${esc(t('slip_attach_btn'))}</button>
+        ${inv.status !== 'paid' ? `<button type="button" id="inv-slip-confirm-paid" style="flex:1;padding:11px;border:none;background:var(--pine,#22554B);color:#fff;border-radius:var(--radius-sm);font-weight:800;font-family:inherit;font-size:13px;cursor:pointer">${esc(t('slip_confirm_paid_btn'))}</button>` : ''}
+      </div>`;
+  }
+
+  // Rebuilds #inv-slip-wrap in place and rewires its handlers (innerHTML
+  // replacement drops old listeners, so every mutation re-renders through
+  // here rather than patching the DOM piecemeal).
+  function renderSlipSection(overlay, inv) {
+    const wrap = overlay.querySelector('#inv-slip-wrap');
+    if (!wrap) return;
+    wrap.innerHTML = slipSectionHtml(inv);
+
+    const fileInput = wrap.querySelector('#inv-slip-file');
+    wrap.querySelector('#inv-slip-attach').addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files && fileInput.files[0];
+      fileInput.value = '';
+      if (!file) return;
+      const dataUrl = await readSlipFile(file);
+      if (!dataUrl) { toast(t('slip_invalid_toast')); return; }
+      inv.slips = Array.isArray(inv.slips) ? inv.slips : [];
+      inv.slips.push({ id: cuid(), dataUrl, at: nowISO() });
+      inv.updatedAt = nowISO();
+      try {
+        await dbPut(STORE, inv);
+        if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+          SidekickBackend.mirrorInvoiceSave(inv).catch(() => {});
+      } catch (er) { console.error(er); }
+      renderSlipSection(overlay, inv);
+      toast(t('slip_added_toast'));
+    });
+
+    const confirmBtn = wrap.querySelector('#inv-slip-confirm-paid');
+    if (confirmBtn) confirmBtn.addEventListener('click', async () => {
+      await transitionInvoiceStatus(inv, overlay, 'paid');
+      renderSlipSection(overlay, inv);
+    });
+
+    wrap.querySelectorAll('[data-slip-view]').forEach(img => {
+      img.addEventListener('click', () => openSlipViewer(inv, img.getAttribute('data-slip-view')));
+    });
+    wrap.querySelectorAll('[data-slip-remove]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm(t('slip_remove_confirm'))) return;
+        const id = btn.getAttribute('data-slip-remove');
+        inv.slips = (inv.slips || []).filter(s => s.id !== id);
+        inv.updatedAt = nowISO();
+        try {
+          await dbPut(STORE, inv);
+          if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+            SidekickBackend.mirrorInvoiceSave(inv).catch(() => {});
+        } catch (er) { console.error(er); }
+        renderSlipSection(overlay, inv);
+        toast(t('slip_removed_toast'));
+      });
+    });
+  }
+
+  // Full-screen tap-anywhere-to-close viewer for a single slip.
+  function openSlipViewer(inv, id) {
+    const s = (inv.slips || []).find(x => x.id === id);
+    if (!s) return;
+    const v = document.createElement('div');
+    v.id = 'inv-slip-viewer';
+    v.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px';
+    v.innerHTML = `<img src="${aesc(s.dataUrl)}" style="max-width:100%;max-height:100%;border-radius:8px;display:block">`;
+    v.addEventListener('click', () => v.remove());
+    document.body.appendChild(v);
+  }
+
+  // FileReader → Image → canvas downscale (longest side ≤ 1200px) → JPEG
+  // q0.8. A raw phone photo runs 5-12MB; this keeps IndexedDB rows and the
+  // mirror POST body small. Resolves null for a non-image or unreadable file.
+  function readSlipFile(file) {
+    return new Promise((resolve) => {
+      if (!file || !/^image\//.test(file.type)) { resolve(null); return; }
+      const reader = new FileReader();
+      reader.onerror = () => resolve(null);
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => resolve(null);
+        img.onload = () => {
+          const MAX = 1200;
+          let w = img.naturalWidth, h = img.naturalHeight;
+          if (!w || !h) { resolve(null); return; }
+          if (w > MAX || h > MAX) {
+            if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
+            else { w = Math.round(w * MAX / h); h = MAX; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          try { resolve(canvas.toDataURL('image/jpeg', 0.8)); } catch (e) { resolve(null); }
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -724,6 +863,14 @@
   }
   function channelTypeLabel(type) {
     return (typeof PAYMENT_CHANNEL_TYPES !== 'undefined' && PAYMENT_CHANNEL_TYPES[type]) ? PAYMENT_CHANNEL_TYPES[type].label : type;
+  }
+  // Only http(s) URLs are ever rendered as a live link — rejects javascript:
+  // and other schemes a pasted "payment link" could otherwise smuggle in.
+  function safeHttpUrl(raw) {
+    try {
+      const u = new URL(String(raw || '').trim());
+      return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : null;
+    } catch (e) { return null; }
   }
 
   // Exposed so other modules (research.js's Premium-subscribe modal) can reuse
@@ -752,6 +899,16 @@
             <div style="font-size:12px;color:var(--text3);margin-top:6px">${esc(t('scan_promptpay_label'))} · ${esc(c.label || t('promptpay_label'))}</div>
             <div class="tnum" style="font-size:16px;font-weight:800;color:var(--text);margin-top:2px">${esc(money2(amount))}</div>
           </div>`;
+      }
+      if (c.type === 'paylink') {
+        const href = safeHttpUrl(c.detail);
+        if (href) {
+          return `<div style="text-align:left;margin-bottom:${gap}">
+              <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">${esc(c.label || channelTypeLabel(c.type))}</div>
+              <a href="${aesc(href)}" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;background:var(--pine,#22554B);color:#fff;font-weight:800;border-radius:12px;padding:12px;text-decoration:none">${esc(t('paylink_open_btn'))} · ${esc(money2(amount))}</a>
+            </div>`;
+        }
+        // Invalid/unsafe URL → fall through to the plain-text card below.
       }
       return `<div style="text-align:left;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:${gap}">
           <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.3px">${esc(c.label || channelTypeLabel(c.type))}</div>

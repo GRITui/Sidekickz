@@ -331,11 +331,13 @@
     wht_pct: i.whtPct, vat_pct: i.vatPct, vat: i.vat, wht: i.wht,
     client_pays: i.clientPays, you_receive: i.youReceive, deposit_pct: i.depositPct,
     status: i.status, payment_channels: i.paymentChannels, notes: i.notes,
+    // 2026-07-17: embedded slip array (Pass M2a) — see sql/schema-core.sql.
+    slips: i.slips,
     // 2026-07-16: ref cuid for client_id — see refCuid()'s comment.
     client_cuid: await refCuid('clients', i.clientId),
   }));
-  // `line_items`/`payment_channels` are jsonb — already-parsed arrays/
-  // objects, same as jobs' jsonb columns above. `__clientCuid` is a
+  // `line_items`/`payment_channels`/`slips` are jsonb — already-parsed
+  // arrays/objects, same as jobs' jsonb columns above. `__clientCuid` is a
   // transient field (see fromJobRow's comment) carrying client_cuid through
   // for importDataset() to resolve by cuid first.
   function fromInvoiceRow(row) {
@@ -345,7 +347,7 @@
       clientAddress: row.client_address, lineItems: row.line_items, subtotal: num(row.subtotal),
       whtPct: num(row.wht_pct), vatPct: num(row.vat_pct), vat: num(row.vat), wht: num(row.wht),
       clientPays: num(row.client_pays), youReceive: num(row.you_receive), depositPct: num(row.deposit_pct),
-      status: row.status, paymentChannels: row.payment_channels, notes: row.notes,
+      status: row.status, paymentChannels: row.payment_channels, notes: row.notes, slips: row.slips,
       __clientCuid: row.client_cuid || null,
     };
   }

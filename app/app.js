@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.32';          // <-> sw.js SW_VERSION 'sidekick-v0.9.32'
+const APP_VERSION = '0.9.33';          // <-> sw.js SW_VERSION 'sidekick-v0.9.33'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -807,6 +807,11 @@ const I18N = {
     delete_booking_confirm:'Delete this booking? This cannot be undone.', booking_deleted:'Booking deleted',
     // M2 — invoices (list / form / detail / print / payment channels) — full i18n pass
     inv_status_paid:'Paid', inv_status_overdue:'Overdue', inv_status_sent:'Sent', inv_status_draft:'Draft',
+    // Pass M2a — payment link button + payment-slip attach/confirm
+    paylink_open_btn:'Pay now', slip_section_title:'Payment slip', slip_attach_btn:'+ Attach slip',
+    slip_confirm_paid_btn:'Confirm payment received', slip_added_toast:'Slip attached', slip_removed_toast:'Slip removed',
+    slip_invalid_toast:'That file could not be read as an image', slip_remove_confirm:'Remove this slip?',
+    slip_none_hint:'Attach the transfer slip your client sends you — then confirm the payment in one tap.',
     tawi_cert_title:'50 Tawi certificate', tawi_received:'Received',
     tawi_missing_template:'Missing · {n} {unit} outstanding',
     mark_missing_btn:'Mark missing', mark_received_btn:'Mark received',
@@ -1191,6 +1196,11 @@ const I18N = {
     delete_booking_confirm:'ลบการจองนี้หรือไม่? ไม่สามารถย้อนกลับได้', booking_deleted:'ลบการจองแล้ว',
     // M2 — invoices (list / form / detail / print / payment channels) — full i18n pass
     inv_status_paid:'ชำระแล้ว', inv_status_overdue:'เกินกำหนด', inv_status_sent:'ส่งแล้ว', inv_status_draft:'ร่าง',
+    // Pass M2a — payment link button + payment-slip attach/confirm
+    paylink_open_btn:'ชำระเงิน', slip_section_title:'สลิปโอนเงิน', slip_attach_btn:'+ แนบสลิป',
+    slip_confirm_paid_btn:'ยืนยันรับเงินแล้ว', slip_added_toast:'แนบสลิปแล้ว', slip_removed_toast:'ลบสลิปแล้ว',
+    slip_invalid_toast:'ไฟล์นี้เปิดเป็นรูปไม่ได้', slip_remove_confirm:'ลบสลิปนี้?',
+    slip_none_hint:'แนบสลิปโอนที่ลูกค้าส่งมา แล้วยืนยันรับเงินได้ในแตะเดียว',
     tawi_cert_title:'หนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)', tawi_received:'ได้รับแล้ว',
     tawi_missing_template:'ยังไม่ได้รับ · ค้างอยู่ {n} {unit}',
     mark_missing_btn:'ทำเครื่องหมายว่ายังไม่ได้รับ', mark_received_btn:'ทำเครื่องหมายว่าได้รับแล้ว',
@@ -6070,12 +6080,18 @@ window.docPageSizeCss = docPageSizeCss;
 const PAYMENT_CHANNEL_TYPES = {
   promptpay: { label: 'PromptPay', detailLabel: 'PromptPay ID', ph: 'Phone or 13-digit national ID' },
   bank:      { label: 'Bank transfer', detailLabel: 'Account details', ph: 'Bank name, account number, account name' },
+  // 2026-07-17: Tier-0 payment link — any hosted checkout URL (Stripe payment
+  // link, Ko-fi, etc.) pasted in; renders as a tappable "Pay now" button on
+  // invoices (invoices.js). The app never touches the money — detail must be
+  // a validated http(s) URL or it falls back to plain text (see safeHttpUrl).
+  paylink:   { label: 'Payment link', detailLabel: 'Link URL', ph: 'https://buy.stripe.com/…' },
   cash:      { label: 'Cash', detailLabel: 'Note (optional)', ph: 'e.g. Pay in cash at the session' },
   other:     { label: 'Other', detailLabel: 'Instructions', ph: 'Payment instructions' },
 };
 const PAYMENT_CHANNEL_ICONS = {
   promptpay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M15 15h2.5v2.5H15zM19.5 15V19M15 19.5h2M19.5 19.5h1.5"/></svg>',
   bank:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em"><path d="M3 10l9-7 9 7"/><path d="M4 10v10M20 10v10M9 10v10M15 10v10"/><path d="M2 20h20"/></svg>',
+  paylink:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em"><path d="M9 15l6-6"/><path d="M11 6l1-1a4 4 0 0 1 5.7 5.7l-1.4 1.4"/><path d="M13 18l-1 1a4 4 0 0 1-5.7-5.7l1.4-1.4"/></svg>',
   cash:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 9h.01M18 15h.01"/></svg>',
   other:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em"><path d="M20.6 13.4L11 3.8A2 2 0 0 0 9.5 3H4a1 1 0 0 0-1 1v5.5c0 .5.2 1 .6 1.4l9.6 9.6a2 2 0 0 0 2.8 0l4.4-4.4a2 2 0 0 0 .2-2.7z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>',
 };
