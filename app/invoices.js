@@ -630,10 +630,18 @@
     const inv = await dbGet(STORE, id);
     if (!inv || inv.uid !== uidNow()) { toast(t('invoice_not_found')); return; }
 
+    const backendReady = !isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled();
+    // Pass M2b merge-back: a client may have attached a slip via the public
+    // invoice page (app/invoice.html) directly on the server since this
+    // invoice was last opened here — fire-and-forget, never blocks the
+    // modal opening (see refreshInvoiceSlipsFromServer's own header).
+    if (backendReady) refreshInvoiceSlipsFromServer(inv).catch(() => {});
+
     closeModal('inv-detail-modal');
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.id = 'inv-detail-modal';
+    overlay.dataset.invId = String(id);
 
     const linesHtml = (inv.lineItems || []).map(li =>
       `<tr>
@@ -681,9 +689,10 @@
 
         <div id="inv-slip-wrap" style="padding:0 20px 14px"></div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px 10px">
+        <div style="display:grid;grid-template-columns:${backendReady ? '1fr 1fr 1fr' : '1fr 1fr'};gap:8px;padding:0 16px 10px">
           <button type="button" id="inv-d-edit" style="padding:13px;border:1.5px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">${esc(t('edit_btn'))}</button>
           <button type="button" id="inv-d-print" style="padding:13px;border:1.5px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">${esc(t('print_pdf_btn'))}</button>
+          ${backendReady ? `<button type="button" id="inv-d-share" style="padding:13px;border:1.5px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">${esc(t('inv_share_btn'))}</button>` : ''}
         </div>
         <div style="padding:0 16px 4px">
           <label for="inv-d-status" style="display:block;font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px">${esc(t('change_status_label'))}</label>
@@ -704,6 +713,8 @@
 
     overlay.querySelector('#inv-d-edit').addEventListener('click', () => { closeModal('inv-detail-modal'); openInvoiceEdit(inv); });
     overlay.querySelector('#inv-d-print').addEventListener('click', () => printInvoice(inv));
+    const shareBtn = overlay.querySelector('#inv-d-share');
+    if (shareBtn) shareBtn.addEventListener('click', () => copyInvoiceShareLink(inv));
     overlay.querySelector('#inv-d-close').addEventListener('click', () => closeModal('inv-detail-modal'));
     const tawiBtn = overlay.querySelector('#inv-tawi-toggle');
     if (tawiBtn) tawiBtn.addEventListener('click', async () => {
@@ -722,6 +733,81 @@
   function closeModal(idStr) {
     const el = document.getElementById(idStr);
     if (el) el.remove();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  SHARE LINK  (Pass M2b: the shareable client-facing public invoice page)
+  // ══════════════════════════════════════════════════════════════════════
+  // Builds the app/invoice.html URL from this invoice's own cuid — the same
+  // capability-token model as app/book.html's ?u= link: whoever holds the
+  // link can view (and attach a slip to) this ONE invoice, nothing else.
+  // Copy-with-fallback shape duplicated from app/followups.js's
+  // copyMessage()/fallbackCopy() (a separate self-contained IIFE, nothing to
+  // import from) rather than a shared helper.
+  async function copyInvoiceShareLink(inv) {
+    const url = new URL('invoice.html?i=' + encodeURIComponent(inv.cuid), location.href).href;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(url);
+        toast(t('inv_share_copied'));
+        return;
+      } catch (e) { /* fall through to the textarea fallback below */ }
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = url;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    try {
+      textarea.select();
+      document.execCommand('copy');
+      toast(t('inv_share_copied'));
+    } catch (e) {
+      console.error(e);
+      toast(url); // last resort: put the raw link in the toast so it's at least visible to copy by hand
+    } finally {
+      textarea.remove();
+    }
+  }
+
+  // Pass M2b merge-back: a client can attach a payment slip straight from
+  // the public invoice page (app/invoice.html → api/invoice-public.js POST)
+  // without ever touching this app — that lands on the SERVER row only.
+  // This is what pulls it into the freelancer's local IndexedDB copy, the
+  // next time she opens this invoice here. Fire-and-forget from
+  // openInvoiceDetail(): fetches the server's current slips for this one
+  // cuid, appends whichever ids the local record doesn't already have (by
+  // id, not by array length — a locally-removed slip must not silently
+  // come back from the server), dbPut()s if anything changed, and — only if
+  // the SAME invoice's detail modal is still the one open when the
+  // (network-latency-bound) fetch resolves — re-renders the slip section
+  // and toasts. One-directional on purpose: a client can never delete a
+  // slip, so this only ever adds; a slip the freelancer deleted locally
+  // stays deleted (local wins, never re-synced back in). Swallows every
+  // error silently — offline is the normal case for most opens, not a bug.
+  async function refreshInvoiceSlipsFromServer(inv) {
+    if (!inv || !inv.cuid || typeof SidekickBackend === 'undefined' || typeof SidekickBackend.invoiceFetchByCuid !== 'function') return;
+    try {
+      const serverInv = await SidekickBackend.invoiceFetchByCuid(inv.cuid);
+      if (!serverInv || !Array.isArray(serverInv.slips) || !serverInv.slips.length) return;
+
+      const local = await dbGet(STORE, inv.id);
+      if (!local || local.uid !== uidNow()) return; // invoice gone / account switched since the fetch started
+      const localIds = new Set((local.slips || []).map(s => s.id));
+      const missing = serverInv.slips.filter(s => s && s.id && !localIds.has(s.id));
+      if (!missing.length) return;
+
+      local.slips = [...(local.slips || []), ...missing];
+      local.updatedAt = nowISO();
+      await dbPut(STORE, local);
+      inv.slips = local.slips; // keep the in-memory object any open modal closure already holds in sync
+
+      const overlay = document.getElementById('inv-detail-modal');
+      if (overlay && overlay.dataset.invId === String(inv.id)) {
+        renderSlipSection(overlay, local);
+      }
+      toast(t('inv_slips_synced').replace('{n}', missing.length));
+    } catch (e) { /* offline/network error — silent, this is a background sync */ }
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -1491,5 +1577,18 @@
     // Safety cleanup if afterprint never fires
     setTimeout(cleanup, 60000);
   }
+
+  // Exposed for app/invoice.html (Pass M2b's public, client-facing invoice
+  // page) — self-contained by design (no app.js, no t()/settings/DOM-i18n
+  // helpers), so it can't call renderPaymentChannelsInto() itself (that
+  // reads t()/settings/PAYMENT_CHANNEL_TYPES). These five are the pure
+  // primitives underneath it: no i18n, no `settings` read, no localized
+  // strings — EMVCo payload building, QR-matrix generation, and canvas
+  // drawing only. invoice.html builds its own bilingual markup around them.
+  // Placed here (end of the IIFE, after ECL_M's `const` above has actually
+  // run) rather than up near renderPaymentChannelsInto() — referencing a
+  // `const` before its own declaration line has executed throws a temporal-
+  // dead-zone ReferenceError, which would break this whole file's load.
+  window.SidekickPromptPay = { buildPromptPayPayload, qrGenerate, drawQr, ECL_M, normalizePromptPay };
 
 })();

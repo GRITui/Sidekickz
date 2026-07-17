@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.33';          // <-> sw.js SW_VERSION 'sidekick-v0.9.33'
+const APP_VERSION = '0.9.34';          // <-> sw.js SW_VERSION 'sidekick-v0.9.34'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -812,6 +812,9 @@ const I18N = {
     slip_confirm_paid_btn:'Confirm payment received', slip_added_toast:'Slip attached', slip_removed_toast:'Slip removed',
     slip_invalid_toast:'That file could not be read as an image', slip_remove_confirm:'Remove this slip?',
     slip_none_hint:'Attach the transfer slip your client sends you — then confirm the payment in one tap.',
+    // Pass M2b — shareable client-facing public invoice page + slip merge-back
+    inv_share_btn:'Copy link', inv_share_copied:'Invoice link copied — send it to your client',
+    inv_slips_synced:'{n} new slip from your client',
     tawi_cert_title:'50 Tawi certificate', tawi_received:'Received',
     tawi_missing_template:'Missing · {n} {unit} outstanding',
     mark_missing_btn:'Mark missing', mark_received_btn:'Mark received',
@@ -1201,6 +1204,9 @@ const I18N = {
     slip_confirm_paid_btn:'ยืนยันรับเงินแล้ว', slip_added_toast:'แนบสลิปแล้ว', slip_removed_toast:'ลบสลิปแล้ว',
     slip_invalid_toast:'ไฟล์นี้เปิดเป็นรูปไม่ได้', slip_remove_confirm:'ลบสลิปนี้?',
     slip_none_hint:'แนบสลิปโอนที่ลูกค้าส่งมา แล้วยืนยันรับเงินได้ในแตะเดียว',
+    // Pass M2b — shareable client-facing public invoice page + slip merge-back
+    inv_share_btn:'คัดลอกลิงก์', inv_share_copied:'คัดลอกลิงก์ใบแจ้งหนี้แล้ว — ส่งให้ลูกค้าได้เลย',
+    inv_slips_synced:'มีสลิปใหม่จากลูกค้า {n} รายการ',
     tawi_cert_title:'หนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)', tawi_received:'ได้รับแล้ว',
     tawi_missing_template:'ยังไม่ได้รับ · ค้างอยู่ {n} {unit}',
     mark_missing_btn:'ทำเครื่องหมายว่ายังไม่ได้รับ', mark_received_btn:'ทำเครื่องหมายว่าได้รับแล้ว',

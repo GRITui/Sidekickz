@@ -352,6 +352,24 @@
     };
   }
 
+  // Pass M2b: fetches this account's own SERVER copy of one invoice by
+  // cuid, for openInvoiceDetail()'s slip merge-back (app/invoices.js) — a
+  // client can attach a slip straight through the public invoice page
+  // (app/invoice.html → api/invoice-public.js), which lands on the server
+  // row only; this is what lets the freelancer's local copy pick it up.
+  // No ?cuid= filter on the invoices GET (lib/crudHandler.js only supports
+  // that on PUT/DELETE, not GET — see its `url.searchParams.get('cuid')`
+  // usage) so this fetches the full authenticated list like pullAll() does
+  // and picks the one row client-side. Returns null on any failure
+  // (not-found, network, auth) — callers are expected to swallow that
+  // silently (a background sync failing is not user-facing).
+  async function invoiceFetchByCuid(cuid) {
+    const r = await apiFetch('/api/invoices');
+    if (!r.ok || !Array.isArray(r.data.rows)) return null;
+    const row = r.data.rows.find(x => x.cuid === cuid);
+    return row ? fromInvoiceRow(row) : null;
+  }
+
   const documentsMirror = createMirror('documents', async d => ({
     cuid: d.cuid, type: d.type, title: d.title, client_id: d.clientId,
     client_name: d.clientName, invoice_id: d.invoiceId, fields: d.fields,
@@ -545,6 +563,7 @@
     mirrorJobSave: jobsMirror.mirrorSave, mirrorJobDelete: jobsMirror.mirrorDelete,
     mirrorServiceSave: servicesMirror.mirrorSave, mirrorServiceDelete: servicesMirror.mirrorDelete,
     mirrorInvoiceSave: invoicesMirror.mirrorSave, mirrorInvoiceDelete: invoicesMirror.mirrorDelete,
+    invoiceFetchByCuid,
     mirrorDocumentSave: documentsMirror.mirrorSave, mirrorDocumentDelete: documentsMirror.mirrorDelete,
     mirrorBookingSave: bookingsMirror.mirrorSave, mirrorBookingDelete: bookingsMirror.mirrorDelete,
     mirrorFollowupSave: followupsMirror.mirrorSave,
