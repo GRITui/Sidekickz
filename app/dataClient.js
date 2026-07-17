@@ -317,11 +317,19 @@
     };
   }
 
+  // 2026-07-17: Pass M3-L1 — unify Services into a product/service catalog.
+  // `kind`/`sku` ride through as plain strings; `stock_qty`/`cost` go
+  // through num() on the way back (numeric columns round-trip as strings —
+  // see num()'s own comment above).
   const servicesMirror = createMirror('services', s => ({
     cuid: s.cuid, name: s.name, rate: s.rate, unit: s.unit, usage_qty: s.usageQty,
+    kind: s.kind, sku: s.sku, stock_qty: s.stockQty, cost: s.cost,
   }));
   function fromServiceRow(row) {
-    return { cuid: row.cuid, name: row.name, rate: num(row.rate), unit: row.unit, usageQty: num(row.usage_qty) };
+    return {
+      cuid: row.cuid, name: row.name, rate: num(row.rate), unit: row.unit, usageQty: num(row.usage_qty),
+      kind: row.kind, sku: row.sku, stockQty: num(row.stock_qty), cost: num(row.cost),
+    };
   }
 
   const invoicesMirror = createMirror('invoices', async i => ({
@@ -333,6 +341,14 @@
     status: i.status, payment_channels: i.paymentChannels, notes: i.notes,
     // 2026-07-17: embedded slip array (Pass M2a) — see sql/schema-core.sql.
     slips: i.slips,
+    // 2026-07-17: Pass M3-L1 — stamped once a paid invoice's product lines
+    // decrement catalog stock (app.js decrementStockForInvoicePaid), text
+    // like the local nowISO() value it carries (not a parsed timestamp).
+    // NOTE: api/invoices.js's FIELDS whitelist is outside this pass's
+    // writable set, so this column is not yet persisted server-side — the
+    // local IndexedDB stamp (the one that actually guards double-decrement)
+    // is unaffected either way; see this pass's own report for the caveat.
+    stock_decremented_at: i.stockDecrementedAt,
     // 2026-07-16: ref cuid for client_id — see refCuid()'s comment.
     client_cuid: await refCuid('clients', i.clientId),
   }));
@@ -348,6 +364,7 @@
       whtPct: num(row.wht_pct), vatPct: num(row.vat_pct), vat: num(row.vat), wht: num(row.wht),
       clientPays: num(row.client_pays), youReceive: num(row.you_receive), depositPct: num(row.deposit_pct),
       status: row.status, paymentChannels: row.payment_channels, notes: row.notes, slips: row.slips,
+      stockDecrementedAt: row.stock_decremented_at,
       __clientCuid: row.client_cuid || null,
     };
   }

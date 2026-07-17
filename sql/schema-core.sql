@@ -208,6 +208,23 @@ create table if not exists services (
 
 create index if not exists idx_services_user on services(user_cuid);
 
+-- 2026-07-17: Pass M3-L1 — unify the Services catalog into a product/
+-- service catalog (Option 1 of the product-catalogue assessment): a
+-- freelancer who also sells physical things manages them in the same
+-- catalog, invoices them through the same line-item picker, and gets
+-- simple stock tracking. `kind` distinguishes a stocked/sellable item
+-- ('product') from a billable service; missing/null = 'service', so every
+-- pre-existing row (and every seeded default) stays a service with no
+-- migration needed. `sku`/`cost` are optional catalog metadata (cost is
+-- unit cost, for later margin insights — stored now, no UI beyond the
+-- input yet). `stock_qty` is nullable on purpose: null means "not
+-- tracked", letting a product opt out of stock tracking entirely rather
+-- than needing a sentinel value.
+alter table services add column if not exists kind text;
+alter table services add column if not exists sku text;
+alter table services add column if not exists stock_qty integer;
+alter table services add column if not exists cost numeric;
+
 create table if not exists invoices (
   cuid              text primary key,
   user_cuid         text not null references users(cuid) on delete cascade,
@@ -245,6 +262,17 @@ alter table invoices add column if not exists client_cuid text;
 -- JPEG q0.8 before it ever reaches this column, so rows stay small despite
 -- holding raw base64 image data.
 alter table invoices add column if not exists slips jsonb;
+
+-- 2026-07-17: Pass M3-L1 — stamped the first time a paid invoice's product
+-- lines decrement catalog stock (app.js decrementStockForInvoicePaid);
+-- double-decrement protection for a paid -> sent -> paid round trip. Text,
+-- not timestamptz, matching packages.expires_at above — a client-stamped
+-- nowISO()-shaped string stored verbatim rather than parsed into a real
+-- timestamp.
+-- NOTE: api/invoices.js's FIELDS whitelist is outside this pass's writable
+-- set, so this column is not yet wired to accept writes from the mirror —
+-- schema-only this pass; the local IndexedDB stamp is unaffected.
+alter table invoices add column if not exists stock_decremented_at text;
 
 create table if not exists documents (
   cuid              text primary key,

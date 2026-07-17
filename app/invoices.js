@@ -239,7 +239,11 @@
     formFromJobId = null;
     formLinkMeta = null;
     lines = (inv.lineItems && inv.lineItems.length)
-      ? inv.lineItems.map(li => ({ description: li.description || '', qty: n(li.qty), unitPrice: n(li.unitPrice) }))
+      ? inv.lineItems.map(li => {
+          const row = { description: li.description || '', qty: n(li.qty), unitPrice: n(li.unitPrice) };
+          if (li.serviceId != null) row.serviceId = li.serviceId; // preserve catalog link through an edit
+          return row;
+        })
       : [{ description: '', qty: 1, unitPrice: 0 }];
     buildFormModal({
       title: t('edit_invoice_title'),
@@ -273,9 +277,16 @@
       (typeof customers !== 'undefined' ? customers : []).map(c =>
         `<option value="${c.id}"${String(c.id) === String(v.clientId) ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
 
+    // Pass M3-L1: 📦 prefix flags a catalog product (vs a plain service);
+    // a tracked-out-of-stock product option is shown but disabled so users
+    // can still see it exists, just can't line-item-add it while empty.
     const svcOpts = `<option value="">${esc(t('add_line_from_service_option'))}</option>` +
-      (typeof services !== 'undefined' ? services : []).map(s =>
-        `<option value="${s.id}">${esc(s.name)} · ${esc(money(s.rate))}</option>`).join('');
+      (typeof services !== 'undefined' ? services : []).map(s => {
+        const isProduct = s.kind === 'product';
+        const outOfStock = isProduct && s.stockQty != null && s.stockQty === 0;
+        const label = (isProduct ? '📦 ' : '') + s.name + ' · ' + money(s.rate) + (outOfStock ? ' (หมด/out of stock)' : '');
+        return `<option value="${s.id}"${outOfStock ? ' disabled' : ''}>${esc(label)}</option>`;
+      }).join('');
 
     const INV_STATUS_LABEL_KEYS = { draft: 'inv_status_draft', sent: 'inv_status_sent', paid: 'inv_status_paid', overdue: 'inv_status_overdue' };
     const statusOpts = ['draft', 'sent', 'paid', 'overdue'].map(s =>
@@ -380,7 +391,11 @@
     if (!id) return;
     const s = (typeof services !== 'undefined' ? services : []).find(x => String(x.id) === String(id));
     if (s) {
-      lines.push({ description: s.name || '', qty: 1, unitPrice: n(s.rate) });
+      // serviceId stamps the line with its catalog origin — carried into
+      // saveInvoice's cleanLines below, and later resolved at paid time by
+      // app.js's decrementStockForInvoicePaid(). Hand-typed/blank lines
+      // never get one.
+      lines.push({ description: s.name || '', qty: 1, unitPrice: n(s.rate), serviceId: s.id });
       renderLineRows(); recalcTotals();
     }
     e.target.value = '';
@@ -397,7 +412,8 @@
     }
     wrap.innerHTML = lines.map((li, i) => {
       const amt = n(li.qty) * n(li.unitPrice);
-      return `<div class="inv-line" data-i="${i}" style="border-bottom:0.5px solid var(--border);padding:10px 16px">
+      const svcAttr = li.serviceId != null ? ` data-service-id="${aesc(li.serviceId)}"` : '';
+      return `<div class="inv-line" data-i="${i}"${svcAttr} style="border-bottom:0.5px solid var(--border);padding:10px 16px">
         <div style="display:flex;gap:8px;align-items:flex-start">
           <input type="text" data-f="description" placeholder="${aesc(t('description_ph'))}" value="${aesc(li.description)}"
             style="flex:1;border:none;outline:none;background:transparent;font-size:15px;color:var(--text);font-family:inherit;padding:4px 0">
@@ -469,7 +485,13 @@
 
     const clientName = document.getElementById('inv-cname').value.trim();
     const cleanLines = lines
-      .map(li => ({ description: (li.description || '').trim(), qty: n(li.qty), unitPrice: n(li.unitPrice) }))
+      .map(li => {
+        const out = { description: (li.description || '').trim(), qty: n(li.qty), unitPrice: n(li.unitPrice) };
+        // serviceId only rides along for picker-created lines (see onSvcChange) —
+        // a hand-typed line never gets one.
+        if (li.serviceId != null) out.serviceId = li.serviceId;
+        return out;
+      })
       .filter(li => li.description || li.qty * li.unitPrice > 0);
 
     let bad = false;
@@ -524,6 +546,12 @@
         // save that transitions the status to 'paid' is the same event.
         if (editing.status !== 'paid' && base.status === 'paid' && typeof window.onInvoiceMarkedPaid === 'function') {
           try { window.onInvoiceMarkedPaid(base.id); } catch (e) { /* non-fatal */ }
+        }
+        // Pass M3-L1: second of three paid-transition paths (see
+        // app.js's decrementStockForInvoicePaid own comment) — idempotent
+        // via base.stockDecrementedAt, so overlapping calls are safe.
+        if (editing.status !== 'paid' && base.status === 'paid' && typeof window.decrementStockForInvoicePaid === 'function') {
+          window.decrementStockForInvoicePaid(base).catch(() => {});
         }
         toast(t('invoice_updated'));
       } else {
@@ -612,6 +640,13 @@
         SidekickBackend.mirrorInvoiceSave(inv).catch(() => {});
       toast(t('status_toast_prefix') + t(INV_STATUS_LABEL_KEYS[inv.status]));
     } catch (er) { console.error(er); }
+    // Pass M3-L1: first of three paid-transition paths — see app.js's
+    // decrementStockForInvoicePaid own comment. Idempotent via
+    // inv.stockDecrementedAt, fired before the reverse hook below but the
+    // ordering doesn't matter (both are independent, fire-and-forget).
+    if (newStatus === 'paid' && !wasPaid && typeof window.decrementStockForInvoicePaid === 'function') {
+      window.decrementStockForInvoicePaid(inv).catch(() => {});
+    }
     // Reverse hook: recording payment on the invoice is where users
     // actually mark money received — the linked pipeline card should
     // advance without a second manual "mark paid" over there. app.js

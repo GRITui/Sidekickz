@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.34';          // <-> sw.js SW_VERSION 'sidekick-v0.9.34'
+const APP_VERSION = '0.9.35';          // <-> sw.js SW_VERSION 'sidekick-v0.9.35'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -979,6 +979,11 @@ const I18N = {
     service_saved:'Service saved', service_deleted:'Service deleted',
     field_rate:'Package Price', field_unit:'Unit', field_unit_ph:'e.g. session, hour, project',
     field_usage_qty:'Service usage qty', add_new_service_option:'+ Add a new service',
+    // 2026-07-17: Pass M3-L1 — product/service catalog unification
+    svc_kind_service:'Service', svc_kind_product:'Product',
+    svc_sku_label:'SKU / code (optional)', svc_stock_label:'Stock on hand (blank = not tracked)',
+    svc_cost_label:'Unit cost (optional)', svc_stock_left:'{n} left', svc_stock_out:'Out of stock',
+    svc_stock_decremented:'Stock updated — {n} item(s) deducted',
     // M1.5 — job form links
     field_customer:'Client', field_service:'Service', none_option:'— None —',
     add_new_client_option:'+ Add a new client…',
@@ -1364,6 +1369,11 @@ const I18N = {
     service_saved:'บันทึกบริการแล้ว', service_deleted:'ลบบริการแล้ว',
     field_rate:'ราคาแพ็กเกจ', field_unit:'หน่วย', field_unit_ph:'เช่น เซสชัน, ชั่วโมง, โปรเจกต์',
     field_usage_qty:'จำนวนการใช้งานต่อครั้ง', add_new_service_option:'+ เพิ่มบริการใหม่',
+    // 2026-07-17: Pass M3-L1 — product/service catalog unification
+    svc_kind_service:'บริการ', svc_kind_product:'สินค้า',
+    svc_sku_label:'รหัสสินค้า (ไม่บังคับ)', svc_stock_label:'จำนวนคงเหลือ (เว้นว่าง = ไม่นับสต๊อก)',
+    svc_cost_label:'ต้นทุนต่อหน่วย (ไม่บังคับ)', svc_stock_left:'เหลือ {n}', svc_stock_out:'สินค้าหมด',
+    svc_stock_decremented:'อัปเดตสต๊อกแล้ว — ตัด {n} รายการ',
     // M1.5 — job form links
     field_customer:'ลูกค้า', field_service:'บริการ', none_option:'— ไม่มี —',
     add_new_client_option:'+ เพิ่มลูกค้าใหม่…',
@@ -4167,7 +4177,16 @@ async function markJobPaid(jobId) {
   if (j.invoiceId != null) {
     try {
       const inv = await dbGet('invoices', j.invoiceId);
-      if (inv) { inv.status = 'paid'; inv.updatedAt = nowISO(); await dbPut('invoices', inv); }
+      if (inv) {
+        const wasPaid = inv.status === 'paid';
+        inv.status = 'paid'; inv.updatedAt = nowISO();
+        await dbPut('invoices', inv);
+        // Pass M3-L1: third paid-transition path (direct dbPut, not through
+        // invoices.js) — see decrementStockForInvoicePaid's own comment.
+        if (!wasPaid && typeof window.decrementStockForInvoicePaid === 'function') {
+          window.decrementStockForInvoicePaid(inv).catch(() => {});
+        }
+      }
     } catch (e) { /* non-fatal */ }
   }
   if (typeof renderInvoices === 'function') renderInvoices();
@@ -5944,6 +5963,21 @@ async function seedServicesIfEmpty() {
   await saveSetting(flag, true);
   await reload();
 }
+// Pass M3-L1: 📦 for a product row, 🏷️ for a service row (missing/null
+// `kind` = 'service' — every pre-existing record, no migration).
+function svcIsProduct(s) { return s && s.kind === 'product'; }
+// Stock chip for a product row's right side: neutral "{n} left", amber
+// "{n} left" when 0 < n <= 3 (low stock), red "Out of stock" at n === 0.
+// Untracked products (stockQty == null) render no chip at all.
+function svcStockChipHtml(s) {
+  if (!svcIsProduct(s) || s.stockQty == null) return '';
+  const n = s.stockQty;
+  if (n === 0) {
+    return `<div class="list-amt-sub" style="margin-top:3px"><span class="chip chip-overdue">${htmlEsc(t('svc_stock_out'))}</span></div>`;
+  }
+  const lowStyle = n <= 3 ? 'background:var(--marigold-tint);color:var(--marigold-ink)' : 'background:var(--border);color:var(--text3)';
+  return `<div class="list-amt-sub" style="margin-top:3px"><span class="chip" style="${lowStyle}">${htmlEsc(t('svc_stock_left').replace('{n}', n))}</span></div>`;
+}
 function renderServices() {
   const wrap = document.getElementById('services-body');
   if (!wrap) return;
@@ -5952,24 +5986,46 @@ function renderServices() {
       <p>${htmlEsc(t('no_services'))}</p><span>${htmlEsc(t('no_services_sub'))}</span></div>`;
     return;
   }
-  wrap.innerHTML = '<div class="list-card">' + services.map(s => `
+  wrap.innerHTML = '<div class="list-card">' + services.map(s => {
+    const isProduct = svcIsProduct(s);
+    const subParts = [s.unit || ''];
+    if (isProduct && s.sku) subParts.push(s.sku);
+    return `
     <div class="list-row" onclick="openEditService(${s.id})">
-      <div class="list-icon">🏷️</div>
+      <div class="list-icon">${isProduct ? '📦' : '🏷️'}</div>
       <div class="list-main">
         <div class="list-title">${htmlEsc(s.name)}</div>
-        <div class="list-sub">${htmlEsc(s.unit || '')}</div>
+        <div class="list-sub">${htmlEsc(subParts.filter(Boolean).join(' · '))}</div>
       </div>
-      <div class="list-right"><div class="list-amt tnum">${htmlEsc(money(s.rate))}</div></div>
-    </div>`).join('') + '</div>';
+      <div class="list-right">
+        <div class="list-amt tnum">${htmlEsc(money(s.rate))}</div>
+        ${svcStockChipHtml(s)}
+      </div>
+    </div>`;
+  }).join('') + '</div>';
 }
 function openServiceModal() { document.getElementById('modal-service').classList.add('open'); }
 function closeServiceModal() { window.__pendingJobServiceLink = false; document.getElementById('modal-service').classList.remove('open'); }
+// Toggles the service/product segmented control — same shape as
+// #modal-appt's setApptType(), a hidden input (#sv-kind) carries the current
+// value and the product-only fields container is shown/hidden alongside it.
+function setSvcKind(kind) {
+  const k = kind === 'product' ? 'product' : 'service';
+  const kindEl = document.getElementById('sv-kind');
+  if (kindEl) kindEl.value = k;
+  const svcBtn = document.getElementById('svc-kind-service'), prodBtn = document.getElementById('svc-kind-product');
+  if (svcBtn) svcBtn.classList.toggle('seg-active', k === 'service');
+  if (prodBtn) prodBtn.classList.toggle('seg-active', k === 'product');
+  const fields = document.getElementById('svc-product-fields');
+  if (fields) fields.style.display = k === 'product' ? '' : 'none';
+}
 function openAddService() {
   document.getElementById('svc-modal-title').textContent = t('add_service');
   document.getElementById('sv-edit-id').value = '';
-  ['sv-name','sv-rate','sv-unit'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  ['sv-name','sv-rate','sv-unit','sv-sku','sv-stock','sv-cost'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('sv-usage-qty').value = '1';
   document.getElementById('sv-delete').style.display = 'none';
+  setSvcKind('service');
   clearFieldErrors();
   openServiceModal();
 }
@@ -5981,6 +6037,8 @@ function openEditService(id) {
   const set = (i,v)=>{ const el=document.getElementById(i); if(el) el.value = (v==null?'':v); };
   set('sv-name', s.name); set('sv-rate', s.rate); set('sv-unit', s.unit);
   set('sv-usage-qty', s.usageQty > 0 ? s.usageQty : 1);
+  set('sv-sku', s.sku); set('sv-stock', s.stockQty); set('sv-cost', s.cost);
+  setSvcKind(svcIsProduct(s) ? 'product' : 'service');
   document.getElementById('sv-delete').style.display = 'block';
   clearFieldErrors();
   openServiceModal();
@@ -5992,8 +6050,18 @@ async function saveService() {
   const rate = parseFloat(document.getElementById('sv-rate').value) || 0;
   const unit = (document.getElementById('sv-unit').value || '').trim();
   const usageQty = parseInt(document.getElementById('sv-usage-qty').value, 10) || 1;
+  const kindEl = document.getElementById('sv-kind');
+  const kind = kindEl && kindEl.value === 'product' ? 'product' : 'service';
+  const skuRaw = (document.getElementById('sv-sku') ? document.getElementById('sv-sku').value : '').trim();
+  const sku = skuRaw ? skuRaw : null;
+  const stockRaw = document.getElementById('sv-stock') ? document.getElementById('sv-stock').value : '';
+  const stockParsed = parseInt(stockRaw, 10);
+  const stockQty = stockRaw === '' ? null : (isNaN(stockParsed) ? null : stockParsed);
+  const costRaw = document.getElementById('sv-cost') ? document.getElementById('sv-cost').value : '';
+  const costParsed = parseFloat(costRaw);
+  const cost = costRaw === '' ? null : (isNaN(costParsed) ? null : costParsed);
   const uid = isGuest ? 'guest' : currentUser.id;
-  const obj = {uid, name, rate, unit, usageQty};
+  const obj = {uid, name, rate, unit, usageQty, kind, sku, stockQty, cost};
   const editId = document.getElementById('sv-edit-id').value;
   if (editId) {
     const id = parseInt(editId);
@@ -6030,6 +6098,47 @@ async function deleteService() {
   await reload();
   toast(t('service_deleted'));
 }
+
+// Pass M3-L1: automatic stock decrement when an invoice is marked paid.
+// Shared by all three paid-transition paths — invoices.js's
+// transitionInvoiceStatus (status <select> / "Confirm payment received"),
+// invoices.js's saveInvoice edit-path paid transition, and app.js's own
+// markJobPaid direct invoice flip — kept here since app.js owns the
+// `services` store/global, not invoices.js. Idempotent via
+// inv.stockDecrementedAt (stamped on the INVOICE, not the service): a
+// paid -> sent -> paid round trip must never decrement twice, so every
+// call site fires this fire-and-forget (`.catch(()=>{})`) and lets the
+// stamp guard do the actual dedup.
+window.decrementStockForInvoicePaid = async function (inv) {
+  if (!inv || inv.stockDecrementedAt) return;
+  const lineItems = Array.isArray(inv.lineItems) ? inv.lineItems : [];
+  let decremented = 0;
+  let hasProductLine = false;
+  for (const li of lineItems) {
+    if (li.serviceId == null) continue;
+    const svc = services.find(s => s.id === li.serviceId);
+    if (!svc || !svcIsProduct(svc)) continue;
+    hasProductLine = true;
+    if (svc.stockQty == null) continue; // not tracked — nothing to decrement
+    const qty = Number(li.qty) || 1;
+    svc.stockQty = Math.max(0, svc.stockQty - qty);
+    svc.updatedAt = nowISO();
+    await dbPut('services', svc);
+    if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+      SidekickBackend.mirrorServiceSave(svc).catch(() => {});
+    }
+    decremented++;
+  }
+  if (decremented > 0 || hasProductLine) {
+    inv.stockDecrementedAt = nowISO();
+    await dbPut('invoices', inv);
+    if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+      SidekickBackend.mirrorInvoiceSave(inv).catch(() => {});
+    }
+  }
+  await reload();
+  if (decremented > 0) toast(t('svc_stock_decremented').replace('{n}', decremented));
+};
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────
 async function saveSetting(key, val) {

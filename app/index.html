@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>(function(){var K='sidekick_ui_theme',t=localStorage.getItem(K);if(t==='dark')document.documentElement.dataset.theme='dark';else if(t!=='auto')document.documentElement.dataset.theme='light';})();</script><!-- light by default: set before CSS paints to avoid a flash of the wrong theme -->
-<link rel="stylesheet" href="styles.css?v=0.9.34">
+<link rel="stylesheet" href="styles.css?v=0.9.35">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -359,7 +359,7 @@
 
     <div class="settings-list" style="margin-top:16px">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.34</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.35</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
@@ -552,13 +552,27 @@
     <div class="modal-handle"></div>
     <div class="modal-title" id="svc-modal-title" data-i18n="add_service">Add service</div>
     <input type="hidden" id="sv-edit-id">
+    <input type="hidden" id="sv-kind" value="service">
     <div class="form-section">
+      <!-- Pass M3-L1: service/product catalog toggle — reuses the .ap-seg/
+           .seg-active pattern (see #modal-appt's ap-type-exact/ap-type-by). -->
+      <div class="ap-seg">
+        <button type="button" id="svc-kind-service" class="seg-active" onclick="setSvcKind('service')" data-i18n="svc_kind_service">Service</button>
+        <button type="button" id="svc-kind-product" onclick="setSvcKind('product')" data-i18n="svc_kind_product">Product</button>
+      </div>
       <div class="field"><label for="sv-name" data-i18n="field_name">Name</label><input type="text" id="sv-name"></div>
       <div class="form-row">
         <div class="field-half"><label for="sv-rate" data-i18n="field_rate">Package Price</label><input type="number" id="sv-rate" class="tnum" inputmode="decimal" min="0" placeholder="0"></div>
         <div class="field-half"><label for="sv-unit" data-i18n="field_unit">Unit</label><input type="text" id="sv-unit" data-i18n-ph="field_unit_ph" placeholder="e.g. session, hour"></div>
       </div>
       <div class="field"><label for="sv-usage-qty" data-i18n="field_usage_qty">Service usage qty</label><input type="number" id="sv-usage-qty" class="tnum" inputmode="numeric" min="1" placeholder="1"></div>
+      <!-- Product-only fields — shown only when kind='product' (plain
+           style="display:none" toggling, matching login.html's auth-confirm-wrap). -->
+      <div id="svc-product-fields" style="display:none">
+        <div class="field"><label for="sv-sku" data-i18n="svc_sku_label">SKU / code (optional)</label><input type="text" id="sv-sku"></div>
+        <div class="field"><label for="sv-stock" data-i18n="svc_stock_label">Stock on hand (blank = not tracked)</label><input type="number" id="sv-stock" class="tnum" inputmode="numeric" min="0" placeholder=""></div>
+        <div class="field"><label for="sv-cost" data-i18n="svc_cost_label">Unit cost (optional)</label><input type="number" id="sv-cost" class="tnum" inputmode="decimal" min="0" placeholder="0"></div>
+      </div>
     </div>
     <button class="btn-submit" onclick="saveService()" data-i18n="save_service">Save service</button>
     <button class="btn-danger" id="sv-delete" style="display:none" onclick="deleteService()" data-i18n="delete_service">Delete service</button>
@@ -635,22 +649,22 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.9.34"></script>
+<script src="app.js?v=0.9.35"></script>
 <!-- Phase 1 of the local-first -> backend migration: a fetch()-only mirror
      for the `clients` store, exposing window.SidekickBackend. Local
      IndexedDB stays authoritative for every read/write in this phase; see
      dataClient.js's own header for why. -->
-<script src="dataClient.js?v=0.9.34"></script>
+<script src="dataClient.js?v=0.9.35"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.9.34"></script>
-<script src="invoices.js?v=0.9.34"></script>
-<script src="docgen.js?v=0.9.34"></script>
+<script src="tax.js?v=0.9.35"></script>
+<script src="invoices.js?v=0.9.35"></script>
+<script src="docgen.js?v=0.9.35"></script>
 <!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
      the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
-<script src="bookings.js?v=0.9.34"></script>
-<script src="followups.js?v=0.9.34"></script>
-<script src="portfolio.js?v=0.9.34"></script>
+<script src="bookings.js?v=0.9.35"></script>
+<script src="followups.js?v=0.9.35"></script>
+<script src="portfolio.js?v=0.9.35"></script>
 <!-- M5: research.js (content library, subscription UI stubbed open — no
      payment verification yet; see project-changelog-handshake.md). -->
-<script src="research.js?v=0.9.34"></script>
+<script src="research.js?v=0.9.35"></script>
