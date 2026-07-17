@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.38';          // <-> sw.js SW_VERSION 'sidekick-v0.9.38'
+const APP_VERSION = '0.9.39';          // <-> sw.js SW_VERSION 'sidekick-v0.9.39'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -1037,6 +1037,17 @@ const I18N = {
     shop_order_service:'Shop order',
     shop_order_confirmed_toast:'Order confirmed — engagement created on your board',
     shop_order_declined_toast:'Order declined',
+    // M4 Pass P2 — provider-pluggable slip auto-verify + Home "needs attention"
+    slipverify_title:'Slip verification', slipverify_none:'Off',
+    slipverify_key_label:'API key', slipverify_branch_label:'Branch ID',
+    slipverify_hint:'Auto-check client slips against the bank record via your SlipOK account.',
+    slipverify_btn:'Verify',
+    slipverify_ok_chip:'Verified ฿{amt}', slipverify_mismatch_chip:'Amount mismatch',
+    slipverify_dup_chip:'Duplicate slip', slipverify_invalid_chip:'Not a valid slip',
+    slipverify_err_toast:'Could not verify — try again',
+    attn_title:'Needs attention',
+    attn_orders:'{n} order request(s) waiting',
+    attn_slips:'{n} invoice(s) with new client slips',
     appt_booking_note:'From pipeline job',
     appt_booked_toast:'Appointment booked', appt_step_added_toast:'Step added',
     appt_err_step:'Please enter a step name', appt_err_date:'Please pick a date',
@@ -1446,6 +1457,17 @@ const I18N = {
     shop_order_service:'ออเดอร์จากหน้าร้าน',
     shop_order_confirmed_toast:'ยืนยันออเดอร์แล้ว — สร้างงานบนบอร์ดให้แล้ว',
     shop_order_declined_toast:'ปฏิเสธออเดอร์แล้ว',
+    // M4 Pass P2 — ตรวจสลิปอัตโนมัติแบบเลือกผู้ให้บริการ + การ์ด "รอดำเนินการ" หน้าแรก
+    slipverify_title:'ตรวจสอบสลิปอัตโนมัติ', slipverify_none:'ปิด',
+    slipverify_key_label:'API key', slipverify_branch_label:'Branch ID',
+    slipverify_hint:'ตรวจสลิปกับข้อมูลธนาคารอัตโนมัติผ่านบัญชี SlipOK ของคุณ',
+    slipverify_btn:'ตรวจสลิป',
+    slipverify_ok_chip:'ตรวจแล้ว ฿{amt}', slipverify_mismatch_chip:'ยอดไม่ตรง',
+    slipverify_dup_chip:'สลิปซ้ำ', slipverify_invalid_chip:'สลิปไม่ถูกต้อง',
+    slipverify_err_toast:'ตรวจไม่สำเร็จ — ลองใหม่',
+    attn_title:'รอดำเนินการ',
+    attn_orders:'คำสั่งซื้อรอยืนยัน {n} รายการ',
+    attn_slips:'มีสลิปใหม่จากลูกค้า {n} ใบแจ้งหนี้',
     appt_booking_note:'จากงานในแผนงาน',
     appt_booked_toast:'จองนัดหมายแล้ว', appt_step_added_toast:'เพิ่มขั้นตอนแล้ว',
     appt_err_step:'กรุณาใส่ชื่อขั้นตอน', appt_err_date:'กรุณาเลือกวันที่',
@@ -2996,6 +3018,52 @@ async function resolveOrderRequest(id, action) {
 }
 window.resolveOrderRequest = resolveOrderRequest;
 
+// ─── SLIP VERIFICATION (M4 Pass P2) ──────────────────────────────────────
+// Settings ▸ Shop ▸ Slip verification: provider-pluggable auto-check of
+// client-uploaded payment slips against the bank record (lib/slipVerify.js
+// + api/slip-verify.js). Provider credentials are a per-account secret,
+// same convention as the LINE channel secret (renderLineChannelSection) —
+// saved via saveSetting() into this account's own settings store, and never
+// sent anywhere except fresh on each verify call itself (the server never
+// persists them, see api/slip-verify.js's header). Same backend-gated
+// pattern as renderShopSection() — verification only exists server-side.
+const SLIP_VERIFY_PROVIDERS = ['slipok'];
+async function renderSlipVerifySection() {
+  const el = document.getElementById('slip-verify-body');
+  if (!el) return;
+  if (isGuest || typeof SidekickBackend === 'undefined' || !SidekickBackend.isEnabled()) {
+    el.innerHTML = '';
+    return;
+  }
+  const provider = SLIP_VERIFY_PROVIDERS.includes(settings.slipVerifyProvider) ? settings.slipVerifyProvider : '';
+  el.innerHTML = `
+    <div class="section-title" style="font-size:12px;margin:14px 16px 4px">${htmlEsc(t('slipverify_title'))}</div>
+    <p style="font-size:12px;color:var(--text3);margin:0 16px 10px">${htmlEsc(t('slipverify_hint'))}</p>
+    <div class="field" style="margin:0 16px 10px;padding:0;border:1px solid var(--border);border-radius:var(--radius-sm)">
+      <label for="slipverify-provider" style="display:block;font-size:11px;font-weight:700;color:var(--text3);padding:8px 12px 0;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(t('slipverify_title'))}</label>
+      <select id="slipverify-provider" style="width:100%;border:none;background:none;padding:2px 12px 10px;font-family:inherit;font-size:14px;color:var(--text)" onchange="onSlipVerifyProviderChange(this.value)">
+        <option value=""${provider ? '' : ' selected'}>${htmlEsc(t('slipverify_none'))}</option>
+        <option value="slipok"${provider === 'slipok' ? ' selected' : ''}>SlipOK</option>
+      </select>
+    </div>
+    ${provider ? `
+    <div class="field" style="margin:0 16px 10px;padding:0;border:1px solid var(--border);border-radius:var(--radius-sm)">
+      <label for="slipverify-key" style="display:block;font-size:11px;font-weight:700;color:var(--text3);padding:8px 12px 0;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(t('slipverify_key_label'))}</label>
+      <input class="settings-input" id="slipverify-key" type="password" value="${attrEsc(settings.slipVerifyKey || '')}" style="width:100%;border:none;background:none;padding:2px 12px 10px" onchange="onSlipVerifyKeyChange(this.value)">
+    </div>
+    <div class="field" style="margin:0 16px 14px;padding:0;border:1px solid var(--border);border-radius:var(--radius-sm)">
+      <label for="slipverify-branch" style="display:block;font-size:11px;font-weight:700;color:var(--text3);padding:8px 12px 0;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(t('slipverify_branch_label'))}</label>
+      <input class="settings-input" id="slipverify-branch" type="text" value="${attrEsc(settings.slipVerifyBranch || '')}" style="width:100%;border:none;background:none;padding:2px 12px 10px" onchange="onSlipVerifyBranchChange(this.value)">
+    </div>` : ''}
+  `;
+}
+async function onSlipVerifyProviderChange(v) {
+  await saveSetting('slipVerifyProvider', SLIP_VERIFY_PROVIDERS.includes(v) ? v : '');
+  renderSlipVerifySection();
+}
+async function onSlipVerifyKeyChange(v) { await saveSetting('slipVerifyKey', (v || '').trim()); }
+async function onSlipVerifyBranchChange(v) { await saveSetting('slipVerifyBranch', (v || '').trim()); }
+
 async function addBookingSlot() {
   const startEl = document.getElementById('slot-start-input');
   const endEl = document.getElementById('slot-end-input');
@@ -3361,8 +3429,61 @@ async function renderHome() {
 
   renderGoal();
   renderHomeAlert();
+  renderHomeAttention();
   updateMoreNavBadge();
   renderIncomingPipeline();
+}
+// M4 Pass P2 — "Needs attention" card: pending public shop order requests
+// (Settings ▸ Shop) + invoices carrying a client-uploaded slip the
+// freelancer hasn't opened yet. Both signals are backend-only concepts
+// (order_requests and slip `source`/`at` tracking both only exist once
+// cloud backup is on) — same gated pattern as renderShopSection().
+//
+// orderRequestsList() is a real network fetch, and renderHome() can run on
+// every screen switch/save — caching it here for ATTN_ORDERS_CACHE_MS keeps
+// that from turning into a fetch storm; a stale order count for up to a
+// minute is an acceptable trade. The new-slip count is a pure local
+// IndexedDB read (dbAll('invoices')) so it's always recomputed fresh —
+// that's also what makes it drop immediately once stampSlipsSeen()
+// (app/invoices.js's openInvoiceDetail) marks an invoice's slips seen.
+let __attnOrdersCache = { at: 0, count: 0 };
+const ATTN_ORDERS_CACHE_MS = 60_000;
+async function attnOrdersCount() {
+  const now = Date.now();
+  if (now - __attnOrdersCache.at < ATTN_ORDERS_CACHE_MS) return __attnOrdersCache.count;
+  const r = await SidekickBackend.orderRequestsList();
+  const count = r.ok && Array.isArray(r.data.rows) ? r.data.rows.length : __attnOrdersCache.count;
+  __attnOrdersCache = { at: now, count };
+  return count;
+}
+// A slip counts as "new" for this invoice when it's client-sourced (came in
+// through the public invoice page, api/invoice-public.js — a slip the
+// freelancer attached herself was never unseen to begin with) AND is newer
+// than the last time she opened this invoice's detail modal.
+async function attnNewSlipInvoiceCount() {
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const rows = await dbAll('invoices');
+  return rows.filter(inv => inv.uid === uid && Array.isArray(inv.slips) &&
+    inv.slips.some(s => s && s.source === 'client' && String(s.at || '') > String(inv.slipsSeenAt || ''))
+  ).length;
+}
+async function renderHomeAttention() {
+  const card = document.getElementById('attn-card');
+  if (!card) return;
+  const backendReady = !isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled();
+  if (!backendReady) { card.style.display = 'none'; return; }
+  const [ordersN, slipsN] = await Promise.all([attnOrdersCount(), attnNewSlipInvoiceCount()]);
+  if (!ordersN && !slipsN) { card.style.display = 'none'; return; }
+  const rows = [];
+  if (ordersN) rows.push(`<div class="list-row" onclick="switchScreen('more')">
+      <div class="list-main"><div class="list-title">${htmlEsc(t('attn_orders').replace('{n}', ordersN))}</div></div>
+    </div>`);
+  if (slipsN) rows.push(`<div class="list-row" onclick="switchScreen('invoices')">
+      <div class="list-main"><div class="list-title">${htmlEsc(t('attn_slips').replace('{n}', slipsN))}</div></div>
+    </div>`);
+  const body = document.getElementById('attn-body');
+  if (body) body.innerHTML = rows.join('');
+  card.style.display = 'block';
 }
 // Amber alert card — surfaces the single highest-priority "needs attention"
 // item (same computeClientsNeedingAttention() source as the Clients screen's
@@ -7033,6 +7154,7 @@ function switchScreen(name) {
   if (name === 'more') renderLineChannelSection();
   if (name === 'more') renderTeamSection();
   if (name === 'more') renderShopSection();
+  if (name === 'more') renderSlipVerifySection();
   if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.

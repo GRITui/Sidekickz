@@ -701,6 +701,19 @@
     // invoice was last opened here — fire-and-forget, never blocks the
     // modal opening (see refreshInvoiceSlipsFromServer's own header).
     if (backendReady) refreshInvoiceSlipsFromServer(inv).catch(() => {});
+    // M4 Pass P2: stamp this open as having "seen" every client-uploaded
+    // slip on this invoice so far — this is what Home's "needs attention"
+    // new-slip count (app/app.js's attnNewSlipInvoiceCount) clears against.
+    // Local-only bookkeeping, no mirror needed. Awaited (it's a fast local
+    // IndexedDB write) so it lands before refreshInvoiceSlipsFromServer's
+    // network round-trip can possibly resolve — see stampSlipsSeen's own
+    // header for why it re-reads the record fresh rather than reusing `inv`.
+    // The stamp is then mirrored onto THIS `inv` object too — every later
+    // handler in this modal (attach/remove/verify) calls dbPut(STORE, inv)
+    // with this same in-memory object, and without this line that dbPut
+    // would clobber the fresh-read stamp right back to undefined.
+    const seenAt = await stampSlipsSeen(id);
+    if (seenAt) inv.slipsSeenAt = seenAt;
 
     closeModal('inv-detail-modal');
     const overlay = document.createElement('div');
@@ -875,6 +888,23 @@
     } catch (e) { /* offline/network error — silent, this is a background sync */ }
   }
 
+  // M4 Pass P2: re-fetches the CURRENT local record right before writing
+  // (rather than reusing the `inv` openInvoiceDetail was handed, which may
+  // already be stale by the time this resolves) so a concurrent slip
+  // merge-back from refreshInvoiceSlipsFromServer() above can never be
+  // clobbered by this stamp landing with older data — same fresh-read-then-
+  // write shape that function's own `local` variable already established.
+  async function stampSlipsSeen(id) {
+    const seenAt = nowISO();
+    try {
+      const fresh = await dbGet(STORE, id);
+      if (!fresh || fresh.uid !== uidNow()) return null;
+      fresh.slipsSeenAt = seenAt;
+      await dbPut(STORE, fresh);
+      return seenAt;
+    } catch (e) { return null; /* best-effort local bookkeeping — never blocks the modal */ }
+  }
+
   // ══════════════════════════════════════════════════════════════════════
   //  PAYMENT SLIPS (attach/view/remove + one-tap "confirm paid")
   //  inv.slips = [{id, dataUrl, at}], an embedded array like lineItems — no
@@ -882,12 +912,44 @@
   //  downscaled client-side (readSlipFile) before storage so IndexedDB rows
   //  and the mirror POST body stay well under Vercel's ~4.5MB cap.
   // ══════════════════════════════════════════════════════════════════════
+  // M4 Pass P2: true once the freelancer has picked a provider AND filled
+  // in both credential fields in Settings ▸ Shop ▸ Slip verification — the
+  // same three-field gate api/slip-verify.js itself validates server-side,
+  // checked here purely to decide whether the Verify button is worth
+  // showing at all (no point offering a button that would just 400).
+  function slipVerifyConfigured() {
+    return !!(typeof settings !== 'undefined' && settings && settings.slipVerifyProvider &&
+      settings.slipVerifyKey && settings.slipVerifyBranch);
+  }
+  // Small status chip under a slip thumbnail once it's been (auto-)checked.
+  // data-slip-chip carries the raw status for tests/styling hooks, distinct
+  // from the localized label text.
+  function slipChipHtml(s) {
+    const v = s && s.verify;
+    if (!v || !v.status) return '';
+    if (v.status === 'verified') {
+      const label = t('slipverify_ok_chip').replace('{amt}', fmt(n(v.amount), 2));
+      return `<span data-slip-chip="verified" style="display:block;font-size:10px;font-weight:700;color:var(--paid);margin-top:4px;text-align:center;line-height:1.3">✓ ${esc(label)}</span>`;
+    }
+    if (v.status === 'mismatch') return `<span data-slip-chip="mismatch" style="display:block;font-size:10px;font-weight:700;color:var(--overdue);margin-top:4px;text-align:center;line-height:1.3">✗ ${esc(t('slipverify_mismatch_chip'))}</span>`;
+    if (v.status === 'invalid') return `<span data-slip-chip="invalid" style="display:block;font-size:10px;font-weight:700;color:var(--overdue);margin-top:4px;text-align:center;line-height:1.3">✗ ${esc(t('slipverify_invalid_chip'))}</span>`;
+    if (v.status === 'duplicate') return `<span data-slip-chip="duplicate" style="display:block;font-size:10px;font-weight:700;color:var(--marigold-ink);margin-top:4px;text-align:center;line-height:1.3">⚠ ${esc(t('slipverify_dup_chip'))}</span>`;
+    // 'error' — grey, retryable: no fixed label, the Verify button right
+    // below stays clickable so the freelancer can just try again.
+    return `<span data-slip-chip="error" style="display:block;font-size:10px;font-weight:700;color:var(--text3);margin-top:4px;text-align:center;line-height:1.3">⋯</span>`;
+  }
   function slipSectionHtml(inv) {
     const slips = Array.isArray(inv.slips) ? inv.slips : [];
+    const backendReady = !isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled();
+    const verifyOn = backendReady && slipVerifyConfigured();
     const thumbs = slips.map(s => `
-        <div style="position:relative;display:inline-block;margin:0 8px 8px 0">
-          <img src="${aesc(s.dataUrl)}" data-slip-view="${aesc(s.id)}" style="height:72px;width:72px;object-fit:cover;border-radius:10px;border:1px solid var(--border);cursor:pointer;display:block">
-          <button type="button" data-slip-remove="${aesc(s.id)}" aria-label="${aesc(t('slip_remove_confirm'))}" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--overdue);color:#fff;font-size:12px;line-height:20px;text-align:center;cursor:pointer;padding:0">✕</button>
+        <div style="position:relative;display:inline-flex;flex-direction:column;align-items:center;margin:0 8px 10px 0;width:76px">
+          <div style="position:relative">
+            <img src="${aesc(s.dataUrl)}" data-slip-view="${aesc(s.id)}" style="height:72px;width:72px;object-fit:cover;border-radius:10px;border:1px solid var(--border);cursor:pointer;display:block">
+            <button type="button" data-slip-remove="${aesc(s.id)}" aria-label="${aesc(t('slip_remove_confirm'))}" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--overdue);color:#fff;font-size:12px;line-height:20px;text-align:center;cursor:pointer;padding:0">✕</button>
+          </div>
+          ${slipChipHtml(s)}
+          ${verifyOn ? `<button type="button" data-slip-verify="${aesc(s.id)}" style="margin-top:4px;padding:3px 8px;border:1px solid var(--border-mid);background:none;color:var(--text2);border-radius:8px;font-family:inherit;font-size:10px;font-weight:700;cursor:pointer">${esc(t('slipverify_btn'))}</button>` : ''}
         </div>`).join('');
     return `
       <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px">${esc(t('slip_section_title'))}</div>
@@ -937,6 +999,42 @@
 
     wrap.querySelectorAll('[data-slip-view]').forEach(img => {
       img.addEventListener('click', () => openSlipViewer(inv, img.getAttribute('data-slip-view')));
+    });
+    // M4 Pass P2: "Verify" — only rendered at all when a provider is
+    // configured (slipVerifyConfigured() inside slipSectionHtml), so no
+    // extra guard needed here beyond the button existing. Always left
+    // clickable regardless of any existing verify result — that's what
+    // makes an 'error' chip "retryable" (task 1d) without a separate
+    // Retry affordance, and lets the freelancer re-check after a client
+    // re-sends a corrected slip photo over the same id... though in
+    // practice a re-sent slip always lands as a new slips[] entry (see
+    // api/invoice-public.js), so this mainly just re-asks the provider.
+    wrap.querySelectorAll('[data-slip-verify]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-slip-verify');
+        btn.disabled = true;
+        let r;
+        try {
+          r = await SidekickBackend.slipVerify(inv.cuid, id, {
+            provider: settings.slipVerifyProvider, apiKey: settings.slipVerifyKey, branchId: settings.slipVerifyBranch,
+          });
+        } catch (er) { r = { ok: false }; }
+        if (!r || !r.ok || !r.data || !r.data.verify) {
+          toast(t('slipverify_err_toast'));
+          btn.disabled = false;
+          return;
+        }
+        const slip = (inv.slips || []).find(x => x.id === id);
+        if (slip) slip.verify = r.data.verify;
+        inv.updatedAt = nowISO();
+        try {
+          await dbPut(STORE, inv);
+          if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+            SidekickBackend.mirrorInvoiceSave(inv).catch(() => {});
+        } catch (er) { console.error(er); }
+        renderSlipSection(overlay, inv);
+      });
     });
     wrap.querySelectorAll('[data-slip-remove]').forEach(btn => {
       btn.addEventListener('click', async (e) => {
