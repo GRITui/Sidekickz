@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.36';          // <-> sw.js SW_VERSION 'sidekick-v0.9.36'
+const APP_VERSION = '0.9.37';          // <-> sw.js SW_VERSION 'sidekick-v0.9.37'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -1021,6 +1021,15 @@ const I18N = {
     booking_confirmed_calendar_toast:'Booking confirmed — added to your calendar',
     booking_slot_taken_toast:'That slot was already booked by another confirmed request.',
     booking_hold_expired_hint:'hold expired', booking_from_line_note:'LINE booking',
+    // Pass M3-L3: public storefront (Settings ▸ Shop).
+    shop_section_title:'Shop / storefront',
+    shop_section_sub:"Share one link — clients browse your products, pick quantities, and send an order request. No payment happens on this page; confirming an order creates a normal job on your board.",
+    shop_link_label:'Your shop link',
+    shop_link_copied:'Shop link copied', shop_orders_pending:'Order requests',
+    shop_orders_none:'No pending orders.', shop_order_confirm:'Confirm', shop_order_decline:'Decline',
+    shop_order_service:'Shop order',
+    shop_order_confirmed_toast:'Order confirmed — engagement created on your board',
+    shop_order_declined_toast:'Order declined',
     appt_booking_note:'From pipeline job',
     appt_booked_toast:'Appointment booked', appt_step_added_toast:'Step added',
     appt_err_step:'Please enter a step name', appt_err_date:'Please pick a date',
@@ -1415,6 +1424,15 @@ const I18N = {
     booking_confirmed_calendar_toast:'ยืนยันการจองแล้ว — เพิ่มลงปฏิทินของคุณแล้ว',
     booking_slot_taken_toast:'ช่วงเวลานี้ถูกยืนยันให้คำขออื่นไปแล้ว',
     booking_hold_expired_hint:'การจองชั่วคราวหมดอายุ', booking_from_line_note:'การจองจาก LINE',
+    // Pass M3-L3: หน้าร้านออนไลน์สาธารณะ (การตั้งค่า ▸ หน้าร้าน).
+    shop_section_title:'หน้าร้านออนไลน์',
+    shop_section_sub:'แชร์ลิงก์เดียว — ลูกค้าดูสินค้า เลือกจำนวน แล้วส่งคำสั่งซื้อ ไม่มีการชำระเงินในหน้านี้ เมื่อคุณยืนยันคำสั่งซื้อ ระบบจะสร้างงานใหม่บนบอร์ดให้ทันที',
+    shop_link_label:'ลิงก์หน้าร้านของคุณ',
+    shop_link_copied:'คัดลอกลิงก์หน้าร้านแล้ว', shop_orders_pending:'คำสั่งซื้อรอยืนยัน',
+    shop_orders_none:'ยังไม่มีคำสั่งซื้อ', shop_order_confirm:'ยืนยัน', shop_order_decline:'ปฏิเสธ',
+    shop_order_service:'ออเดอร์จากหน้าร้าน',
+    shop_order_confirmed_toast:'ยืนยันออเดอร์แล้ว — สร้างงานบนบอร์ดให้แล้ว',
+    shop_order_declined_toast:'ปฏิเสธออเดอร์แล้ว',
     appt_booking_note:'จากงานในแผนงาน',
     appt_booked_toast:'จองนัดหมายแล้ว', appt_step_added_toast:'เพิ่มขั้นตอนแล้ว',
     appt_err_step:'กรุณาใส่ชื่อขั้นตอน', appt_err_date:'กรุณาเลือกวันที่',
@@ -2763,6 +2781,165 @@ async function resolveBookingRequest(bookingId, action) {
   renderBookingSlotsSection();   // re-renders slots AND the requests list
 }
 window.resolveBookingRequest = resolveBookingRequest;
+
+// ─── SHOP / STOREFRONT (Pass M3-L3) ──────────────────────────────────────
+// Settings ▸ Shop: this account's public storefront link (app/shop.html,
+// served by api/shop-public.js) plus the freelancer's confirm/decline UI
+// for the order requests it writes (api/order-requests.js). Same
+// backend-gated pattern as renderLineChannelSection() — genuinely needs
+// the backend regardless of plan (order_requests only exists server-side),
+// and a guest has no server-side catalog for a stranger's browser to read
+// in the first place. Reads __entitlements synchronously rather than
+// awaiting a fresh session() call, same as renderTeamSection() — by the
+// time the 'more' screen can be visited at all, finishAppBoot() has
+// already populated it once (see __entitlements' own comment).
+async function renderShopSection() {
+  const linkEl = document.getElementById('shop-link-body');
+  const ordersEl = document.getElementById('shop-orders-body');
+  if (!linkEl || !ordersEl) return;
+  if (isGuest || typeof SidekickBackend === 'undefined' || !SidekickBackend.isEnabled()) {
+    linkEl.innerHTML = '';
+    ordersEl.innerHTML = '';
+    return;
+  }
+  const u = __entitlements;
+  if (!u || !u.cuid) {
+    linkEl.innerHTML = '';
+    ordersEl.innerHTML = '';
+    return;
+  }
+  // Same account-scoped-URL convention team-invite links and the LINE
+  // booking page URL already use — the account's own cuid (from
+  // api/auth-session.js) IS the capability token api/shop-public.js reads
+  // via ?u=.
+  const shopUrl = new URL('shop.html?u=' + encodeURIComponent(u.cuid), location.href).href;
+  linkEl.innerHTML = `
+    <div class="field" style="margin:0 16px 14px;padding:0;border:1px solid var(--border);border-radius:var(--radius-sm)">
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--text3);padding:8px 12px 0;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(t('shop_link_label'))}</label>
+      <div style="display:flex;align-items:center;gap:6px;padding:2px 12px 10px">
+        <input readonly value="${attrEsc(shopUrl)}" onclick="this.select()" style="flex:1;min-width:0;border:none;background:none;font-family:'Spline Sans Mono',monospace;font-size:11px;color:var(--text2)">
+        <button type="button" class="qc-btn" style="width:auto;padding:0 12px;flex:none" onclick="copyShopLink('${attrEsc(shopUrl)}')">${htmlEsc(t('copy_btn'))}</button>
+      </div>
+    </div>`;
+  await renderShopOrdersSection();
+}
+// Clipboard write with the followups.js textarea fallback (some in-app
+// WebViews — the LINE in-app browser in particular — don't expose
+// navigator.clipboard at all).
+function copyShopLink(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => toast(t('shop_link_copied'))).catch(() => fallbackCopyShopLink(text));
+  } else {
+    fallbackCopyShopLink(text);
+  }
+}
+function fallbackCopyShopLink(text) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  try {
+    textarea.select();
+    document.execCommand('copy');
+    toast(t('shop_link_copied'));
+  } catch (e) {
+    toast(t('copy_failed'));
+  }
+  document.body.removeChild(textarea);
+}
+window.copyShopLink = copyShopLink;
+async function renderShopOrdersSection() {
+  const el = document.getElementById('shop-orders-body');
+  if (!el) return;
+  const r = await SidekickBackend.orderRequestsList();
+  if (!r.ok) { el.innerHTML = ''; return; }
+  const rows = r.data.rows || [];
+  // Same keyed-by-id side-table convention as window.__pendingBookingRows
+  // (renderBookingRequestsSection above) — resolveOrderRequest() needs the
+  // full row (items/contact/total) to materialize a local job on confirm,
+  // and freeform client strings don't belong stuffed into onclick="" markup.
+  window.__pendingOrderRows = {};
+  rows.forEach(o => { window.__pendingOrderRows[o.id] = o; });
+  const summarize = (items) => (items || []).map(it => `${it.qty}× ${it.name}`).join(', ');
+  const rowsHtml = rows.length ? rows.map(o => `
+      <div class="list-row" style="cursor:default;flex-wrap:wrap;gap:6px">
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(o.clientName || '')}${o.contact ? ' · ' + htmlEsc(o.contact) : ''}</div>
+          <div class="list-sub">${htmlEsc(summarize(o.items))} — ${htmlEsc(money(o.total))}</div>
+        </div>
+        <button type="button" class="qc-btn" style="width:auto;padding:0 12px;color:var(--brand)" onclick="resolveOrderRequest(${o.id},'confirm')">${htmlEsc(t('shop_order_confirm'))}</button>
+        <button type="button" class="qc-btn" style="width:auto;padding:0 12px;color:var(--text3)" onclick="resolveOrderRequest(${o.id},'decline')">${htmlEsc(t('shop_order_decline'))}</button>
+      </div>`).join('') : `<div class="pkg-status"><span>${htmlEsc(t('shop_orders_none'))}</span></div>`;
+  el.innerHTML = `
+    <div class="section-title" style="font-size:12px;margin:14px 16px 8px">${htmlEsc(t('shop_orders_pending'))}</div>
+    <div class="list-card" style="margin:0 16px 14px">${rowsHtml}</div>`;
+}
+// Materialize a freelancer-confirmed shop order request as a local pipeline
+// engagement — this IS the M3-L2 payoff: items[] pre-attached means
+// openQuoteForJob/openInvoiceForm (M3-L2, already shipped) pick these up
+// automatically, so quote → invoice → paid → stock decrement all just work
+// without the freelancer retyping anything. Structure follows
+// createLocalBookingFromLineRequest above: idempotence guard first (a
+// double-tap on Confirm, or resolveOrderRequest running twice against the
+// same id across a re-render, must never create two jobs for one order),
+// then the local record, then the mirror.
+async function createLocalJobFromOrderRequest(o) {
+  const already = (await dbAll('jobs')).some(x => x.shopOrderId === o.id);
+  if (already) return;
+  const uid = isGuest ? 'guest' : currentUser.id;
+  // Resolves each snapshot line's service_cuid to THIS device's local
+  // numeric services id (services is already loaded by reload()) — null
+  // when the product isn't known locally (e.g. a different device created
+  // it), same "resolve by cuid, null if not found" fallback dataClient.js's
+  // refCuid()/fromJobRow() already use elsewhere. name/qty/unitPrice
+  // snapshots carry over regardless of whether the resolution succeeds.
+  const mappedItems = (o.items || []).map(it => {
+    const localSvc = services.find(s => s.cuid === it.service_cuid);
+    return { id: cuid(), serviceId: localSvc ? localSvc.id : null, name: it.name, qty: it.qty, unitPrice: it.unit_price };
+  });
+  const job = {
+    uid, date: todayISO(), client: o.clientName || '', clientId: null,
+    serviceId: null, serviceName: t('shop_order_service'),
+    jobType: settings.workType || '',
+    amount: Number(o.total) || 0, tip: 0, expense: 0, count: 1,
+    notes: 'Shop order · ' + (o.contact || ''),
+    netAmount: Number(o.total) || 0,
+    cuid: cuid(), stageOrder: getStageOrder().slice(), stage: getStageOrder()[0], complete: false,
+    invoiceId: null, quoteDocId: null, packageId: null,
+    items: mappedItems,
+    // Local-only marker (this order request's server-side `id`), used by
+    // the idempotence guard above — deliberately NOT included in
+    // jobsMirror's toPayload (dataClient.js), same convention as
+    // createLocalBookingFromLineRequest's lineBookingId.
+    shopOrderId: o.id,
+    createdAt: nowISO(), updatedAt: nowISO(),
+  };
+  const key = await dbAdd('jobs', job); job.id = key;
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+    SidekickBackend.mirrorJobSave(job).catch(() => {});
+}
+async function resolveOrderRequest(id, action) {
+  const r = await SidekickBackend.orderRequestResolve(id, action);
+  if (!r.ok) {
+    toast((r.data && r.data.error) || t('shop_orders_none'));
+    renderShopOrdersSection();   // list is stale either way — refresh
+    return;
+  }
+  if (action === 'confirm') {
+    // window.__pendingOrderRows (renderShopOrdersSection above) carries the
+    // full row keyed by id — see that function's comment.
+    const row = window.__pendingOrderRows && window.__pendingOrderRows[id];
+    if (row) await createLocalJobFromOrderRequest(row);
+    await reload();   // re-fetches jobs + calls renderPipeline() if defined
+    toast(t('shop_order_confirmed_toast'));
+  } else {
+    toast(t('shop_order_declined_toast'));
+  }
+  renderShopOrdersSection();
+}
+window.resolveOrderRequest = resolveOrderRequest;
+
 async function addBookingSlot() {
   const startEl = document.getElementById('slot-start-input');
   const endEl = document.getElementById('slot-end-input');
@@ -6791,6 +6968,7 @@ function switchScreen(name) {
   if (name === 'more') renderSellerLogoSection();
   if (name === 'more') renderLineChannelSection();
   if (name === 'more') renderTeamSection();
+  if (name === 'more') renderShopSection();
   if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.

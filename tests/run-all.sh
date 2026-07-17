@@ -14,9 +14,11 @@
 set -u
 cd "$(dirname "$0")/.."
 
-# Static servers on the two ports the suites expect (8923 = most suites,
-# 8933 = check-scheduling.js). Reuse if already running.
-for port in 8923 8933; do
+# Static servers on the fixed ports the suites expect (8923 = most suites,
+# 8933 scheduling, 8943 ux-flow, 8953 payments, 8963 invoice-public,
+# 8973 catalog, 8983 items; check-shop.js spawns its own on 8993). Reuse
+# any that are already running.
+for port in 8923 8933 8943 8953 8963 8973 8983; do
   if ! curl -s -o /dev/null --max-time 1 "http://127.0.0.1:$port/login.html"; then
     nohup python3 -m http.server "$port" --directory app > "/tmp/sidekick-test-$port.log" 2>&1 &
     STARTED="${STARTED:-} $!"

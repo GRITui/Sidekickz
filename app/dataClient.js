@@ -136,6 +136,17 @@
   async function bookingRequestResolve(bookingId, action) {
     return apiFetch('/api/booking-requests', { method: 'POST', body: { bookingId, action } });
   }
+  // Pass M3-L3: pending public storefront order requests + their
+  // confirm/decline resolution — the freelancer side of api/shop-public.js's
+  // POST writes. Exact copy of bookingRequestsList/bookingRequestResolve
+  // above (same auth headers, same error shape) — see api/order-requests.js
+  // for the server side.
+  async function orderRequestsList() {
+    return apiFetch('/api/order-requests');
+  }
+  async function orderRequestResolve(id, action) {
+    return apiFetch('/api/order-requests', { method: 'POST', body: { id, action } });
+  }
 
   // ── Team (Phase 2) ──────────────────────────────────────────────────────
   // See api/team-invite.js/api/team-join.js/api/team-members.js — a Team
@@ -580,6 +591,7 @@
     lineChannelStatus, lineChannelConnect, lineChannelDisconnect,
     bookingSlotsList, bookingSlotCreate, bookingSlotDelete,
     bookingRequestsList, bookingRequestResolve,
+    orderRequestsList, orderRequestResolve,
     teamCheckout, teamInvite, teamJoin, teamMembersList, teamMemberRemove,
     mirrorClientSave, mirrorClientDelete,
     mirrorJobSave: jobsMirror.mirrorSave, mirrorJobDelete: jobsMirror.mirrorDelete,
