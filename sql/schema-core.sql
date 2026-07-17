@@ -196,6 +196,15 @@ alter table jobs add column if not exists lost_reason text;
 alter table jobs add column if not exists pending_gate_stage text;
 alter table jobs add column if not exists options jsonb;
 
+-- 2026-07-17: Pass M3-L2 — products/extra services attached to a pipeline
+-- engagement while the deal is still forming (job-tracking-section's Items
+-- list), flowing automatically into the quote and later the invoice as
+-- linked line items. Same jsonb-embedded-array convention as options/
+-- sub_tasks/milestones above: [{ id, serviceId, name, qty, unitPrice }],
+-- name/unitPrice snapshotted at add time so a later catalog price edit
+-- never rewrites an engagement's own history.
+alter table jobs add column if not exists items jsonb;
+
 create table if not exists services (
   cuid              text primary key,
   user_cuid         text not null references users(cuid) on delete cascade,

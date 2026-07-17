@@ -277,6 +277,10 @@
     // outcome=null (silently counting as a successful completed
     // engagement) and its options list vanished.
     outcome: j.outcome, lost_reason: j.lostReason, pending_gate_stage: j.pendingGateStage, options: j.options,
+    // 2026-07-17: Pass M3-L2 — engagement items (products/extra services
+    // attached to a pipeline job) follow the same jsonb-embedded-array
+    // convention as options/subTasks/milestones above.
+    items: j.items,
     // 2026-07-16: ref cuids for the id-refs above — see refCuid()'s comment.
     // milestones[]/timeEntries[]'s own embedded invoiceId is NOT resolved
     // here (accepted residual gap, see app.js importDataset()'s comment) —
@@ -311,6 +315,7 @@
       packageId: num(row.package_id), subTasks: row.sub_tasks, milestones: row.milestones,
       timeEntries: row.time_entries, timerStartedAt: row.timer_started_at,
       outcome: row.outcome, lostReason: row.lost_reason, pendingGateStage: row.pending_gate_stage, options: row.options,
+      items: row.items,
       __clientCuid: row.client_cuid || null, __serviceCuid: row.service_cuid || null,
       __invoiceCuid: row.invoice_cuid || null, __quoteDocCuid: row.quote_doc_cuid || null,
       __packageCuid: row.package_cuid || null,

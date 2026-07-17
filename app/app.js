@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.35';          // <-> sw.js SW_VERSION 'sidekick-v0.9.35'
+const APP_VERSION = '0.9.36';          // <-> sw.js SW_VERSION 'sidekick-v0.9.36'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -675,6 +675,11 @@ const I18N = {
     option_add_btn:'+ Add', option_book_btn:'Book viewing', options_none:'Nothing being compared yet.',
     options_chip:'{n} options · {m} interested', options_chip_re:'{n} buildings · {m} interested',
     option_chosen_toast:'Chosen — the other options were marked dropped.',
+    // Pass M3-L2: products/extra services attached to a pipeline engagement —
+    // flow into the quote + invoice as linked line items (stock decrement on paid).
+    job_items_title:'Items on this engagement', job_items_add:'+ Add',
+    job_items_none:'No items yet — add products or extras to carry into the quote and invoice.',
+    job_items_chip:'{n} item(s) · {amt}', job_items_qty_ph:'Qty',
     option_status_considering:'Considering', option_status_viewing:'Viewing booked', option_status_interested:'Interested',
     option_status_passed:'Passed', option_status_quoted:'Quoted', option_status_chosen:'Chosen ✓', option_status_dropped:'Dropped',
     stage_pitch_label:'Inquiry', stage_pitch_action:'Log inquiry', stage_pitch_done:'Inquired',
@@ -1072,6 +1077,10 @@ const I18N = {
     option_add_btn:'+ เพิ่ม', option_book_btn:'นัดดูสถานที่', options_none:'ยังไม่มีตัวเลือกที่เปรียบเทียบ',
     options_chip:'{n} ตัวเลือก · สนใจ {m}', options_chip_re:'{n} แห่ง · สนใจ {m}',
     option_chosen_toast:'เลือกแล้ว — ตัวเลือกอื่นถูกเปลี่ยนเป็นยกเลิก',
+    // Pass M3-L2: products/extra services attached to a pipeline engagement.
+    job_items_title:'รายการสินค้า/บริการเพิ่มเติม', job_items_add:'+ เพิ่ม',
+    job_items_none:'ยังไม่มีรายการ — เพิ่มสินค้า/บริการเสริมเพื่อใส่ในใบเสนอราคาและใบแจ้งหนี้อัตโนมัติ',
+    job_items_chip:'{n} รายการ · {amt}', job_items_qty_ph:'จำนวน',
     option_status_considering:'กำลังพิจารณา', option_status_viewing:'นัดดูแล้ว', option_status_interested:'สนใจ',
     option_status_passed:'ไม่เอา', option_status_quoted:'เสนอราคาแล้ว', option_status_chosen:'เลือกแล้ว ✓', option_status_dropped:'ยกเลิก',
     stage_pitch_label:'สอบถาม', stage_pitch_action:'บันทึกการสอบถาม', stage_pitch_done:'สอบถามแล้ว',
@@ -3550,6 +3559,11 @@ async function saveJob() {
     obj.outcome = prev.outcome ?? null;
     obj.lostReason = prev.lostReason ?? null;
     obj.options = prev.options || [];
+    // Pass M3-L2: items are edited live inside THIS modal (addJobItem/
+    // removeJobItem dbPut the job record directly, same as options above),
+    // so `prev` already reflects whatever's current by the time Save is
+    // clicked — this is the current edited array, not a stale snapshot.
+    obj.items = prev.items || [];
   } else {
     obj.cuid = cuid();
     // New engagements snapshot the active stage order and start at its first stage.
@@ -3890,6 +3904,9 @@ function pipelineCard(j, stage) {
         ${(j.options || []).length ? `<div class="kb-card-sub">${htmlEsc(t(businessType() === 'realestate' ? 'options_chip_re' : 'options_chip')
           .replace('{n}', (j.options || []).length)
           .replace('{m}', (j.options || []).filter(o => o.status === 'interested' || o.status === 'chosen').length))}</div>` : ''}
+        ${(j.items || []).length ? `<div class="kb-card-sub">🛒 ${htmlEsc(t('job_items_chip')
+          .replace('{n}', (j.items || []).length)
+          .replace('{amt}', money((j.items || []).reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.unitPrice) || 0), 0))))}</div>` : ''}
       </div>
       <button type="button" class="pl-edit" aria-label="Edit engagement" onclick="event.stopPropagation();openEditJob(${j.id})">✎</button>
     </div>
@@ -4224,7 +4241,13 @@ function openQuoteForJob(j) {
     clientName: j.client || '',
     fields: {
       clientId: j.clientId != null ? j.clientId : null,
-      lineItems: [{ description: j.serviceName || unitWord(), qty: (j.count > 0 ? j.count : 1), unitPrice: Number(j.amount) || 0 }],
+      // Pass M3-L2: any products/extra services attached to this engagement
+      // (job-tracking-section's Items list) ride along as their own quote
+      // lines — docgen.js consumes fields.lineItems as-is.
+      lineItems: [
+        { description: j.serviceName || unitWord(), qty: (j.count > 0 ? j.count : 1), unitPrice: Number(j.amount) || 0 },
+        ...(j.items || []).map(it => ({ description: it.name, qty: it.qty, unitPrice: it.unitPrice })),
+      ],
     },
   });
   // Mark this engagement pending AFTER opening (openGenerateForm clears it first);
@@ -4250,7 +4273,13 @@ function reviseQuoteForJob(jobId) {
     clientName: j.client || '',
     fields: {
       clientId: j.clientId != null ? j.clientId : null,
-      lineItems: [{ description: j.serviceName || unitWord(), qty: (j.count > 0 ? j.count : 1), unitPrice: Number(j.amount) || 0 }],
+      // Pass M3-L2: any products/extra services attached to this engagement
+      // (job-tracking-section's Items list) ride along as their own quote
+      // lines — docgen.js consumes fields.lineItems as-is.
+      lineItems: [
+        { description: j.serviceName || unitWord(), qty: (j.count > 0 ? j.count : 1), unitPrice: Number(j.amount) || 0 },
+        ...(j.items || []).map(it => ({ description: it.name, qty: it.qty, unitPrice: it.unitPrice })),
+      ],
     },
   });
   // Set AFTER opening — openGenerateForm clears __pendingQuoteJobId first.
@@ -5280,6 +5309,7 @@ function renderJobTracking(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
   renderJobOptions(jobId);
+  renderJobItems(jobId);
   renderSubTasks(jobId);
   renderMilestones(jobId);
   renderJobTimer(jobId);
@@ -5491,6 +5521,81 @@ function bookViewingForOption(jobId, optId) {
   openApptModal({ mode: 'add', jobId, optionId: optId, prefillText: `${t('option_book_btn')} · ${o.name}` });
 }
 window.bookViewingForOption = bookViewingForOption;
+
+// ── Engagement items (Pass M3-L2) ──
+// Products/extra services attached to this engagement while the deal is
+// still forming — a catalog pick + qty, snapshotted (name/unitPrice) at add
+// time so a later catalog price edit never rewrites history. Same live-
+// persist pattern as options above: addJobItem/removeJobItem dbPut the job
+// record directly and immediately, independent of the modal's Save button,
+// so saveJob()'s edit-preserve block (`obj.items = prev.items || []`) always
+// carries forward whatever's current — see that block's own comment.
+// serviceId rides along so openQuoteForJob/openInvoiceForm can flow these
+// into the quote + invoice as linked lines (app.js's own
+// decrementStockForInvoicePaid then finds them by serviceId at paid time).
+function renderJobItems(jobId) {
+  const wrap = document.getElementById('job-items-body');
+  if (!wrap) return;
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const items = j.items || [];
+  const rows = items.map(it => `
+      <div class="list-row" style="cursor:default;flex-wrap:wrap;gap:6px">
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(it.name)}</div>
+          <div class="list-sub tnum">${it.qty} × ${htmlEsc(money(it.unitPrice))} = ${htmlEsc(money(it.qty * it.unitPrice))}</div>
+        </div>
+        <button type="button" class="qc-btn" aria-label="Remove item" onclick="removeJobItem(${jobId},'${it.id}')">✕</button>
+      </div>`).join('');
+  // Same 📦-prefix / disabled-at-zero-stock convention as invoices.js's
+  // #inv-svc picker (Pass M3-L1) — both kinds of catalog record are eligible.
+  const catalogOpts = `<option value="">${htmlEsc(t('none_option'))}</option>` +
+    services.map(s => {
+      const isProduct = svcIsProduct(s);
+      const outOfStock = isProduct && s.stockQty != null && s.stockQty === 0;
+      const label = (isProduct ? '📦 ' : '') + s.name + ' · ' + money(s.rate);
+      return `<option value="${s.id}"${outOfStock ? ' disabled' : ''}>${htmlEsc(label)}</option>`;
+    }).join('');
+  wrap.innerHTML = `
+    ${items.length ? `<div class="list-card">${rows}</div>` : `<div class="pkg-status"><span>${htmlEsc(t('job_items_none'))}</span></div>`}
+    <div class="form-row" style="margin-top:8px">
+      <select id="job-item-svc" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">${catalogOpts}</select>
+      <input type="number" id="job-item-qty" class="tnum" inputmode="numeric" min="1" value="1" placeholder="${attrEsc(t('job_items_qty_ph'))}"
+             style="width:64px;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+      <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addJobItem(${jobId})">${htmlEsc(t('job_items_add'))}</button>
+    </div>`;
+}
+async function addJobItem(jobId) {
+  jobId = parseInt(jobId, 10);
+  const svcSel = document.getElementById('job-item-svc');
+  const qtyInput = document.getElementById('job-item-qty');
+  const svcId = svcSel && svcSel.value ? parseInt(svcSel.value, 10) : null;
+  if (svcId == null) return;
+  const svc = services.find(s => s.id === svcId);
+  if (!svc) return;
+  const qty = Math.max(1, parseInt(qtyInput && qtyInput.value, 10) || 1);
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  j.items = j.items || [];
+  // Snapshot name/unitPrice now — a later catalog edit must not rewrite
+  // what was actually agreed on this engagement.
+  j.items.push({ id: cuid(), serviceId: svc.id, name: svc.name, qty, unitPrice: Number(svc.rate) || 0 });
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  mirrorJob(j);
+  renderJobItems(jobId);
+}
+window.addJobItem = addJobItem;
+async function removeJobItem(jobId, itemId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !j.items) return;
+  j.items = j.items.filter(x => x.id !== itemId);
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  mirrorJob(j);
+  renderJobItems(jobId);
+}
+window.removeJobItem = removeJobItem;
 
 // ── Milestone payments ──
 // "Draft invoice" opens a pre-filled invoice form; the resulting invoiceId

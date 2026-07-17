@@ -201,6 +201,30 @@
       (prefillQuote.lineItems || []).forEach(li => {
         lines.push({ description: li.description || '', qty: n(li.qty) || 1, unitPrice: n(li.unitPrice) });
       });
+      // Pass M3-L2: quote lines never carry a serviceId (openQuoteForJob/
+      // reviseQuoteForJob in app.js build fields.lineItems from plain
+      // description/qty/unitPrice, and docgen.js passes them through as-is)
+      // — but the engagement's own Items list (j.items) DOES know which
+      // catalog record each item line came from. Re-derive it defensively by
+      // matching each item to an unclaimed prefill line with the same
+      // name+qty+unitPrice, so a job's items still flow through Quote ->
+      // Invoice with serviceId stamped for app.js's paid-time stock
+      // decrement. First unclaimed match wins; each item claims at most one line.
+      const srcJobId = fromJobId != null ? fromJobId
+        : (prefillQuote.linkMeta && prefillQuote.linkMeta.jobId != null ? prefillQuote.linkMeta.jobId : null);
+      const srcJob = srcJobId != null ? (typeof jobs !== 'undefined' ? jobs : []).find(x => x.id === srcJobId) : null;
+      if (srcJob && (srcJob.items || []).length) {
+        const claimed = new Set();
+        (srcJob.items || []).forEach(it => {
+          const matchIdx = lines.findIndex((li, idx) =>
+            !claimed.has(idx) && li.serviceId == null &&
+            li.description === it.name && n(li.qty) === n(it.qty) && n(li.unitPrice) === n(it.unitPrice));
+          if (matchIdx !== -1) {
+            lines[matchIdx].serviceId = it.serviceId;
+            claimed.add(matchIdx);
+          }
+        });
+      }
     } else if (fromJobId != null) {
       // Prefill from a job if requested
       const j = (typeof jobs !== 'undefined' ? jobs : []).find(x => x.id === fromJobId);
@@ -211,6 +235,12 @@
           description: j.serviceName || t('service_word'),
           qty: Math.max(1, n(j.count) || 1),
           unitPrice: n(j.amount),
+        });
+        // Pass M3-L2: engagement items carry serviceId directly (snapshotted
+        // when added — see app.js's addJobItem), so app.js's
+        // decrementStockForInvoicePaid can find them at paid time.
+        (j.items || []).forEach(it => {
+          lines.push({ description: it.name, qty: it.qty, unitPrice: it.unitPrice, serviceId: it.serviceId });
         });
       }
     }
