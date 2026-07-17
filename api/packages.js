@@ -6,7 +6,8 @@
  */
 import { createResourceHandler } from '../lib/crudHandler.js';
 
-const FIELDS = ['client_id', 'total_sessions', 'price', 'purchased_date', 'expires_at', 'notes'];
+// 2026-07-16: client_cuid is client_id's ref cuid — see sql/schema-core.sql.
+const FIELDS = ['client_id', 'total_sessions', 'price', 'purchased_date', 'expires_at', 'notes', 'client_cuid'];
 
 export default createResourceHandler('packages', FIELDS);
 export const config = { runtime: 'edge' };

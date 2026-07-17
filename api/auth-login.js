@@ -12,6 +12,7 @@
 import { db } from '../lib/db.js';
 import { signSession, verifyPassword } from '../lib/auth.js';
 import { corsHeaders, handlePreflight } from '../lib/cors.js';
+import { rateLimit } from '../lib/rateLimit.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -25,6 +26,11 @@ const GENERIC_FAIL = { error: 'Incorrect username or password' };
 export default async function handler(request) {
   const preflight = handlePreflight(request);
   if (preflight) return preflight;
+  // Best-effort per-instance rate limit (see lib/rateLimit.js's honest
+  // limitation note): credential stuffing costs a DB lookup + PBKDF2 verify per attempt.
+  const limited = rateLimit(request, { key: 'auth-login', limit: 10, windowMs: 60_000 });
+  if (limited) return limited;
+
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405, request);
 
   const secret = process.env.SESSION_SECRET;

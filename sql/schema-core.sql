@@ -153,10 +153,38 @@ create table if not exists jobs (
   milestones        jsonb,
   time_entries      jsonb,
   timer_started_at  timestamptz,
+  -- 2026-07-16: ref cuids, one per id-ref column above — see the comment on
+  -- this block's `alter table` statements below the index for why these exist.
+  client_cuid       text,
+  service_cuid      text,
+  invoice_cuid      text,
+  quote_doc_cuid    text,
+  package_cuid      text,
   updated_at        timestamptz not null default now()
 );
 
 create index if not exists idx_jobs_user on jobs(user_cuid);
+
+-- 2026-07-16: mirror each id-ref column's underlying cuid alongside it
+-- (client_cuid next to client_id, etc.) across the tables below — restore/
+-- team-pull link fidelity. A row's local autoincrement id only means
+-- something on the device that minted it (importDataset()'s oldId->newId
+-- remap only works within the SAME restore batch), but its cuid is globally
+-- stable, so a cloud pull (dataClient.js pullAll()) or a team member's read
+-- can carry these across and let app.js importDataset() resolve the link to
+-- the newly re-minted local row by cuid instead of nulling it. Best-effort
+-- denormalized identity only, matching this file's existing posture (see the
+-- header comment): nullable, no FK, no index — nothing here is ever queried
+-- server-side, these columns exist purely for the client to resolve locally.
+-- Residual gap, accepted this pass: milestone[].invoiceId and
+-- timeEntries[].invoiceId (both nested inside jobs.milestones/time_entries
+-- jsonb, not top-level id-ref columns) are NOT given a mirrored cuid here —
+-- those still reset on a cloud restore exactly as before.
+alter table jobs add column if not exists client_cuid text;
+alter table jobs add column if not exists service_cuid text;
+alter table jobs add column if not exists invoice_cuid text;
+alter table jobs add column if not exists quote_doc_cuid text;
+alter table jobs add column if not exists package_cuid text;
 
 create table if not exists services (
   cuid              text primary key,
@@ -192,10 +220,15 @@ create table if not exists invoices (
   status            text,
   payment_channels  jsonb,
   notes             text,
+  -- 2026-07-16: see jobs' ref-cuid comment above (the same "cuid rides
+  -- across a cloud pull, id doesn't" fix, applied here for client_id).
+  client_cuid       text,
   updated_at        timestamptz not null default now()
 );
 
 create index if not exists idx_invoices_user on invoices(user_cuid);
+
+alter table invoices add column if not exists client_cuid text;
 
 create table if not exists documents (
   cuid              text primary key,
@@ -209,10 +242,16 @@ create table if not exists documents (
   content           text,
   number            text,
   issue_date        text,
+  -- 2026-07-16: see jobs' ref-cuid comment above.
+  client_cuid       text,
+  invoice_cuid      text,
   updated_at        timestamptz not null default now()
 );
 
 create index if not exists idx_documents_user on documents(user_cuid);
+
+alter table documents add column if not exists client_cuid text;
+alter table documents add column if not exists invoice_cuid text;
 
 -- Named `app_bookings`, not `bookings` — schema.sql (the LINE self-service
 -- booking pilot, a separate single-tenant schema) already owns the bare
@@ -230,6 +269,10 @@ create table if not exists app_bookings (
   notes             text,
   status            text,
   job_cuid          text,
+  -- Ref cuid for customer_id — see jobs' ref-cuid comment further up (same
+  -- fix, applied here so a cloud pull can resolve a booking back to the
+  -- re-minted client row instead of nulling customer_id).
+  customer_cuid     text,
   created_at        timestamptz not null default now(),
   updated_at        timestamptz not null default now()
 );
@@ -241,6 +284,7 @@ create index if not exists idx_app_bookings_user on app_bookings(user_cuid);
 -- databases pick the column up on re-run; nullable, no FK — a dangling link is
 -- harmless and form-created bookings never have one.
 alter table app_bookings add column if not exists job_cuid text;
+alter table app_bookings add column if not exists customer_cuid text;
 
 create table if not exists followups (
   cuid              text primary key,
@@ -290,10 +334,14 @@ create table if not exists packages (
   purchased_date    text,
   expires_at        text,
   notes             text,
+  -- 2026-07-16: see jobs' ref-cuid comment further up.
+  client_cuid       text,
   updated_at        timestamptz not null default now()
 );
 
 create index if not exists idx_packages_user on packages(user_cuid);
+
+alter table packages add column if not exists client_cuid text;
 
 create table if not exists progress_logs (
   cuid              text primary key,
@@ -302,10 +350,14 @@ create table if not exists progress_logs (
   date              text,
   weight            numeric,
   notes             text,
+  -- 2026-07-16: see jobs' ref-cuid comment further up.
+  client_cuid       text,
   updated_at        timestamptz not null default now()
 );
 
 create index if not exists idx_progress_logs_user on progress_logs(user_cuid);
+
+alter table progress_logs add column if not exists client_cuid text;
 
 -- One-key-at-a-time, matching the client's own saveSetting(key, val) pattern
 -- (rather than one giant row per user) — no `cuid` here, the natural key is

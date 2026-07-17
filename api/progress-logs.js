@@ -8,7 +8,8 @@
  */
 import { createResourceHandler } from '../lib/crudHandler.js';
 
-const FIELDS = ['client_id', 'date', 'weight', 'notes'];
+// 2026-07-16: client_cuid is client_id's ref cuid — see sql/schema-core.sql.
+const FIELDS = ['client_id', 'date', 'weight', 'notes', 'client_cuid'];
 
 export default createResourceHandler('progress_logs', FIELDS);
 export const config = { runtime: 'edge' };

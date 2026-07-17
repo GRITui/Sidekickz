@@ -18,6 +18,7 @@ import { db } from '../lib/db.js';
 import { requireSession } from '../lib/auth.js';
 import { corsHeaders, handlePreflight } from '../lib/cors.js';
 import { getMembership, verifyInviteToken } from '../lib/teams.js';
+import { rateLimit } from '../lib/rateLimit.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -29,6 +30,11 @@ function json(body, status, request) {
 export default async function handler(request) {
   const preflight = handlePreflight(request);
   if (preflight) return preflight;
+  // Best-effort per-instance rate limit (see lib/rateLimit.js's honest
+  // limitation note): bounds brute-force attempts against invite-token signatures.
+  const limited = rateLimit(request, { key: 'team-join', limit: 10, windowMs: 60_000 });
+  if (limited) return limited;
+
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405, request);
 
   const secret = process.env.SESSION_SECRET;

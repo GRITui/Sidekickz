@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>(function(){var K='sidekick_ui_theme',t=localStorage.getItem(K);if(t==='dark')document.documentElement.dataset.theme='dark';else if(t!=='auto')document.documentElement.dataset.theme='light';})();</script><!-- light by default: set before CSS paints to avoid a flash of the wrong theme -->
-<link rel="stylesheet" href="styles.css?v=0.9.28">
+<link rel="stylesheet" href="styles.css?v=0.9.31">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -35,6 +35,11 @@
       <div><div class="hero-stat-label" data-i18n="stat_avg">Avg / session</div><div class="hero-stat-val tnum" id="stat-avg-val">฿0</div></div>
       <div><div class="hero-stat-label" data-i18n="stat_expenses">Expenses</div><div class="hero-stat-val tnum" id="stat-exp-val">฿0</div></div>
     </div>
+  </div>
+
+  <div class="qa-row" id="home-quick-actions" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 16px 16px;padding:0">
+    <button type="button" class="qa-btn" onclick="switchScreen('invoices')" data-i18n="nav_invoices" style="flex:1;padding:12px;border:1px solid var(--border);background:var(--card);border-radius:var(--radius-sm);color:var(--text);font-weight:600;font-size:14px;cursor:pointer">Invoices</button>
+    <button type="button" class="qa-btn" onclick="switchScreen('docs')" data-i18n="nav_docs_qa" style="flex:1;padding:12px;border:1px solid var(--border);background:var(--card);border-radius:var(--radius-sm);color:var(--text);font-weight:600;font-size:14px;cursor:pointer">Documents</button>
   </div>
 
   <div class="goal-card" id="goal-card" style="display:none">
@@ -269,6 +274,10 @@
           <label class="settings-label" for="set-notifications" data-i18n="notifications_label">Notifications</label>
           <input type="checkbox" id="set-notifications" style="width:20px;height:20px" onchange="onNotificationsToggle(this.checked)">
         </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-stage-gate" data-i18n="stage_gate_label">Ask to book the next step when a card moves forward</label>
+          <input type="checkbox" id="set-stage-gate" style="width:20px;height:20px" onchange="onStageGateToggle(this.checked)">
+        </div>
       </div>
       <p style="font-size:12px;color:var(--text3);margin:-4px 16px 4px" data-i18n="notifications_sub">Overdue invoices, bookings starting soon, and stuck engagements — only while this app is open or recently open in the background.</p>
     </details>
@@ -309,12 +318,12 @@
 
     <details class="settings-section" open>
       <summary class="section-title" data-i18n="team_title">Team</summary>
-      <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px" data-i18n="team_sub">Share your client base, pipeline, and calendar with staff — everyone works from the same data under one subscription.</p>
+      <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px" data-i18n="team_sub">Give staff their own logins under one subscription — the work they save goes to your account. Staff can load your existing data anytime from Settings ▸ Cloud backup.</p>
       <div id="team-body"></div>
     </details>
 
     <details class="settings-section" open>
-      <summary class="section-title" data-i18n="tax_defaults">Tax defaults (for M2)</summary>
+      <summary class="section-title" data-i18n="tax_defaults">Tax defaults</summary>
       <div class="settings-list">
         <div class="settings-row">
           <label class="settings-label" for="set-wht" data-i18n="wht">Withholding tax %</label>
@@ -350,7 +359,7 @@
 
     <div class="settings-list" style="margin-top:16px">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.28</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.31</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
@@ -626,22 +635,22 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.9.28"></script>
+<script src="app.js?v=0.9.31"></script>
 <!-- Phase 1 of the local-first -> backend migration: a fetch()-only mirror
      for the `clients` store, exposing window.SidekickBackend. Local
      IndexedDB stays authoritative for every read/write in this phase; see
      dataClient.js's own header for why. -->
-<script src="dataClient.js?v=0.9.28"></script>
+<script src="dataClient.js?v=0.9.31"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.9.28"></script>
-<script src="invoices.js?v=0.9.28"></script>
-<script src="docgen.js?v=0.9.28"></script>
+<script src="tax.js?v=0.9.31"></script>
+<script src="invoices.js?v=0.9.31"></script>
+<script src="docgen.js?v=0.9.31"></script>
 <!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
      the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
-<script src="bookings.js?v=0.9.28"></script>
-<script src="followups.js?v=0.9.28"></script>
-<script src="portfolio.js?v=0.9.28"></script>
+<script src="bookings.js?v=0.9.31"></script>
+<script src="followups.js?v=0.9.31"></script>
+<script src="portfolio.js?v=0.9.31"></script>
 <!-- M5: research.js (content library, subscription UI stubbed open — no
      payment verification yet; see project-changelog-handshake.md). -->
-<script src="research.js?v=0.9.28"></script>
+<script src="research.js?v=0.9.31"></script>

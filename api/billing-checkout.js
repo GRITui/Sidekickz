@@ -27,7 +27,7 @@
  */
 import { db } from '../lib/db.js';
 import { requireSession } from '../lib/auth.js';
-import { corsHeaders, handlePreflight, resolveOrigin } from '../lib/cors.js';
+import { corsHeaders, handlePreflight, appUrl } from '../lib/cors.js';
 import { stripeClient } from '../lib/stripe.js';
 import { isAccountOwner } from '../lib/teams.js';
 
@@ -84,14 +84,17 @@ export default async function handler(request) {
         // `username` doubles as the login identifier for password accounts
         // (see api/auth-register.js) — not guaranteed to be a real email,
         // but it's the only contact-ish field this app collects today.
-        email: user.username.includes('@') ? user.username : undefined,
+        // Validate basic email format to prevent junk like 'a@b' in Stripe receipts.
+        email: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(user.username) ? user.username : undefined,
         metadata: { userCuid: user.cuid },
       });
       customerId = customer.id;
       await sql(`update users set stripe_customer_id = $1 where cuid = $2`, [customerId, user.cuid]);
     }
 
-    const origin = resolveOrigin(request);
+    // appUrl, not resolveOrigin: GitHub Pages serves the app under /Sidekickz —
+    // a bare-origin redirect 404s. See lib/cors.js appUrl().
+    const origin = appUrl(request);
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,

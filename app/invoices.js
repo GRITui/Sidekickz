@@ -519,6 +519,11 @@
         if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
           SidekickBackend.mirrorInvoiceSave(base).catch(() => {});
         }
+        // Same reverse hook as the detail-modal status select — an edit
+        // save that transitions the status to 'paid' is the same event.
+        if (editing.status !== 'paid' && base.status === 'paid' && typeof window.onInvoiceMarkedPaid === 'function') {
+          try { window.onInvoiceMarkedPaid(base.id); } catch (e) { /* non-fatal */ }
+        }
         toast(t('invoice_updated'));
       } else {
         base.cuid = cuid();
@@ -676,12 +681,22 @@
       openInvoiceDetail(id);
     });
     overlay.querySelector('#inv-d-status').addEventListener('change', async (e) => {
+      const wasPaid = inv.status === 'paid';
       inv.status = e.target.value;
       inv.updatedAt = nowISO();
       try {
         await dbPut(STORE, inv);
+        if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+          SidekickBackend.mirrorInvoiceSave(inv).catch(() => {});
         toast(t('status_toast_prefix') + t(INV_STATUS_LABEL_KEYS[inv.status]));
       } catch (er) { console.error(er); }
+      // Reverse hook: recording payment on the invoice is where users
+      // actually mark money received — the linked pipeline card should
+      // advance without a second manual "mark paid" over there. app.js
+      // decides whether the job qualifies (see onInvoiceMarkedPaid).
+      if (!wasPaid && inv.status === 'paid' && typeof window.onInvoiceMarkedPaid === 'function') {
+        try { window.onInvoiceMarkedPaid(inv.id); } catch (er) { /* non-fatal */ }
+      }
       const chip = overlay.querySelector('.modal-title .chip');
       if (chip) chip.outerHTML = statusChip(inv.status);
       renderInvoices();

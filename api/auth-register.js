@@ -11,6 +11,7 @@
 import { db } from '../lib/db.js';
 import { signSession } from '../lib/auth.js';
 import { corsHeaders, handlePreflight } from '../lib/cors.js';
+import { rateLimit } from '../lib/rateLimit.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -22,6 +23,11 @@ function json(body, status, request) {
 export default async function handler(request) {
   const preflight = handlePreflight(request);
   if (preflight) return preflight;
+  // Best-effort per-instance rate limit (see lib/rateLimit.js's honest
+  // limitation note): account-creation spam is a users-table insert per attempt.
+  const limited = rateLimit(request, { key: 'auth-register', limit: 5, windowMs: 60_000 });
+  if (limited) return limited;
+
   if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405, request);
 
   const secret = process.env.SESSION_SECRET;

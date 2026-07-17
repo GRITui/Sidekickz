@@ -23,7 +23,30 @@ let dgQuoteItems = [];      // [{description, qty, unitPrice}] while editing a q
 let dgTitleAuto = true;     // true while the title field still tracks the auto default
 let dgLastPreviewHtml = '';
 
+// Internal fallback only — client-visible titles come from dgTypeLabel()
+// below, which localizes at generation time (Pass E, 2026-07-17).
 const DG_TYPE_LABEL = { contract: 'Contract', nda: 'NDA', quote: 'Quote', receipt: 'Receipt' };
+function dgTypeLabel(type) {
+  const key = 'doc_title_' + type;
+  const label = (typeof t === 'function') ? t(key) : key;
+  return label === key ? (DG_TYPE_LABEL[type] || type) : label;
+}
+// Client-visible document dates. Thai business paperwork conventionally uses
+// Buddhist-Era years (พ.ศ. = ค.ศ. + 543), so in Thai mode a stored
+// 'YYYY-MM-DD' renders as e.g. '17 ก.ค. 2569'; English mode returns the
+// stored string unchanged so existing EN documents stay byte-identical.
+// Deliberately local to docgen.js — internal UI dates (fmtDate in app.js)
+// keep their CE convention; only the paperwork handed to a Thai client
+// follows Thai-document norms.
+const DG_TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+function docDate(iso) {
+  if (!iso) return iso;
+  const lang = (typeof curLang === 'function') ? curLang() : 'en';
+  if (lang !== 'th') return iso;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return iso;
+  return `${parseInt(m[3], 10)} ${DG_TH_MONTHS[parseInt(m[2], 10) - 1]} ${parseInt(m[1], 10) + 543}`;
+}
 const DG_TYPE_ICON  = { contract: '📄', nda: '🔒', quote: '💬', receipt: '🧾' };
 // Referable running numbers (shared nextDocNumber() from app.js, same scheme
 // as invoices.js's own "INV-2026-0001" numbers) — contract/nda don't get one,
@@ -560,76 +583,93 @@ function sellerLogoHtml() {
 function clientInfoLine(f) {
   const bits = [];
   if (f.billingAddress) bits.push(esc(f.billingAddress));
-  if (f.taxId) bits.push('Tax ID: ' + esc(f.taxId));
+  if (f.taxId) bits.push(esc(t('doc_taxid_short')) + ' ' + esc(f.taxId));
   return bits.length ? '<p class="dg-meta">' + bits.join(' · ') + '</p>' : '';
 }
 
 function signatureBlock(fname, cname) {
+  const sig = esc(t('doc_signature_label')) + ' ______________________<br>' + esc(t('doc_date_label')) + ' __________';
   return '<div class="dg-sign-row">'
-    + '<div>' + fname + ' (Provider)<br>Signature: ______________________<br>Date: __________</div>'
-    + '<div>' + cname + ' (Client)<br>Signature: ______________________<br>Date: __________</div>'
+    + '<div>' + fname + ' ' + esc(t('doc_provider_suffix')) + '<br>' + sig + '</div>'
+    + '<div>' + cname + ' ' + esc(t('doc_client_suffix')) + '<br>' + sig + '</div>'
     + '</div>';
 }
 
+// Pass E (2026-07-17): every client-visible string below renders through
+// t() — the paperwork this Thai-first product hands to Thai clients was its
+// least Thai surface. A document is rendered in the app's CURRENT language
+// at generation time (t() resolves at call time); there is deliberately no
+// per-document language picker yet — flip the app language, regenerate.
+// Dates go through docDate() (Buddhist-Era in Thai mode, see above).
 function buildDocHtml(rec) {
   const f = rec.fields || {};
-  const fname = esc(freelancerName());
-  const cname = esc(rec.clientName || 'Client');
-  let body = '<div class="dg-doc">' + sellerLogoHtml() + '<h1>' + esc(rec.title) + '</h1>' + sellerInfoLine(fname);
+  const fname = esc(freelancerName() || t('doc_freelancer_fallback'));
+  const cname = esc(rec.clientName || t('doc_client_fallback'));
+  const title = rec.title && !Object.values(DG_TYPE_LABEL).includes(rec.title)
+    ? rec.title              // user-customized title — keep verbatim
+    : dgTypeLabel(rec.type); // stock title — localize at render time
+  let body = '<div class="dg-doc">' + sellerLogoHtml() + '<h1>' + esc(title) + '</h1>' + sellerInfoLine(fname);
 
   if (rec.type === 'contract') {
-    body += '<p class="dg-meta">Issue date: ' + esc(rec.issueDate) + '</p>';
-    body += '<p>This Service Agreement ("Agreement") is entered into on <b>' + esc(rec.issueDate) + '</b> between <b>' + fname + '</b> ("Provider") and <b>' + cname + '</b> ("Client").</p>';
-    if (f.company) body += '<p><b>Client company:</b> ' + esc(f.company) + '</p>';
-    if (f.billingAddress) body += '<p><b>Billing address:</b> ' + esc(f.billingAddress) + '</p>';
-    if (f.taxId) body += '<p><b>Client Tax ID:</b> ' + esc(f.taxId) + '</p>';
-    body += '<h3>Deliverables</h3>' + nlToP(f.deliverables);
-    body += '<h3>Fee</h3><p>Total fee: <b>' + money(f.fee || 0) + '</b></p>';
-    body += '<h3>Term</h3><p>' + (f.startDate ? esc(f.startDate) : '—') + ' to ' + (f.endDate ? esc(f.endDate) : '—') + '</p>';
-    if (f.usageRights) body += '<h3>Usage Rights &amp; Licensing</h3>' + nlToP(f.usageRights);
+    body += '<p class="dg-meta">' + esc(t('doc_issue_date_label')) + ' ' + esc(docDate(rec.issueDate)) + '</p>';
+    body += '<p>' + esc(t('doc_contract_intro'))
+      .replace('{date}', '<b>' + esc(docDate(rec.issueDate)) + '</b>')
+      .replace('{provider}', '<b>' + fname + '</b>')
+      .replace('{client}', '<b>' + cname + '</b>') + '</p>';
+    if (f.company) body += '<p><b>' + esc(t('doc_client_company_label')) + '</b> ' + esc(f.company) + '</p>';
+    if (f.billingAddress) body += '<p><b>' + esc(t('doc_billing_address_label')) + '</b> ' + esc(f.billingAddress) + '</p>';
+    if (f.taxId) body += '<p><b>' + esc(t('doc_client_taxid_label')) + '</b> ' + esc(f.taxId) + '</p>';
+    body += '<h3>' + esc(t('doc_deliverables_header')) + '</h3>' + nlToP(f.deliverables);
+    body += '<h3>' + esc(t('doc_fee_header')) + '</h3><p>' + esc(t('doc_total_fee_label')) + ' <b>' + money(f.fee || 0) + '</b></p>';
+    body += '<h3>' + esc(t('doc_term_header')) + '</h3><p>' + (f.startDate ? esc(docDate(f.startDate)) : '—') + ' ' + esc(t('doc_date_range_sep')) + ' ' + (f.endDate ? esc(docDate(f.endDate)) : '—') + '</p>';
+    if (f.usageRights) body += '<h3>' + esc(t('doc_usage_rights_header')) + '</h3>' + nlToP(f.usageRights);
     if (f.healthNotes || f.allergies || f.goals) {
-      body += '<h3>Health &amp; Liability Waiver</h3>'
-        + '<p>Client acknowledges that participation in physical training/coaching carries an inherent risk of injury and voluntarily assumes that risk. The following has been provided by the Client:</p><ul>';
-      if (f.goals) body += '<li><b>Goals:</b> ' + esc(f.goals) + '</li>';
-      if (f.healthNotes) body += '<li><b>Health notes:</b> ' + esc(f.healthNotes) + '</li>';
-      if (f.allergies) body += '<li><b>Allergies:</b> ' + esc(f.allergies) + '</li>';
+      body += '<h3>' + esc(t('doc_health_waiver_header')) + '</h3>'
+        + '<p>' + esc(t('doc_health_waiver_body')) + '</p><ul>';
+      if (f.goals) body += '<li><b>' + esc(t('doc_goals_label')) + '</b> ' + esc(f.goals) + '</li>';
+      if (f.healthNotes) body += '<li><b>' + esc(t('doc_health_notes_label')) + '</b> ' + esc(f.healthNotes) + '</li>';
+      if (f.allergies) body += '<li><b>' + esc(t('doc_allergies_label')) + '</b> ' + esc(f.allergies) + '</li>';
       body += '</ul>';
     }
-    body += '<h3>Additional Terms</h3>' + nlToP(f.terms);
+    body += '<h3>' + esc(t('doc_additional_terms_header')) + '</h3>' + nlToP(f.terms);
     body += signatureBlock(fname, cname);
   } else if (rec.type === 'nda') {
-    const eff = esc(f.effectiveDate || rec.issueDate);
-    body += '<p class="dg-meta">Effective date: ' + eff + '</p>';
-    body += '<p>This Non-Disclosure Agreement ("Agreement") is made between <b>' + fname + '</b> and <b>' + cname + '</b> as of <b>' + eff + '</b>.</p>';
-    body += '<h3>1. Confidential Information</h3><p>Each party may disclose confidential business, technical, financial, or personal information ("Confidential Information") to the other in connection with their working relationship.</p>';
-    body += '<h3>2. Obligations</h3><p>The receiving party agrees to keep all Confidential Information private, use it only for the purpose of the engagement, and not disclose it to third parties without prior written consent.</p>';
-    body += '<h3>3. Exclusions</h3><p>Confidential Information does not include information that is or becomes publicly available through no fault of the receiving party.</p>';
-    body += '<h3>4. Term</h3><p>This Agreement remains in effect for <b>' + esc(f.durationMonths) + ' month(s)</b> from the effective date above.</p>';
-    body += '<h3>5. Notes</h3>' + nlToP(f.notes);
+    const eff = esc(docDate(f.effectiveDate || rec.issueDate));
+    body += '<p class="dg-meta">' + esc(t('doc_effective_date_label')) + ' ' + eff + '</p>';
+    body += '<p>' + esc(t('doc_nda_intro'))
+      .replace('{provider}', '<b>' + fname + '</b>')
+      .replace('{client}', '<b>' + cname + '</b>')
+      .replace('{date}', '<b>' + eff + '</b>') + '</p>';
+    body += '<h3>' + esc(t('doc_nda_h1_title')) + '</h3><p>' + esc(t('doc_nda_h1_body')) + '</p>';
+    body += '<h3>' + esc(t('doc_nda_h2_title')) + '</h3><p>' + esc(t('doc_nda_h2_body')) + '</p>';
+    body += '<h3>' + esc(t('doc_nda_h3_title')) + '</h3><p>' + esc(t('doc_nda_h3_body')) + '</p>';
+    body += '<h3>' + esc(t('doc_nda_h4_title')) + '</h3><p>' + esc(t('doc_nda_h4_body'))
+      .replace('{duration}', '<b>' + esc(f.durationMonths) + ' ' + esc(t('doc_month_unit')) + '</b>') + '</p>';
+    body += '<h3>' + esc(t('doc_nda_h5_title')) + '</h3>' + nlToP(f.notes);
     body += signatureBlock(fname, cname);
   } else if (rec.type === 'quote') {
-    body += '<p class="dg-meta">' + (rec.number ? 'Quote #' + esc(rec.number) + ' · ' : '') + 'Issue date: ' + esc(rec.issueDate) + (f.validUntil ? ' · Valid until: ' + esc(f.validUntil) : '') + '</p>';
-    body += '<p><b>Prepared for:</b> ' + cname + (f.company ? ' (' + esc(f.company) + ')' : '') + '</p>';
+    body += '<p class="dg-meta">' + (rec.number ? esc(t('doc_quote_number_prefix')) + esc(rec.number) + ' · ' : '') + esc(t('doc_issue_date_label')) + ' ' + esc(docDate(rec.issueDate)) + (f.validUntil ? ' · ' + esc(t('doc_valid_until_label')) + ' ' + esc(docDate(f.validUntil)) : '') + '</p>';
+    body += '<p><b>' + esc(t('doc_prepared_for_label')) + '</b> ' + cname + (f.company ? ' (' + esc(f.company) + ')' : '') + '</p>';
     body += clientInfoLine(f);
-    body += '<table><thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead><tbody>';
+    body += '<table><thead><tr><th>' + esc(t('doc_field_description')) + '</th><th>' + esc(t('doc_field_qty')) + '</th><th>' + esc(t('doc_field_unit_price')) + '</th><th>' + esc(t('doc_col_total')) + '</th></tr></thead><tbody>';
     (f.lineItems || []).forEach(li => {
       const qtyNum = Number(li.qty) || 0;
       const lineTotal = qtyNum * (Number(li.unitPrice) || 0);
       body += '<tr><td>' + esc(li.description) + '</td><td>' + fmt(qtyNum, qtyNum % 1 !== 0 ? 2 : 0) + '</td><td>' + money(li.unitPrice) + '</td><td>' + money(lineTotal) + '</td></tr>';
     });
     body += '</tbody></table>';
-    body += '<p style="text-align:right;font-weight:800">Subtotal: ' + money(f.subtotal || 0) + '</p>';
-    if (f.notes) body += '<h3>Notes</h3>' + nlToP(f.notes);
-    body += '<p style="margin-top:16px">This quote is valid until <b>' + (f.validUntil ? esc(f.validUntil) : '—') + '</b> and excludes tax unless stated in a formal invoice.</p>';
+    body += '<p style="text-align:right;font-weight:800">' + esc(t('doc_subtotal_label')) + ' ' + money(f.subtotal || 0) + '</p>';
+    if (f.notes) body += '<h3>' + esc(t('doc_notes_header')) + '</h3>' + nlToP(f.notes);
+    body += '<p style="margin-top:16px">' + esc(t('doc_quote_footer')).replace('{date}', '<b>' + (f.validUntil ? esc(docDate(f.validUntil)) : '—') + '</b>') + '</p>';
   } else if (rec.type === 'receipt') {
-    body += '<p class="dg-meta">' + (rec.number ? 'Receipt #' + esc(rec.number) + ' · ' : '') + 'Payment date: ' + esc(f.paymentDate || rec.issueDate) + '</p>';
-    body += '<p><b>Received from:</b> ' + cname + (f.company ? ' (' + esc(f.company) + ')' : '') + '</p>';
+    body += '<p class="dg-meta">' + (rec.number ? esc(t('doc_receipt_number_prefix')) + esc(rec.number) + ' · ' : '') + esc(t('doc_payment_date_label')) + ' ' + esc(docDate(f.paymentDate || rec.issueDate)) + '</p>';
+    body += '<p><b>' + esc(t('doc_received_from_label')) + '</b> ' + cname + (f.company ? ' (' + esc(f.company) + ')' : '') + '</p>';
     body += clientInfoLine(f);
-    body += '<h3>Amount received</h3><p><b>' + money(f.amount || 0) + '</b></p>';
-    body += '<h3>Payment method</h3><p>' + (f.method ? esc(f.method) : '—') + '</p>';
-    if (f.reference) body += '<h3>Reference</h3><p>' + esc(f.reference) + '</p>';
-    if (f.notes) body += '<h3>Notes</h3>' + nlToP(f.notes);
-    body += '<p style="margin-top:16px">This receipt confirms payment has been received in full for the amount stated above.</p>';
+    body += '<h3>' + esc(t('doc_amount_received_header')) + '</h3><p><b>' + money(f.amount || 0) + '</b></p>';
+    body += '<h3>' + esc(t('doc_payment_method_header')) + '</h3><p>' + (f.method ? esc(f.method) : '—') + '</p>';
+    if (f.reference) body += '<h3>' + esc(t('doc_reference_header')) + '</h3><p>' + esc(f.reference) + '</p>';
+    if (f.notes) body += '<h3>' + esc(t('doc_notes_header')) + '</h3>' + nlToP(f.notes);
+    body += '<p style="margin-top:16px">' + esc(t('doc_receipt_footer')) + '</p>';
   }
 
   body += '</div>';

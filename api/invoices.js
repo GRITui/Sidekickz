@@ -14,6 +14,8 @@ const FIELDS = [
   'number', 'issue_date', 'due_date', 'client_id', 'client_name', 'client_tax_id',
   'client_address', 'line_items', 'subtotal', 'wht_pct', 'vat_pct', 'vat', 'wht',
   'client_pays', 'you_receive', 'deposit_pct', 'status', 'payment_channels', 'notes',
+  // 2026-07-16: ref cuid for client_id — see sql/schema-core.sql.
+  'client_cuid',
 ];
 
 export default createResourceHandler('invoices', FIELDS);

@@ -17,6 +17,8 @@ const FIELDS = [
   'customer_id', 'title', 'date', 'start_time', 'duration_min',
   'travel_buffer_min', 'location', 'notes', 'status',
   'job_cuid',
+  // 2026-07-16: customer_cuid is customer_id's ref cuid — see sql/schema-core.sql.
+  'customer_cuid',
 ];
 
 export default createResourceHandler('app_bookings', FIELDS);

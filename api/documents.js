@@ -7,7 +7,9 @@
  */
 import { createResourceHandler } from '../lib/crudHandler.js';
 
-const FIELDS = ['type', 'title', 'client_id', 'client_name', 'invoice_id', 'fields', 'content', 'number', 'issue_date'];
+// 2026-07-16: client_cuid/invoice_cuid are ref cuids for client_id/invoice_id
+// — see sql/schema-core.sql.
+const FIELDS = ['type', 'title', 'client_id', 'client_name', 'invoice_id', 'fields', 'content', 'number', 'issue_date', 'client_cuid', 'invoice_cuid'];
 
 export default createResourceHandler('documents', FIELDS);
 export const config = { runtime: 'edge' };

@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.28';          // <-> sw.js SW_VERSION 'sidekick-v0.9.28'
+const APP_VERSION = '0.9.31';          // <-> sw.js SW_VERSION 'sidekick-v0.9.31'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -560,6 +560,18 @@ function jobComplete(j) {
 // A session "ships" (counts against a package) once it reaches Delivery or
 // later in its own stage order, or is otherwise complete — matches the
 // business meaning of "delivery" regardless of where a reorder puts it.
+// A job's money is EARNED once its own stage order reached 'paid' (same
+// stage-index test clientLifetimeSpend uses) — a complete non-lost job at
+// delivery/extend passes naturally, an inquiry-stage job or a deal lost at
+// quote does not. This is the single predicate behind Home's "Earned this
+// month" and the goal card, which used to count every job by date alone
+// (pitch-stage AND lost deals inflated the headline number — the honesty
+// bug the product re-assessment ranked first).
+function jobEarned(j) {
+  const order = jobOrder(j);
+  const paidIdx = order.indexOf('paid');
+  return paidIdx >= 0 && order.indexOf(jobStage(j)) >= paidIdx;
+}
 function jobDelivered(j) {
   // A lost engagement (outcome 'lost') never shipped anything — it only
   // counts as delivered if its stage genuinely reached Delivery before the
@@ -647,7 +659,7 @@ const I18N = {
     auth_hint:'Create an account to save your work on this device.<br>Everything stays local — no cloud, no tracking.<br>Guest mode is temporary.',
     tagline:'Get booked. Get hired. Get paid.',
     // nav
-    nav_home:'Home', nav_docs:'Docs', nav_pipeline:'Task flow', nav_book:'Calendar', nav_more:'More',
+    nav_home:'Home', nav_docs:'Docs', nav_invoices:'Invoices', nav_docs_qa:'Documents', nav_pipeline:'Task flow', nav_book:'Calendar', nav_more:'More',
     pipeline_title:'Task flow', workflow_title:'Stage order', pipeline_glance_title:'Task flow at a glance',
     skip_stage:'Skip', mark_finished:'Finished', reschedule:'Reschedule', cash_job:'Cash job', active_count:'active',
     mark_lost_btn:'Lost', lost_badge:'Lost',
@@ -695,7 +707,7 @@ const I18N = {
     theme_auto:'Auto', theme_light:'Light', theme_dark:'Dark',
     business_info_title:'Business info (optional)', business_info_sub:'Fill these in to have them show up automatically on your quotes, invoices, and receipts — none of them are required.',
     business_name:'Business name', business_taxid:'Tax ID', business_address:'Address',
-    tax_defaults:'Tax defaults (for M2)', wht:'Withholding tax %', vat:'VAT %',
+    tax_defaults:'Tax defaults', wht:'Withholding tax %', vat:'VAT %',
     daily_goal:'Daily income goal', goal_target_month:'Monthly income goal', goal_target_quarter:'Quarterly income goal', goal_target_year:'Yearly income goal',
     business_type_label:'Business type', business_type_trainer:'Personal trainer', business_type_realestate:'Real estate agent',
     business_type_laundry:'Laundry service', business_type_insurance:'Insurance agent', business_type_garage:'Car garage',
@@ -764,7 +776,7 @@ const I18N = {
     cal_prev_month_aria:'Previous month', cal_next_month_aria:'Next month',
     session_singular:'session', session_plural:'sessions',
     booking_word:'Booking', no_client_option:'No client',
-    cal_gap_free_word:'Free', cal_gap_add_word:'+ add',
+    cal_gap_free_word:'Free', cal_gap_add_word:'+ add', cal_add_at_time_aria:'Add booking at {time}',
     cal_nothing_on:'Nothing on {date}', cal_tap_new_session_hint:'Tap “+ New session” above to log work.',
     cal_schedule_booking_link:'+ Schedule a booking', cal_new_session_btn:'+ New session',
     cal_tap_day_hint:'Tap a day to see what’s on it.', bookings_load_error:'Could not load bookings.',
@@ -817,6 +829,38 @@ const I18N = {
     scan_promptpay_label:'Scan with any Thai banking app', promptpay_label:'PromptPay', payment_word:'Payment',
     bill_to_label:'Bill to', amount_header:'Amount', status_toast_prefix:'Status: ',
     service_word:'Service', qr_unavailable:'QR unavailable',
+    // Pass-E — client-facing DOCUMENT strings: docgen.js's contract/NDA/quote/
+    // receipt content (buildDocHtml) and invoices.js's print output. These are
+    // the actual paperwork handed to Thai clients, not app chrome — rendered
+    // in the app's current language at generation time (no per-document
+    // language picker yet, see docgen.js/invoices.js comments).
+    doc_title_contract:'Contract', doc_title_nda:'NDA', doc_title_quote:'Quote', doc_title_receipt:'Receipt',
+    doc_freelancer_fallback:'Freelancer', doc_client_fallback:'Client',
+    doc_issue_date_label:'Issue date:', doc_effective_date_label:'Effective date:', doc_payment_date_label:'Payment date:',
+    doc_valid_until_label:'Valid until:', doc_quote_number_prefix:'Quote #', doc_receipt_number_prefix:'Receipt #',
+    doc_client_company_label:'Client company:', doc_billing_address_label:'Billing address:', doc_client_taxid_label:'Client Tax ID:',
+    doc_contract_intro:'This Service Agreement ("Agreement") is entered into on {date} between {provider} ("Provider") and {client} ("Client").',
+    doc_deliverables_header:'Deliverables', doc_fee_header:'Fee', doc_total_fee_label:'Total fee:', doc_term_header:'Term',
+    doc_date_range_sep:'to', doc_usage_rights_header:'Usage Rights & Licensing', doc_health_waiver_header:'Health & Liability Waiver',
+    doc_health_waiver_body:'Client acknowledges that participation in physical training/coaching carries an inherent risk of injury and voluntarily assumes that risk. The following has been provided by the Client:',
+    doc_goals_label:'Goals:', doc_health_notes_label:'Health notes:', doc_allergies_label:'Allergies:',
+    doc_additional_terms_header:'Additional Terms', doc_notes_header:'Notes',
+    doc_nda_intro:'This Non-Disclosure Agreement ("Agreement") is made between {provider} and {client} as of {date}.',
+    doc_nda_h1_title:'1. Confidential Information',
+    doc_nda_h1_body:'Each party may disclose confidential business, technical, financial, or personal information ("Confidential Information") to the other in connection with their working relationship.',
+    doc_nda_h2_title:'2. Obligations',
+    doc_nda_h2_body:'The receiving party agrees to keep all Confidential Information private, use it only for the purpose of the engagement, and not disclose it to third parties without prior written consent.',
+    doc_nda_h3_title:'3. Exclusions',
+    doc_nda_h3_body:'Confidential Information does not include information that is or becomes publicly available through no fault of the receiving party.',
+    doc_nda_h4_title:'4. Term', doc_nda_h4_body:'This Agreement remains in effect for {duration} from the effective date above.',
+    doc_month_unit:'month(s)', doc_nda_h5_title:'5. Notes',
+    doc_prepared_for_label:'Prepared for:', doc_received_from_label:'Received from:',
+    doc_field_description:'Description', doc_field_qty:'Qty', doc_field_unit_price:'Unit price', doc_col_total:'Total',
+    doc_subtotal_label:'Subtotal:', doc_quote_footer:'This quote is valid until {date} and excludes tax unless stated in a formal invoice.',
+    doc_amount_received_header:'Amount received', doc_payment_method_header:'Payment method', doc_reference_header:'Reference',
+    doc_receipt_footer:'This receipt confirms payment has been received in full for the amount stated above.',
+    doc_provider_suffix:'(Provider)', doc_client_suffix:'(Client)', doc_signature_label:'Signature:', doc_date_label:'Date:',
+    doc_taxid_short:'Tax ID:',
     // misc
     welcome:'Welcome', welcome_back:'Welcome back', guest_name:'Guest', logged_out:'Logged out',
     greeting_morning:'Good morning', greeting_afternoon:'Good afternoon', greeting_evening:'Good evening',
@@ -835,6 +879,15 @@ const I18N = {
     cloud_backup_enabled_toast:'Cloud backup enabled — {n} client(s) backed up.',
     cloud_backup_modal_body:'Right now your clients only live on this device — if it\'s lost or reset, they\'re gone. Turn on cloud backup to also keep a copy in your account. You can always do this later from Settings.',
     cloud_backup_later_btn:'Not now',
+    guest_adopt_title:'Bring in your guest data?',
+    guest_adopt_body:'This device has {n} records from guest mode. Move them into this account? If you choose Not now, they stay right where they are — still reachable any time by continuing as a guest on this device.',
+    guest_adopt_btn:'Bring my data', guest_adopt_later:'Not now',
+    guest_adopt_done:'Moved {n} records into your account.',
+    restore_cloud_btn:'Restore from cloud', team_load_data:"Load your team's data",
+    restore_cloud_confirm:'Restore from the cloud? This REPLACES this device\'s data for this account. This cannot be undone.',
+    restore_cloud_done:'Restored {n} records from the cloud.',
+    restore_cloud_failed:'Could not reach the cloud — try again in a moment.',
+    restore_cloud_partial:'Some data could not be fetched: {stores}',
     subscription_needs_account_hint:'Enable cloud backup above to start your 15-day free trial and manage billing.',
     subscription_plan_basic:'Basic plan', subscription_plan_pro:'Pro plan', subscription_plan_team:'Team plan',
     subscription_status_trialing:'Free trial — {n} day(s) left', subscription_status_active:'Active',
@@ -865,16 +918,16 @@ const I18N = {
     slot_status_open:'Open', slot_status_held:'Held (pending confirmation)', slot_status_booked:'Booked',
     add_slot_btn:'+ Add slot', slot_missing_fields:'Pick a start and end time.', slot_end_before_start:'End time must be after the start time.',
     slot_add_failed:'Could not add that slot.',
-    team_title:'Team', team_sub:'Share your client base, pipeline, and calendar with staff — everyone works from the same data under one subscription.',
+    team_title:'Team', team_sub:"Give staff their own logins under one subscription — the work they save goes to your account. Staff can load your existing data anytime from Settings ▸ Cloud backup.",
     subscription_upgrade_team_btn:'Upgrade to Team — ฿{price}/seat/mo', subscription_team_member_of:"part of {name}'s team",
     team_seats_prompt:'How many seats? (minimum 2, including you)', team_seats_invalid:'Enter a number of seats, at least 2.',
-    team_needs_plan_hint:'Upgrade to the Team plan above to share your data with staff.',
+    team_needs_plan_hint:'Upgrade to the Team plan above to add staff logins.',
     team_you_title:'Your team', team_seats_used:'{used} of {total} seats used',
     team_members_title:'Members', no_team_members:'No team members yet — invite someone below.',
     team_role_owner:'Owner', team_role_admin:'Admin', team_role_staff:'Staff',
     team_invite_staff_btn:'+ Invite staff', team_invite_admin_btn:'+ Invite an admin', team_invite_failed:'Could not create an invite.',
     team_invite_link_label:'Invite link', team_invite_link_sub:"Share this with the person you're inviting — it works once, for 7 days.",
-    team_remove_confirm:'Remove this person from your team? They\'ll keep their own Sidekick account, just lose access to this shared data.',
+    team_remove_confirm:'Remove this person from your team? They\'ll keep their own Sidekick account, just stop working under yours.',
     team_remove_failed:'Could not remove that team member.',
     team_invite_needs_account:'You need a real (non-guest) Sidekick account to join a team.', team_joined_toast:"You've joined the team.",
     delete_job_confirm:'Delete this job?', name_saved:'Name saved',
@@ -935,13 +988,30 @@ const I18N = {
     appt_pending_badge:'Book next step',
     appt_by_chip:'by {date}', appt_overdue:'Overdue',
     appt_repeat:'Repeat step', appt_repeat_title:'Repeat step',
+    appt_edit:'Edit step', appt_edit_title:'Reschedule step', appt_step_updated_toast:'Step updated',
+    backup_links_reset:'({n} broken links were reset)',
+    stage_gate_label:'Ask to book the next step when a card moves forward',
+    booking_requests_title:'Booking requests', no_booking_requests:'No pending requests.',
+    booking_confirm_btn:'Confirm', booking_decline_btn:'Decline',
+    booking_confirmed_toast:'Booking confirmed', booking_declined_toast:'Request declined',
+    booking_confirmed_calendar_toast:'Booking confirmed — added to your calendar',
+    booking_slot_taken_toast:'That slot was already booked by another confirmed request.',
+    booking_hold_expired_hint:'hold expired', booking_from_line_note:'LINE booking',
     appt_booking_note:'From pipeline job',
     appt_booked_toast:'Appointment booked', appt_step_added_toast:'Step added',
     appt_err_step:'Please enter a step name', appt_err_date:'Please pick a date',
     // Pipeline Board/Timeline view toggle + timeline (Gantt) strings
     pl_view_board:'Board', pl_view_timeline:'Timeline',
     tl_today:'Today',
-    tl_empty:'No dated steps yet — add dates to a job’s sub-tasks to see them here.',
+    tl_empty:"No dated steps yet — add dates to a job's sub-tasks to see them here.",
+    // M3 — follow-ups (CRM queue copy-to-clipboard + delete failure messaging)
+    followup_copy_btn:'Copy message',
+    followup_copied_toast:'Message copied to clipboard',
+    followup_tpl_overdue:'Hi {name}, I noticed invoice {number} is overdue. Could you check on payment status? Thanks!',
+    followup_tpl_draft:'Hi {name}, I have invoice {number} ready for you. Shall I send it over?',
+    followup_tpl_stale:"Hi {name}, it's been a while! Would love to reconnect and see how things are going.",
+    followup_tpl_package:'Hi {name}, your {n}-session package is all used up. Ready for another round?',
+    delete_failed:'Could not delete — try again.',
   },
   // Thai — covers the static app chrome (nav, Settings/More menu, dashboard,
   // forms, toasts) via the same data-i18n/t() keys as `en`, plus the full
@@ -967,7 +1037,7 @@ const I18N = {
     auth_hint:'สร้างบัญชีเพื่อบันทึกข้อมูลไว้ในเครื่องนี้<br>ทุกอย่างเก็บอยู่ในเครื่อง — ไม่มีคลาวด์ ไม่มีการติดตาม<br>โหมดผู้เยี่ยมชมใช้งานได้ชั่วคราวเท่านั้น',
     tagline:'จองคิวได้ ได้งาน ได้รับเงิน',
     // nav
-    nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_pipeline:'แผนงาน', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
+    nav_home:'หน้าแรก', nav_docs:'เอกสาร', nav_invoices:'ใบแจ้งหนี้', nav_docs_qa:'เอกสาร', nav_pipeline:'แผนงาน', nav_book:'ปฏิทิน', nav_more:'เพิ่มเติม',
     pipeline_title:'แผนงาน', workflow_title:'ลำดับขั้นตอน', pipeline_glance_title:'ภาพรวมแผนงาน',
     skip_stage:'ข้าม', mark_finished:'เสร็จสิ้น', reschedule:'เลื่อนนัด', cash_job:'จ่ายสด', active_count:'กำลังดำเนินการ',
     mark_lost_btn:'ไม่สำเร็จ', lost_badge:'ไม่สำเร็จ',
@@ -1084,7 +1154,7 @@ const I18N = {
     cal_prev_month_aria:'เดือนก่อนหน้า', cal_next_month_aria:'เดือนถัดไป',
     session_singular:'เซสชัน', session_plural:'เซสชัน',
     booking_word:'การจอง', no_client_option:'ไม่มีลูกค้า',
-    cal_gap_free_word:'ว่าง', cal_gap_add_word:'+ เพิ่ม',
+    cal_gap_free_word:'ว่าง', cal_gap_add_word:'+ เพิ่ม', cal_add_at_time_aria:'เพิ่มการจองเวลา {time}',
     cal_nothing_on:'ไม่มีนัดหมายวันที่ {date}', cal_tap_new_session_hint:'แตะ “+ เซสชันใหม่” ด้านบนเพื่อบันทึกงาน',
     cal_schedule_booking_link:'+ กำหนดการจอง', cal_new_session_btn:'+ เซสชันใหม่',
     cal_tap_day_hint:'แตะวันที่เพื่อดูรายละเอียด', bookings_load_error:'ไม่สามารถโหลดการจองได้',
@@ -1137,6 +1207,34 @@ const I18N = {
     scan_promptpay_label:'สแกนด้วยแอปธนาคารไทยได้ทุกแอป', promptpay_label:'พร้อมเพย์', payment_word:'การชำระเงิน',
     bill_to_label:'เรียกเก็บเงินจาก', amount_header:'จำนวนเงิน', status_toast_prefix:'สถานะ: ',
     service_word:'บริการ', qr_unavailable:'ไม่สามารถแสดง QR ได้',
+    // Pass-E — เอกสารที่ลูกค้าเห็น (docgen.js) — formal Thai paperwork register
+    doc_title_contract:'สัญญาจ้างบริการ', doc_title_nda:'สัญญาไม่เปิดเผยข้อมูล', doc_title_quote:'ใบเสนอราคา', doc_title_receipt:'ใบเสร็จรับเงิน',
+    doc_freelancer_fallback:'ผู้ให้บริการ', doc_client_fallback:'ลูกค้า',
+    doc_issue_date_label:'วันที่ออกเอกสาร:', doc_effective_date_label:'วันที่มีผลบังคับใช้:', doc_payment_date_label:'วันที่ชำระเงิน:',
+    doc_valid_until_label:'ใช้ได้ถึงวันที่:', doc_quote_number_prefix:'ใบเสนอราคาเลขที่ ', doc_receipt_number_prefix:'ใบเสร็จเลขที่ ',
+    doc_client_company_label:'บริษัทของลูกค้า:', doc_billing_address_label:'ที่อยู่สำหรับเรียกเก็บเงิน:', doc_client_taxid_label:'เลขประจำตัวผู้เสียภาษีของลูกค้า:',
+    doc_contract_intro:'สัญญาจ้างบริการฉบับนี้ ("สัญญา") ทำขึ้นเมื่อวันที่ {date} ระหว่าง {provider} ("ผู้ให้บริการ") และ {client} ("ลูกค้า")',
+    doc_deliverables_header:'ขอบเขตงานที่ส่งมอบ', doc_fee_header:'ค่าบริการ', doc_total_fee_label:'ค่าบริการรวม:', doc_term_header:'ระยะเวลา',
+    doc_date_range_sep:'ถึง', doc_usage_rights_header:'สิทธิ์การใช้งานและลิขสิทธิ์', doc_health_waiver_header:'การรับทราบความเสี่ยงด้านสุขภาพ',
+    doc_health_waiver_body:'ลูกค้ารับทราบว่าการเข้าร่วมการฝึก/การโค้ชทางร่างกายมีความเสี่ยงต่อการบาดเจ็บโดยธรรมชาติ และยอมรับความเสี่ยงดังกล่าวโดยสมัครใจ โดยลูกค้าได้ให้ข้อมูลต่อไปนี้:',
+    doc_goals_label:'เป้าหมาย:', doc_health_notes_label:'ข้อมูลสุขภาพ:', doc_allergies_label:'ประวัติการแพ้:',
+    doc_additional_terms_header:'ข้อตกลงเพิ่มเติม', doc_notes_header:'หมายเหตุ',
+    doc_nda_intro:'สัญญาไม่เปิดเผยข้อมูลฉบับนี้ ("สัญญา") ทำขึ้นระหว่าง {provider} และ {client} เมื่อวันที่ {date}',
+    doc_nda_h1_title:'1. ข้อมูลอันเป็นความลับ',
+    doc_nda_h1_body:'คู่สัญญาแต่ละฝ่ายอาจเปิดเผยข้อมูลทางธุรกิจ เทคนิค การเงิน หรือข้อมูลส่วนบุคคลอันเป็นความลับ ("ข้อมูลอันเป็นความลับ") ให้แก่อีกฝ่ายในการทำงานร่วมกัน',
+    doc_nda_h2_title:'2. หน้าที่ของผู้รับข้อมูล',
+    doc_nda_h2_body:'ฝ่ายผู้รับข้อมูลตกลงเก็บรักษาข้อมูลอันเป็นความลับทั้งหมดไว้เป็นความลับ ใช้เพื่อวัตถุประสงค์ของงานนี้เท่านั้น และจะไม่เปิดเผยต่อบุคคลที่สามโดยไม่ได้รับความยินยอมเป็นลายลักษณ์อักษรล่วงหน้า',
+    doc_nda_h3_title:'3. ข้อยกเว้น',
+    doc_nda_h3_body:'ข้อมูลอันเป็นความลับไม่รวมถึงข้อมูลที่เผยแพร่สู่สาธารณะแล้วหรือกลายเป็นข้อมูลสาธารณะโดยมิใช่ความผิดของฝ่ายผู้รับข้อมูล',
+    doc_nda_h4_title:'4. ระยะเวลา', doc_nda_h4_body:'สัญญาฉบับนี้มีผลบังคับใช้เป็นเวลา {duration} นับจากวันที่มีผลบังคับใช้ข้างต้น',
+    doc_month_unit:'เดือน', doc_nda_h5_title:'5. หมายเหตุ',
+    doc_prepared_for_label:'จัดทำสำหรับ:', doc_received_from_label:'ได้รับเงินจาก:',
+    doc_field_description:'รายการ', doc_field_qty:'จำนวน', doc_field_unit_price:'ราคาต่อหน่วย', doc_col_total:'รวม',
+    doc_subtotal_label:'รวมเป็นเงิน:', doc_quote_footer:'ใบเสนอราคานี้ใช้ได้ถึงวันที่ {date} และยังไม่รวมภาษี เว้นแต่ระบุไว้ในใบแจ้งหนี้อย่างเป็นทางการ',
+    doc_amount_received_header:'จำนวนเงินที่ได้รับ', doc_payment_method_header:'ช่องทางการชำระเงิน', doc_reference_header:'อ้างอิง',
+    doc_receipt_footer:'ใบเสร็จฉบับนี้ยืนยันว่าได้รับชำระเงินเต็มจำนวนตามยอดที่ระบุข้างต้นแล้ว',
+    doc_provider_suffix:'(ผู้ให้บริการ)', doc_client_suffix:'(ลูกค้า)', doc_signature_label:'ลงชื่อ:', doc_date_label:'วันที่:',
+    doc_taxid_short:'เลขประจำตัวผู้เสียภาษี:',
     // misc
     welcome:'ยินดีต้อนรับ', welcome_back:'ยินดีต้อนรับกลับมา', guest_name:'ผู้เยี่ยมชม', logged_out:'ออกจากระบบแล้ว',
     greeting_morning:'สวัสดีตอนเช้า', greeting_afternoon:'สวัสดีตอนบ่าย', greeting_evening:'สวัสดีตอนเย็น',
@@ -1155,6 +1253,15 @@ const I18N = {
     cloud_backup_enabled_toast:'เปิดใช้งานสำรองข้อมูลบนคลาวด์แล้ว — สำรองข้อมูลลูกค้า {n} รายการ',
     cloud_backup_modal_body:'ตอนนี้ข้อมูลลูกค้าของคุณอยู่ในเครื่องนี้เท่านั้น — หากเครื่องหายหรือถูกรีเซ็ต ข้อมูลจะหายไปด้วย เปิดใช้งานสำรองข้อมูลบนคลาวด์เพื่อเก็บสำเนาไว้ในบัญชีของคุณด้วย คุณสามารถทำภายหลังได้จากหน้าตั้งค่า',
     cloud_backup_later_btn:'ไว้ทีหลัง',
+    guest_adopt_title:'นำข้อมูลผู้เยี่ยมชมเข้าบัญชีนี้ไหม?',
+    guest_adopt_body:'อุปกรณ์นี้มีข้อมูลจากโหมดผู้เยี่ยมชมอยู่ {n} รายการ ต้องการย้ายเข้าบัญชีนี้ไหม? ถ้าเลือกไว้ทีหลัง ข้อมูลจะยังอยู่ที่เดิม สามารถเข้าถึงได้ทุกเมื่อโดยเข้าสู่โหมดผู้เยี่ยมชมบนอุปกรณ์นี้อีกครั้ง',
+    guest_adopt_btn:'นำข้อมูลของฉันเข้ามา', guest_adopt_later:'ไว้ทีหลัง',
+    guest_adopt_done:'ย้ายข้อมูล {n} รายการเข้าบัญชีของคุณแล้ว',
+    restore_cloud_btn:'กู้คืนจากคลาวด์', team_load_data:'โหลดข้อมูลของทีมคุณ',
+    restore_cloud_confirm:'กู้คืนข้อมูลจากคลาวด์หรือไม่? การทำเช่นนี้จะแทนที่ข้อมูลทั้งหมดบนเครื่องนี้สำหรับบัญชีนี้ และไม่สามารถย้อนกลับได้',
+    restore_cloud_done:'กู้คืนข้อมูลจากคลาวด์แล้ว {n} รายการ',
+    restore_cloud_failed:'ไม่สามารถเชื่อมต่อคลาวด์ได้ — ลองใหม่อีกครั้งในอีกสักครู่',
+    restore_cloud_partial:'บางข้อมูลดึงมาไม่ได้: {stores}',
     subscription_needs_account_hint:'เปิดใช้งานสำรองข้อมูลบนคลาวด์ด้านบนเพื่อเริ่มทดลองใช้ฟรี 15 วันและจัดการการเรียกเก็บเงิน',
     subscription_plan_basic:'แพ็กเกจ Basic', subscription_plan_pro:'แพ็กเกจ Pro', subscription_plan_team:'แพ็กเกจ Team',
     subscription_status_trialing:'ทดลองใช้ฟรี — เหลืออีก {n} วัน', subscription_status_active:'ใช้งานอยู่',
@@ -1185,16 +1292,16 @@ const I18N = {
     slot_status_open:'เปิดให้จอง', slot_status_held:'กำลังรอยืนยัน', slot_status_booked:'จองแล้ว',
     add_slot_btn:'+ เพิ่มช่วงเวลา', slot_missing_fields:'เลือกเวลาเริ่มต้นและสิ้นสุด', slot_end_before_start:'เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น',
     slot_add_failed:'ไม่สามารถเพิ่มช่วงเวลานี้ได้',
-    team_title:'ทีม', team_sub:'แชร์ฐานข้อมูลลูกค้า แผนงาน และปฏิทินกับพนักงาน — ทุกคนทำงานบนข้อมูลเดียวกันภายใต้การสมัครสมาชิกเดียว',
+    team_title:'ทีม', team_sub:'ให้พนักงานมีบัญชีเข้าสู่ระบบของตัวเองภายใต้การสมัครสมาชิกเดียว — งานที่พนักงานบันทึกจะเก็บเข้าบัญชีของคุณ พนักงานสามารถโหลดข้อมูลของคุณได้ทุกเมื่อจากหน้าตั้งค่า ▸ สำรองข้อมูลบนคลาวด์',
     subscription_upgrade_team_btn:'อัปเกรดเป็น Team — ฿{price}/ที่นั่ง/เดือน', subscription_team_member_of:'เป็นส่วนหนึ่งของทีม {name}',
     team_seats_prompt:'ต้องการกี่ที่นั่ง? (ขั้นต่ำ 2 รวมคุณด้วย)', team_seats_invalid:'กรอกจำนวนที่นั่ง อย่างน้อย 2 ที่นั่ง',
-    team_needs_plan_hint:'อัปเกรดเป็นแพ็กเกจ Team ด้านบนเพื่อแชร์ข้อมูลกับพนักงาน',
+    team_needs_plan_hint:'อัปเกรดเป็นแพ็กเกจ Team ด้านบนเพื่อเพิ่มบัญชีพนักงาน',
     team_you_title:'ทีมของคุณ', team_seats_used:'ใช้ไป {used} จาก {total} ที่นั่ง',
     team_members_title:'สมาชิก', no_team_members:'ยังไม่มีสมาชิกในทีม — เชิญคนด้านล่าง',
     team_role_owner:'เจ้าของ', team_role_admin:'ผู้ดูแล', team_role_staff:'พนักงาน',
     team_invite_staff_btn:'+ เชิญพนักงาน', team_invite_admin_btn:'+ เชิญผู้ดูแล', team_invite_failed:'ไม่สามารถสร้างคำเชิญได้',
     team_invite_link_label:'ลิงก์คำเชิญ', team_invite_link_sub:'ส่งลิงก์นี้ให้คนที่คุณต้องการเชิญ — ใช้ได้ครั้งเดียว ภายใน 7 วัน',
-    team_remove_confirm:'ลบคนนี้ออกจากทีมหรือไม่? บัญชี Sidekick ของเขาจะยังอยู่ แค่ไม่มีสิทธิ์เข้าถึงข้อมูลที่แชร์นี้อีก',
+    team_remove_confirm:'ลบคนนี้ออกจากทีมหรือไม่? บัญชี Sidekick ของเขาจะยังอยู่ แค่ไม่ได้ทำงานภายใต้บัญชีของคุณอีก',
     team_remove_failed:'ไม่สามารถลบสมาชิกทีมนี้ได้',
     team_invite_needs_account:'คุณต้องมีบัญชี Sidekick จริง (ไม่ใช่ผู้เยี่ยมชม) เพื่อเข้าร่วมทีม', team_joined_toast:'คุณเข้าร่วมทีมแล้ว',
     delete_job_confirm:'ลบเซสชันนี้หรือไม่?', name_saved:'บันทึกชื่อแล้ว',
@@ -1252,6 +1359,15 @@ const I18N = {
     appt_pending_badge:'นัดขั้นตอนถัดไป',
     appt_by_chip:'ภายใน {date}', appt_overdue:'เลยกำหนด',
     appt_repeat:'ทำซ้ำขั้นตอน', appt_repeat_title:'ทำซ้ำขั้นตอน',
+    appt_edit:'แก้ไขขั้นตอน', appt_edit_title:'เลื่อนนัดขั้นตอน', appt_step_updated_toast:'อัปเดตขั้นตอนแล้ว',
+    backup_links_reset:'(รีเซ็ตลิงก์ที่เสียหาย {n} รายการ)',
+    stage_gate_label:'ถามเพื่อนัดขั้นตอนถัดไปเมื่อการ์ดเลื่อนไปข้างหน้า',
+    booking_requests_title:'คำขอจอง', no_booking_requests:'ยังไม่มีคำขอที่รอยืนยัน',
+    booking_confirm_btn:'ยืนยัน', booking_decline_btn:'ปฏิเสธ',
+    booking_confirmed_toast:'ยืนยันการจองแล้ว', booking_declined_toast:'ปฏิเสธคำขอแล้ว',
+    booking_confirmed_calendar_toast:'ยืนยันการจองแล้ว — เพิ่มลงปฏิทินของคุณแล้ว',
+    booking_slot_taken_toast:'ช่วงเวลานี้ถูกยืนยันให้คำขออื่นไปแล้ว',
+    booking_hold_expired_hint:'การจองชั่วคราวหมดอายุ', booking_from_line_note:'การจองจาก LINE',
     appt_booking_note:'จากงานในแผนงาน',
     appt_booked_toast:'จองนัดหมายแล้ว', appt_step_added_toast:'เพิ่มขั้นตอนแล้ว',
     appt_err_step:'กรุณาใส่ชื่อขั้นตอน', appt_err_date:'กรุณาเลือกวันที่',
@@ -1259,6 +1375,14 @@ const I18N = {
     pl_view_board:'บอร์ด', pl_view_timeline:'ไทม์ไลน์',
     tl_today:'วันนี้',
     tl_empty:'ยังไม่มีขั้นตอนที่ระบุวันที่ — เพิ่มวันที่ให้ขั้นตอนย่อยของงาน แล้วจะแสดงที่นี่',
+    // M3 — follow-ups (CRM queue copy-to-clipboard + delete failure messaging)
+    followup_copy_btn:'คัดลอกข้อความ',
+    followup_copied_toast:'คัดลอกข้อความไปยังคลิปบอร์ดแล้ว',
+    followup_tpl_overdue:'สวัสดี {name} ฉันเห็นว่าใบแจ้งหนี้ {number} เกินกำหนดแล้ว คุณสามารถตรวจสอบสถานะการชำระเงินได้ไหม ขอบคุณ!',
+    followup_tpl_draft:'สวัสดี {name} ฉันมีใบแจ้งหนี้ {number} พร้อมให้คุณ ขอให้ฉันส่งต่อไหม',
+    followup_tpl_stale:'สวัสดี {name} ผ่านไปสักพักแล้ว อยากติดต่อใหม่และดูว่าเรื่องต่างๆ เป็นอย่างไร',
+    followup_tpl_package:'สวัสดี {name} แพ็กเกจ {n} เซสชันของคุณใช้จนหมดแล้ว พร้อมสำหรับรอบถัดไปไหม',
+    delete_failed:'ลบไม่สำเร็จ — ลองใหม่อีกครั้ง',
   },
 };
 function curLang() { return (settings && settings.lang) || localStorage.getItem('sidekick_ui_lang') || 'th'; }
@@ -1382,6 +1506,8 @@ async function enterApp() {
   set('set-seller-address', settings.sellerAddress || '');
   const notifCheckbox = document.getElementById('set-notifications');
   if (notifCheckbox) notifCheckbox.checked = !!(settings.notificationsEnabled && typeof Notification !== 'undefined' && Notification.permission === 'granted');
+  const gateCheckbox = document.getElementById('set-stage-gate');
+  if (gateCheckbox) gateCheckbox.checked = !settings.stageGateOff;   // stored inverted — default (unset) = on
 
   // One-time migration: the old single "PromptPay ID" field becomes the
   // first entry in the new payment-channels list, if it was ever set.
@@ -1449,6 +1575,7 @@ async function finishAppBoot() {
   switchScreen('home');
   await maybeShowCloudBackupModal();
   await maybeRedeemTeamInvite();
+  await maybeOfferGuestAdoption();
   // Fire-and-forget: populates __entitlements for the Phase 1 feature
   // gates (planHasFeature()/planClientCap()) without delaying boot on a
   // network round trip guest/local-only accounts don't even need.
@@ -1888,6 +2015,17 @@ function renderCloudBackupSection() {
   if (!el || typeof SidekickBackend === 'undefined') return;
   if (isGuest) { el.innerHTML = ''; return; }
   const enabled = SidekickBackend.isEnabled();
+  // A team member (not the org owner) pulling their own account's cloud
+  // data would get back... the owner's data anyway (see restoreFromCloud()'s
+  // header) — so the button is the same call, just honestly labeled for
+  // what it does from a staff member's point of view. __entitlements may
+  // still be null/stale on this screen's very first render (renderSubscript
+  // ionSection(), which populates it, is called separately and re-renders
+  // this section once it resolves) — that's fine, it just means the label
+  // briefly shows the generic (still correct) "Restore from cloud" text.
+  const u = __entitlements;
+  const isTeamMember = !!(u && u.team && !u.team.isOwner);
+  const restoreLabel = isTeamMember ? t('team_load_data') : t('restore_cloud_btn');
   el.innerHTML = `<div class="list-card">
       <div class="list-row" style="cursor:default">
         <div class="list-icon">${enabled ? '☁️' : '🔒'}</div>
@@ -1896,7 +2034,9 @@ function renderCloudBackupSection() {
           <div class="list-sub">${htmlEsc(enabled ? t('cloud_backup_enabled_sub') : t('cloud_backup_disabled_sub'))}</div>
         </div>
       </div>
-      ${enabled ? '' : `<div style="padding:0 16px 14px">
+      ${enabled ? `<div style="padding:0 16px 14px">
+        <button type="button" onclick="restoreFromCloud()" style="width:100%;padding:10px;border:1px solid var(--border);background:none;color:var(--text2);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(restoreLabel)}</button>
+      </div>` : `<div style="padding:0 16px 14px">
         <button type="button" onclick="enableCloudBackup()" style="width:100%;padding:10px;border:none;background:var(--brand);color:#fff;border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${htmlEsc(t('cloud_backup_enable_btn'))}</button>
       </div>`}
     </div>`;
@@ -2016,6 +2156,11 @@ async function renderSubscriptionSection() {
     return;
   }
   const u = await refreshEntitlements();
+  // cloud-backup-body renders earlier in the same switchScreen('more') chain
+  // (before __entitlements is populated) — re-render it now so a team
+  // member's Restore button picks up the team_load_data label on this same
+  // screen visit, not only on the next one.
+  if (typeof renderCloudBackupSection === 'function') renderCloudBackupSection();
   if (!u) { el.innerHTML = ''; return; }
   const statusKey = u.locked ? 'subscription_status_locked'
     : u.subscriptionStatus === 'trialing' ? 'subscription_status_trialing'
@@ -2166,6 +2311,96 @@ async function maybeRedeemTeamInvite() {
   const r = await SidekickBackend.teamJoin(token);
   if (!r.ok) { toast((r.data && r.data.error) || t('team_invite_failed')); return; }
   toast(t('team_joined_toast'));
+}
+
+// ─── GUEST → ACCOUNT DATA ADOPTION ──────────────────────────────────────
+// The only path off a guest workspace used to be export-then-restore — a
+// silent trap for anyone who tried the app as a guest, then registered a
+// real account on the SAME device: the fresh account boots empty and the
+// guest data just sits there under uid 'guest', invisible unless you already
+// know to dig through Settings > Restore. This offers the obvious move.
+//
+// Cheap because it's a same-device uid swap, not a cross-device restore:
+// BACKUP_STORES rows keep their existing autoincrement id — dbPut() with
+// that same id just re-labels which account owns the row in place — so
+// every id-based cross-reference (job.clientId -> client.id, etc.) survives
+// untouched. None of importDataset()'s oldId->newId remap machinery
+// (needed there because a cloud pull/file restore can land on a device that
+// already owns those same ids under another account) applies here.
+async function maybeOfferGuestAdoption() {
+  if (isGuest) return;
+  if (!(await guestDataExists())) return;
+  const seenKey = 'sidekick_guest_adopt_seen_' + currentUser.id;
+  if (localStorage.getItem(seenKey)) return;
+  localStorage.setItem(seenKey, '1');   // one offer per account, ever — same posture as maybeShowCloudBackupModal()
+  const allByStore = await Promise.all(BACKUP_STORES.map(s => dbAll(s)));
+  const n = allByStore.reduce((sum, rows) => sum + rows.filter(r => r.uid === 'guest').length, 0);
+  if (n === 0) return;   // guestDataExists() already true above, but stay defensive rather than show "0 records"
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'guest-adopt-modal';
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-label="${attrEsc(t('guest_adopt_title'))}">
+      <div class="modal-handle"></div>
+      <div class="modal-title">${htmlEsc(t('guest_adopt_title'))}</div>
+      <div class="form-body" style="padding:0 20px 4px">
+        <p style="color:var(--text2);font-size:14px;line-height:1.5;margin:0 0 16px">${htmlEsc(t('guest_adopt_body').replace('{n}', n))}</p>
+      </div>
+      <button type="button" class="btn-submit" id="guest-adopt-modal-adopt">${htmlEsc(t('guest_adopt_btn'))}</button>
+      <button type="button" class="btn-danger" id="guest-adopt-modal-later" style="border-color:var(--border-mid);color:var(--text3)">${htmlEsc(t('guest_adopt_later'))}</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  // Not-now just closes — the data isn't touched, it stays reachable by
+  // signing back into guest mode on this same device (loginGuest()'s
+  // resume/start-fresh choice already handles "which guest" if more than
+  // one guest session ever piles up here).
+  document.getElementById('guest-adopt-modal-later').addEventListener('click', () => overlay.remove());
+  document.getElementById('guest-adopt-modal-adopt').addEventListener('click', async () => {
+    overlay.remove();
+    await adoptGuestData();
+  });
+}
+// Moves every guest-uid row across BACKUP_STORES onto the current account
+// (in place — see the header comment above), then copies over any
+// guest-prefixed setting the account doesn't already have one for.
+// Current-account keys always win: a fresh account may have just chosen its
+// own businessType (and packageUnitLabel/goalTargets/etc that come with it)
+// during onboarding, and that choice is deliberately not overwritten by
+// whatever the guest session happened to have — a residual persona mismatch
+// between the adopted data and the already-chosen businessType is accepted
+// here, since the user picked both.
+//
+// Guest-prefixed settings rows themselves are left behind under their
+// 'guest:' keys rather than deleted — harmless, since guestDataExists()
+// (and this offer's own re-trigger check) only ever looks at BACKUP_STORES,
+// never at settings.
+async function adoptGuestData() {
+  const uid = currentUser.id;
+  let n = 0;
+  const adoptedClients = [];
+  for (const s of BACKUP_STORES) {
+    const rows = (await dbAll(s)).filter(r => r.uid === 'guest');
+    for (const row of rows) {
+      row.uid = uid;
+      await dbPut(s, row);   // same id -> in-place ownership transfer, zero remap
+      n++;
+      if (s === 'clients') adoptedClients.push(row);
+    }
+  }
+  const guestSettings = (await dbAll('settings')).filter(r => r.key.startsWith('guest:'));
+  for (const row of guestSettings) {
+    const key = row.key.slice('guest:'.length);
+    if (settings[key] === undefined) await saveSetting(key, row.value);
+  }
+  // Clients reach the server right away via the same idempotent bulk-upload
+  // path enableCloudBackup() uses; every other adopted store mirrors on its
+  // own next individual save, same as any other locally-made edit — no
+  // separate "adopted" upload path needed for those.
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled() && adoptedClients.length) {
+    SidekickBackend.migrateUpload(adoptedClients).catch(() => {});
+  }
+  await reload();
+  toast(t('guest_adopt_done').replace('{n}', n));
 }
 
 // ─── DOCUMENT BRANDING (Phase 1, Pro+) ──────────────────────────────────
@@ -2368,8 +2603,119 @@ async function renderBookingSlotsSection() {
       <input type="datetime-local" id="slot-end-input" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:13px">
     </div>
     <button type="button" class="btn-submit" style="margin:10px 16px 4px;width:calc(100% - 32px)" onclick="addBookingSlot()">${htmlEsc(t('add_slot_btn'))}</button>
+    <div id="booking-requests-body"></div>
   `;
+  renderBookingRequestsSection();
 }
+// Pending public booking requests — the freelancer's confirm/decline UI for
+// api/booking-requests.js. Until this existed, every request from the
+// public booking page silently died when its 15-minute slot hold lapsed
+// ('confirmed'/'booked' were unreachable states — the launch blocker the
+// product re-assessment ranked #5). Rendered inside the LINE booking
+// section because that's where the requests come from and where the slots
+// they claim are managed.
+async function renderBookingRequestsSection() {
+  const el = document.getElementById('booking-requests-body');
+  if (!el) return;
+  const r = await SidekickBackend.bookingRequestsList();
+  if (!r.ok) { el.innerHTML = ''; return; }
+  const rows = r.data.rows || [];
+  // resolveBookingRequest() needs clientName/serviceName/startsAt/endsAt to
+  // materialize a local calendar booking on confirm, but those are freeform
+  // strings from the public booking page — putting them straight into an
+  // onclick="" attribute would mean hand-escaping into JS-string-inside-
+  // HTML-attribute context (easy to get wrong, easy to reintroduce an XSS
+  // hole later). Instead the full row is kept here, keyed by id, and the
+  // button only ever carries the numeric id + action through onclick.
+  window.__pendingBookingRows = {};
+  rows.forEach(b => { window.__pendingBookingRows[b.id] = b; });
+  const fmtStart = (iso) => {
+    const d = new Date(iso);
+    return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+  };
+  const rowsHtml = rows.length ? rows.map(b => `
+      <div class="list-row" style="cursor:default;flex-wrap:wrap;gap:6px">
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(b.clientName || '')}${b.serviceName ? ' · ' + htmlEsc(b.serviceName) : ''}</div>
+          <div class="list-sub">${htmlEsc(fmtStart(b.startsAt))}${b.holdExpired ? ` · <span style="color:var(--overdue)">` + htmlEsc(t('booking_hold_expired_hint')) + '</span>' : ''}</div>
+        </div>
+        <button type="button" class="qc-btn" style="width:auto;padding:0 12px;color:var(--brand)" onclick="resolveBookingRequest(${b.id},'confirm')">${htmlEsc(t('booking_confirm_btn'))}</button>
+        <button type="button" class="qc-btn" style="width:auto;padding:0 12px;color:var(--text3)" onclick="resolveBookingRequest(${b.id},'decline')">${htmlEsc(t('booking_decline_btn'))}</button>
+      </div>`).join('') : `<div class="pkg-status"><span>${htmlEsc(t('no_booking_requests'))}</span></div>`;
+  el.innerHTML = `
+    <div class="section-title" style="font-size:12px;margin:14px 16px 8px">${htmlEsc(t('booking_requests_title'))}</div>
+    <div class="list-card" style="margin:0 16px 14px">${rowsHtml}</div>`;
+}
+// Local-time date/HH:MM extraction for a booking's startsAt (an ISO instant
+// off the wire, e.g. '2026-08-01T20:00:00Z') — Date's plain getters
+// (getFullYear/getMonth/getDate/getHours/getMinutes) are already local-time,
+// same convention todayISO() (above) relies on; toISOString()/getUTC* would
+// silently shift the calendar date whenever local time and UTC disagree on
+// which day it is (very much the common case for Bangkok evenings/nights).
+function localDateTimeParts(iso) {
+  const d = new Date(iso);
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const startTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return { date, startTime };
+}
+// Materialize a freelancer-confirmed LINE booking request as a local
+// calendar booking — closes the P2 gap where a confirmed public booking
+// only ever lived server-side (availability_slots/bookings) and never
+// appeared on the freelancer's own calendar (bookings.js's 'bookings'
+// store), i.e. nothing stopped them from double-booking that same slot
+// against their own pipeline work. v1 scope is one-directional (a LINE
+// confirm creates a local booking); the reverse — a local calendar entry
+// auto-blocking an open public slot — needs a two-way sync design and is a
+// deliberate residual, along with slot-vs-booking conflict warnings.
+async function createLocalBookingFromLineRequest(b) {
+  // Idempotence guard: a double-tap on Confirm, or resolveBookingRequest
+  // running twice against the same id across a re-render (see
+  // window.__pendingBookingRows below), must never create two calendar
+  // entries for one LINE request.
+  const already = (await dbAll('bookings')).some(x => x.lineBookingId === b.id);
+  if (already) return;
+  const { date, startTime } = localDateTimeParts(b.startsAt);
+  const startMs = new Date(b.startsAt).getTime();
+  const endMs = new Date(b.endsAt).getTime();
+  const durationMin = (isFinite(startMs) && isFinite(endMs) && endMs > startMs) ? Math.round((endMs - startMs) / 60000) : 60;
+  const row = {
+    uid: currentUser.id, cuid: cuid(), customerId: null,
+    title: (b.clientName || '') + (b.serviceName ? ' — ' + b.serviceName : ''),
+    date, startTime, durationMin, travelBufferMin: 0,
+    location: '', notes: t('booking_from_line_note'), status: 'scheduled',
+    jobCuid: null, createdAt: nowISO(), updatedAt: nowISO(),
+    // Local-only marker (this LINE booking request's server-side `id`),
+    // used by the idempotence check above. Deliberately NOT included in
+    // bookingsMirror's toPayload (dataClient.js) — the server drops
+    // unknown fields on write, so leaving it out of that FIELDS list is
+    // harmless, and the server already tracks this link on its own side
+    // (bookings.slot_id/status in sql/schema-core.sql).
+    lineBookingId: b.id,
+  };
+  const key = await dbAdd('bookings', row); row.id = key;
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+    SidekickBackend.mirrorBookingSave(row).catch(() => {});
+}
+async function resolveBookingRequest(bookingId, action) {
+  const r = await SidekickBackend.bookingRequestResolve(bookingId, action);
+  if (!r.ok) {
+    toast(r.data && r.data.code === 'slot_taken' ? t('booking_slot_taken_toast') : t('slot_add_failed'));
+    renderBookingRequestsSection();   // list is stale either way — refresh
+    return;
+  }
+  if (action === 'confirm') {
+    // window.__pendingBookingRows (renderBookingRequestsSection above) carries
+    // the full row — clientName/serviceName/startsAt/endsAt — keyed by id, so
+    // this never has to stuff those freeform strings into the onclick markup.
+    const row = window.__pendingBookingRows && window.__pendingBookingRows[bookingId];
+    if (row) await createLocalBookingFromLineRequest(row);
+    toast(t('booking_confirmed_calendar_toast'));
+  } else {
+    toast(t('booking_declined_toast'));
+  }
+  renderBookingSlotsSection();   // re-renders slots AND the requests list
+}
+window.resolveBookingRequest = resolveBookingRequest;
 async function addBookingSlot() {
   const startEl = document.getElementById('slot-start-input');
   const endEl = document.getElementById('slot-end-input');
@@ -2707,13 +3053,22 @@ async function onNotificationsToggle(checked) {
   await saveSetting('notificationsEnabled', checked);
   if (checked) checkAndFireNotifications();
 }
+// Stage-gate prompt on/off (see gateAfterForwardMove). Stored inverted
+// (stageGateOff) so the absent/legacy value means ON — no migration pass.
+async function onStageGateToggle(checked) {
+  await saveSetting('stageGateOff', !checked);
+}
+window.onStageGateToggle = onStageGateToggle;
 
 async function renderHome() {
   // greeting
   const greetEl = document.getElementById('home-greeting');
   if (greetEl) greetEl.textContent = `${t('greeting_' + greetingPeriod())}, ${displayName()}`;
 
-  const mj = jobsThisMonth();
+  // Only jobs whose stage actually reached Paid count as earned — see
+  // jobEarned(). Home's headline number must agree with the Invoices
+  // screen, not with the inquiry pipeline.
+  const mj = jobsThisMonth().filter(jobEarned);
   const gross = mj.reduce((s,j)=> s + (Number(j.amount)||0) + (Number(j.tip)||0), 0);
   const exp = mj.reduce((s,j)=> s + (Number(j.expense)||0), 0);
   const net = gross - exp;
@@ -2804,7 +3159,10 @@ window.renderIncomingPipeline = renderIncomingPipeline;
 // persisted switch selection.
 const GOAL_PERIODS = ['month', 'quarter', 'year'];
 function goalPeriodJobs(period) {
-  return period === 'quarter' ? jobsThisQuarter() : period === 'year' ? jobsThisYear() : jobsThisMonth();
+  // Same earned-only filter as Home's hero number (jobEarned) — the goal
+  // card and "Earned this month" must never disagree about the same month.
+  const inPeriod = period === 'quarter' ? jobsThisQuarter() : period === 'year' ? jobsThisYear() : jobsThisMonth();
+  return inPeriod.filter(jobEarned);
 }
 function renderGoal() {
   const card = document.getElementById('goal-card');
@@ -3008,6 +3366,7 @@ async function saveFastPathDelivery() {
     invoiceId: null, quoteDocId: null, packageId: pkg.id, updatedAt: nowISO(),
   };
   await dbPut('jobs', obj);
+  mirrorJob(obj);
   logEvent('session_logged');
   closeJobModal();
   await reload();
@@ -3195,6 +3554,15 @@ async function deleteJob() {
 // A left-hand rail lists all 6 stages (icon + label + count); the main area
 // renders only the currently-selected ("active") stage's cards — never all
 // six at once — so there's no horizontal board to scroll through.
+
+// Fire-and-forget best-effort mirror of job writes that don't go through
+// saveJob(). Ensures cloud-backed accounts' server copy stays in sync even
+// for stage moves, gate resolution, and sub-task/milestone/timer/option edits.
+function mirrorJob(j) {
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+    SidekickBackend.mirrorJobSave(j).catch(() => {});
+}
+
 let _pipelineActiveStage = null;
 function selectPipelineStage(stage) {
   _pipelineActiveStage = stage;
@@ -3551,6 +3919,7 @@ async function confirmPackageDelivery(jobId) {
   if (!(val > 0) || val > remaining) { validatePackageConfirmQty(jobId, remaining); return; }
   j.count = val;
   await dbPut('jobs', j);
+  mirrorJob(j);
   window.__packageConfirmJobId = null;
   await advanceJobStage(jobId);
 }
@@ -3591,6 +3960,7 @@ async function advanceJobStage(jobId) {
   _pipelineActiveStage = j.stage;   // rail follows the card to wherever it just landed
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
   if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
@@ -3628,6 +3998,7 @@ async function cashJobPath(jobId) {
   _pipelineActiveStage = j.stage;
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
   if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
@@ -3649,6 +4020,7 @@ async function finishJobStage(jobId) {
   _pipelineActiveStage = j.stage;
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
 }
@@ -3673,6 +4045,7 @@ async function markJobLost(jobId) {
   _pipelineActiveStage = j.stage;
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
 }
@@ -3693,6 +4066,7 @@ async function moveJobStageBack(jobId) {
   _pipelineActiveStage = j.stage;   // rail follows the card back
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
 }
@@ -3728,6 +4102,7 @@ async function markJobPaid(jobId) {
   logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   _pipelineActiveStage = j.stage;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
   if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
@@ -3750,6 +4125,23 @@ function openQuoteForJob(j) {
   window.__pendingQuoteJobId = j.id;
 }
 
+// Called by invoices.js whenever an invoice's status TRANSITIONS to 'paid'
+// (detail-modal select or an edit save) — the reverse of markJobPaid's own
+// invoice flip. Users record payment where the invoice lives; without this
+// they had to mark the same payment twice. Deliberately narrow:
+// - only a job LINKED to this invoice (j.invoiceId), sitting exactly at its
+//   'paid' stage, not complete — any other position means the pipeline is
+//   ahead of or behind the paperwork and a silent jump would be wrong;
+// - never package-linked jobs (j.packageId) — those must stop at the
+//   quantity-confirm card, which lives on the pipeline screen;
+// - no loop risk: markJobPaid's own invoice flip writes dbPut directly
+//   (not through invoices.js's handlers), so it can never re-fire this.
+window.onInvoiceMarkedPaid = async function (invoiceId) {
+  const j = jobs.find(x => x.invoiceId === invoiceId);
+  if (!j || jobComplete(j) || jobStage(j) !== 'paid' || j.packageId != null) return;
+  await markJobPaid(j.id);
+};
+
 // Called by invoices.js after an invoice is created from a pipeline session.
 window.onEngagementInvoiceCreated = async function (invoiceId, jobId) {
   if (jobId == null) return;
@@ -3765,6 +4157,7 @@ window.onEngagementInvoiceCreated = async function (invoiceId, jobId) {
   logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   _pipelineActiveStage = j.stage;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
   if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
@@ -3786,6 +4179,7 @@ window.onEngagementQuoteCreated = async function (docId, jobId) {
   logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
   _pipelineActiveStage = j.stage;
   await dbPut('jobs', j);
+  mirrorJob(j);
   await reload();
   renderPipeline();
   if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
@@ -3800,6 +4194,11 @@ window.onEngagementQuoteCreated = async function (docId, jobId) {
 // step" banner and any advance tap reopens the modal instead of moving again.
 // Terminal moves (complete) never gate: there is no next step to book.
 function gateAfterForwardMove(j) {          // call BEFORE the commit point's dbPut
+  // Per-account off switch (Settings ▸ Manage): a high-volume persona (a
+  // laundry moving 10 orders/day answers ~50 gate prompts) can disable the
+  // prompt entirely; stored inverted (stageGateOff) so every existing
+  // account and fresh install stays gated by default with no migration.
+  if (settings.stageGateOff) { j.pendingGateStage = null; return; }
   if (!j.complete) j.pendingGateStage = j.stage; else j.pendingGateStage = null;
 }
 
@@ -3821,13 +4220,19 @@ async function createBookingForStep(j, st) {
 }
 
 // One dynamic overlay (same pattern as maybeShowCloudBackupModal — built on
-// demand, no index.html markup) serves all three flows:
+// demand, no index.html markup) serves all four flows:
 //   gate   — after a forward stage move; the ONLY exits are Save and
 //            "no appointment needed" (overlay-click is a locked door here,
 //            deliberately NOT wired into the shared overlay-click block at
 //            the bottom of this file — a stray tap must not skip the gate)
 //   add    — "+ Step with date" button inside the job edit modal
 //   repeat — clone an existing dated step with a fresh date (↻ button)
+//   edit   — reschedule an existing dated step in place (✎ button):
+//            everything prefilled INCLUDING the date, and save mutates the
+//            source step + moves/creates/removes its linked calendar
+//            booking in the same write — the reschedule affordance whose
+//            absence previously forced delete + recreate + an orphaned
+//            booking (the sub-task workflow assessment's top gap).
 window.__apCtx = null;      // { mode, jobId, stage?, sourceSubTaskId? } while open
 window.__apType = 'exact';  // 'exact' (calendar booking) | 'by' (deadline only)
 function openApptModal(ctx) {
@@ -3836,8 +4241,10 @@ function openApptModal(ctx) {
   document.getElementById('modal-appt')?.remove();   // never stack two
   window.__apCtx = ctx;
   const src = ctx.sourceSubTaskId ? (j.subTasks || []).find(s => s.id === ctx.sourceSubTaskId) : null;
+  if (ctx.mode === 'edit' && !src) return;   // step deleted underneath the ✎ tap
   const title = ctx.mode === 'gate' ? t('appt_gate_title')
-    : ctx.mode === 'repeat' ? t('appt_repeat_title') : t('appt_add_dated');
+    : ctx.mode === 'repeat' ? t('appt_repeat_title')
+    : ctx.mode === 'edit' ? t('appt_edit_title') : t('appt_add_dated');
   const stageMeta = ctx.stage ? (STAGE_META[ctx.stage] || {}) : {};
   const context = ctx.mode === 'gate'
     ? t('appt_gate_context').replace('{job}', j.client || '').replace('{stage}', (stageMeta.label && t(stageMeta.label)) || ctx.stage || '')
@@ -3856,8 +4263,8 @@ function openApptModal(ctx) {
           <button type="button" id="ap-type-exact" class="seg-active" onclick="setApptType('exact')">${htmlEsc(t('appt_type_exact'))}</button>
           <button type="button" id="ap-type-by" onclick="setApptType('by')">${htmlEsc(t('appt_type_by'))}</button>
         </div>
-        <div class="field" id="ap-date-row"><label id="ap-date-label">${htmlEsc(t('appt_date_label'))}</label><input type="date" id="ap-date"></div>
-        <div class="field" id="ap-time-row"><label>${htmlEsc(t('appt_time_label'))}</label><input type="time" id="ap-time" value="09:00"></div>
+        <div class="field" id="ap-date-row"><label id="ap-date-label">${htmlEsc(t('appt_date_label'))}</label><input type="date" id="ap-date" value="${attrEsc(ctx.mode === 'edit' && src ? (src.date || '') : '')}"></div>
+        <div class="field" id="ap-time-row"><label>${htmlEsc(t('appt_time_label'))}</label><input type="time" id="ap-time" value="${attrEsc(ctx.mode === 'edit' && src && src.startTime ? src.startTime : '09:00')}"></div>
       </div>
       <button type="button" class="btn-submit" id="ap-save" onclick="saveApptModal()">${htmlEsc(t('appt_save'))}</button>
       ${ctx.mode === 'gate' ? `<button type="button" class="btn-danger" id="ap-none" style="border-color:var(--border-mid);color:var(--text3)" onclick="resolveApptNone()">${htmlEsc(t('appt_none'))}</button>
@@ -3894,6 +4301,46 @@ async function saveApptModal() {
   if (!text) { toast(t('appt_err_step')); return; }   // validation keeps the modal open
   if (!date) { toast(t('appt_err_date')); return; }
   const timeVal = (document.getElementById('ap-time') || {}).value || '';
+
+  if (ctx.mode === 'edit') {
+    // Reschedule in place: mutate the source step, then reconcile its
+    // linked calendar booking in the SAME save — update it when it stays
+    // 'exact', remove it on exact→by (a deadline has no calendar entry),
+    // create one on by→exact. All-or-nothing with the step's own dbPut so
+    // the calendar can't drift from the step (assessment gap #3).
+    const st = (j.subTasks || []).find(s => s.id === ctx.sourceSubTaskId);
+    if (!st) { closeApptModal(); return; }
+    st.text = text;
+    st.dateType = window.__apType;
+    st.date = date;
+    st.startTime = window.__apType === 'exact' ? (timeVal || '09:00') : null;
+    if (st.bookingCuid && st.dateType === 'exact') {
+      const row = (await dbAll('bookings')).find(b => b.cuid === st.bookingCuid);
+      if (row) {
+        row.date = st.date; row.startTime = st.startTime;
+        row.title = st.text + (j.client ? ' — ' + j.client : '');
+        row.updatedAt = nowISO();
+        await dbPut('bookings', row);
+        if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+          SidekickBackend.mirrorBookingSave(row).catch(() => {});
+      } else {
+        await createBookingForStep(j, st);   // booking deleted elsewhere — recreate the link
+      }
+    } else if (st.bookingCuid && st.dateType === 'by') {
+      await deleteBookingByCuid(st.bookingCuid);
+      st.bookingCuid = null;
+    } else if (!st.bookingCuid && st.dateType === 'exact') {
+      await createBookingForStep(j, st);
+    }
+    j.updatedAt = nowISO();
+    await dbPut('jobs', j);
+    mirrorJob(j);
+    closeApptModal();
+    renderJobTracking(ctx.jobId);
+    toast(t('appt_step_updated_toast'));
+    return;
+  }
+
   const st = { id: cuid(), text, done: false, dateType: window.__apType, date,
     startTime: window.__apType === 'exact' ? (timeVal || '09:00') : null,
     bookingCuid: null, stage: ctx.stage ?? null, repeatOfId: ctx.sourceSubTaskId ?? null };
@@ -3910,6 +4357,7 @@ async function saveApptModal() {
   }
   j.updatedAt = nowISO();
   await dbPut('jobs', j);
+  mirrorJob(j);
   closeApptModal();
   if (ctx.mode === 'gate') renderPipeline(); else renderJobTracking(ctx.jobId);
   toast(t(ctx.mode === 'gate' ? 'appt_booked_toast' : 'appt_step_added_toast'));
@@ -3927,6 +4375,7 @@ async function resolveApptNone() {
     j.pendingGateStage = null;
     j.updatedAt = nowISO();
     await dbPut('jobs', j);
+    mirrorJob(j);
     logEvent('gate_skip:' + (ctx.stage || ''));
   }
   closeApptModal();
@@ -4669,7 +5118,8 @@ function renderSubTasks(jobId) {
       <div class="list-row" style="cursor:pointer" onclick="toggleSubTask(${jobId},'${s.id}')">
         <input type="checkbox" style="width:20px;height:20px;flex-shrink:0;pointer-events:none" ${s.done ? 'checked' : ''}>
         <div class="list-main"><div class="list-title" style="${s.done ? 'text-decoration:line-through;color:var(--text3)' : ''}">${htmlEsc(s.text)}</div>${subTaskDateChip(s)}</div>
-        ${s.dateType ? `<button type="button" class="qc-btn" aria-label="${attrEsc(t('appt_repeat'))}" onclick="event.stopPropagation();repeatSubTask(${jobId},'${s.id}')">↻</button>` : ''}
+        ${s.dateType ? `<button type="button" class="qc-btn" aria-label="${attrEsc(t('appt_edit'))}" onclick="event.stopPropagation();editSubTask(${jobId},'${s.id}')">✎</button>
+        <button type="button" class="qc-btn" aria-label="${attrEsc(t('appt_repeat'))}" onclick="event.stopPropagation();repeatSubTask(${jobId},'${s.id}')">↻</button>` : ''}
         <button type="button" class="qc-btn" aria-label="Delete sub-task" onclick="event.stopPropagation();deleteSubTask(${jobId},'${s.id}')">✕</button>
       </div>`).join('')}</div>
   `;
@@ -4695,6 +5145,7 @@ async function addSubTask(jobId) {
   j.subTasks = j.subTasks || [];
   j.subTasks.push({ id: cuid(), text, done: false });
   await dbPut('jobs', j);
+  mirrorJob(j);
   input.value = '';
   input.focus();   // stay focused so adding several in a row doesn't need re-tapping the field
   renderJobTracking(jobId);
@@ -4707,17 +5158,34 @@ async function toggleSubTask(jobId, subId) {
   if (!s) return;
   s.done = !s.done;
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderJobTracking(jobId);
 }
 window.toggleSubTask = toggleSubTask;
 async function deleteSubTask(jobId, subId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j || !j.subTasks) return;
+  const st = j.subTasks.find(x => x.id === subId);
   j.subTasks = j.subTasks.filter(x => x.id !== subId);
   await dbPut('jobs', j);
+  mirrorJob(j);
+  // A gate-created calendar booking must not outlive its step — leaving it
+  // would accumulate ghost appointments on the calendar (the "delete
+  // orphans the booking" gap the sub-task workflow assessment flagged).
+  if (st && st.bookingCuid) await deleteBookingByCuid(st.bookingCuid);
   renderJobTracking(jobId);
 }
 window.deleteSubTask = deleteSubTask;
+// Booking rows are keyed by autoincrement id locally but linked from steps
+// by cuid (the only stable cross-device key) — resolve, delete, and mirror.
+async function deleteBookingByCuid(bookingCuid) {
+  const row = (await dbAll('bookings')).find(b => b.cuid === bookingCuid);
+  if (!row) return;
+  await dbDel('bookings', row.id);
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+    SidekickBackend.mirrorBookingDelete(bookingCuid).catch(() => {});
+  }
+}
 // Repeat a dated step (↻): opens the shared appointment modal in repeat mode
 // with the source step's text + type prefilled and the date empty — one tap
 // plus one date = a new occurrence. The clone records repeatOfId (see
@@ -4729,6 +5197,16 @@ function repeatSubTask(jobId, subTaskId) {
   openApptModal({ mode: 'repeat', jobId, sourceSubTaskId: subTaskId });
 }
 window.repeatSubTask = repeatSubTask;
+// Reschedule a dated step (✎): same modal in edit mode — everything
+// prefilled including the current date/time; save mutates the step and
+// moves its linked calendar booking in the same write (see saveApptModal).
+function editSubTask(jobId, subTaskId) {
+  jobId = parseInt(jobId, 10);
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !(j.subTasks || []).some(s => s.id === subTaskId)) return;
+  openApptModal({ mode: 'edit', jobId, sourceSubTaskId: subTaskId });
+}
+window.editSubTask = editSubTask;
 
 // ── Options compared (job.options[]) ──
 // One deal, several candidates — the realestate "client is weighing 5
@@ -4783,6 +5261,7 @@ async function addJobOption(jobId) {
   j.options.push({ id: cuid(), name, status: 'considering', note: '' });
   j.updatedAt = nowISO();
   await dbPut('jobs', j);
+  mirrorJob(j);
   input.value = '';
   input.focus();   // same add-several-in-a-row affordance as addSubTask
   renderJobOptions(jobId);
@@ -4801,6 +5280,7 @@ async function saveJobOptionField(jobId, optId, field, value) {
   }
   j.updatedAt = nowISO();
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderJobOptions(jobId);
 }
 window.saveJobOptionField = saveJobOptionField;
@@ -4810,6 +5290,7 @@ async function deleteJobOption(jobId, optId) {
   j.options = j.options.filter(x => x.id !== optId);
   j.updatedAt = nowISO();
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderJobOptions(jobId);
 }
 window.deleteJobOption = deleteJobOption;
@@ -4891,6 +5372,7 @@ async function saveMilestone(jobId) {
   j.milestones = j.milestones || [];
   j.milestones.push({ id: cuid(), pct, amount, gatingSubTaskId });
   await dbPut('jobs', j);
+  mirrorJob(j);
   window.__milestoneFormOpen = false;
   renderMilestones(jobId);
 }
@@ -4900,6 +5382,7 @@ async function deleteMilestone(jobId, msId) {
   if (!j || !j.milestones) return;
   j.milestones = j.milestones.filter(x => x.id !== msId);
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderMilestones(jobId);
 }
 window.deleteMilestone = deleteMilestone;
@@ -4932,6 +5415,7 @@ window.onMilestoneInvoiceCreated = async function (invoiceId, jobId, milestoneId
   m.invoiceId = invoiceId;
   j.updatedAt = nowISO();
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderMilestones(jobId);
 };
 
@@ -4991,6 +5475,7 @@ async function startJobTimer(jobId) {
   if (!j || j.timerStartedAt) return;
   j.timerStartedAt = new Date().toISOString();
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderJobTracking(jobId);
 }
 window.startJobTimer = startJobTimer;
@@ -5002,6 +5487,7 @@ async function stopJobTimer(jobId) {
   if (minutes >= 1) j.timeEntries.push({ id: cuid(), minutes, startedAt: j.timerStartedAt, endedAt: new Date().toISOString(), invoiced: false });
   j.timerStartedAt = null;
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderJobTracking(jobId);
 }
 window.stopJobTimer = stopJobTimer;
@@ -5039,6 +5525,7 @@ window.onUnbilledTimeInvoiceCreated = async function (invoiceId, jobId, timeEntr
   j.timeEntries.forEach(e => { if (ids.has(e.id)) { e.invoiced = true; e.invoiceId = invoiceId; } });
   j.updatedAt = nowISO();
   await dbPut('jobs', j);
+  mirrorJob(j);
   renderJobTracking(jobId);
 };
 
@@ -5660,6 +6147,155 @@ async function exportBackup() {
   toast(t('exported'));
 }
 function pickBackupFile() { const inp = document.getElementById('backup-file'); if (inp) inp.click(); }
+
+// Referenced stores first (targets), dependents after — shared ordering for
+// both the delete phase and the insert-with-remap phase below.
+const IMPORT_ORDER = ['clients', 'services', 'invoices', 'documents', 'packages',
+  'jobs', 'bookings', 'followups', 'progressLogs', 'expenses', 'portfolio', 'research'];
+
+// The delete-then-insert swap (with per-store oldId→newId remap of every
+// id-based cross-reference, rollback on failure) that used to live inline in
+// importBackup() — extracted so restoreFromCloud() (below) can drive the
+// exact same, already id-remap-tested machinery from a cloud pull instead of
+// a parsed backup file. The two sources look different (a JSON file dump vs.
+// dataClient.js's pullAll() reshaping server rows) but reduce to the same
+// shape once they reach here: a plain { storeName: [rows] } object.
+//
+// Only touches stores that are actually keys on `byStore` — importBackup()
+// below still explicitly sets every BACKUP_STORES key (defaulting an absent
+// one to []), so its behavior is unchanged (a backup missing a store's key
+// still wipes that store locally, exactly as before). restoreFromCloud()
+// deliberately does NOT include an 'expenses' key at all (dataClient.js's
+// pullAll() has nothing to fetch for it — no server table exists), so this
+// loop leaves local expenses completely untouched on a cloud restore rather
+// than wiping them because the cloud has no copy.
+//
+// BE SURGICAL note for future edits: the remap logic below is the same code
+// that shipped with the file-based restore and is covered by
+// tests/check-blockers-p1.js's id-remap roundtrip — change it with that test
+// in mind.
+async function importDataset(byStore, uid) {
+  const stores = IMPORT_ORDER.filter(s => Object.prototype.hasOwnProperty.call(byStore, s));
+  const savedByStore = {};
+  await Promise.all(stores.map(async s => {
+    savedByStore[s] = (await dbAll(s)).filter(r => r.uid === uid);
+  }));
+  let linksReset = 0;
+  let inserted = 0;
+  try {
+    // Delete every existing row across every store first, then add every new
+    // row across every store — matches the original jobs/expenses swap so a
+    // failed add always rolls back cleanly (every old id was already gone).
+    for (const s of stores) { for (const row of savedByStore[s]) await dbDel(s, row.id); }
+    // dbAdd() re-mints every autoincrement id, so every id-based
+    // cross-reference in the dataset (jobs.clientId → clients.id, etc.)
+    // would dangle if rows were re-added verbatim — the restore-corrupts-
+    // relationships bug. The legacy-DB migration solved this with put()
+    // (preserving ids), but a restore can't: the target DB may already own
+    // those ids under another account. So: insert referenced stores first,
+    // record oldId→newId per store, and rewrite every reference on the way
+    // in. Cuid-based links (subTasks[].bookingCuid, bookings.jobCuid) ride
+    // through untouched — cuids are globally unique and never re-minted.
+    // A reference whose target row is missing from this batch is nulled
+    // rather than left pointing at whatever row now happens to own that
+    // id; those are counted and surfaced in the caller's success toast.
+    //
+    // 2026-07-16: TWO-TIER resolution, cuid first. A file-based backup's
+    // rows only ever carry the raw id (oldId → newId, "same-file identity" —
+    // meaningful because referrer and target came from the same export/
+    // import batch). A real cloud pull (dataClient.js pullAll()) is
+    // different: the id on e.g. a job's clientId is the MIRRORING DEVICE's
+    // own local autoincrement id, meaningless on this device — but
+    // fromJobRow() etc. now also attach a `__clientCuid` (etc.) transient
+    // field carrying that ref's actual cuid, which IS globally stable
+    // ("cross-device identity"). resolveRef() below tries that first; only
+    // when no ref cuid was captured at all (a file backup, or a row
+    // mirrored before this pass shipped) does it fall back to the same
+    // oldId map file-based restores already relied on. Whichever tier
+    // fires, the __*Cuid field itself is always stripped before dbAdd() —
+    // it must never end up as a persisted column on the local record.
+    const idMap = {};     // store -> Map(oldId -> newId): same-file identity.
+    const cuidMap = {};   // store -> Map(cuid -> newId): cross-device identity.
+    const remap = (store, oldId) => {
+      if (oldId == null) return null;
+      const m = idMap[store];
+      if (m && m.has(oldId)) return m.get(oldId);
+      linksReset++;
+      return null;
+    };
+    // Resolves one ref (`rest[idField]`) using `rest[cuidField]` (a
+    // __*Cuid transient field) if present, else falls back to remap() on
+    // the raw id. A present-but-unresolvable ref cuid nulls the ref and
+    // counts a reset WITHOUT ever consulting the raw id — a ref cuid that
+    // was captured but can't be resolved means the target genuinely isn't
+    // in this batch, same conclusion the id-only path would reach anyway.
+    const resolveRef = (store, rest, idField, cuidField) => {
+      const refCuid = rest[cuidField];
+      delete rest[cuidField];
+      if (refCuid != null) {
+        const m = cuidMap[store];
+        if (m && m.has(refCuid)) { rest[idField] = m.get(refCuid); return; }
+        linksReset++;
+        rest[idField] = null;
+        return;
+      }
+      rest[idField] = remap(store, rest[idField]);
+    };
+    for (const s of stores) {
+      idMap[s] = new Map();
+      cuidMap[s] = new Map();
+      for (const row of byStore[s]) {
+        const { id, ...rest } = row;
+        if (s === 'jobs') {
+          resolveRef('clients', rest, 'clientId', '__clientCuid');
+          resolveRef('services', rest, 'serviceId', '__serviceCuid');
+          resolveRef('invoices', rest, 'invoiceId', '__invoiceCuid');
+          resolveRef('documents', rest, 'quoteDocId', '__quoteDocCuid');
+          resolveRef('packages', rest, 'packageId', '__packageCuid');
+          // Residual gap, accepted this pass: nested milestone/timeEntry
+          // invoiceIds are NOT mirrored as cuids (see sql/schema-core.sql's
+          // jobs comment) — still id-only, still reset exactly as today.
+          if (Array.isArray(rest.milestones)) rest.milestones = rest.milestones.map(m => ({ ...m, invoiceId: remap('invoices', m.invoiceId) }));
+          if (Array.isArray(rest.timeEntries)) rest.timeEntries = rest.timeEntries.map(e => e.invoiceId != null ? { ...e, invoiceId: remap('invoices', e.invoiceId) } : e);
+        } else if (s === 'bookings') {
+          resolveRef('clients', rest, 'customerId', '__customerCuid');
+        } else if (s === 'invoices') {
+          resolveRef('clients', rest, 'clientId', '__clientCuid');
+        } else if (s === 'documents') {
+          resolveRef('clients', rest, 'clientId', '__clientCuid');
+          resolveRef('invoices', rest, 'invoiceId', '__invoiceCuid');
+        } else if (s === 'packages' || s === 'progressLogs') {
+          resolveRef('clients', rest, 'clientId', '__clientCuid');
+        } else if (s === 'followups' && typeof rest.key === 'string') {
+          // Keys embed ids as strings: `overdue:CID:INVID`, `draft:CID:INVID`,
+          // `stale:CID:` — rewrite the embedded ids, leave unknown shapes as-is.
+          // Residual gap, accepted this pass: no ref-cuid mirroring for
+          // followups' embedded ids either — still id-only, same as today.
+          const parts = rest.key.split(':');
+          if ((parts[0] === 'overdue' || parts[0] === 'draft') && parts.length >= 3) {
+            const c = remap('clients', parseInt(parts[1], 10)), i = remap('invoices', parseInt(parts[2], 10));
+            if (c != null && i != null) rest.key = `${parts[0]}:${c}:${i}`;
+          } else if (parts[0] === 'stale' && parts.length >= 2) {
+            const c = remap('clients', parseInt(parts[1], 10));
+            if (c != null) rest.key = `stale:${c}:${parts.slice(2).join(':')}`;
+          }
+        }
+        const newId = await dbAdd(s, { ...rest, uid });
+        if (id != null) idMap[s].set(id, newId);
+        if (rest.cuid) cuidMap[s].set(rest.cuid, newId);
+        inserted++;
+      }
+    }
+  } catch (err) {
+    // Roll back: restore the pre-import rows so a failed swap doesn't lose data.
+    for (const s of stores) {
+      for (const row of savedByStore[s]) { const {id, ...rest} = row; await dbAdd(s, {...rest, uid}).catch(()=>{}); }
+    }
+    throw err;
+  }
+  return { inserted, linksReset };
+}
+
 async function importBackup(inputEl) {
   const file = inputEl && inputEl.files && inputEl.files[0];
   inputEl.value = '';
@@ -5685,21 +6321,10 @@ async function importBackup(inputEl) {
   const n = BACKUP_STORES.reduce((sum, s) => sum + byStore[s].length, 0);
   if (!confirm(t('restore_confirm').replace('{n}', n))) return;
   const uid = isGuest ? 'guest' : currentUser.id;
-  const savedByStore = {};
-  await Promise.all(BACKUP_STORES.map(async s => {
-    savedByStore[s] = (await dbAll(s)).filter(r => r.uid === uid);
-  }));
+  let result;
   try {
-    // Delete every existing row across every store first, then add every new
-    // row across every store — matches the original jobs/expenses swap so a
-    // failed add always rolls back cleanly (every old id was already gone).
-    for (const s of BACKUP_STORES) { for (const row of savedByStore[s]) await dbDel(s, row.id); }
-    for (const s of BACKUP_STORES) { for (const row of byStore[s]) { const {id, ...rest} = row; await dbAdd(s, {...rest, uid}); } }
+    result = await importDataset(byStore, uid);
   } catch (err) {
-    // Roll back: restore the pre-import rows so a failed swap doesn't lose data.
-    for (const s of BACKUP_STORES) {
-      for (const row of savedByStore[s]) { const {id, ...rest} = row; await dbAdd(s, {...rest, uid}).catch(()=>{}); }
-    }
     await reload();
     toast(t('restore_failed'));
     return;
@@ -5716,8 +6341,48 @@ async function importBackup(inputEl) {
   }
   await reload();
   applyLang();
-  toast(t('restore_done').replace('{n}', n));
+  toast(t('restore_done').replace('{n}', result.inserted)
+    + (result.linksReset > 0 ? ' ' + t('backup_links_reset').replace('{n}', result.linksReset) : ''));
 }
+
+// ─── Cloud restore + Team read cutover (same mechanism) ────────────────
+// lib/crudHandler.js's GET already resolves to the DATA OWNER's rows, not
+// the caller's own (lib/teams.js's resolveDataOwner()) — a team member's
+// pull already comes back as the org owner's data. That means "restore this
+// device from the cloud" (a solo account after a wipe/reinstall) and "let
+// staff see the owner's data" (Team plan) are literally the same operation
+// from here: pull everything, then hand it to the exact same importDataset()
+// swap importBackup() above already uses for a file-based restore. No
+// separate "team view" code path to build or keep in sync.
+async function restoreFromCloud() {
+  if (isGuest || typeof SidekickBackend === 'undefined' || !SidekickBackend.isEnabled()) return;
+  if (!confirm(t('restore_cloud_confirm'))) return;
+  const pulled = await SidekickBackend.pullAll();
+  if (!pulled.ok) { toast(t('restore_cloud_failed')); return; }
+  const uid = isGuest ? 'guest' : currentUser.id;
+  let result;
+  try {
+    result = await importDataset(pulled.byStore, uid);
+  } catch (err) {
+    await reload();
+    toast(t('restore_failed'));
+    return;
+  }
+  // Same device-global exclusions importBackup() applies above, same reason:
+  // never let a restore change this device's language or persona (workType)
+  // choice, even though both are legitimately stored server-side too.
+  for (const row of pulled.settingsRows) {
+    if (row.key === 'lang' || row.key === 'workType') continue;
+    await saveSetting(row.key, row.value);
+  }
+  await reload();
+  applyLang();
+  let msg = t('restore_cloud_done').replace('{n}', result.inserted);
+  if (result.linksReset > 0) msg += ' ' + t('backup_links_reset').replace('{n}', result.linksReset);
+  if (pulled.failed && pulled.failed.length) msg += ' ' + t('restore_cloud_partial').replace('{stores}', pulled.failed.join(', '));
+  toast(msg);
+}
+window.restoreFromCloud = restoreFromCloud;
 
 // ─── NAV / SCREENS ────────────────────────────────────────────────────
 function switchScreen(name) {

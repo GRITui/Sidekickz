@@ -279,7 +279,11 @@
       if (!isGuest && prev && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
         SidekickBackend.mirrorPortfolioDelete(prev.cuid).catch(() => {});
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      toast(t('delete_failed'));
+      return;
+    }
     closeModal('pf-form-modal');
     toast('Item deleted');
     renderPortfolio();

@@ -8,7 +8,7 @@
  *
  * Public surface (kept on window):
  *   - renderBookings()           — fills #book-body (a single-day agenda)
- *   - openBookingForm(dateISO?)  — create/edit booking UI
+ *   - openBookingForm(dateISO?, startTime?)  — create/edit booking UI
  *
  * Self-contained day-view agenda over the 'bookings' IndexedDB store: prev/today/
  * next date nav, per-day list sorted by start time, and travel-buffer gap strips
@@ -171,9 +171,15 @@
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  //  WEEK VIEW (redesign handoff — segmented Week/Month toggle)
+  //  WEEK VIEW — P2 "Calendar Week view" (assessed & recommended; distinct
+  //  from the rejected work-week/quarter/year modes, which stay dead).
+  //  A real 7-day-column hour grid (like the Pipeline Gantt's day axis, just
+  //  per-hour instead of per-day) replaces the previous "week strip selector
+  //  + one day's timeline underneath" shape — the whole week is visible at
+  //  once instead of one day at a time behind a picker.
   // ══════════════════════════════════════════════════════════════════════
-  // The 7 Mon–Sun dates for the week containing `iso`.
+  // The 7 Mon–Sun dates for the week containing `iso` — same Monday-start
+  // convention monthGridDates() already uses for the month grid.
   function weekDates(iso) {
     const d = new Date((iso || todayISO()) + 'T12:00:00');
     const mondayOffset = (d.getDay() + 6) % 7; // Monday=0..Sunday=6
@@ -181,109 +187,161 @@
     for (let i = -mondayOffset; i < 7 - mondayOffset; i++) out.push(addDays(iso, i));
     return out;
   }
-  // Same "gap < travel buffer" check buildDayList's strips already flag —
-  // reused here just to decide the week-strip dot's color (red = an issue
-  // exists somewhere in that day's schedule), not to render a strip.
-  function dayHasBufferIssue(activeSorted) {
-    for (let i = 0; i < activeSorted.length - 1; i++) {
-      const prev = activeSorted[i], next = activeSorted[i + 1];
-      const gap = toMin(next.startTime) - (toMin(prev.startTime) + n(prev.durationMin));
-      const buf = n(prev.travelBufferMin);
-      if (!(buf === 0 && gap >= 0)) return true;
+  // Nav-bar label for the week, e.g. "14–20 Jul 2026" or, across a month/
+  // year boundary, "28 Jun – 4 Jul 2026" / "29 Dec 2025 – 4 Jan 2026". Not
+  // run through t() — same as monthLabel()'s existing 'en-GB' formatting,
+  // which this mirrors rather than reinventing a second date-format path.
+  function weekLabel(dates) {
+    const start = new Date(dates[0] + 'T12:00:00');
+    const end = new Date(dates[6] + 'T12:00:00');
+    if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+      return `${start.getDate()}–${end.getDate()} ${end.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`;
     }
-    return false;
+    const mon = d => d.toLocaleDateString('en-GB', { month: 'short' });
+    const yearSuffix = start.getFullYear() === end.getFullYear() ? ` ${end.getFullYear()}` : ` ${start.getFullYear()} – ${end.getDate()} ${mon(end)} ${end.getFullYear()}`;
+    return start.getFullYear() === end.getFullYear()
+      ? `${start.getDate()} ${mon(start)} – ${end.getDate()} ${mon(end)}${yearSuffix}`
+      : `${start.getDate()} ${mon(start)}${yearSuffix}`;
   }
+
+  // 06:00–22:00 working window, 1px/min (= 60px/hour row) — chosen so the
+  // per-column absolute-position math lines up exactly with the 16 real
+  // 60px hour-cell elements each column renders (no separate px<->row
+  // rounding to keep in sync).
+  const WK_HOUR_START = 6 * 60, WK_HOUR_END = 22 * 60, WK_PX_PER_MIN = 1;
+  const WK_MIN_BLOCK_PX = 24; // a very short booking still needs room for its time+title text
+  const WK_MAX_LANES = 2;     // side-by-side split cap — see assignLanes() below
+
   // One dbAll(STORE) covers the whole visible week (same "load once, filter
   // client-side" approach computeActivitySets() uses for the month grid).
-  async function computeWeekActivity(dates) {
+  // Cancelled bookings are left out entirely (nothing to tap/edit toward on
+  // a grid this dense) — same filtering buildHourTimeline used to do.
+  async function loadWeekBookings(dates) {
     const uid = uidNow();
     const set = new Set(dates);
-    const rows = (await dbAll(STORE)).filter(r => r.uid === uid && set.has(r.date));
+    const rows = (await dbAll(STORE)).filter(r => r.uid === uid && set.has(r.date) && r.status !== 'cancelled');
     const byDate = {};
     dates.forEach(iso => { byDate[iso] = []; });
     rows.forEach(r => { byDate[r.date].push(r); });
-    const out = {};
-    dates.forEach(iso => {
-      const all = byDate[iso].sort((a, b) => toMin(a.startTime) - toMin(b.startTime));
-      const active = all.filter(r => r.status !== 'cancelled');
-      out[iso] = { count: active.length, issue: dayHasBufferIssue(active) };
-    });
-    return out;
+    dates.forEach(iso => byDate[iso].sort((a, b) => toMin(a.startTime) - toMin(b.startTime)));
+    return byDate;
   }
-  // Busy-day count pill (marigold) once a day is "full" (matches the month
-  // grid's own >3-sessions-renders-a-pill threshold); otherwise a small dot
-  // per session, red if any buffer issue exists that day, green otherwise.
-  const WEEK_BUSY_THRESHOLD = 4;
-  function weekDayMarkerHtml(info) {
-    if (!info || !info.count) return '';
-    if (info.count >= WEEK_BUSY_THRESHOLD) return `<span class="cal-count" style="background:var(--marigold)">${info.count}</span>`;
-    const color = info.issue ? 'var(--overdue)' : 'var(--paid)';
-    return Array.from({ length: info.count }).map(() => `<span class="cal-dot" style="background:${color}"></span>`).join('');
-  }
-  function buildWeekStrip(dates, activity, selected) {
-    const WD = [t('wd_mon'), t('wd_tue'), t('wd_wed'), t('wd_thu'), t('wd_fri'), t('wd_sat'), t('wd_sun')];
-    return `<div class="cal-week-strip">${dates.map((iso, i) => {
-      const d = new Date(iso + 'T12:00:00');
-      const isToday = iso === todayISO();
-      const isSel = iso === selected;
-      const info = activity[iso];
-      return `<button type="button" class="cal-week-day${isSel ? ' cal-selected' : ''}${isToday ? ' cal-today' : ''}" data-week-day="${iso}">
-          <span class="cal-wd">${WD[i]}</span>
-          <span class="cal-daynum">${d.getDate()}</span>
-          <span class="cal-dots">${weekDayMarkerHtml(info)}</span>
-        </button>`;
-    }).join('')}</div>`;
-  }
-  // Hour timeline for the selected day: duration-sized blocks positioned by
-  // pixel-per-minute, dashed "free slot + add" gaps filling everything else
-  // in the visible range — the range itself stretches to fit any booking
-  // that falls outside the default 7:00–21:00 working-hours window rather
-  // than clipping it.
-  const TIMELINE_PX_PER_MIN = 1.0;
-  function buildHourTimeline(dateISO, rows) {
-    const active = rows.filter(r => r.status !== 'cancelled').sort((a, b) => toMin(a.startTime) - toMin(b.startTime));
-    let rangeStart = 7 * 60, rangeEnd = 21 * 60;
-    active.forEach(r => {
-      rangeStart = Math.min(rangeStart, Math.floor(toMin(r.startTime) / 60) * 60);
-      rangeEnd = Math.max(rangeEnd, Math.ceil((toMin(r.startTime) + n(r.durationMin)) / 60) * 60);
-    });
-    const totalMin = rangeEnd - rangeStart;
-    const px = m => Math.round(m * TIMELINE_PX_PER_MIN);
 
-    const hourLines = [];
-    for (let h = rangeStart; h <= rangeEnd; h += 60) {
-      hourLines.push(`<div class="cal-hour-row" style="top:${px(h - rangeStart)}px"><span class="cal-hour-label">${fmtMin(h)}</span></div>`);
+  // Greedy lane assignment for one day's (already start-time-sorted) rows:
+  // walk the day in order, drop any lane whose booking has already ended,
+  // then take the lowest free lane number. Lanes are grouped into clusters
+  // (a new cluster starts whenever no lane is active) so a day with two
+  // separate overlapping pairs doesn't force every block in the day down to
+  // the wider pair's narrower width. Deliberately NOT a general N-lane
+  // packer: a 3rd+ concurrent booking doesn't get its own full lane, it
+  // cascades on top of the lane-1 slot with a small offset instead — good
+  // enough for one freelancer's own day, much simpler than real packing.
+  function assignLanes(rows) {
+    const active = []; // {end, lane}
+    let cluster = -1;
+    const out = [];
+    rows.forEach(r => {
+      const start = toMin(r.startTime), end = start + n(r.durationMin);
+      for (let i = active.length - 1; i >= 0; i--) { if (active[i].end <= start) active.splice(i, 1); }
+      if (active.length === 0) cluster++;
+      const used = new Set(active.map(a => a.lane));
+      let lane = 0;
+      while (used.has(lane)) lane++;
+      active.push({ end, lane });
+      out.push({ r, lane, cluster });
+    });
+    const clusterMax = {};
+    out.forEach(o => { clusterMax[o.cluster] = Math.max(clusterMax[o.cluster] || 0, o.lane + 1); });
+    return out.map(o => ({ r: o.r, lane: o.lane, laneCount: clusterMax[o.cluster] }));
+  }
+
+  function wkBlockStyle(top, height, lane, laneCount) {
+    const lanes = Math.min(laneCount, WK_MAX_LANES);
+    const laneWidth = 100 / lanes;
+    if (lane < WK_MAX_LANES) {
+      return `top:${top}px;height:${height}px;left:${lane * laneWidth}%;width:calc(${laneWidth}% - 3px);z-index:1`;
     }
+    // Cascaded 3rd+ overlap: same width as the last real lane, nudged right
+    // in flat px steps and stacked above it (see assignLanes comment above).
+    const extra = lane - WK_MAX_LANES + 1;
+    return `top:${top}px;height:${height}px;left:calc(${(lanes - 1) * laneWidth}% + ${extra * 6}px);width:calc(${laneWidth}% - 3px);z-index:${1 + extra}`;
+  }
 
-    const blocks = [];
-    let cursor = rangeStart;
-    active.forEach(r => {
-      const start = toMin(r.startTime), dur = n(r.durationMin);
-      if (start > cursor) {
-        blocks.push(gapBlockHtml(dateISO, cursor, start, rangeStart, px));
-      }
-      const cust = customerName(r.customerId);
-      blocks.push(`<div class="cal-tl-block" data-bk="${r.id}" tabindex="0" role="button"
-          style="top:${px(start - rangeStart)}px;height:${Math.max(px(dur), 24)}px">
-          <div class="cal-tl-time tnum">${esc(fmtMin(start))}-${esc(fmtMin(start + dur))}</div>
-          <div class="cal-tl-title">${esc(r.title || t('booking_word'))}${cust ? ' · ' + esc(cust) : ''}</div>
-        </div>`);
-      cursor = Math.max(cursor, start + dur);
-    });
-    if (cursor < rangeEnd) blocks.push(gapBlockHtml(dateISO, cursor, rangeEnd, rangeStart, px));
-
-    return `<div class="cal-timeline" style="height:${px(totalMin)}px">
-        <div class="cal-timeline-hours">${hourLines.join('')}</div>
-        <div class="cal-timeline-blocks">${blocks.join('')}</div>
+  // A booking that starts before 06:00 or ends after 22:00 clamps into the
+  // visible range with a ▲/▼ hint rather than disappearing — a 05:30 run
+  // must still show up somewhere, not silently vanish off the top of the grid.
+  function wkBlockHtml(r, lane, laneCount) {
+    const start = toMin(r.startTime), dur = n(r.durationMin), end = start + dur;
+    const clampedStart = Math.max(start, WK_HOUR_START);
+    const clampedEnd = Math.min(end, WK_HOUR_END);
+    const top = Math.round((clampedStart - WK_HOUR_START) * WK_PX_PER_MIN);
+    const bottom = Math.round((clampedEnd - WK_HOUR_START) * WK_PX_PER_MIN);
+    const height = Math.max(bottom - top, WK_MIN_BLOCK_PX);
+    const style = wkBlockStyle(top, height, lane, laneCount);
+    const doneCls = r.status === 'done' ? ' wk-block-done' : '';
+    const hintUp = start < WK_HOUR_START ? '<span class="wk-hint wk-hint-up" aria-hidden="true">▲</span>' : '';
+    const hintDown = end > WK_HOUR_END ? '<span class="wk-hint wk-hint-down" aria-hidden="true">▼</span>' : '';
+    // Kept as .cal-tl-block too — the pre-existing pipeline-scheduling suite
+    // (tests/check-scheduling.js, out of this pass's touchable-files list)
+    // already asserts against that class + [data-bk] for "tap a booking on
+    // the week timeline opens its edit form"; this is the same tap target,
+    // just re-laid-out into a day column instead of a single-day strip.
+    return `<div class="wk-block cal-tl-block${doneCls}" data-bk="${r.id}" tabindex="0" role="button" style="${style}">
+        ${hintUp}<div class="wk-block-time tnum">${esc(fmtMin(start))}</div>
+        <div class="wk-block-title">${esc(r.title || t('booking_word'))}</div>${hintDown}
       </div>`;
   }
-  function gapBlockHtml(dateISO, fromMin, toMinVal, rangeStart, px) {
-    const dur = toMinVal - fromMin;
-    if (dur < 15) return ''; // too thin to usefully show or tap
-    return `<button type="button" class="cal-tl-gap" data-gap-date="${aesc(dateISO)}" data-gap-start="${fmtMin(fromMin)}"
-        style="top:${px(fromMin - rangeStart)}px;height:${px(dur)}px">
-        ${esc(t('cal_gap_free_word'))} ${esc(fmtMin(fromMin))}–${esc(fmtMin(toMinVal))} · ${esc(t('cal_gap_add_word'))}
-      </button>`;
+
+  function wkHourGutterHtml() {
+    let out = '';
+    for (let h = 6; h < 22; h++) out += `<div class="wk-hour-lbl tnum">${pad2(h)}:00</div>`;
+    return out;
+  }
+  // One tappable cell per hour — an empty tap opens the new-booking form
+  // pre-filled with this column's date + this row's hour. Rendered before
+  // the booking blocks in DOM order; a block is position:absolute so it
+  // always paints (and hit-tests) above the plain-flow cell beneath it,
+  // regardless of that DOM order.
+  function wkHourCellsHtml(dateISO) {
+    let out = '';
+    for (let h = 6; h < 22; h++) {
+      const hh = pad2(h) + ':00';
+      out += `<button type="button" class="wk-hourcell" data-wk-cell-date="${aesc(dateISO)}" data-wk-cell-time="${hh}" aria-label="${aesc(t('cal_add_at_time_aria').replace('{time}', hh))}"></button>`;
+    }
+    return out;
+  }
+
+  function wkHeadRowHtml(dates) {
+    const todayIso = todayISO();
+    const WD = [t('wd_mon'), t('wd_tue'), t('wd_wed'), t('wd_thu'), t('wd_fri'), t('wd_sat'), t('wd_sun')];
+    return `<div class="wk-headrow">
+        <div class="wk-corner"></div>
+        ${dates.map((iso, i) => {
+          const d = new Date(iso + 'T12:00:00');
+          const isToday = iso === todayIso;
+          const isWeekend = i >= 5; // Monday-start index: 5=Sat, 6=Sun
+          return `<div class="wk-day-head${isToday ? ' wk-today' : ''}${isWeekend ? ' wk-weekend' : ''}">
+              <span class="wk-day-name">${esc(WD[i])}</span>
+              <span class="wk-day-num">${d.getDate()}</span>
+            </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  function wkBodyRowHtml(dates, byDate) {
+    const todayIso = todayISO();
+    return `<div class="wk-bodyrow">
+        <div class="wk-hourgutter">${wkHourGutterHtml()}</div>
+        ${dates.map((iso, i) => {
+          const isWeekend = i >= 5;
+          const laned = assignLanes(byDate[iso] || []);
+          const blocks = laned.map(({ r, lane, laneCount }) => wkBlockHtml(r, lane, laneCount)).join('');
+          return `<div class="wk-daycol${iso === todayIso ? ' wk-today-col' : ''}${isWeekend ? ' wk-weekend' : ''}" data-wk-day="${aesc(iso)}">
+              ${wkHourCellsHtml(iso)}
+              ${blocks}
+            </div>`;
+        }).join('')}
+      </div>`;
   }
 
   // Up to 3 engagements that day render as individual stage-colored dots
@@ -412,6 +470,18 @@
   async function renderBookings() {
     const el = document.getElementById('book-body');
     if (!el) return;
+    // Re-sync from `settings` on every render, not just at IIFE-eval time:
+    // this file has no boot hook of its own (unlike Pipeline's
+    // window.__plView, which enterApp() explicitly refreshes once settings
+    // finish loading from IndexedDB) — bookings.js's own module-level
+    // `calMode` init above runs at *script-parse* time, before login, when
+    // `settings` is still app.js's empty {lang,currency} default. Without
+    // this, a value saved in an earlier session would always read back as
+    // 'month' on the very first render after a reload. Safe to re-run every
+    // time: wireCalModeToggle() always updates `settings.calViewMode` (via
+    // saveSetting, which writes it in-memory synchronously) in the same
+    // click handler that changes `calMode`, so the two never disagree.
+    calMode = (settings && settings.calViewMode === 'week') ? 'week' : 'month';
     if (!selectedDate) selectedDate = todayISO();
     if (!calMonth) calMonth = todayISO().slice(0, 7);
     if (calMode === 'week') { await renderWeekView(el); return; }
@@ -421,10 +491,9 @@
 
   async function renderWeekView(el) {
     const dates = weekDates(selectedDate);
-    let activity, rows;
+    let byDate;
     try {
-      activity = await computeWeekActivity(dates);
-      rows = await loadBookings(selectedDate);
+      byDate = await loadWeekBookings(dates);
     } catch (err) {
       console.error('renderWeekView', err);
       el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>${esc(t('bookings_load_error'))}</p></div>`;
@@ -432,19 +501,18 @@
     }
     const weekNav = `<div class="cal-topnav">
         <button type="button" id="cal-prev" class="cal-navbtn" aria-label="${aesc(t('cal_prev_week_aria'))}">‹</button>
-        <button type="button" id="cal-label" class="cal-monthlabel">${esc(monthLabel(selectedDate.slice(0, 7)))}</button>
+        <button type="button" id="cal-label" class="cal-monthlabel">${esc(weekLabel(dates))}</button>
         <button type="button" id="cal-next" class="cal-navbtn" aria-label="${aesc(t('cal_next_week_aria'))}">›</button>
         <button type="button" id="cal-today-btn" class="cal-todaybtn">${esc(t('cal_today'))}</button>
         <input type="date" id="bk-jump" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
       </div>`;
-    const strip = buildWeekStrip(dates, activity, selectedDate);
-    const dayTotal = (activity[selectedDate] && activity[selectedDate].count) || 0;
-    const sumLabel = dayTotal
-      ? `<div class="cal-day-summary"><span>${esc(dayLabel(selectedDate))}</span><span class="tnum">${dayTotal} ${esc(dayTotal === 1 ? t('session_singular') : t('session_plural'))}</span></div>`
-      : `<div class="cal-day-summary"><span>${esc(dayLabel(selectedDate))}</span></div>`;
-    const timeline = buildHourTimeline(selectedDate, rows);
 
-    el.innerHTML = `${calModeToggleHtml()}${weekNav}${strip}${sumLabel}${timeline}`;
+    // .wk-scroll is the ONLY horizontal (and, since its content is taller
+    // than any reasonable viewport, vertical) scroller — same "one
+    // dedicated scroll container, page body never grows past the viewport"
+    // rule the Pipeline Gantt's .tl-scroll already established.
+    el.innerHTML = `${calModeToggleHtml()}${weekNav}
+        <div class="wk-scroll">${wkHeadRowHtml(dates)}${wkBodyRowHtml(dates, byDate)}</div>`;
     wireCalModeToggle(el);
 
     document.getElementById('cal-prev').addEventListener('click', () => { selectedDate = addDays(selectedDate, -7); renderBookings(); });
@@ -460,14 +528,13 @@
       selectedDate = e.target.value;
       renderBookings();
     });
-    el.querySelectorAll('[data-week-day]').forEach(btn => {
-      btn.addEventListener('click', () => { selectedDate = btn.getAttribute('data-week-day'); renderBookings(); });
-    });
     el.querySelectorAll('[data-bk]').forEach(block => {
-      block.addEventListener('click', () => openBookingEdit(parseInt(block.getAttribute('data-bk'), 10)));
+      const open = () => openBookingEdit(parseInt(block.getAttribute('data-bk'), 10));
+      block.addEventListener('click', open);
+      block.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
     });
-    el.querySelectorAll('[data-gap-date]').forEach(btn => {
-      btn.addEventListener('click', () => openBookingForm(btn.getAttribute('data-gap-date')));
+    el.querySelectorAll('[data-wk-cell-date]').forEach(btn => {
+      btn.addEventListener('click', () => openBookingForm(btn.getAttribute('data-wk-cell-date'), btn.getAttribute('data-wk-cell-time')));
     });
   }
 
@@ -654,7 +721,7 @@
   // ══════════════════════════════════════════════════════════════════════
   //  BOOKING FORM (create / edit)
   // ══════════════════════════════════════════════════════════════════════
-  function openBookingForm(dateISO) {
+  function openBookingForm(dateISO, startTime) {
     editing = null;
     const date = dateISO || selectedDate || todayISO();
     buildFormModal({
@@ -662,7 +729,7 @@
       customerId: '',
       bkTitle: '',
       date: date,
-      startTime: '09:00',
+      startTime: startTime || '09:00',
       durationMin: 60,
       travelBufferMin: 0,
       location: '',
@@ -907,7 +974,11 @@
       if (!isGuest && prev && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
         SidekickBackend.mirrorBookingDelete(prev.cuid).catch(() => {});
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      toast(t('delete_failed'));
+      return;
+    }
     closeModal('bk-form-modal');
     toast(t('booking_deleted'));
     renderBookings();
