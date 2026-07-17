@@ -35,7 +35,14 @@ export default async function handler(request) {
   try {
     const sql = db();
     const [services, slots] = await Promise.all([
-      sql(`select cuid, name, rate, unit from services where user_cuid = $1 order by name`, [userCuid]),
+      sql(
+        `select cuid, name, rate, unit from services
+         where user_cuid = $1
+           -- 2026-07-17: Pass M3-L1 — products are invoiceable, not bookable.
+           and coalesce(kind, 'service') <> 'product'
+         order by name`,
+        [userCuid]
+      ),
       sql(
         `select id, starts_at, ends_at
          from availability_slots

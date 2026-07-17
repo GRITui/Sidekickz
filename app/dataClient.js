@@ -136,6 +136,17 @@
   async function bookingRequestResolve(bookingId, action) {
     return apiFetch('/api/booking-requests', { method: 'POST', body: { bookingId, action } });
   }
+  // Pass M3-L3: pending public storefront order requests + their
+  // confirm/decline resolution — the freelancer side of api/shop-public.js's
+  // POST writes. Exact copy of bookingRequestsList/bookingRequestResolve
+  // above (same auth headers, same error shape) — see api/order-requests.js
+  // for the server side.
+  async function orderRequestsList() {
+    return apiFetch('/api/order-requests');
+  }
+  async function orderRequestResolve(id, action) {
+    return apiFetch('/api/order-requests', { method: 'POST', body: { id, action } });
+  }
 
   // ── Team (Phase 2) ──────────────────────────────────────────────────────
   // See api/team-invite.js/api/team-join.js/api/team-members.js — a Team
@@ -272,6 +283,15 @@
     invoice_id: j.invoiceId, quote_doc_id: j.quoteDocId, package_id: j.packageId,
     sub_tasks: j.subTasks, milestones: j.milestones, time_entries: j.timeEntries,
     timer_started_at: j.timerStartedAt,
+    // 2026-07-17: restore-fidelity fix — these were missing from the
+    // mirror entirely, so a lost job restored from cloud came back
+    // outcome=null (silently counting as a successful completed
+    // engagement) and its options list vanished.
+    outcome: j.outcome, lost_reason: j.lostReason, pending_gate_stage: j.pendingGateStage, options: j.options,
+    // 2026-07-17: Pass M3-L2 — engagement items (products/extra services
+    // attached to a pipeline job) follow the same jsonb-embedded-array
+    // convention as options/subTasks/milestones above.
+    items: j.items,
     // 2026-07-16: ref cuids for the id-refs above — see refCuid()'s comment.
     // milestones[]/timeEntries[]'s own embedded invoiceId is NOT resolved
     // here (accepted residual gap, see app.js importDataset()'s comment) —
@@ -305,17 +325,27 @@
       complete: row.complete, invoiceId: num(row.invoice_id), quoteDocId: num(row.quote_doc_id),
       packageId: num(row.package_id), subTasks: row.sub_tasks, milestones: row.milestones,
       timeEntries: row.time_entries, timerStartedAt: row.timer_started_at,
+      outcome: row.outcome, lostReason: row.lost_reason, pendingGateStage: row.pending_gate_stage, options: row.options,
+      items: row.items,
       __clientCuid: row.client_cuid || null, __serviceCuid: row.service_cuid || null,
       __invoiceCuid: row.invoice_cuid || null, __quoteDocCuid: row.quote_doc_cuid || null,
       __packageCuid: row.package_cuid || null,
     };
   }
 
+  // 2026-07-17: Pass M3-L1 — unify Services into a product/service catalog.
+  // `kind`/`sku` ride through as plain strings; `stock_qty`/`cost` go
+  // through num() on the way back (numeric columns round-trip as strings —
+  // see num()'s own comment above).
   const servicesMirror = createMirror('services', s => ({
     cuid: s.cuid, name: s.name, rate: s.rate, unit: s.unit, usage_qty: s.usageQty,
+    kind: s.kind, sku: s.sku, stock_qty: s.stockQty, cost: s.cost,
   }));
   function fromServiceRow(row) {
-    return { cuid: row.cuid, name: row.name, rate: num(row.rate), unit: row.unit, usageQty: num(row.usage_qty) };
+    return {
+      cuid: row.cuid, name: row.name, rate: num(row.rate), unit: row.unit, usageQty: num(row.usage_qty),
+      kind: row.kind, sku: row.sku, stockQty: num(row.stock_qty), cost: num(row.cost),
+    };
   }
 
   const invoicesMirror = createMirror('invoices', async i => ({
@@ -325,11 +355,21 @@
     wht_pct: i.whtPct, vat_pct: i.vatPct, vat: i.vat, wht: i.wht,
     client_pays: i.clientPays, you_receive: i.youReceive, deposit_pct: i.depositPct,
     status: i.status, payment_channels: i.paymentChannels, notes: i.notes,
+    // 2026-07-17: embedded slip array (Pass M2a) — see sql/schema-core.sql.
+    slips: i.slips,
+    // 2026-07-17: Pass M3-L1 — stamped once a paid invoice's product lines
+    // decrement catalog stock (app.js decrementStockForInvoicePaid), text
+    // like the local nowISO() value it carries (not a parsed timestamp).
+    // NOTE: api/invoices.js's FIELDS whitelist is outside this pass's
+    // writable set, so this column is not yet persisted server-side — the
+    // local IndexedDB stamp (the one that actually guards double-decrement)
+    // is unaffected either way; see this pass's own report for the caveat.
+    stock_decremented_at: i.stockDecrementedAt,
     // 2026-07-16: ref cuid for client_id — see refCuid()'s comment.
     client_cuid: await refCuid('clients', i.clientId),
   }));
-  // `line_items`/`payment_channels` are jsonb — already-parsed arrays/
-  // objects, same as jobs' jsonb columns above. `__clientCuid` is a
+  // `line_items`/`payment_channels`/`slips` are jsonb — already-parsed
+  // arrays/objects, same as jobs' jsonb columns above. `__clientCuid` is a
   // transient field (see fromJobRow's comment) carrying client_cuid through
   // for importDataset() to resolve by cuid first.
   function fromInvoiceRow(row) {
@@ -339,9 +379,28 @@
       clientAddress: row.client_address, lineItems: row.line_items, subtotal: num(row.subtotal),
       whtPct: num(row.wht_pct), vatPct: num(row.vat_pct), vat: num(row.vat), wht: num(row.wht),
       clientPays: num(row.client_pays), youReceive: num(row.you_receive), depositPct: num(row.deposit_pct),
-      status: row.status, paymentChannels: row.payment_channels, notes: row.notes,
+      status: row.status, paymentChannels: row.payment_channels, notes: row.notes, slips: row.slips,
+      stockDecrementedAt: row.stock_decremented_at,
       __clientCuid: row.client_cuid || null,
     };
+  }
+
+  // Pass M2b: fetches this account's own SERVER copy of one invoice by
+  // cuid, for openInvoiceDetail()'s slip merge-back (app/invoices.js) — a
+  // client can attach a slip straight through the public invoice page
+  // (app/invoice.html → api/invoice-public.js), which lands on the server
+  // row only; this is what lets the freelancer's local copy pick it up.
+  // No ?cuid= filter on the invoices GET (lib/crudHandler.js only supports
+  // that on PUT/DELETE, not GET — see its `url.searchParams.get('cuid')`
+  // usage) so this fetches the full authenticated list like pullAll() does
+  // and picks the one row client-side. Returns null on any failure
+  // (not-found, network, auth) — callers are expected to swallow that
+  // silently (a background sync failing is not user-facing).
+  async function invoiceFetchByCuid(cuid) {
+    const r = await apiFetch('/api/invoices');
+    if (!r.ok || !Array.isArray(r.data.rows)) return null;
+    const row = r.data.rows.find(x => x.cuid === cuid);
+    return row ? fromInvoiceRow(row) : null;
   }
 
   const documentsMirror = createMirror('documents', async d => ({
@@ -532,11 +591,13 @@
     lineChannelStatus, lineChannelConnect, lineChannelDisconnect,
     bookingSlotsList, bookingSlotCreate, bookingSlotDelete,
     bookingRequestsList, bookingRequestResolve,
+    orderRequestsList, orderRequestResolve,
     teamCheckout, teamInvite, teamJoin, teamMembersList, teamMemberRemove,
     mirrorClientSave, mirrorClientDelete,
     mirrorJobSave: jobsMirror.mirrorSave, mirrorJobDelete: jobsMirror.mirrorDelete,
     mirrorServiceSave: servicesMirror.mirrorSave, mirrorServiceDelete: servicesMirror.mirrorDelete,
     mirrorInvoiceSave: invoicesMirror.mirrorSave, mirrorInvoiceDelete: invoicesMirror.mirrorDelete,
+    invoiceFetchByCuid,
     mirrorDocumentSave: documentsMirror.mirrorSave, mirrorDocumentDelete: documentsMirror.mirrorDelete,
     mirrorBookingSave: bookingsMirror.mirrorSave, mirrorBookingDelete: bookingsMirror.mirrorDelete,
     mirrorFollowupSave: followupsMirror.mirrorSave,

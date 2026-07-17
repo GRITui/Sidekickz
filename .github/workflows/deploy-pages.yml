@@ -50,6 +50,10 @@ jobs:
           cp -r site-main/app/. _site/
           mkdir -p _site/gym
           cp -r site-gym/app/. _site/gym/
+          # /demo <- main's repo-root demo/ (a redirect page into the root
+          # app's demo mode — see demo/index.html; not a third app build)
+          mkdir -p _site/demo
+          cp -r site-main/demo/. _site/demo/
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

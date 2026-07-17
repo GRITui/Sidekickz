@@ -201,6 +201,30 @@
       (prefillQuote.lineItems || []).forEach(li => {
         lines.push({ description: li.description || '', qty: n(li.qty) || 1, unitPrice: n(li.unitPrice) });
       });
+      // Pass M3-L2: quote lines never carry a serviceId (openQuoteForJob/
+      // reviseQuoteForJob in app.js build fields.lineItems from plain
+      // description/qty/unitPrice, and docgen.js passes them through as-is)
+      // — but the engagement's own Items list (j.items) DOES know which
+      // catalog record each item line came from. Re-derive it defensively by
+      // matching each item to an unclaimed prefill line with the same
+      // name+qty+unitPrice, so a job's items still flow through Quote ->
+      // Invoice with serviceId stamped for app.js's paid-time stock
+      // decrement. First unclaimed match wins; each item claims at most one line.
+      const srcJobId = fromJobId != null ? fromJobId
+        : (prefillQuote.linkMeta && prefillQuote.linkMeta.jobId != null ? prefillQuote.linkMeta.jobId : null);
+      const srcJob = srcJobId != null ? (typeof jobs !== 'undefined' ? jobs : []).find(x => x.id === srcJobId) : null;
+      if (srcJob && (srcJob.items || []).length) {
+        const claimed = new Set();
+        (srcJob.items || []).forEach(it => {
+          const matchIdx = lines.findIndex((li, idx) =>
+            !claimed.has(idx) && li.serviceId == null &&
+            li.description === it.name && n(li.qty) === n(it.qty) && n(li.unitPrice) === n(it.unitPrice));
+          if (matchIdx !== -1) {
+            lines[matchIdx].serviceId = it.serviceId;
+            claimed.add(matchIdx);
+          }
+        });
+      }
     } else if (fromJobId != null) {
       // Prefill from a job if requested
       const j = (typeof jobs !== 'undefined' ? jobs : []).find(x => x.id === fromJobId);
@@ -211,6 +235,12 @@
           description: j.serviceName || t('service_word'),
           qty: Math.max(1, n(j.count) || 1),
           unitPrice: n(j.amount),
+        });
+        // Pass M3-L2: engagement items carry serviceId directly (snapshotted
+        // when added — see app.js's addJobItem), so app.js's
+        // decrementStockForInvoicePaid can find them at paid time.
+        (j.items || []).forEach(it => {
+          lines.push({ description: it.name, qty: it.qty, unitPrice: it.unitPrice, serviceId: it.serviceId });
         });
       }
     }
@@ -239,7 +269,11 @@
     formFromJobId = null;
     formLinkMeta = null;
     lines = (inv.lineItems && inv.lineItems.length)
-      ? inv.lineItems.map(li => ({ description: li.description || '', qty: n(li.qty), unitPrice: n(li.unitPrice) }))
+      ? inv.lineItems.map(li => {
+          const row = { description: li.description || '', qty: n(li.qty), unitPrice: n(li.unitPrice) };
+          if (li.serviceId != null) row.serviceId = li.serviceId; // preserve catalog link through an edit
+          return row;
+        })
       : [{ description: '', qty: 1, unitPrice: 0 }];
     buildFormModal({
       title: t('edit_invoice_title'),
@@ -273,9 +307,16 @@
       (typeof customers !== 'undefined' ? customers : []).map(c =>
         `<option value="${c.id}"${String(c.id) === String(v.clientId) ? ' selected' : ''}>${esc(c.name)}</option>`).join('');
 
+    // Pass M3-L1: 📦 prefix flags a catalog product (vs a plain service);
+    // a tracked-out-of-stock product option is shown but disabled so users
+    // can still see it exists, just can't line-item-add it while empty.
     const svcOpts = `<option value="">${esc(t('add_line_from_service_option'))}</option>` +
-      (typeof services !== 'undefined' ? services : []).map(s =>
-        `<option value="${s.id}">${esc(s.name)} · ${esc(money(s.rate))}</option>`).join('');
+      (typeof services !== 'undefined' ? services : []).map(s => {
+        const isProduct = s.kind === 'product';
+        const outOfStock = isProduct && s.stockQty != null && s.stockQty === 0;
+        const label = (isProduct ? '📦 ' : '') + s.name + ' · ' + money(s.rate) + (outOfStock ? ' (หมด/out of stock)' : '');
+        return `<option value="${s.id}"${outOfStock ? ' disabled' : ''}>${esc(label)}</option>`;
+      }).join('');
 
     const INV_STATUS_LABEL_KEYS = { draft: 'inv_status_draft', sent: 'inv_status_sent', paid: 'inv_status_paid', overdue: 'inv_status_overdue' };
     const statusOpts = ['draft', 'sent', 'paid', 'overdue'].map(s =>
@@ -380,7 +421,11 @@
     if (!id) return;
     const s = (typeof services !== 'undefined' ? services : []).find(x => String(x.id) === String(id));
     if (s) {
-      lines.push({ description: s.name || '', qty: 1, unitPrice: n(s.rate) });
+      // serviceId stamps the line with its catalog origin — carried into
+      // saveInvoice's cleanLines below, and later resolved at paid time by
+      // app.js's decrementStockForInvoicePaid(). Hand-typed/blank lines
+      // never get one.
+      lines.push({ description: s.name || '', qty: 1, unitPrice: n(s.rate), serviceId: s.id });
       renderLineRows(); recalcTotals();
     }
     e.target.value = '';
@@ -397,7 +442,8 @@
     }
     wrap.innerHTML = lines.map((li, i) => {
       const amt = n(li.qty) * n(li.unitPrice);
-      return `<div class="inv-line" data-i="${i}" style="border-bottom:0.5px solid var(--border);padding:10px 16px">
+      const svcAttr = li.serviceId != null ? ` data-service-id="${aesc(li.serviceId)}"` : '';
+      return `<div class="inv-line" data-i="${i}"${svcAttr} style="border-bottom:0.5px solid var(--border);padding:10px 16px">
         <div style="display:flex;gap:8px;align-items:flex-start">
           <input type="text" data-f="description" placeholder="${aesc(t('description_ph'))}" value="${aesc(li.description)}"
             style="flex:1;border:none;outline:none;background:transparent;font-size:15px;color:var(--text);font-family:inherit;padding:4px 0">
@@ -469,7 +515,13 @@
 
     const clientName = document.getElementById('inv-cname').value.trim();
     const cleanLines = lines
-      .map(li => ({ description: (li.description || '').trim(), qty: n(li.qty), unitPrice: n(li.unitPrice) }))
+      .map(li => {
+        const out = { description: (li.description || '').trim(), qty: n(li.qty), unitPrice: n(li.unitPrice) };
+        // serviceId only rides along for picker-created lines (see onSvcChange) —
+        // a hand-typed line never gets one.
+        if (li.serviceId != null) out.serviceId = li.serviceId;
+        return out;
+      })
       .filter(li => li.description || li.qty * li.unitPrice > 0);
 
     let bad = false;
@@ -515,6 +567,7 @@
         base.id = editing.id;
         base.cuid = editing.cuid || cuid();
         if (editing.paymentChannels) base.paymentChannels = editing.paymentChannels; // preserve issue-time snapshot
+        if (editing.slips) base.slips = editing.slips; // preserve attached payment slips (edit form has no slip UI)
         await dbPut(STORE, base);
         if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
           SidekickBackend.mirrorInvoiceSave(base).catch(() => {});
@@ -523,6 +576,12 @@
         // save that transitions the status to 'paid' is the same event.
         if (editing.status !== 'paid' && base.status === 'paid' && typeof window.onInvoiceMarkedPaid === 'function') {
           try { window.onInvoiceMarkedPaid(base.id); } catch (e) { /* non-fatal */ }
+        }
+        // Pass M3-L1: second of three paid-transition paths (see
+        // app.js's decrementStockForInvoicePaid own comment) — idempotent
+        // via base.stockDecrementedAt, so overlapping calls are safe.
+        if (editing.status !== 'paid' && base.status === 'paid' && typeof window.decrementStockForInvoicePaid === 'function') {
+          window.decrementStockForInvoicePaid(base).catch(() => {});
         }
         toast(t('invoice_updated'));
       } else {
@@ -596,14 +655,58 @@
   // ══════════════════════════════════════════════════════════════════════
   //  INVOICE DETAIL (view + QR + print + actions)
   // ══════════════════════════════════════════════════════════════════════
+  const INV_STATUS_LABEL_KEYS = { draft: 'inv_status_draft', sent: 'inv_status_sent', paid: 'inv_status_paid', overdue: 'inv_status_overdue' };
+
+  // Shared by the status <select> and the payment-slip "Confirm payment
+  // received" one-tap button — both are the same event (status → 'paid'),
+  // so the save + mirror + reverse-hook logic lives in one place.
+  async function transitionInvoiceStatus(inv, overlay, newStatus) {
+    const wasPaid = inv.status === 'paid';
+    inv.status = newStatus;
+    inv.updatedAt = nowISO();
+    try {
+      await dbPut(STORE, inv);
+      if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+        SidekickBackend.mirrorInvoiceSave(inv).catch(() => {});
+      toast(t('status_toast_prefix') + t(INV_STATUS_LABEL_KEYS[inv.status]));
+    } catch (er) { console.error(er); }
+    // Pass M3-L1: first of three paid-transition paths — see app.js's
+    // decrementStockForInvoicePaid own comment. Idempotent via
+    // inv.stockDecrementedAt, fired before the reverse hook below but the
+    // ordering doesn't matter (both are independent, fire-and-forget).
+    if (newStatus === 'paid' && !wasPaid && typeof window.decrementStockForInvoicePaid === 'function') {
+      window.decrementStockForInvoicePaid(inv).catch(() => {});
+    }
+    // Reverse hook: recording payment on the invoice is where users
+    // actually mark money received — the linked pipeline card should
+    // advance without a second manual "mark paid" over there. app.js
+    // decides whether the job qualifies (see onInvoiceMarkedPaid).
+    if (!wasPaid && inv.status === 'paid' && typeof window.onInvoiceMarkedPaid === 'function') {
+      try { window.onInvoiceMarkedPaid(inv.id); } catch (er) { /* non-fatal */ }
+    }
+    const chip = overlay.querySelector('.modal-title .chip');
+    if (chip) chip.outerHTML = statusChip(inv.status);
+    const statusSelect = overlay.querySelector('#inv-d-status');
+    if (statusSelect) statusSelect.value = inv.status;
+    renderInvoices();
+  }
+
   async function openInvoiceDetail(id) {
     const inv = await dbGet(STORE, id);
     if (!inv || inv.uid !== uidNow()) { toast(t('invoice_not_found')); return; }
+
+    const backendReady = !isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled();
+    // Pass M2b merge-back: a client may have attached a slip via the public
+    // invoice page (app/invoice.html) directly on the server since this
+    // invoice was last opened here — fire-and-forget, never blocks the
+    // modal opening (see refreshInvoiceSlipsFromServer's own header).
+    if (backendReady) refreshInvoiceSlipsFromServer(inv).catch(() => {});
 
     closeModal('inv-detail-modal');
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.id = 'inv-detail-modal';
+    overlay.dataset.invId = String(id);
 
     const linesHtml = (inv.lineItems || []).map(li =>
       `<tr>
@@ -616,7 +719,6 @@
     const trow = (label, val, strong) =>
       `<div style="display:flex;justify-content:space-between;margin:3px 0;${strong ? 'font-weight:800;color:var(--brand);font-size:15px' : 'font-size:13px;color:var(--text2)'}">
         <span>${esc(label)}</span><span class="tnum">${esc(val)}</span></div>`;
-    const INV_STATUS_LABEL_KEYS = { draft: 'inv_status_draft', sent: 'inv_status_sent', paid: 'inv_status_paid', overdue: 'inv_status_overdue' };
 
     overlay.innerHTML = `
       <div class="modal" role="dialog" aria-modal="true" aria-label="${aesc(t('invoice_detail_aria'))}">
@@ -650,9 +752,12 @@
 
         <div id="inv-qr-wrap" style="padding:6px 20px 10px;text-align:center"></div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px 10px">
+        <div id="inv-slip-wrap" style="padding:0 20px 14px"></div>
+
+        <div style="display:grid;grid-template-columns:${backendReady ? '1fr 1fr 1fr' : '1fr 1fr'};gap:8px;padding:0 16px 10px">
           <button type="button" id="inv-d-edit" style="padding:13px;border:1.5px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">${esc(t('edit_btn'))}</button>
           <button type="button" id="inv-d-print" style="padding:13px;border:1.5px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">${esc(t('print_pdf_btn'))}</button>
+          ${backendReady ? `<button type="button" id="inv-d-share" style="padding:13px;border:1.5px solid var(--brand);background:none;color:var(--brand);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:14px;cursor:pointer">${esc(t('inv_share_btn'))}</button>` : ''}
         </div>
         <div style="padding:0 16px 4px">
           <label for="inv-d-status" style="display:block;font-size:11px;font-weight:700;color:var(--text3);margin-bottom:6px">${esc(t('change_status_label'))}</label>
@@ -668,9 +773,13 @@
 
     // Payment channels (PromptPay QR + any bank/cash/other reference text)
     renderPaymentChannelsInto(document.getElementById('inv-qr-wrap'), inv);
+    // Payment slips (attach/view/remove + one-tap "confirm paid")
+    renderSlipSection(overlay, inv);
 
     overlay.querySelector('#inv-d-edit').addEventListener('click', () => { closeModal('inv-detail-modal'); openInvoiceEdit(inv); });
     overlay.querySelector('#inv-d-print').addEventListener('click', () => printInvoice(inv));
+    const shareBtn = overlay.querySelector('#inv-d-share');
+    if (shareBtn) shareBtn.addEventListener('click', () => copyInvoiceShareLink(inv));
     overlay.querySelector('#inv-d-close').addEventListener('click', () => closeModal('inv-detail-modal'));
     const tawiBtn = overlay.querySelector('#inv-tawi-toggle');
     if (tawiBtn) tawiBtn.addEventListener('click', async () => {
@@ -681,31 +790,212 @@
       openInvoiceDetail(id);
     });
     overlay.querySelector('#inv-d-status').addEventListener('change', async (e) => {
-      const wasPaid = inv.status === 'paid';
-      inv.status = e.target.value;
-      inv.updatedAt = nowISO();
-      try {
-        await dbPut(STORE, inv);
-        if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
-          SidekickBackend.mirrorInvoiceSave(inv).catch(() => {});
-        toast(t('status_toast_prefix') + t(INV_STATUS_LABEL_KEYS[inv.status]));
-      } catch (er) { console.error(er); }
-      // Reverse hook: recording payment on the invoice is where users
-      // actually mark money received — the linked pipeline card should
-      // advance without a second manual "mark paid" over there. app.js
-      // decides whether the job qualifies (see onInvoiceMarkedPaid).
-      if (!wasPaid && inv.status === 'paid' && typeof window.onInvoiceMarkedPaid === 'function') {
-        try { window.onInvoiceMarkedPaid(inv.id); } catch (er) { /* non-fatal */ }
-      }
-      const chip = overlay.querySelector('.modal-title .chip');
-      if (chip) chip.outerHTML = statusChip(inv.status);
-      renderInvoices();
+      await transitionInvoiceStatus(inv, overlay, e.target.value);
+      renderSlipSection(overlay, inv); // confirm-paid button hides once status is 'paid'
     });
   }
 
   function closeModal(idStr) {
     const el = document.getElementById(idStr);
     if (el) el.remove();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  SHARE LINK  (Pass M2b: the shareable client-facing public invoice page)
+  // ══════════════════════════════════════════════════════════════════════
+  // Builds the app/invoice.html URL from this invoice's own cuid — the same
+  // capability-token model as app/book.html's ?u= link: whoever holds the
+  // link can view (and attach a slip to) this ONE invoice, nothing else.
+  // Copy-with-fallback shape duplicated from app/followups.js's
+  // copyMessage()/fallbackCopy() (a separate self-contained IIFE, nothing to
+  // import from) rather than a shared helper.
+  async function copyInvoiceShareLink(inv) {
+    const url = new URL('invoice.html?i=' + encodeURIComponent(inv.cuid), location.href).href;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(url);
+        toast(t('inv_share_copied'));
+        return;
+      } catch (e) { /* fall through to the textarea fallback below */ }
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = url;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    try {
+      textarea.select();
+      document.execCommand('copy');
+      toast(t('inv_share_copied'));
+    } catch (e) {
+      console.error(e);
+      toast(url); // last resort: put the raw link in the toast so it's at least visible to copy by hand
+    } finally {
+      textarea.remove();
+    }
+  }
+
+  // Pass M2b merge-back: a client can attach a payment slip straight from
+  // the public invoice page (app/invoice.html → api/invoice-public.js POST)
+  // without ever touching this app — that lands on the SERVER row only.
+  // This is what pulls it into the freelancer's local IndexedDB copy, the
+  // next time she opens this invoice here. Fire-and-forget from
+  // openInvoiceDetail(): fetches the server's current slips for this one
+  // cuid, appends whichever ids the local record doesn't already have (by
+  // id, not by array length — a locally-removed slip must not silently
+  // come back from the server), dbPut()s if anything changed, and — only if
+  // the SAME invoice's detail modal is still the one open when the
+  // (network-latency-bound) fetch resolves — re-renders the slip section
+  // and toasts. One-directional on purpose: a client can never delete a
+  // slip, so this only ever adds; a slip the freelancer deleted locally
+  // stays deleted (local wins, never re-synced back in). Swallows every
+  // error silently — offline is the normal case for most opens, not a bug.
+  async function refreshInvoiceSlipsFromServer(inv) {
+    if (!inv || !inv.cuid || typeof SidekickBackend === 'undefined' || typeof SidekickBackend.invoiceFetchByCuid !== 'function') return;
+    try {
+      const serverInv = await SidekickBackend.invoiceFetchByCuid(inv.cuid);
+      if (!serverInv || !Array.isArray(serverInv.slips) || !serverInv.slips.length) return;
+
+      const local = await dbGet(STORE, inv.id);
+      if (!local || local.uid !== uidNow()) return; // invoice gone / account switched since the fetch started
+      const localIds = new Set((local.slips || []).map(s => s.id));
+      const missing = serverInv.slips.filter(s => s && s.id && !localIds.has(s.id));
+      if (!missing.length) return;
+
+      local.slips = [...(local.slips || []), ...missing];
+      local.updatedAt = nowISO();
+      await dbPut(STORE, local);
+      inv.slips = local.slips; // keep the in-memory object any open modal closure already holds in sync
+
+      const overlay = document.getElementById('inv-detail-modal');
+      if (overlay && overlay.dataset.invId === String(inv.id)) {
+        renderSlipSection(overlay, local);
+      }
+      toast(t('inv_slips_synced').replace('{n}', missing.length));
+    } catch (e) { /* offline/network error — silent, this is a background sync */ }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  PAYMENT SLIPS (attach/view/remove + one-tap "confirm paid")
+  //  inv.slips = [{id, dataUrl, at}], an embedded array like lineItems — no
+  //  DB_VER bump, it's just a new field on an existing record. Photos are
+  //  downscaled client-side (readSlipFile) before storage so IndexedDB rows
+  //  and the mirror POST body stay well under Vercel's ~4.5MB cap.
+  // ══════════════════════════════════════════════════════════════════════
+  function slipSectionHtml(inv) {
+    const slips = Array.isArray(inv.slips) ? inv.slips : [];
+    const thumbs = slips.map(s => `
+        <div style="position:relative;display:inline-block;margin:0 8px 8px 0">
+          <img src="${aesc(s.dataUrl)}" data-slip-view="${aesc(s.id)}" style="height:72px;width:72px;object-fit:cover;border-radius:10px;border:1px solid var(--border);cursor:pointer;display:block">
+          <button type="button" data-slip-remove="${aesc(s.id)}" aria-label="${aesc(t('slip_remove_confirm'))}" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;border:none;background:var(--overdue);color:#fff;font-size:12px;line-height:20px;text-align:center;cursor:pointer;padding:0">✕</button>
+        </div>`).join('');
+    return `
+      <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:8px">${esc(t('slip_section_title'))}</div>
+      ${slips.length
+        ? `<div style="display:flex;flex-wrap:wrap">${thumbs}</div>`
+        : `<div style="font-size:12px;color:var(--text3);margin-bottom:8px">${esc(t('slip_none_hint'))}</div>`}
+      <input type="file" accept="image/*" id="inv-slip-file" style="display:none">
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button type="button" id="inv-slip-attach" style="flex:1;padding:11px;border:1.5px dashed var(--border-mid);background:none;color:var(--text2);border-radius:var(--radius-sm);font-weight:700;font-family:inherit;font-size:13px;cursor:pointer">${esc(t('slip_attach_btn'))}</button>
+        ${inv.status !== 'paid' ? `<button type="button" id="inv-slip-confirm-paid" style="flex:1;padding:11px;border:none;background:var(--pine,#22554B);color:#fff;border-radius:var(--radius-sm);font-weight:800;font-family:inherit;font-size:13px;cursor:pointer">${esc(t('slip_confirm_paid_btn'))}</button>` : ''}
+      </div>`;
+  }
+
+  // Rebuilds #inv-slip-wrap in place and rewires its handlers (innerHTML
+  // replacement drops old listeners, so every mutation re-renders through
+  // here rather than patching the DOM piecemeal).
+  function renderSlipSection(overlay, inv) {
+    const wrap = overlay.querySelector('#inv-slip-wrap');
+    if (!wrap) return;
+    wrap.innerHTML = slipSectionHtml(inv);
+
+    const fileInput = wrap.querySelector('#inv-slip-file');
+    wrap.querySelector('#inv-slip-attach').addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files && fileInput.files[0];
+      fileInput.value = '';
+      if (!file) return;
+      const dataUrl = await readSlipFile(file);
+      if (!dataUrl) { toast(t('slip_invalid_toast')); return; }
+      inv.slips = Array.isArray(inv.slips) ? inv.slips : [];
+      inv.slips.push({ id: cuid(), dataUrl, at: nowISO() });
+      inv.updatedAt = nowISO();
+      try {
+        await dbPut(STORE, inv);
+        if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+          SidekickBackend.mirrorInvoiceSave(inv).catch(() => {});
+      } catch (er) { console.error(er); }
+      renderSlipSection(overlay, inv);
+      toast(t('slip_added_toast'));
+    });
+
+    const confirmBtn = wrap.querySelector('#inv-slip-confirm-paid');
+    if (confirmBtn) confirmBtn.addEventListener('click', async () => {
+      await transitionInvoiceStatus(inv, overlay, 'paid');
+      renderSlipSection(overlay, inv);
+    });
+
+    wrap.querySelectorAll('[data-slip-view]').forEach(img => {
+      img.addEventListener('click', () => openSlipViewer(inv, img.getAttribute('data-slip-view')));
+    });
+    wrap.querySelectorAll('[data-slip-remove]').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm(t('slip_remove_confirm'))) return;
+        const id = btn.getAttribute('data-slip-remove');
+        inv.slips = (inv.slips || []).filter(s => s.id !== id);
+        inv.updatedAt = nowISO();
+        try {
+          await dbPut(STORE, inv);
+          if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+            SidekickBackend.mirrorInvoiceSave(inv).catch(() => {});
+        } catch (er) { console.error(er); }
+        renderSlipSection(overlay, inv);
+        toast(t('slip_removed_toast'));
+      });
+    });
+  }
+
+  // Full-screen tap-anywhere-to-close viewer for a single slip.
+  function openSlipViewer(inv, id) {
+    const s = (inv.slips || []).find(x => x.id === id);
+    if (!s) return;
+    const v = document.createElement('div');
+    v.id = 'inv-slip-viewer';
+    v.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px';
+    v.innerHTML = `<img src="${aesc(s.dataUrl)}" style="max-width:100%;max-height:100%;border-radius:8px;display:block">`;
+    v.addEventListener('click', () => v.remove());
+    document.body.appendChild(v);
+  }
+
+  // FileReader → Image → canvas downscale (longest side ≤ 1200px) → JPEG
+  // q0.8. A raw phone photo runs 5-12MB; this keeps IndexedDB rows and the
+  // mirror POST body small. Resolves null for a non-image or unreadable file.
+  function readSlipFile(file) {
+    return new Promise((resolve) => {
+      if (!file || !/^image\//.test(file.type)) { resolve(null); return; }
+      const reader = new FileReader();
+      reader.onerror = () => resolve(null);
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => resolve(null);
+        img.onload = () => {
+          const MAX = 1200;
+          let w = img.naturalWidth, h = img.naturalHeight;
+          if (!w || !h) { resolve(null); return; }
+          if (w > MAX || h > MAX) {
+            if (w >= h) { h = Math.round(h * MAX / w); w = MAX; }
+            else { w = Math.round(w * MAX / h); h = MAX; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          try { resolve(canvas.toDataURL('image/jpeg', 0.8)); } catch (e) { resolve(null); }
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -724,6 +1014,14 @@
   }
   function channelTypeLabel(type) {
     return (typeof PAYMENT_CHANNEL_TYPES !== 'undefined' && PAYMENT_CHANNEL_TYPES[type]) ? PAYMENT_CHANNEL_TYPES[type].label : type;
+  }
+  // Only http(s) URLs are ever rendered as a live link — rejects javascript:
+  // and other schemes a pasted "payment link" could otherwise smuggle in.
+  function safeHttpUrl(raw) {
+    try {
+      const u = new URL(String(raw || '').trim());
+      return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : null;
+    } catch (e) { return null; }
   }
 
   // Exposed so other modules (research.js's Premium-subscribe modal) can reuse
@@ -752,6 +1050,16 @@
             <div style="font-size:12px;color:var(--text3);margin-top:6px">${esc(t('scan_promptpay_label'))} · ${esc(c.label || t('promptpay_label'))}</div>
             <div class="tnum" style="font-size:16px;font-weight:800;color:var(--text);margin-top:2px">${esc(money2(amount))}</div>
           </div>`;
+      }
+      if (c.type === 'paylink') {
+        const href = safeHttpUrl(c.detail);
+        if (href) {
+          return `<div style="text-align:left;margin-bottom:${gap}">
+              <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px">${esc(c.label || channelTypeLabel(c.type))}</div>
+              <a href="${aesc(href)}" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;background:var(--pine,#22554B);color:#fff;font-weight:800;border-radius:12px;padding:12px;text-decoration:none">${esc(t('paylink_open_btn'))} · ${esc(money2(amount))}</a>
+            </div>`;
+        }
+        // Invalid/unsafe URL → fall through to the plain-text card below.
       }
       return `<div style="text-align:left;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:${gap}">
           <div style="font-size:11px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.3px">${esc(c.label || channelTypeLabel(c.type))}</div>
@@ -1334,5 +1642,18 @@
     // Safety cleanup if afterprint never fires
     setTimeout(cleanup, 60000);
   }
+
+  // Exposed for app/invoice.html (Pass M2b's public, client-facing invoice
+  // page) — self-contained by design (no app.js, no t()/settings/DOM-i18n
+  // helpers), so it can't call renderPaymentChannelsInto() itself (that
+  // reads t()/settings/PAYMENT_CHANNEL_TYPES). These five are the pure
+  // primitives underneath it: no i18n, no `settings` read, no localized
+  // strings — EMVCo payload building, QR-matrix generation, and canvas
+  // drawing only. invoice.html builds its own bilingual markup around them.
+  // Placed here (end of the IIFE, after ECL_M's `const` above has actually
+  // run) rather than up near renderPaymentChannelsInto() — referencing a
+  // `const` before its own declaration line has executed throws a temporal-
+  // dead-zone ReferenceError, which would break this whole file's load.
+  window.SidekickPromptPay = { buildPromptPayPayload, qrGenerate, drawQr, ECL_M, normalizePromptPay };
 
 })();

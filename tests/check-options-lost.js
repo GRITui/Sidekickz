@@ -126,12 +126,13 @@ const { chromium } = require('playwright');
   assert(await job(jobA, '(j.subTasks||[]).length') === 2, '7: sub-tasks survive the same edit save (regression fix)');
   assert(await job(jobA, 'j.amount') === 750, '7: the edit itself actually saved');
 
-  // ═══ 8. Mark as lost ════════════════════════════════════════════════════
+  // ═══ 8. Mark as lost (now a reason-picker modal, not a bare confirm()) ══
   const jobB = await mkJob('Dead deal', 'quote');
   await page.evaluate(id => { switchScreen('pipeline'); selectPipelineStage('quote'); }, jobB);
   await page.waitForTimeout(300);
-  page.once('dialog', d => d.accept());
   await page.evaluate(id => markJobLost(id), jobB);
+  await page.waitForSelector('#modal-lost.open', { timeout: 5000 });
+  await page.click('#lost-confirm');
   await page.waitForTimeout(400);
   assert(await job(jobB, "j.complete === true && j.outcome === 'lost'") === true, '8: lost sets complete + outcome lost');
   assert(await job(jobB, "jobStage(j)") === 'quote', '8: lost keeps the stage it died at');
@@ -139,14 +140,15 @@ const { chromium } = require('playwright');
   const lostCard = await page.locator('.kb-card', { hasText: 'Dead deal' }).textContent();
   assert(/✗/.test(lostCard), '8: card shows the ✗ lost badge, got: ' + lostCard.slice(0, 100));
 
-  // Cancelling the confirm leaves the job untouched.
+  // Cancelling the modal leaves the job untouched.
   const jobB2 = await mkJob('Alive deal', 'quote');
   await page.evaluate(() => { switchScreen('pipeline'); selectPipelineStage('quote'); });
   await page.waitForTimeout(200);
-  page.once('dialog', d => d.dismiss());
   await page.evaluate(id => markJobLost(id), jobB2);
+  await page.waitForSelector('#modal-lost.open', { timeout: 5000 });
+  await page.click('#lost-cancel');
   await page.waitForTimeout(300);
-  assert(await job(jobB2, "!j.complete && j.outcome == null") === true, '8: cancelled confirm leaves the deal live');
+  assert(await job(jobB2, "!j.complete && j.outcome == null") === true, '8: cancelling the modal leaves the deal live');
 
   // ═══ 9. Lost never counts as delivered (package deduction guard) ════════
   const pkgCheck = await page.evaluate(async () => {

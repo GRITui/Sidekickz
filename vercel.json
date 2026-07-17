@@ -1,3 +1,4 @@
 {
-  "outputDirectory": "app"
+  "outputDirectory": "app",
+  "crons": [{ "path": "/api/cron-reminders", "schedule": "0 * * * *" }]
 }

@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.31';          // <-> sw.js SW_VERSION 'sidekick-v0.9.31'
+const APP_VERSION = '0.9.37';          // <-> sw.js SW_VERSION 'sidekick-v0.9.37'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -664,11 +664,22 @@ const I18N = {
     skip_stage:'Skip', mark_finished:'Finished', reschedule:'Reschedule', cash_job:'Cash job', active_count:'active',
     mark_lost_btn:'Lost', lost_badge:'Lost',
     confirm_mark_lost:'Mark this engagement as lost? It keeps its history but leaves the active flow — you can reopen it with the ← button later.',
+    lost_modal_title:'Mark as lost', lost_reason_label:'Why? (optional)',
+    lost_reason_cancelled:'Client cancelled', lost_reason_no_response:'No response',
+    lost_reason_price:'Price too high', lost_reason_competitor:'Went with someone else',
+    lost_confirm_btn:'Mark lost', lost_cancel_btn:'Keep active',
+    revise_quote_btn:'Revise quote', revise_invoice_btn:'Revise invoice',
+    quote_revised_toast:'Quote updated — stage unchanged', invoice_revised_toast:'Invoice updated — stage unchanged',
     options_title:'Options compared', options_title_re:'Buildings',
     option_name_ph:'Option name…', option_name_ph_re:'Building / property…',
     option_add_btn:'+ Add', option_book_btn:'Book viewing', options_none:'Nothing being compared yet.',
     options_chip:'{n} options · {m} interested', options_chip_re:'{n} buildings · {m} interested',
     option_chosen_toast:'Chosen — the other options were marked dropped.',
+    // Pass M3-L2: products/extra services attached to a pipeline engagement —
+    // flow into the quote + invoice as linked line items (stock decrement on paid).
+    job_items_title:'Items on this engagement', job_items_add:'+ Add',
+    job_items_none:'No items yet — add products or extras to carry into the quote and invoice.',
+    job_items_chip:'{n} item(s) · {amt}', job_items_qty_ph:'Qty',
     option_status_considering:'Considering', option_status_viewing:'Viewing booked', option_status_interested:'Interested',
     option_status_passed:'Passed', option_status_quoted:'Quoted', option_status_chosen:'Chosen ✓', option_status_dropped:'Dropped',
     stage_pitch_label:'Inquiry', stage_pitch_action:'Log inquiry', stage_pitch_done:'Inquired',
@@ -801,6 +812,14 @@ const I18N = {
     delete_booking_confirm:'Delete this booking? This cannot be undone.', booking_deleted:'Booking deleted',
     // M2 — invoices (list / form / detail / print / payment channels) — full i18n pass
     inv_status_paid:'Paid', inv_status_overdue:'Overdue', inv_status_sent:'Sent', inv_status_draft:'Draft',
+    // Pass M2a — payment link button + payment-slip attach/confirm
+    paylink_open_btn:'Pay now', slip_section_title:'Payment slip', slip_attach_btn:'+ Attach slip',
+    slip_confirm_paid_btn:'Confirm payment received', slip_added_toast:'Slip attached', slip_removed_toast:'Slip removed',
+    slip_invalid_toast:'That file could not be read as an image', slip_remove_confirm:'Remove this slip?',
+    slip_none_hint:'Attach the transfer slip your client sends you — then confirm the payment in one tap.',
+    // Pass M2b — shareable client-facing public invoice page + slip merge-back
+    inv_share_btn:'Copy link', inv_share_copied:'Invoice link copied — send it to your client',
+    inv_slips_synced:'{n} new slip from your client',
     tawi_cert_title:'50 Tawi certificate', tawi_received:'Received',
     tawi_missing_template:'Missing · {n} {unit} outstanding',
     mark_missing_btn:'Mark missing', mark_received_btn:'Mark received',
@@ -965,6 +984,11 @@ const I18N = {
     service_saved:'Service saved', service_deleted:'Service deleted',
     field_rate:'Package Price', field_unit:'Unit', field_unit_ph:'e.g. session, hour, project',
     field_usage_qty:'Service usage qty', add_new_service_option:'+ Add a new service',
+    // 2026-07-17: Pass M3-L1 — product/service catalog unification
+    svc_kind_service:'Service', svc_kind_product:'Product',
+    svc_sku_label:'SKU / code (optional)', svc_stock_label:'Stock on hand (blank = not tracked)',
+    svc_cost_label:'Unit cost (optional)', svc_stock_left:'{n} left', svc_stock_out:'Out of stock',
+    svc_stock_decremented:'Stock updated — {n} item(s) deducted',
     // M1.5 — job form links
     field_customer:'Client', field_service:'Service', none_option:'— None —',
     add_new_client_option:'+ Add a new client…',
@@ -997,6 +1021,15 @@ const I18N = {
     booking_confirmed_calendar_toast:'Booking confirmed — added to your calendar',
     booking_slot_taken_toast:'That slot was already booked by another confirmed request.',
     booking_hold_expired_hint:'hold expired', booking_from_line_note:'LINE booking',
+    // Pass M3-L3: public storefront (Settings ▸ Shop).
+    shop_section_title:'Shop / storefront',
+    shop_section_sub:"Share one link — clients browse your products, pick quantities, and send an order request. No payment happens on this page; confirming an order creates a normal job on your board.",
+    shop_link_label:'Your shop link',
+    shop_link_copied:'Shop link copied', shop_orders_pending:'Order requests',
+    shop_orders_none:'No pending orders.', shop_order_confirm:'Confirm', shop_order_decline:'Decline',
+    shop_order_service:'Shop order',
+    shop_order_confirmed_toast:'Order confirmed — engagement created on your board',
+    shop_order_declined_toast:'Order declined',
     appt_booking_note:'From pipeline job',
     appt_booked_toast:'Appointment booked', appt_step_added_toast:'Step added',
     appt_err_step:'Please enter a step name', appt_err_date:'Please pick a date',
@@ -1042,11 +1075,21 @@ const I18N = {
     skip_stage:'ข้าม', mark_finished:'เสร็จสิ้น', reschedule:'เลื่อนนัด', cash_job:'จ่ายสด', active_count:'กำลังดำเนินการ',
     mark_lost_btn:'ไม่สำเร็จ', lost_badge:'ไม่สำเร็จ',
     confirm_mark_lost:'บันทึกงานนี้ว่าไม่สำเร็จ? ประวัติจะยังอยู่ แต่จะออกจากแผนงานที่กำลังดำเนินการ — กดปุ่ม ← เพื่อเปิดใหม่ได้ภายหลัง',
+    lost_modal_title:'บันทึกว่าไม่สำเร็จ', lost_reason_label:'เพราะอะไร? (ไม่บังคับ)',
+    lost_reason_cancelled:'ลูกค้ายกเลิก', lost_reason_no_response:'ติดต่อไม่ได้',
+    lost_reason_price:'ราคาไม่ผ่าน', lost_reason_competitor:'เลือกเจ้าอื่น',
+    lost_confirm_btn:'บันทึกว่าไม่สำเร็จ', lost_cancel_btn:'ทำต่อ',
+    revise_quote_btn:'แก้ใบเสนอราคา', revise_invoice_btn:'แก้ใบแจ้งหนี้',
+    quote_revised_toast:'อัปเดตใบเสนอราคาแล้ว — ขั้นตอนเดิม', invoice_revised_toast:'อัปเดตใบแจ้งหนี้แล้ว — ขั้นตอนเดิม',
     options_title:'ตัวเลือกที่เปรียบเทียบ', options_title_re:'อสังหาฯ ที่ดู',
     option_name_ph:'ชื่อตัวเลือก…', option_name_ph_re:'อาคาร / ทรัพย์สิน…',
     option_add_btn:'+ เพิ่ม', option_book_btn:'นัดดูสถานที่', options_none:'ยังไม่มีตัวเลือกที่เปรียบเทียบ',
     options_chip:'{n} ตัวเลือก · สนใจ {m}', options_chip_re:'{n} แห่ง · สนใจ {m}',
     option_chosen_toast:'เลือกแล้ว — ตัวเลือกอื่นถูกเปลี่ยนเป็นยกเลิก',
+    // Pass M3-L2: products/extra services attached to a pipeline engagement.
+    job_items_title:'รายการสินค้า/บริการเพิ่มเติม', job_items_add:'+ เพิ่ม',
+    job_items_none:'ยังไม่มีรายการ — เพิ่มสินค้า/บริการเสริมเพื่อใส่ในใบเสนอราคาและใบแจ้งหนี้อัตโนมัติ',
+    job_items_chip:'{n} รายการ · {amt}', job_items_qty_ph:'จำนวน',
     option_status_considering:'กำลังพิจารณา', option_status_viewing:'นัดดูแล้ว', option_status_interested:'สนใจ',
     option_status_passed:'ไม่เอา', option_status_quoted:'เสนอราคาแล้ว', option_status_chosen:'เลือกแล้ว ✓', option_status_dropped:'ยกเลิก',
     stage_pitch_label:'สอบถาม', stage_pitch_action:'บันทึกการสอบถาม', stage_pitch_done:'สอบถามแล้ว',
@@ -1179,6 +1222,14 @@ const I18N = {
     delete_booking_confirm:'ลบการจองนี้หรือไม่? ไม่สามารถย้อนกลับได้', booking_deleted:'ลบการจองแล้ว',
     // M2 — invoices (list / form / detail / print / payment channels) — full i18n pass
     inv_status_paid:'ชำระแล้ว', inv_status_overdue:'เกินกำหนด', inv_status_sent:'ส่งแล้ว', inv_status_draft:'ร่าง',
+    // Pass M2a — payment link button + payment-slip attach/confirm
+    paylink_open_btn:'ชำระเงิน', slip_section_title:'สลิปโอนเงิน', slip_attach_btn:'+ แนบสลิป',
+    slip_confirm_paid_btn:'ยืนยันรับเงินแล้ว', slip_added_toast:'แนบสลิปแล้ว', slip_removed_toast:'ลบสลิปแล้ว',
+    slip_invalid_toast:'ไฟล์นี้เปิดเป็นรูปไม่ได้', slip_remove_confirm:'ลบสลิปนี้?',
+    slip_none_hint:'แนบสลิปโอนที่ลูกค้าส่งมา แล้วยืนยันรับเงินได้ในแตะเดียว',
+    // Pass M2b — shareable client-facing public invoice page + slip merge-back
+    inv_share_btn:'คัดลอกลิงก์', inv_share_copied:'คัดลอกลิงก์ใบแจ้งหนี้แล้ว — ส่งให้ลูกค้าได้เลย',
+    inv_slips_synced:'มีสลิปใหม่จากลูกค้า {n} รายการ',
     tawi_cert_title:'หนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)', tawi_received:'ได้รับแล้ว',
     tawi_missing_template:'ยังไม่ได้รับ · ค้างอยู่ {n} {unit}',
     mark_missing_btn:'ทำเครื่องหมายว่ายังไม่ได้รับ', mark_received_btn:'ทำเครื่องหมายว่าได้รับแล้ว',
@@ -1336,6 +1387,11 @@ const I18N = {
     service_saved:'บันทึกบริการแล้ว', service_deleted:'ลบบริการแล้ว',
     field_rate:'ราคาแพ็กเกจ', field_unit:'หน่วย', field_unit_ph:'เช่น เซสชัน, ชั่วโมง, โปรเจกต์',
     field_usage_qty:'จำนวนการใช้งานต่อครั้ง', add_new_service_option:'+ เพิ่มบริการใหม่',
+    // 2026-07-17: Pass M3-L1 — product/service catalog unification
+    svc_kind_service:'บริการ', svc_kind_product:'สินค้า',
+    svc_sku_label:'รหัสสินค้า (ไม่บังคับ)', svc_stock_label:'จำนวนคงเหลือ (เว้นว่าง = ไม่นับสต๊อก)',
+    svc_cost_label:'ต้นทุนต่อหน่วย (ไม่บังคับ)', svc_stock_left:'เหลือ {n}', svc_stock_out:'สินค้าหมด',
+    svc_stock_decremented:'อัปเดตสต๊อกแล้ว — ตัด {n} รายการ',
     // M1.5 — job form links
     field_customer:'ลูกค้า', field_service:'บริการ', none_option:'— ไม่มี —',
     add_new_client_option:'+ เพิ่มลูกค้าใหม่…',
@@ -1368,6 +1424,15 @@ const I18N = {
     booking_confirmed_calendar_toast:'ยืนยันการจองแล้ว — เพิ่มลงปฏิทินของคุณแล้ว',
     booking_slot_taken_toast:'ช่วงเวลานี้ถูกยืนยันให้คำขออื่นไปแล้ว',
     booking_hold_expired_hint:'การจองชั่วคราวหมดอายุ', booking_from_line_note:'การจองจาก LINE',
+    // Pass M3-L3: หน้าร้านออนไลน์สาธารณะ (การตั้งค่า ▸ หน้าร้าน).
+    shop_section_title:'หน้าร้านออนไลน์',
+    shop_section_sub:'แชร์ลิงก์เดียว — ลูกค้าดูสินค้า เลือกจำนวน แล้วส่งคำสั่งซื้อ ไม่มีการชำระเงินในหน้านี้ เมื่อคุณยืนยันคำสั่งซื้อ ระบบจะสร้างงานใหม่บนบอร์ดให้ทันที',
+    shop_link_label:'ลิงก์หน้าร้านของคุณ',
+    shop_link_copied:'คัดลอกลิงก์หน้าร้านแล้ว', shop_orders_pending:'คำสั่งซื้อรอยืนยัน',
+    shop_orders_none:'ยังไม่มีคำสั่งซื้อ', shop_order_confirm:'ยืนยัน', shop_order_decline:'ปฏิเสธ',
+    shop_order_service:'ออเดอร์จากหน้าร้าน',
+    shop_order_confirmed_toast:'ยืนยันออเดอร์แล้ว — สร้างงานบนบอร์ดให้แล้ว',
+    shop_order_declined_toast:'ปฏิเสธออเดอร์แล้ว',
     appt_booking_note:'จากงานในแผนงาน',
     appt_booked_toast:'จองนัดหมายแล้ว', appt_step_added_toast:'เพิ่มขั้นตอนแล้ว',
     appt_err_step:'กรุณาใส่ชื่อขั้นตอน', appt_err_date:'กรุณาเลือกวันที่',
@@ -2716,6 +2781,165 @@ async function resolveBookingRequest(bookingId, action) {
   renderBookingSlotsSection();   // re-renders slots AND the requests list
 }
 window.resolveBookingRequest = resolveBookingRequest;
+
+// ─── SHOP / STOREFRONT (Pass M3-L3) ──────────────────────────────────────
+// Settings ▸ Shop: this account's public storefront link (app/shop.html,
+// served by api/shop-public.js) plus the freelancer's confirm/decline UI
+// for the order requests it writes (api/order-requests.js). Same
+// backend-gated pattern as renderLineChannelSection() — genuinely needs
+// the backend regardless of plan (order_requests only exists server-side),
+// and a guest has no server-side catalog for a stranger's browser to read
+// in the first place. Reads __entitlements synchronously rather than
+// awaiting a fresh session() call, same as renderTeamSection() — by the
+// time the 'more' screen can be visited at all, finishAppBoot() has
+// already populated it once (see __entitlements' own comment).
+async function renderShopSection() {
+  const linkEl = document.getElementById('shop-link-body');
+  const ordersEl = document.getElementById('shop-orders-body');
+  if (!linkEl || !ordersEl) return;
+  if (isGuest || typeof SidekickBackend === 'undefined' || !SidekickBackend.isEnabled()) {
+    linkEl.innerHTML = '';
+    ordersEl.innerHTML = '';
+    return;
+  }
+  const u = __entitlements;
+  if (!u || !u.cuid) {
+    linkEl.innerHTML = '';
+    ordersEl.innerHTML = '';
+    return;
+  }
+  // Same account-scoped-URL convention team-invite links and the LINE
+  // booking page URL already use — the account's own cuid (from
+  // api/auth-session.js) IS the capability token api/shop-public.js reads
+  // via ?u=.
+  const shopUrl = new URL('shop.html?u=' + encodeURIComponent(u.cuid), location.href).href;
+  linkEl.innerHTML = `
+    <div class="field" style="margin:0 16px 14px;padding:0;border:1px solid var(--border);border-radius:var(--radius-sm)">
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--text3);padding:8px 12px 0;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(t('shop_link_label'))}</label>
+      <div style="display:flex;align-items:center;gap:6px;padding:2px 12px 10px">
+        <input readonly value="${attrEsc(shopUrl)}" onclick="this.select()" style="flex:1;min-width:0;border:none;background:none;font-family:'Spline Sans Mono',monospace;font-size:11px;color:var(--text2)">
+        <button type="button" class="qc-btn" style="width:auto;padding:0 12px;flex:none" onclick="copyShopLink('${attrEsc(shopUrl)}')">${htmlEsc(t('copy_btn'))}</button>
+      </div>
+    </div>`;
+  await renderShopOrdersSection();
+}
+// Clipboard write with the followups.js textarea fallback (some in-app
+// WebViews — the LINE in-app browser in particular — don't expose
+// navigator.clipboard at all).
+function copyShopLink(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => toast(t('shop_link_copied'))).catch(() => fallbackCopyShopLink(text));
+  } else {
+    fallbackCopyShopLink(text);
+  }
+}
+function fallbackCopyShopLink(text) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  try {
+    textarea.select();
+    document.execCommand('copy');
+    toast(t('shop_link_copied'));
+  } catch (e) {
+    toast(t('copy_failed'));
+  }
+  document.body.removeChild(textarea);
+}
+window.copyShopLink = copyShopLink;
+async function renderShopOrdersSection() {
+  const el = document.getElementById('shop-orders-body');
+  if (!el) return;
+  const r = await SidekickBackend.orderRequestsList();
+  if (!r.ok) { el.innerHTML = ''; return; }
+  const rows = r.data.rows || [];
+  // Same keyed-by-id side-table convention as window.__pendingBookingRows
+  // (renderBookingRequestsSection above) — resolveOrderRequest() needs the
+  // full row (items/contact/total) to materialize a local job on confirm,
+  // and freeform client strings don't belong stuffed into onclick="" markup.
+  window.__pendingOrderRows = {};
+  rows.forEach(o => { window.__pendingOrderRows[o.id] = o; });
+  const summarize = (items) => (items || []).map(it => `${it.qty}× ${it.name}`).join(', ');
+  const rowsHtml = rows.length ? rows.map(o => `
+      <div class="list-row" style="cursor:default;flex-wrap:wrap;gap:6px">
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(o.clientName || '')}${o.contact ? ' · ' + htmlEsc(o.contact) : ''}</div>
+          <div class="list-sub">${htmlEsc(summarize(o.items))} — ${htmlEsc(money(o.total))}</div>
+        </div>
+        <button type="button" class="qc-btn" style="width:auto;padding:0 12px;color:var(--brand)" onclick="resolveOrderRequest(${o.id},'confirm')">${htmlEsc(t('shop_order_confirm'))}</button>
+        <button type="button" class="qc-btn" style="width:auto;padding:0 12px;color:var(--text3)" onclick="resolveOrderRequest(${o.id},'decline')">${htmlEsc(t('shop_order_decline'))}</button>
+      </div>`).join('') : `<div class="pkg-status"><span>${htmlEsc(t('shop_orders_none'))}</span></div>`;
+  el.innerHTML = `
+    <div class="section-title" style="font-size:12px;margin:14px 16px 8px">${htmlEsc(t('shop_orders_pending'))}</div>
+    <div class="list-card" style="margin:0 16px 14px">${rowsHtml}</div>`;
+}
+// Materialize a freelancer-confirmed shop order request as a local pipeline
+// engagement — this IS the M3-L2 payoff: items[] pre-attached means
+// openQuoteForJob/openInvoiceForm (M3-L2, already shipped) pick these up
+// automatically, so quote → invoice → paid → stock decrement all just work
+// without the freelancer retyping anything. Structure follows
+// createLocalBookingFromLineRequest above: idempotence guard first (a
+// double-tap on Confirm, or resolveOrderRequest running twice against the
+// same id across a re-render, must never create two jobs for one order),
+// then the local record, then the mirror.
+async function createLocalJobFromOrderRequest(o) {
+  const already = (await dbAll('jobs')).some(x => x.shopOrderId === o.id);
+  if (already) return;
+  const uid = isGuest ? 'guest' : currentUser.id;
+  // Resolves each snapshot line's service_cuid to THIS device's local
+  // numeric services id (services is already loaded by reload()) — null
+  // when the product isn't known locally (e.g. a different device created
+  // it), same "resolve by cuid, null if not found" fallback dataClient.js's
+  // refCuid()/fromJobRow() already use elsewhere. name/qty/unitPrice
+  // snapshots carry over regardless of whether the resolution succeeds.
+  const mappedItems = (o.items || []).map(it => {
+    const localSvc = services.find(s => s.cuid === it.service_cuid);
+    return { id: cuid(), serviceId: localSvc ? localSvc.id : null, name: it.name, qty: it.qty, unitPrice: it.unit_price };
+  });
+  const job = {
+    uid, date: todayISO(), client: o.clientName || '', clientId: null,
+    serviceId: null, serviceName: t('shop_order_service'),
+    jobType: settings.workType || '',
+    amount: Number(o.total) || 0, tip: 0, expense: 0, count: 1,
+    notes: 'Shop order · ' + (o.contact || ''),
+    netAmount: Number(o.total) || 0,
+    cuid: cuid(), stageOrder: getStageOrder().slice(), stage: getStageOrder()[0], complete: false,
+    invoiceId: null, quoteDocId: null, packageId: null,
+    items: mappedItems,
+    // Local-only marker (this order request's server-side `id`), used by
+    // the idempotence guard above — deliberately NOT included in
+    // jobsMirror's toPayload (dataClient.js), same convention as
+    // createLocalBookingFromLineRequest's lineBookingId.
+    shopOrderId: o.id,
+    createdAt: nowISO(), updatedAt: nowISO(),
+  };
+  const key = await dbAdd('jobs', job); job.id = key;
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+    SidekickBackend.mirrorJobSave(job).catch(() => {});
+}
+async function resolveOrderRequest(id, action) {
+  const r = await SidekickBackend.orderRequestResolve(id, action);
+  if (!r.ok) {
+    toast((r.data && r.data.error) || t('shop_orders_none'));
+    renderShopOrdersSection();   // list is stale either way — refresh
+    return;
+  }
+  if (action === 'confirm') {
+    // window.__pendingOrderRows (renderShopOrdersSection above) carries the
+    // full row keyed by id — see that function's comment.
+    const row = window.__pendingOrderRows && window.__pendingOrderRows[id];
+    if (row) await createLocalJobFromOrderRequest(row);
+    await reload();   // re-fetches jobs + calls renderPipeline() if defined
+    toast(t('shop_order_confirmed_toast'));
+  } else {
+    toast(t('shop_order_declined_toast'));
+  }
+  renderShopOrdersSection();
+}
+window.resolveOrderRequest = resolveOrderRequest;
+
 async function addBookingSlot() {
   const startEl = document.getElementById('slot-start-input');
   const endEl = document.getElementById('slot-end-input');
@@ -3510,7 +3734,13 @@ async function saveJob() {
     obj.timeEntries = prev.timeEntries || [];
     obj.timerStartedAt = prev.timerStartedAt ?? null;
     obj.outcome = prev.outcome ?? null;
+    obj.lostReason = prev.lostReason ?? null;
     obj.options = prev.options || [];
+    // Pass M3-L2: items are edited live inside THIS modal (addJobItem/
+    // removeJobItem dbPut the job record directly, same as options above),
+    // so `prev` already reflects whatever's current by the time Save is
+    // clicked — this is the current edited array, not a stale snapshot.
+    obj.items = prev.items || [];
   } else {
     obj.cuid = cuid();
     // New engagements snapshot the active stage order and start at its first stage.
@@ -3790,7 +4020,8 @@ function pipelineCard(j, stage) {
   const canBack = complete || order.indexOf(jobStage(j)) > 0;
   const enter = (window.__kbMoved === j.id) ? ' kb-enter' : '';
   const lost = j.outcome === 'lost';
-  const doneLabel = lost ? t('lost_badge') : j.outcome === 'finished' ? t('mark_finished') : (t(meta.done) || 'Done');
+  const lostReasonSuffix = (lost && LOST_REASONS.includes(j.lostReason)) ? ' · ' + t('lost_reason_' + j.lostReason) : '';
+  const doneLabel = lost ? t('lost_badge') + lostReasonSuffix : j.outcome === 'finished' ? t('mark_finished') : (t(meta.done) || 'Done');
   const foot = complete
     ? `<span class="pl-done${lost ? ' pl-lost' : ''}">${lost ? '✗' : '✓'} ${htmlEsc(doneLabel)}</span>`
     : `<button type="button" class="pl-action" onclick="event.stopPropagation();pipelineAction(${j.id})">${htmlEsc(t(meta.action) || 'Advance')} →</button>`;
@@ -3810,6 +4041,16 @@ function pipelineCard(j, stage) {
   const reschedule = !complete
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();openEditJob(${j.id})">${htmlEsc(t('reschedule'))}</button>`
     : '';
+  // Redo paperwork WITHOUT re-advancing — for when a client pushes back on
+  // the numbers after ← moved the card back to quote/invoice. Coexists with
+  // the stage action button: "Send quote" (new version, advances) vs.
+  // "Revise quote" (update the existing link, stage stays put).
+  const reviseQuote = (!complete && j.quoteDocId != null)
+    ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();reviseQuoteForJob(${j.id})">${htmlEsc(t('revise_quote_btn'))}</button>`
+    : '';
+  const reviseInvoice = (!complete && j.invoiceId != null)
+    ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();reviseInvoiceForJob(${j.id})">${htmlEsc(t('revise_invoice_btn'))}</button>`
+    : '';
   // The deal-died exit — available at every live stage, because clients walk
   // away at Pitch and Quote far more often than at the end. Keeps the record
   // (outcome 'lost', reopenable via ←) instead of forcing delete-or-clutter.
@@ -3825,7 +4066,7 @@ function pipelineCard(j, stage) {
   const confirming = window.__packageConfirmJobId === j.id;
   const footRow = confirming
     ? packageConfirmCardHtml(j)
-    : `<div class="kb-card-foot">${back}${skip}${finish}${cashJob}${foot}${reschedule}${lostBtn}</div>`;
+    : `<div class="kb-card-foot">${back}${skip}${finish}${cashJob}${foot}${reschedule}${reviseQuote}${reviseInvoice}${lostBtn}</div>`;
   // Recovery path for a gate left unresolved across a reload (the flag is
   // persisted with the stage move) — the amber banner reopens the same modal.
   const pendingGate = (!complete && j.pendingGateStage)
@@ -3840,6 +4081,9 @@ function pipelineCard(j, stage) {
         ${(j.options || []).length ? `<div class="kb-card-sub">${htmlEsc(t(businessType() === 'realestate' ? 'options_chip_re' : 'options_chip')
           .replace('{n}', (j.options || []).length)
           .replace('{m}', (j.options || []).filter(o => o.status === 'interested' || o.status === 'chosen').length))}</div>` : ''}
+        ${(j.items || []).length ? `<div class="kb-card-sub">🛒 ${htmlEsc(t('job_items_chip')
+          .replace('{n}', (j.items || []).length)
+          .replace('{amt}', money((j.items || []).reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.unitPrice) || 0), 0))))}</div>` : ''}
       </div>
       <button type="button" class="pl-edit" aria-label="Edit engagement" onclick="event.stopPropagation();openEditJob(${j.id})">✎</button>
     </div>
@@ -3852,6 +4096,10 @@ function pipelineCard(j, stage) {
 function pipelineAction(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
+  // Stale-flag safety: a normal advance must never be mistaken for a
+  // revise left over from a cancelled reviseQuoteForJob/reviseInvoiceForJob.
+  window.__quoteReviseJobId = null;
+  window.__invoiceReviseJobId = null;
   // An unresolved stage gate blocks every further forward action — reopen the
   // prompt instead of advancing (the card can never move twice past one gate).
   if (j.pendingGateStage) { openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage }); return; }
@@ -4033,15 +4281,60 @@ window.finishJobStage = finishJobStage;
 // are excluded there), and never counts as delivered for package deduction
 // (see jobDelivered()). Reopenable with the ← button like any completed
 // engagement — moveJobStageBack already clears outcome.
-async function markJobLost(jobId) {
+// Opens a small reason-picker overlay (same build-on-demand pattern as
+// openApptModal) instead of a bare confirm() — "why" is useful for Insights
+// but must stay optional, so overlay-click and Cancel both back out with NO
+// change (unlike the appointment gate, this is not a locked door).
+const LOST_REASONS = ['cancelled', 'no_response', 'price', 'competitor'];
+function markJobLost(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j || jobComplete(j)) return;
-  if (!confirm(t('confirm_mark_lost'))) return;
+  document.getElementById('modal-lost')?.remove();   // never stack two
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'modal-lost';
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-label="${attrEsc(t('lost_modal_title'))}">
+      <div class="modal-handle"></div>
+      <div class="modal-title">${htmlEsc(t('lost_modal_title'))}</div>
+      <div class="form-body" style="padding:0 20px 4px">
+        <p class="ap-context">${htmlEsc(t('confirm_mark_lost'))}</p>
+        <label style="display:block;font-size:13px;font-weight:700;color:var(--text2);margin:0 0 8px">${htmlEsc(t('lost_reason_label'))}</label>
+        <div class="ap-seg" id="lost-reasons" style="flex-wrap:wrap">
+          ${LOST_REASONS.map(r => `<button type="button" data-reason="${r}" style="flex:1 1 45%;min-width:120px" onclick="toggleLostReason(this)">${htmlEsc(t('lost_reason_' + r))}</button>`).join('')}
+        </div>
+      </div>
+      <button type="button" class="btn-submit" id="lost-confirm" onclick="confirmMarkJobLost(${jobId})">${htmlEsc(t('lost_confirm_btn'))}</button>
+      <button type="button" class="btn-danger" id="lost-cancel" style="border-color:var(--border-mid);color:var(--text3)">${htmlEsc(t('lost_cancel_btn'))}</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('lost-cancel').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+window.markJobLost = markJobLost;
+
+// Single-select: tapping the already-active chip clears it — the reason is
+// optional, so there must be a way back to "none selected".
+function toggleLostReason(btn) {
+  const wasActive = btn.classList.contains('seg-active');
+  document.querySelectorAll('#lost-reasons button').forEach(b => b.classList.remove('seg-active'));
+  if (!wasActive) btn.classList.add('seg-active');
+}
+window.toggleLostReason = toggleLostReason;
+
+async function confirmMarkJobLost(jobId) {
+  const overlay = document.getElementById('modal-lost');
+  const selBtn = overlay ? overlay.querySelector('#lost-reasons button.seg-active') : null;
+  const reason = selBtn ? selBtn.dataset.reason : null;
+  overlay?.remove();
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || jobComplete(j)) return;
   j.complete = true;
   j.outcome = 'lost';
+  j.lostReason = reason;
   j.pendingGateStage = null;   // a dead deal has nothing left to book
   j.updatedAt = nowISO();
-  logEvent('pipeline_stage:lost');
+  logEvent('pipeline_stage:lost' + (reason ? ':' + reason : ''));
   _pipelineActiveStage = j.stage;
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
@@ -4049,7 +4342,7 @@ async function markJobLost(jobId) {
   await reload();
   renderPipeline();
 }
-window.markJobLost = markJobLost;
+window.confirmMarkJobLost = confirmMarkJobLost;
 
 // Move a card back one stage (or re-open a completed engagement at its final stage).
 async function moveJobStageBack(jobId) {
@@ -4078,7 +4371,16 @@ async function markJobPaid(jobId) {
   if (j.invoiceId != null) {
     try {
       const inv = await dbGet('invoices', j.invoiceId);
-      if (inv) { inv.status = 'paid'; inv.updatedAt = nowISO(); await dbPut('invoices', inv); }
+      if (inv) {
+        const wasPaid = inv.status === 'paid';
+        inv.status = 'paid'; inv.updatedAt = nowISO();
+        await dbPut('invoices', inv);
+        // Pass M3-L1: third paid-transition path (direct dbPut, not through
+        // invoices.js) — see decrementStockForInvoicePaid's own comment.
+        if (!wasPaid && typeof window.decrementStockForInvoicePaid === 'function') {
+          window.decrementStockForInvoicePaid(inv).catch(() => {});
+        }
+      }
     } catch (e) { /* non-fatal */ }
   }
   if (typeof renderInvoices === 'function') renderInvoices();
@@ -4116,14 +4418,63 @@ function openQuoteForJob(j) {
     clientName: j.client || '',
     fields: {
       clientId: j.clientId != null ? j.clientId : null,
-      lineItems: [{ description: j.serviceName || unitWord(), qty: (j.count > 0 ? j.count : 1), unitPrice: Number(j.amount) || 0 }],
+      // Pass M3-L2: any products/extra services attached to this engagement
+      // (job-tracking-section's Items list) ride along as their own quote
+      // lines — docgen.js consumes fields.lineItems as-is.
+      lineItems: [
+        { description: j.serviceName || unitWord(), qty: (j.count > 0 ? j.count : 1), unitPrice: Number(j.amount) || 0 },
+        ...(j.items || []).map(it => ({ description: it.name, qty: it.qty, unitPrice: it.unitPrice })),
+      ],
     },
   });
   // Mark this engagement pending AFTER opening (openGenerateForm clears it first);
   // docgen.js links quoteDocId + advances only on a successful save. Cancelling
   // leaves the stage untouched.
   window.__pendingQuoteJobId = j.id;
+  // Stale-flag safety: a normal "Send quote" from the stage action must
+  // never be mistaken for a leftover revise flag.
+  window.__quoteReviseJobId = null;
 }
+
+// Redo a quote after the client pushes back, WITHOUT re-advancing the stage
+// or re-gating — the only alternative today is ← back to quote + "Send
+// quote", which advances AND re-gates on every single revision round trip.
+// Same prefill as openQuoteForJob; onEngagementQuoteCreated checks
+// __quoteReviseJobId FIRST and, when set, just relinks quoteDocId and stops.
+function reviseQuoteForJob(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  if (typeof openGenerateForm !== 'function') { toast('Quote generator unavailable'); return; }
+  openGenerateForm('quote', {
+    clientId: j.clientId != null ? j.clientId : null,
+    clientName: j.client || '',
+    fields: {
+      clientId: j.clientId != null ? j.clientId : null,
+      // Pass M3-L2: any products/extra services attached to this engagement
+      // (job-tracking-section's Items list) ride along as their own quote
+      // lines — docgen.js consumes fields.lineItems as-is.
+      lineItems: [
+        { description: j.serviceName || unitWord(), qty: (j.count > 0 ? j.count : 1), unitPrice: Number(j.amount) || 0 },
+        ...(j.items || []).map(it => ({ description: it.name, qty: it.qty, unitPrice: it.unitPrice })),
+      ],
+    },
+  });
+  // Set AFTER opening — openGenerateForm clears __pendingQuoteJobId first.
+  window.__pendingQuoteJobId = j.id;
+  window.__quoteReviseJobId = j.id;
+}
+window.reviseQuoteForJob = reviseQuoteForJob;
+
+// Same idea for invoices: openInvoiceForm always creates a fresh invoice
+// record (it has no in-place edit-and-relink path), so a revise is just
+// "create another one and swap the link" — onEngagementInvoiceCreated
+// checks __invoiceReviseJobId first and skips the stage move when set.
+function reviseInvoiceForJob(jobId) {
+  if (typeof openInvoiceForm !== 'function') return;
+  openInvoiceForm(jobId);
+  window.__invoiceReviseJobId = jobId;
+}
+window.reviseInvoiceForJob = reviseInvoiceForJob;
 
 // Called by invoices.js whenever an invoice's status TRANSITIONS to 'paid'
 // (detail-modal select or an edit save) — the reverse of markJobPaid's own
@@ -4147,6 +4498,19 @@ window.onEngagementInvoiceCreated = async function (invoiceId, jobId) {
   if (jobId == null) return;
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
+  // Revise path (reviseInvoiceForJob): relink the paperwork, stage untouched,
+  // no re-gate — a redo shouldn't cost another round trip through the gate.
+  if (window.__invoiceReviseJobId === jobId) {
+    window.__invoiceReviseJobId = null;
+    j.invoiceId = invoiceId;
+    j.updatedAt = nowISO();
+    await dbPut('jobs', j);
+    mirrorJob(j);
+    await reload();
+    renderPipeline();
+    toast(t('invoice_revised_toast'));
+    return;
+  }
   j.invoiceId = invoiceId;
   const order = jobOrder(j);
   const idx = order.indexOf(jobStage(j));
@@ -4169,6 +4533,19 @@ window.onEngagementQuoteCreated = async function (docId, jobId) {
   if (jobId == null) return;
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
+  // Revise path (reviseQuoteForJob): relink the paperwork, stage untouched,
+  // no re-gate — a redo shouldn't cost another round trip through the gate.
+  if (window.__quoteReviseJobId === jobId) {
+    window.__quoteReviseJobId = null;
+    j.quoteDocId = docId;
+    j.updatedAt = nowISO();
+    await dbPut('jobs', j);
+    mirrorJob(j);
+    await reload();
+    renderPipeline();
+    toast(t('quote_revised_toast'));
+    return;
+  }
   j.quoteDocId = docId;
   const order = jobOrder(j);
   const idx = order.indexOf(jobStage(j));
@@ -4235,6 +4612,14 @@ async function createBookingForStep(j, st) {
 //            booking (the sub-task workflow assessment's top gap).
 window.__apCtx = null;      // { mode, jobId, stage?, sourceSubTaskId? } while open
 window.__apType = 'exact';  // 'exact' (calendar booking) | 'by' (deadline only)
+// Set by reviseQuoteForJob/reviseInvoiceForJob just before opening the same
+// doc-gen/invoice UI a normal send uses — tells onEngagementQuoteCreated/
+// onEngagementInvoiceCreated to relink the paperwork WITHOUT moving the
+// stage or re-gating. Cleared at the top of pipelineAction() and inside
+// openQuoteForJob() so a cancelled revise can never hijack the next normal
+// send (stale-flag safety).
+window.__quoteReviseJobId = null;
+window.__invoiceReviseJobId = null;
 function openApptModal(ctx) {
   const j = jobs.find(x => x.id === ctx.jobId);
   if (!j) return;
@@ -4258,12 +4643,12 @@ function openApptModal(ctx) {
       <div class="modal-title" id="ap-title">${htmlEsc(title)}</div>
       <div class="form-body" style="padding:0 20px 4px">
         ${context ? `<p class="ap-context" id="ap-context">${htmlEsc(context)}</p>` : ''}
-        <div class="field"><input type="text" id="ap-step" placeholder="${attrEsc(t('appt_step_ph'))}" value="${attrEsc(src ? src.text : (ctx.prefillText || ''))}"></div>
+        <div class="field"><input type="text" id="ap-step" placeholder="${attrEsc(t('appt_step_ph'))}" value="${attrEsc(src ? src.text : (ctx.mode === 'gate' ? ((stageMeta.action && t(stageMeta.action)) || '') : (ctx.prefillText || '')))}"></div>
         <div class="ap-seg">
           <button type="button" id="ap-type-exact" class="seg-active" onclick="setApptType('exact')">${htmlEsc(t('appt_type_exact'))}</button>
           <button type="button" id="ap-type-by" onclick="setApptType('by')">${htmlEsc(t('appt_type_by'))}</button>
         </div>
-        <div class="field" id="ap-date-row"><label id="ap-date-label">${htmlEsc(t('appt_date_label'))}</label><input type="date" id="ap-date" value="${attrEsc(ctx.mode === 'edit' && src ? (src.date || '') : '')}"></div>
+        <div class="field" id="ap-date-row"><label id="ap-date-label">${htmlEsc(t('appt_date_label'))}</label><input type="date" id="ap-date" value="${attrEsc(ctx.mode === 'edit' && src ? (src.date || '') : (ctx.mode === 'gate' ? addDaysISO(todayISO(), 7) : ''))}"></div>
         <div class="field" id="ap-time-row"><label>${htmlEsc(t('appt_time_label'))}</label><input type="time" id="ap-time" value="${attrEsc(ctx.mode === 'edit' && src && src.startTime ? src.startTime : '09:00')}"></div>
       </div>
       <button type="button" class="btn-submit" id="ap-save" onclick="saveApptModal()">${htmlEsc(t('appt_save'))}</button>
@@ -4274,8 +4659,12 @@ function openApptModal(ctx) {
   overlay.addEventListener('click', e => {
     if (e.target === overlay && window.__apCtx && window.__apCtx.mode !== 'gate') closeApptModal();
   });
-  // Repeat mode inherits the source step's type; everything else starts on 'exact'.
-  setApptType(src && src.dateType === 'by' ? 'by' : 'exact');
+  // Repeat mode inherits the source step's type; everything else starts on
+  // 'exact' EXCEPT a gate at a non-pitch stage — "send quote", "send
+  // invoice", "collect payment", "deliver", "follow up" are deadline-shaped,
+  // not calendar bookings, so default them to 'by'. Only Pitch (an inquiry/
+  // first-meeting) is a real appointment.
+  setApptType(ctx.mode === 'gate' ? (ctx.stage === 'pitch' ? 'exact' : 'by') : (src && src.dateType === 'by' ? 'by' : 'exact'));
 }
 window.openApptModal = openApptModal;
 
@@ -5097,6 +5486,7 @@ function renderJobTracking(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
   renderJobOptions(jobId);
+  renderJobItems(jobId);
   renderSubTasks(jobId);
   renderMilestones(jobId);
   renderJobTimer(jobId);
@@ -5308,6 +5698,81 @@ function bookViewingForOption(jobId, optId) {
   openApptModal({ mode: 'add', jobId, optionId: optId, prefillText: `${t('option_book_btn')} · ${o.name}` });
 }
 window.bookViewingForOption = bookViewingForOption;
+
+// ── Engagement items (Pass M3-L2) ──
+// Products/extra services attached to this engagement while the deal is
+// still forming — a catalog pick + qty, snapshotted (name/unitPrice) at add
+// time so a later catalog price edit never rewrites history. Same live-
+// persist pattern as options above: addJobItem/removeJobItem dbPut the job
+// record directly and immediately, independent of the modal's Save button,
+// so saveJob()'s edit-preserve block (`obj.items = prev.items || []`) always
+// carries forward whatever's current — see that block's own comment.
+// serviceId rides along so openQuoteForJob/openInvoiceForm can flow these
+// into the quote + invoice as linked lines (app.js's own
+// decrementStockForInvoicePaid then finds them by serviceId at paid time).
+function renderJobItems(jobId) {
+  const wrap = document.getElementById('job-items-body');
+  if (!wrap) return;
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const items = j.items || [];
+  const rows = items.map(it => `
+      <div class="list-row" style="cursor:default;flex-wrap:wrap;gap:6px">
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(it.name)}</div>
+          <div class="list-sub tnum">${it.qty} × ${htmlEsc(money(it.unitPrice))} = ${htmlEsc(money(it.qty * it.unitPrice))}</div>
+        </div>
+        <button type="button" class="qc-btn" aria-label="Remove item" onclick="removeJobItem(${jobId},'${it.id}')">✕</button>
+      </div>`).join('');
+  // Same 📦-prefix / disabled-at-zero-stock convention as invoices.js's
+  // #inv-svc picker (Pass M3-L1) — both kinds of catalog record are eligible.
+  const catalogOpts = `<option value="">${htmlEsc(t('none_option'))}</option>` +
+    services.map(s => {
+      const isProduct = svcIsProduct(s);
+      const outOfStock = isProduct && s.stockQty != null && s.stockQty === 0;
+      const label = (isProduct ? '📦 ' : '') + s.name + ' · ' + money(s.rate);
+      return `<option value="${s.id}"${outOfStock ? ' disabled' : ''}>${htmlEsc(label)}</option>`;
+    }).join('');
+  wrap.innerHTML = `
+    ${items.length ? `<div class="list-card">${rows}</div>` : `<div class="pkg-status"><span>${htmlEsc(t('job_items_none'))}</span></div>`}
+    <div class="form-row" style="margin-top:8px">
+      <select id="job-item-svc" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">${catalogOpts}</select>
+      <input type="number" id="job-item-qty" class="tnum" inputmode="numeric" min="1" value="1" placeholder="${attrEsc(t('job_items_qty_ph'))}"
+             style="width:64px;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+      <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addJobItem(${jobId})">${htmlEsc(t('job_items_add'))}</button>
+    </div>`;
+}
+async function addJobItem(jobId) {
+  jobId = parseInt(jobId, 10);
+  const svcSel = document.getElementById('job-item-svc');
+  const qtyInput = document.getElementById('job-item-qty');
+  const svcId = svcSel && svcSel.value ? parseInt(svcSel.value, 10) : null;
+  if (svcId == null) return;
+  const svc = services.find(s => s.id === svcId);
+  if (!svc) return;
+  const qty = Math.max(1, parseInt(qtyInput && qtyInput.value, 10) || 1);
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  j.items = j.items || [];
+  // Snapshot name/unitPrice now — a later catalog edit must not rewrite
+  // what was actually agreed on this engagement.
+  j.items.push({ id: cuid(), serviceId: svc.id, name: svc.name, qty, unitPrice: Number(svc.rate) || 0 });
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  mirrorJob(j);
+  renderJobItems(jobId);
+}
+window.addJobItem = addJobItem;
+async function removeJobItem(jobId, itemId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || !j.items) return;
+  j.items = j.items.filter(x => x.id !== itemId);
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  mirrorJob(j);
+  renderJobItems(jobId);
+}
+window.removeJobItem = removeJobItem;
 
 // ── Milestone payments ──
 // "Draft invoice" opens a pre-filled invoice form; the resulting invoiceId
@@ -5780,6 +6245,21 @@ async function seedServicesIfEmpty() {
   await saveSetting(flag, true);
   await reload();
 }
+// Pass M3-L1: 📦 for a product row, 🏷️ for a service row (missing/null
+// `kind` = 'service' — every pre-existing record, no migration).
+function svcIsProduct(s) { return s && s.kind === 'product'; }
+// Stock chip for a product row's right side: neutral "{n} left", amber
+// "{n} left" when 0 < n <= 3 (low stock), red "Out of stock" at n === 0.
+// Untracked products (stockQty == null) render no chip at all.
+function svcStockChipHtml(s) {
+  if (!svcIsProduct(s) || s.stockQty == null) return '';
+  const n = s.stockQty;
+  if (n === 0) {
+    return `<div class="list-amt-sub" style="margin-top:3px"><span class="chip chip-overdue">${htmlEsc(t('svc_stock_out'))}</span></div>`;
+  }
+  const lowStyle = n <= 3 ? 'background:var(--marigold-tint);color:var(--marigold-ink)' : 'background:var(--border);color:var(--text3)';
+  return `<div class="list-amt-sub" style="margin-top:3px"><span class="chip" style="${lowStyle}">${htmlEsc(t('svc_stock_left').replace('{n}', n))}</span></div>`;
+}
 function renderServices() {
   const wrap = document.getElementById('services-body');
   if (!wrap) return;
@@ -5788,24 +6268,46 @@ function renderServices() {
       <p>${htmlEsc(t('no_services'))}</p><span>${htmlEsc(t('no_services_sub'))}</span></div>`;
     return;
   }
-  wrap.innerHTML = '<div class="list-card">' + services.map(s => `
+  wrap.innerHTML = '<div class="list-card">' + services.map(s => {
+    const isProduct = svcIsProduct(s);
+    const subParts = [s.unit || ''];
+    if (isProduct && s.sku) subParts.push(s.sku);
+    return `
     <div class="list-row" onclick="openEditService(${s.id})">
-      <div class="list-icon">🏷️</div>
+      <div class="list-icon">${isProduct ? '📦' : '🏷️'}</div>
       <div class="list-main">
         <div class="list-title">${htmlEsc(s.name)}</div>
-        <div class="list-sub">${htmlEsc(s.unit || '')}</div>
+        <div class="list-sub">${htmlEsc(subParts.filter(Boolean).join(' · '))}</div>
       </div>
-      <div class="list-right"><div class="list-amt tnum">${htmlEsc(money(s.rate))}</div></div>
-    </div>`).join('') + '</div>';
+      <div class="list-right">
+        <div class="list-amt tnum">${htmlEsc(money(s.rate))}</div>
+        ${svcStockChipHtml(s)}
+      </div>
+    </div>`;
+  }).join('') + '</div>';
 }
 function openServiceModal() { document.getElementById('modal-service').classList.add('open'); }
 function closeServiceModal() { window.__pendingJobServiceLink = false; document.getElementById('modal-service').classList.remove('open'); }
+// Toggles the service/product segmented control — same shape as
+// #modal-appt's setApptType(), a hidden input (#sv-kind) carries the current
+// value and the product-only fields container is shown/hidden alongside it.
+function setSvcKind(kind) {
+  const k = kind === 'product' ? 'product' : 'service';
+  const kindEl = document.getElementById('sv-kind');
+  if (kindEl) kindEl.value = k;
+  const svcBtn = document.getElementById('svc-kind-service'), prodBtn = document.getElementById('svc-kind-product');
+  if (svcBtn) svcBtn.classList.toggle('seg-active', k === 'service');
+  if (prodBtn) prodBtn.classList.toggle('seg-active', k === 'product');
+  const fields = document.getElementById('svc-product-fields');
+  if (fields) fields.style.display = k === 'product' ? '' : 'none';
+}
 function openAddService() {
   document.getElementById('svc-modal-title').textContent = t('add_service');
   document.getElementById('sv-edit-id').value = '';
-  ['sv-name','sv-rate','sv-unit'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  ['sv-name','sv-rate','sv-unit','sv-sku','sv-stock','sv-cost'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('sv-usage-qty').value = '1';
   document.getElementById('sv-delete').style.display = 'none';
+  setSvcKind('service');
   clearFieldErrors();
   openServiceModal();
 }
@@ -5817,6 +6319,8 @@ function openEditService(id) {
   const set = (i,v)=>{ const el=document.getElementById(i); if(el) el.value = (v==null?'':v); };
   set('sv-name', s.name); set('sv-rate', s.rate); set('sv-unit', s.unit);
   set('sv-usage-qty', s.usageQty > 0 ? s.usageQty : 1);
+  set('sv-sku', s.sku); set('sv-stock', s.stockQty); set('sv-cost', s.cost);
+  setSvcKind(svcIsProduct(s) ? 'product' : 'service');
   document.getElementById('sv-delete').style.display = 'block';
   clearFieldErrors();
   openServiceModal();
@@ -5828,8 +6332,18 @@ async function saveService() {
   const rate = parseFloat(document.getElementById('sv-rate').value) || 0;
   const unit = (document.getElementById('sv-unit').value || '').trim();
   const usageQty = parseInt(document.getElementById('sv-usage-qty').value, 10) || 1;
+  const kindEl = document.getElementById('sv-kind');
+  const kind = kindEl && kindEl.value === 'product' ? 'product' : 'service';
+  const skuRaw = (document.getElementById('sv-sku') ? document.getElementById('sv-sku').value : '').trim();
+  const sku = skuRaw ? skuRaw : null;
+  const stockRaw = document.getElementById('sv-stock') ? document.getElementById('sv-stock').value : '';
+  const stockParsed = parseInt(stockRaw, 10);
+  const stockQty = stockRaw === '' ? null : (isNaN(stockParsed) ? null : stockParsed);
+  const costRaw = document.getElementById('sv-cost') ? document.getElementById('sv-cost').value : '';
+  const costParsed = parseFloat(costRaw);
+  const cost = costRaw === '' ? null : (isNaN(costParsed) ? null : costParsed);
   const uid = isGuest ? 'guest' : currentUser.id;
-  const obj = {uid, name, rate, unit, usageQty};
+  const obj = {uid, name, rate, unit, usageQty, kind, sku, stockQty, cost};
   const editId = document.getElementById('sv-edit-id').value;
   if (editId) {
     const id = parseInt(editId);
@@ -5866,6 +6380,47 @@ async function deleteService() {
   await reload();
   toast(t('service_deleted'));
 }
+
+// Pass M3-L1: automatic stock decrement when an invoice is marked paid.
+// Shared by all three paid-transition paths — invoices.js's
+// transitionInvoiceStatus (status <select> / "Confirm payment received"),
+// invoices.js's saveInvoice edit-path paid transition, and app.js's own
+// markJobPaid direct invoice flip — kept here since app.js owns the
+// `services` store/global, not invoices.js. Idempotent via
+// inv.stockDecrementedAt (stamped on the INVOICE, not the service): a
+// paid -> sent -> paid round trip must never decrement twice, so every
+// call site fires this fire-and-forget (`.catch(()=>{})`) and lets the
+// stamp guard do the actual dedup.
+window.decrementStockForInvoicePaid = async function (inv) {
+  if (!inv || inv.stockDecrementedAt) return;
+  const lineItems = Array.isArray(inv.lineItems) ? inv.lineItems : [];
+  let decremented = 0;
+  let hasProductLine = false;
+  for (const li of lineItems) {
+    if (li.serviceId == null) continue;
+    const svc = services.find(s => s.id === li.serviceId);
+    if (!svc || !svcIsProduct(svc)) continue;
+    hasProductLine = true;
+    if (svc.stockQty == null) continue; // not tracked — nothing to decrement
+    const qty = Number(li.qty) || 1;
+    svc.stockQty = Math.max(0, svc.stockQty - qty);
+    svc.updatedAt = nowISO();
+    await dbPut('services', svc);
+    if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+      SidekickBackend.mirrorServiceSave(svc).catch(() => {});
+    }
+    decremented++;
+  }
+  if (decremented > 0 || hasProductLine) {
+    inv.stockDecrementedAt = nowISO();
+    await dbPut('invoices', inv);
+    if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+      SidekickBackend.mirrorInvoiceSave(inv).catch(() => {});
+    }
+  }
+  await reload();
+  if (decremented > 0) toast(t('svc_stock_decremented').replace('{n}', decremented));
+};
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────
 async function saveSetting(key, val) {
@@ -5922,12 +6477,18 @@ window.docPageSizeCss = docPageSizeCss;
 const PAYMENT_CHANNEL_TYPES = {
   promptpay: { label: 'PromptPay', detailLabel: 'PromptPay ID', ph: 'Phone or 13-digit national ID' },
   bank:      { label: 'Bank transfer', detailLabel: 'Account details', ph: 'Bank name, account number, account name' },
+  // 2026-07-17: Tier-0 payment link — any hosted checkout URL (Stripe payment
+  // link, Ko-fi, etc.) pasted in; renders as a tappable "Pay now" button on
+  // invoices (invoices.js). The app never touches the money — detail must be
+  // a validated http(s) URL or it falls back to plain text (see safeHttpUrl).
+  paylink:   { label: 'Payment link', detailLabel: 'Link URL', ph: 'https://buy.stripe.com/…' },
   cash:      { label: 'Cash', detailLabel: 'Note (optional)', ph: 'e.g. Pay in cash at the session' },
   other:     { label: 'Other', detailLabel: 'Instructions', ph: 'Payment instructions' },
 };
 const PAYMENT_CHANNEL_ICONS = {
   promptpay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M15 15h2.5v2.5H15zM19.5 15V19M15 19.5h2M19.5 19.5h1.5"/></svg>',
   bank:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em"><path d="M3 10l9-7 9 7"/><path d="M4 10v10M20 10v10M9 10v10M15 10v10"/><path d="M2 20h20"/></svg>',
+  paylink:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em"><path d="M9 15l6-6"/><path d="M11 6l1-1a4 4 0 0 1 5.7 5.7l-1.4 1.4"/><path d="M13 18l-1 1a4 4 0 0 1-5.7-5.7l1.4-1.4"/></svg>',
   cash:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 9h.01M18 15h.01"/></svg>',
   other:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em"><path d="M20.6 13.4L11 3.8A2 2 0 0 0 9.5 3H4a1 1 0 0 0-1 1v5.5c0 .5.2 1 .6 1.4l9.6 9.6a2 2 0 0 0 2.8 0l4.4-4.4a2 2 0 0 0 .2-2.7z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>',
 };
@@ -6407,6 +6968,7 @@ function switchScreen(name) {
   if (name === 'more') renderSellerLogoSection();
   if (name === 'more') renderLineChannelSection();
   if (name === 'more') renderTeamSection();
+  if (name === 'more') renderShopSection();
   if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.
