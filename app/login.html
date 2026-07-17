@@ -46,7 +46,6 @@
     <button class="auth-btn" id="auth-submit" onclick="submitAuth()" data-i18n="login">Log in</button>
     <button class="auth-btn line" onclick="loginWithLine()" data-i18n="login_line">Continue with LINE</button>
     <button class="auth-btn guest" onclick="loginGuest()" data-i18n="login_guest">Continue as guest</button>
-    <button class="auth-btn guest" onclick="startDemo()" data-i18n="try_demo_btn">Try a demo</button>
     <div class="auth-hint"><span id="auth-hint-text"></span><br><br>Local-first · No cloud · Built with Claude</div>
   </div>
 </div>
@@ -84,3 +83,24 @@
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script src="app.js?v=0.9.32"></script>
+<script>
+// Demo entry point (/demo/index.html redirects here with ?demo=1): the "Try a
+// demo" button was removed from this page — prospects get the demo via the
+// dedicated /demo URL instead, and real users see a clean login. startDemo()
+// (app.js) keeps its existing guard: if this device already has guest data,
+// it asks before wiping. Can't fire on 'load': bootLogin()'s openDB() is
+// async and startDemo() → guestDataExists() needs the IndexedDB handle, so
+// poll the top-level `db` binding (same global lexical scope as app.js)
+// until boot has opened it. If a stored session redirects to the app first,
+// the interval simply dies with the page — that's the intended behavior for
+// an already-logged-in visitor.
+if (new URLSearchParams(location.search).get('demo') === '1') {
+  const demoPoll = setInterval(() => {
+    if (typeof db !== 'undefined' && db && typeof startDemo === 'function') {
+      clearInterval(demoPoll);
+      startDemo();
+    }
+  }, 100);
+  setTimeout(() => clearInterval(demoPoll), 15000);   // give up quietly, login stays usable
+}
+</script>

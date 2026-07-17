@@ -15,9 +15,10 @@ const { chromium } = require('playwright');
     page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
     page.on('pageerror', err => errors.push(String(err)));
 
-    await page.goto('http://localhost:8923/login.html');
+    // The "Try a demo" login button is gone (2026-07-17) — the demo now
+    // enters via the dedicated /demo URL, which redirects to login.html?demo=1.
+    await page.goto('http://localhost:8923/login.html?demo=1');
     await page.waitForTimeout(300);
-    await page.click('button:has-text("ทดลองใช้ตัวอย่าง")'); // Thai default: try_demo_btn
     await page.waitForURL('**/index.html', { timeout: 5000 }).catch(() => {});
     await page.waitForTimeout(400);
     await page.click(`#modal-persona-onboard .list-row:nth-child(${i + 1})`);
@@ -40,9 +41,8 @@ const { chromium } = require('playwright');
   page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
   page.on('pageerror', err => errors.push(String(err)));
 
-  await page.goto('http://localhost:8923/login.html');
+  await page.goto('http://localhost:8923/login.html?demo=1');
   await page.waitForTimeout(300);
-  await page.click('button:has-text("ทดลองใช้ตัวอย่าง")');
   await page.waitForURL('**/index.html', { timeout: 5000 }).catch(() => {});
   await page.waitForTimeout(400);
   await page.click('#modal-persona-onboard .list-row:nth-child(5)'); // garage
