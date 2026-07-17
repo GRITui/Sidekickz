@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.31';          // <-> sw.js SW_VERSION 'sidekick-v0.9.31'
+const APP_VERSION = '0.9.32';          // <-> sw.js SW_VERSION 'sidekick-v0.9.32'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -664,6 +664,12 @@ const I18N = {
     skip_stage:'Skip', mark_finished:'Finished', reschedule:'Reschedule', cash_job:'Cash job', active_count:'active',
     mark_lost_btn:'Lost', lost_badge:'Lost',
     confirm_mark_lost:'Mark this engagement as lost? It keeps its history but leaves the active flow — you can reopen it with the ← button later.',
+    lost_modal_title:'Mark as lost', lost_reason_label:'Why? (optional)',
+    lost_reason_cancelled:'Client cancelled', lost_reason_no_response:'No response',
+    lost_reason_price:'Price too high', lost_reason_competitor:'Went with someone else',
+    lost_confirm_btn:'Mark lost', lost_cancel_btn:'Keep active',
+    revise_quote_btn:'Revise quote', revise_invoice_btn:'Revise invoice',
+    quote_revised_toast:'Quote updated — stage unchanged', invoice_revised_toast:'Invoice updated — stage unchanged',
     options_title:'Options compared', options_title_re:'Buildings',
     option_name_ph:'Option name…', option_name_ph_re:'Building / property…',
     option_add_btn:'+ Add', option_book_btn:'Book viewing', options_none:'Nothing being compared yet.',
@@ -1042,6 +1048,12 @@ const I18N = {
     skip_stage:'ข้าม', mark_finished:'เสร็จสิ้น', reschedule:'เลื่อนนัด', cash_job:'จ่ายสด', active_count:'กำลังดำเนินการ',
     mark_lost_btn:'ไม่สำเร็จ', lost_badge:'ไม่สำเร็จ',
     confirm_mark_lost:'บันทึกงานนี้ว่าไม่สำเร็จ? ประวัติจะยังอยู่ แต่จะออกจากแผนงานที่กำลังดำเนินการ — กดปุ่ม ← เพื่อเปิดใหม่ได้ภายหลัง',
+    lost_modal_title:'บันทึกว่าไม่สำเร็จ', lost_reason_label:'เพราะอะไร? (ไม่บังคับ)',
+    lost_reason_cancelled:'ลูกค้ายกเลิก', lost_reason_no_response:'ติดต่อไม่ได้',
+    lost_reason_price:'ราคาไม่ผ่าน', lost_reason_competitor:'เลือกเจ้าอื่น',
+    lost_confirm_btn:'บันทึกว่าไม่สำเร็จ', lost_cancel_btn:'ทำต่อ',
+    revise_quote_btn:'แก้ใบเสนอราคา', revise_invoice_btn:'แก้ใบแจ้งหนี้',
+    quote_revised_toast:'อัปเดตใบเสนอราคาแล้ว — ขั้นตอนเดิม', invoice_revised_toast:'อัปเดตใบแจ้งหนี้แล้ว — ขั้นตอนเดิม',
     options_title:'ตัวเลือกที่เปรียบเทียบ', options_title_re:'อสังหาฯ ที่ดู',
     option_name_ph:'ชื่อตัวเลือก…', option_name_ph_re:'อาคาร / ทรัพย์สิน…',
     option_add_btn:'+ เพิ่ม', option_book_btn:'นัดดูสถานที่', options_none:'ยังไม่มีตัวเลือกที่เปรียบเทียบ',
@@ -3510,6 +3522,7 @@ async function saveJob() {
     obj.timeEntries = prev.timeEntries || [];
     obj.timerStartedAt = prev.timerStartedAt ?? null;
     obj.outcome = prev.outcome ?? null;
+    obj.lostReason = prev.lostReason ?? null;
     obj.options = prev.options || [];
   } else {
     obj.cuid = cuid();
@@ -3790,7 +3803,8 @@ function pipelineCard(j, stage) {
   const canBack = complete || order.indexOf(jobStage(j)) > 0;
   const enter = (window.__kbMoved === j.id) ? ' kb-enter' : '';
   const lost = j.outcome === 'lost';
-  const doneLabel = lost ? t('lost_badge') : j.outcome === 'finished' ? t('mark_finished') : (t(meta.done) || 'Done');
+  const lostReasonSuffix = (lost && LOST_REASONS.includes(j.lostReason)) ? ' · ' + t('lost_reason_' + j.lostReason) : '';
+  const doneLabel = lost ? t('lost_badge') + lostReasonSuffix : j.outcome === 'finished' ? t('mark_finished') : (t(meta.done) || 'Done');
   const foot = complete
     ? `<span class="pl-done${lost ? ' pl-lost' : ''}">${lost ? '✗' : '✓'} ${htmlEsc(doneLabel)}</span>`
     : `<button type="button" class="pl-action" onclick="event.stopPropagation();pipelineAction(${j.id})">${htmlEsc(t(meta.action) || 'Advance')} →</button>`;
@@ -3810,6 +3824,16 @@ function pipelineCard(j, stage) {
   const reschedule = !complete
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();openEditJob(${j.id})">${htmlEsc(t('reschedule'))}</button>`
     : '';
+  // Redo paperwork WITHOUT re-advancing — for when a client pushes back on
+  // the numbers after ← moved the card back to quote/invoice. Coexists with
+  // the stage action button: "Send quote" (new version, advances) vs.
+  // "Revise quote" (update the existing link, stage stays put).
+  const reviseQuote = (!complete && j.quoteDocId != null)
+    ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();reviseQuoteForJob(${j.id})">${htmlEsc(t('revise_quote_btn'))}</button>`
+    : '';
+  const reviseInvoice = (!complete && j.invoiceId != null)
+    ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();reviseInvoiceForJob(${j.id})">${htmlEsc(t('revise_invoice_btn'))}</button>`
+    : '';
   // The deal-died exit — available at every live stage, because clients walk
   // away at Pitch and Quote far more often than at the end. Keeps the record
   // (outcome 'lost', reopenable via ←) instead of forcing delete-or-clutter.
@@ -3825,7 +3849,7 @@ function pipelineCard(j, stage) {
   const confirming = window.__packageConfirmJobId === j.id;
   const footRow = confirming
     ? packageConfirmCardHtml(j)
-    : `<div class="kb-card-foot">${back}${skip}${finish}${cashJob}${foot}${reschedule}${lostBtn}</div>`;
+    : `<div class="kb-card-foot">${back}${skip}${finish}${cashJob}${foot}${reschedule}${reviseQuote}${reviseInvoice}${lostBtn}</div>`;
   // Recovery path for a gate left unresolved across a reload (the flag is
   // persisted with the stage move) — the amber banner reopens the same modal.
   const pendingGate = (!complete && j.pendingGateStage)
@@ -3852,6 +3876,10 @@ function pipelineCard(j, stage) {
 function pipelineAction(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
+  // Stale-flag safety: a normal advance must never be mistaken for a
+  // revise left over from a cancelled reviseQuoteForJob/reviseInvoiceForJob.
+  window.__quoteReviseJobId = null;
+  window.__invoiceReviseJobId = null;
   // An unresolved stage gate blocks every further forward action — reopen the
   // prompt instead of advancing (the card can never move twice past one gate).
   if (j.pendingGateStage) { openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage }); return; }
@@ -4033,15 +4061,60 @@ window.finishJobStage = finishJobStage;
 // are excluded there), and never counts as delivered for package deduction
 // (see jobDelivered()). Reopenable with the ← button like any completed
 // engagement — moveJobStageBack already clears outcome.
-async function markJobLost(jobId) {
+// Opens a small reason-picker overlay (same build-on-demand pattern as
+// openApptModal) instead of a bare confirm() — "why" is useful for Insights
+// but must stay optional, so overlay-click and Cancel both back out with NO
+// change (unlike the appointment gate, this is not a locked door).
+const LOST_REASONS = ['cancelled', 'no_response', 'price', 'competitor'];
+function markJobLost(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j || jobComplete(j)) return;
-  if (!confirm(t('confirm_mark_lost'))) return;
+  document.getElementById('modal-lost')?.remove();   // never stack two
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'modal-lost';
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-label="${attrEsc(t('lost_modal_title'))}">
+      <div class="modal-handle"></div>
+      <div class="modal-title">${htmlEsc(t('lost_modal_title'))}</div>
+      <div class="form-body" style="padding:0 20px 4px">
+        <p class="ap-context">${htmlEsc(t('confirm_mark_lost'))}</p>
+        <label style="display:block;font-size:13px;font-weight:700;color:var(--text2);margin:0 0 8px">${htmlEsc(t('lost_reason_label'))}</label>
+        <div class="ap-seg" id="lost-reasons" style="flex-wrap:wrap">
+          ${LOST_REASONS.map(r => `<button type="button" data-reason="${r}" style="flex:1 1 45%;min-width:120px" onclick="toggleLostReason(this)">${htmlEsc(t('lost_reason_' + r))}</button>`).join('')}
+        </div>
+      </div>
+      <button type="button" class="btn-submit" id="lost-confirm" onclick="confirmMarkJobLost(${jobId})">${htmlEsc(t('lost_confirm_btn'))}</button>
+      <button type="button" class="btn-danger" id="lost-cancel" style="border-color:var(--border-mid);color:var(--text3)">${htmlEsc(t('lost_cancel_btn'))}</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('lost-cancel').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+window.markJobLost = markJobLost;
+
+// Single-select: tapping the already-active chip clears it — the reason is
+// optional, so there must be a way back to "none selected".
+function toggleLostReason(btn) {
+  const wasActive = btn.classList.contains('seg-active');
+  document.querySelectorAll('#lost-reasons button').forEach(b => b.classList.remove('seg-active'));
+  if (!wasActive) btn.classList.add('seg-active');
+}
+window.toggleLostReason = toggleLostReason;
+
+async function confirmMarkJobLost(jobId) {
+  const overlay = document.getElementById('modal-lost');
+  const selBtn = overlay ? overlay.querySelector('#lost-reasons button.seg-active') : null;
+  const reason = selBtn ? selBtn.dataset.reason : null;
+  overlay?.remove();
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || jobComplete(j)) return;
   j.complete = true;
   j.outcome = 'lost';
+  j.lostReason = reason;
   j.pendingGateStage = null;   // a dead deal has nothing left to book
   j.updatedAt = nowISO();
-  logEvent('pipeline_stage:lost');
+  logEvent('pipeline_stage:lost' + (reason ? ':' + reason : ''));
   _pipelineActiveStage = j.stage;
   window.__kbMoved = jobId;
   await dbPut('jobs', j);
@@ -4049,7 +4122,7 @@ async function markJobLost(jobId) {
   await reload();
   renderPipeline();
 }
-window.markJobLost = markJobLost;
+window.confirmMarkJobLost = confirmMarkJobLost;
 
 // Move a card back one stage (or re-open a completed engagement at its final stage).
 async function moveJobStageBack(jobId) {
@@ -4123,7 +4196,44 @@ function openQuoteForJob(j) {
   // docgen.js links quoteDocId + advances only on a successful save. Cancelling
   // leaves the stage untouched.
   window.__pendingQuoteJobId = j.id;
+  // Stale-flag safety: a normal "Send quote" from the stage action must
+  // never be mistaken for a leftover revise flag.
+  window.__quoteReviseJobId = null;
 }
+
+// Redo a quote after the client pushes back, WITHOUT re-advancing the stage
+// or re-gating — the only alternative today is ← back to quote + "Send
+// quote", which advances AND re-gates on every single revision round trip.
+// Same prefill as openQuoteForJob; onEngagementQuoteCreated checks
+// __quoteReviseJobId FIRST and, when set, just relinks quoteDocId and stops.
+function reviseQuoteForJob(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  if (typeof openGenerateForm !== 'function') { toast('Quote generator unavailable'); return; }
+  openGenerateForm('quote', {
+    clientId: j.clientId != null ? j.clientId : null,
+    clientName: j.client || '',
+    fields: {
+      clientId: j.clientId != null ? j.clientId : null,
+      lineItems: [{ description: j.serviceName || unitWord(), qty: (j.count > 0 ? j.count : 1), unitPrice: Number(j.amount) || 0 }],
+    },
+  });
+  // Set AFTER opening — openGenerateForm clears __pendingQuoteJobId first.
+  window.__pendingQuoteJobId = j.id;
+  window.__quoteReviseJobId = j.id;
+}
+window.reviseQuoteForJob = reviseQuoteForJob;
+
+// Same idea for invoices: openInvoiceForm always creates a fresh invoice
+// record (it has no in-place edit-and-relink path), so a revise is just
+// "create another one and swap the link" — onEngagementInvoiceCreated
+// checks __invoiceReviseJobId first and skips the stage move when set.
+function reviseInvoiceForJob(jobId) {
+  if (typeof openInvoiceForm !== 'function') return;
+  openInvoiceForm(jobId);
+  window.__invoiceReviseJobId = jobId;
+}
+window.reviseInvoiceForJob = reviseInvoiceForJob;
 
 // Called by invoices.js whenever an invoice's status TRANSITIONS to 'paid'
 // (detail-modal select or an edit save) — the reverse of markJobPaid's own
@@ -4147,6 +4257,19 @@ window.onEngagementInvoiceCreated = async function (invoiceId, jobId) {
   if (jobId == null) return;
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
+  // Revise path (reviseInvoiceForJob): relink the paperwork, stage untouched,
+  // no re-gate — a redo shouldn't cost another round trip through the gate.
+  if (window.__invoiceReviseJobId === jobId) {
+    window.__invoiceReviseJobId = null;
+    j.invoiceId = invoiceId;
+    j.updatedAt = nowISO();
+    await dbPut('jobs', j);
+    mirrorJob(j);
+    await reload();
+    renderPipeline();
+    toast(t('invoice_revised_toast'));
+    return;
+  }
   j.invoiceId = invoiceId;
   const order = jobOrder(j);
   const idx = order.indexOf(jobStage(j));
@@ -4169,6 +4292,19 @@ window.onEngagementQuoteCreated = async function (docId, jobId) {
   if (jobId == null) return;
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
+  // Revise path (reviseQuoteForJob): relink the paperwork, stage untouched,
+  // no re-gate — a redo shouldn't cost another round trip through the gate.
+  if (window.__quoteReviseJobId === jobId) {
+    window.__quoteReviseJobId = null;
+    j.quoteDocId = docId;
+    j.updatedAt = nowISO();
+    await dbPut('jobs', j);
+    mirrorJob(j);
+    await reload();
+    renderPipeline();
+    toast(t('quote_revised_toast'));
+    return;
+  }
   j.quoteDocId = docId;
   const order = jobOrder(j);
   const idx = order.indexOf(jobStage(j));
@@ -4235,6 +4371,14 @@ async function createBookingForStep(j, st) {
 //            booking (the sub-task workflow assessment's top gap).
 window.__apCtx = null;      // { mode, jobId, stage?, sourceSubTaskId? } while open
 window.__apType = 'exact';  // 'exact' (calendar booking) | 'by' (deadline only)
+// Set by reviseQuoteForJob/reviseInvoiceForJob just before opening the same
+// doc-gen/invoice UI a normal send uses — tells onEngagementQuoteCreated/
+// onEngagementInvoiceCreated to relink the paperwork WITHOUT moving the
+// stage or re-gating. Cleared at the top of pipelineAction() and inside
+// openQuoteForJob() so a cancelled revise can never hijack the next normal
+// send (stale-flag safety).
+window.__quoteReviseJobId = null;
+window.__invoiceReviseJobId = null;
 function openApptModal(ctx) {
   const j = jobs.find(x => x.id === ctx.jobId);
   if (!j) return;
@@ -4258,12 +4402,12 @@ function openApptModal(ctx) {
       <div class="modal-title" id="ap-title">${htmlEsc(title)}</div>
       <div class="form-body" style="padding:0 20px 4px">
         ${context ? `<p class="ap-context" id="ap-context">${htmlEsc(context)}</p>` : ''}
-        <div class="field"><input type="text" id="ap-step" placeholder="${attrEsc(t('appt_step_ph'))}" value="${attrEsc(src ? src.text : (ctx.prefillText || ''))}"></div>
+        <div class="field"><input type="text" id="ap-step" placeholder="${attrEsc(t('appt_step_ph'))}" value="${attrEsc(src ? src.text : (ctx.mode === 'gate' ? ((stageMeta.action && t(stageMeta.action)) || '') : (ctx.prefillText || '')))}"></div>
         <div class="ap-seg">
           <button type="button" id="ap-type-exact" class="seg-active" onclick="setApptType('exact')">${htmlEsc(t('appt_type_exact'))}</button>
           <button type="button" id="ap-type-by" onclick="setApptType('by')">${htmlEsc(t('appt_type_by'))}</button>
         </div>
-        <div class="field" id="ap-date-row"><label id="ap-date-label">${htmlEsc(t('appt_date_label'))}</label><input type="date" id="ap-date" value="${attrEsc(ctx.mode === 'edit' && src ? (src.date || '') : '')}"></div>
+        <div class="field" id="ap-date-row"><label id="ap-date-label">${htmlEsc(t('appt_date_label'))}</label><input type="date" id="ap-date" value="${attrEsc(ctx.mode === 'edit' && src ? (src.date || '') : (ctx.mode === 'gate' ? addDaysISO(todayISO(), 7) : ''))}"></div>
         <div class="field" id="ap-time-row"><label>${htmlEsc(t('appt_time_label'))}</label><input type="time" id="ap-time" value="${attrEsc(ctx.mode === 'edit' && src && src.startTime ? src.startTime : '09:00')}"></div>
       </div>
       <button type="button" class="btn-submit" id="ap-save" onclick="saveApptModal()">${htmlEsc(t('appt_save'))}</button>
@@ -4274,8 +4418,12 @@ function openApptModal(ctx) {
   overlay.addEventListener('click', e => {
     if (e.target === overlay && window.__apCtx && window.__apCtx.mode !== 'gate') closeApptModal();
   });
-  // Repeat mode inherits the source step's type; everything else starts on 'exact'.
-  setApptType(src && src.dateType === 'by' ? 'by' : 'exact');
+  // Repeat mode inherits the source step's type; everything else starts on
+  // 'exact' EXCEPT a gate at a non-pitch stage — "send quote", "send
+  // invoice", "collect payment", "deliver", "follow up" are deadline-shaped,
+  // not calendar bookings, so default them to 'by'. Only Pitch (an inquiry/
+  // first-meeting) is a real appointment.
+  setApptType(ctx.mode === 'gate' ? (ctx.stage === 'pitch' ? 'exact' : 'by') : (src && src.dateType === 'by' ? 'by' : 'exact'));
 }
 window.openApptModal = openApptModal;
 

@@ -272,6 +272,11 @@
     invoice_id: j.invoiceId, quote_doc_id: j.quoteDocId, package_id: j.packageId,
     sub_tasks: j.subTasks, milestones: j.milestones, time_entries: j.timeEntries,
     timer_started_at: j.timerStartedAt,
+    // 2026-07-17: restore-fidelity fix — these were missing from the
+    // mirror entirely, so a lost job restored from cloud came back
+    // outcome=null (silently counting as a successful completed
+    // engagement) and its options list vanished.
+    outcome: j.outcome, lost_reason: j.lostReason, pending_gate_stage: j.pendingGateStage, options: j.options,
     // 2026-07-16: ref cuids for the id-refs above — see refCuid()'s comment.
     // milestones[]/timeEntries[]'s own embedded invoiceId is NOT resolved
     // here (accepted residual gap, see app.js importDataset()'s comment) —
@@ -305,6 +310,7 @@
       complete: row.complete, invoiceId: num(row.invoice_id), quoteDocId: num(row.quote_doc_id),
       packageId: num(row.package_id), subTasks: row.sub_tasks, milestones: row.milestones,
       timeEntries: row.time_entries, timerStartedAt: row.timer_started_at,
+      outcome: row.outcome, lostReason: row.lost_reason, pendingGateStage: row.pending_gate_stage, options: row.options,
       __clientCuid: row.client_cuid || null, __serviceCuid: row.service_cuid || null,
       __invoiceCuid: row.invoice_cuid || null, __quoteDocCuid: row.quote_doc_cuid || null,
       __packageCuid: row.package_cuid || null,
