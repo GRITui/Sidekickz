@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.30';          // <-> sw.js SW_VERSION 'sidekick-v0.9.30'
+const APP_VERSION = '0.9.31';          // <-> sw.js SW_VERSION 'sidekick-v0.9.31'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -829,6 +829,38 @@ const I18N = {
     scan_promptpay_label:'Scan with any Thai banking app', promptpay_label:'PromptPay', payment_word:'Payment',
     bill_to_label:'Bill to', amount_header:'Amount', status_toast_prefix:'Status: ',
     service_word:'Service', qr_unavailable:'QR unavailable',
+    // Pass-E — client-facing DOCUMENT strings: docgen.js's contract/NDA/quote/
+    // receipt content (buildDocHtml) and invoices.js's print output. These are
+    // the actual paperwork handed to Thai clients, not app chrome — rendered
+    // in the app's current language at generation time (no per-document
+    // language picker yet, see docgen.js/invoices.js comments).
+    doc_title_contract:'Contract', doc_title_nda:'NDA', doc_title_quote:'Quote', doc_title_receipt:'Receipt',
+    doc_freelancer_fallback:'Freelancer', doc_client_fallback:'Client',
+    doc_issue_date_label:'Issue date:', doc_effective_date_label:'Effective date:', doc_payment_date_label:'Payment date:',
+    doc_valid_until_label:'Valid until:', doc_quote_number_prefix:'Quote #', doc_receipt_number_prefix:'Receipt #',
+    doc_client_company_label:'Client company:', doc_billing_address_label:'Billing address:', doc_client_taxid_label:'Client Tax ID:',
+    doc_contract_intro:'This Service Agreement ("Agreement") is entered into on {date} between {provider} ("Provider") and {client} ("Client").',
+    doc_deliverables_header:'Deliverables', doc_fee_header:'Fee', doc_total_fee_label:'Total fee:', doc_term_header:'Term',
+    doc_date_range_sep:'to', doc_usage_rights_header:'Usage Rights & Licensing', doc_health_waiver_header:'Health & Liability Waiver',
+    doc_health_waiver_body:'Client acknowledges that participation in physical training/coaching carries an inherent risk of injury and voluntarily assumes that risk. The following has been provided by the Client:',
+    doc_goals_label:'Goals:', doc_health_notes_label:'Health notes:', doc_allergies_label:'Allergies:',
+    doc_additional_terms_header:'Additional Terms', doc_notes_header:'Notes',
+    doc_nda_intro:'This Non-Disclosure Agreement ("Agreement") is made between {provider} and {client} as of {date}.',
+    doc_nda_h1_title:'1. Confidential Information',
+    doc_nda_h1_body:'Each party may disclose confidential business, technical, financial, or personal information ("Confidential Information") to the other in connection with their working relationship.',
+    doc_nda_h2_title:'2. Obligations',
+    doc_nda_h2_body:'The receiving party agrees to keep all Confidential Information private, use it only for the purpose of the engagement, and not disclose it to third parties without prior written consent.',
+    doc_nda_h3_title:'3. Exclusions',
+    doc_nda_h3_body:'Confidential Information does not include information that is or becomes publicly available through no fault of the receiving party.',
+    doc_nda_h4_title:'4. Term', doc_nda_h4_body:'This Agreement remains in effect for {duration} from the effective date above.',
+    doc_month_unit:'month(s)', doc_nda_h5_title:'5. Notes',
+    doc_prepared_for_label:'Prepared for:', doc_received_from_label:'Received from:',
+    doc_field_description:'Description', doc_field_qty:'Qty', doc_field_unit_price:'Unit price', doc_col_total:'Total',
+    doc_subtotal_label:'Subtotal:', doc_quote_footer:'This quote is valid until {date} and excludes tax unless stated in a formal invoice.',
+    doc_amount_received_header:'Amount received', doc_payment_method_header:'Payment method', doc_reference_header:'Reference',
+    doc_receipt_footer:'This receipt confirms payment has been received in full for the amount stated above.',
+    doc_provider_suffix:'(Provider)', doc_client_suffix:'(Client)', doc_signature_label:'Signature:', doc_date_label:'Date:',
+    doc_taxid_short:'Tax ID:',
     // misc
     welcome:'Welcome', welcome_back:'Welcome back', guest_name:'Guest', logged_out:'Logged out',
     greeting_morning:'Good morning', greeting_afternoon:'Good afternoon', greeting_evening:'Good evening',
@@ -1175,6 +1207,34 @@ const I18N = {
     scan_promptpay_label:'สแกนด้วยแอปธนาคารไทยได้ทุกแอป', promptpay_label:'พร้อมเพย์', payment_word:'การชำระเงิน',
     bill_to_label:'เรียกเก็บเงินจาก', amount_header:'จำนวนเงิน', status_toast_prefix:'สถานะ: ',
     service_word:'บริการ', qr_unavailable:'ไม่สามารถแสดง QR ได้',
+    // Pass-E — เอกสารที่ลูกค้าเห็น (docgen.js) — formal Thai paperwork register
+    doc_title_contract:'สัญญาจ้างบริการ', doc_title_nda:'สัญญาไม่เปิดเผยข้อมูล', doc_title_quote:'ใบเสนอราคา', doc_title_receipt:'ใบเสร็จรับเงิน',
+    doc_freelancer_fallback:'ผู้ให้บริการ', doc_client_fallback:'ลูกค้า',
+    doc_issue_date_label:'วันที่ออกเอกสาร:', doc_effective_date_label:'วันที่มีผลบังคับใช้:', doc_payment_date_label:'วันที่ชำระเงิน:',
+    doc_valid_until_label:'ใช้ได้ถึงวันที่:', doc_quote_number_prefix:'ใบเสนอราคาเลขที่ ', doc_receipt_number_prefix:'ใบเสร็จเลขที่ ',
+    doc_client_company_label:'บริษัทของลูกค้า:', doc_billing_address_label:'ที่อยู่สำหรับเรียกเก็บเงิน:', doc_client_taxid_label:'เลขประจำตัวผู้เสียภาษีของลูกค้า:',
+    doc_contract_intro:'สัญญาจ้างบริการฉบับนี้ ("สัญญา") ทำขึ้นเมื่อวันที่ {date} ระหว่าง {provider} ("ผู้ให้บริการ") และ {client} ("ลูกค้า")',
+    doc_deliverables_header:'ขอบเขตงานที่ส่งมอบ', doc_fee_header:'ค่าบริการ', doc_total_fee_label:'ค่าบริการรวม:', doc_term_header:'ระยะเวลา',
+    doc_date_range_sep:'ถึง', doc_usage_rights_header:'สิทธิ์การใช้งานและลิขสิทธิ์', doc_health_waiver_header:'การรับทราบความเสี่ยงด้านสุขภาพ',
+    doc_health_waiver_body:'ลูกค้ารับทราบว่าการเข้าร่วมการฝึก/การโค้ชทางร่างกายมีความเสี่ยงต่อการบาดเจ็บโดยธรรมชาติ และยอมรับความเสี่ยงดังกล่าวโดยสมัครใจ โดยลูกค้าได้ให้ข้อมูลต่อไปนี้:',
+    doc_goals_label:'เป้าหมาย:', doc_health_notes_label:'ข้อมูลสุขภาพ:', doc_allergies_label:'ประวัติการแพ้:',
+    doc_additional_terms_header:'ข้อตกลงเพิ่มเติม', doc_notes_header:'หมายเหตุ',
+    doc_nda_intro:'สัญญาไม่เปิดเผยข้อมูลฉบับนี้ ("สัญญา") ทำขึ้นระหว่าง {provider} และ {client} เมื่อวันที่ {date}',
+    doc_nda_h1_title:'1. ข้อมูลอันเป็นความลับ',
+    doc_nda_h1_body:'คู่สัญญาแต่ละฝ่ายอาจเปิดเผยข้อมูลทางธุรกิจ เทคนิค การเงิน หรือข้อมูลส่วนบุคคลอันเป็นความลับ ("ข้อมูลอันเป็นความลับ") ให้แก่อีกฝ่ายในการทำงานร่วมกัน',
+    doc_nda_h2_title:'2. หน้าที่ของผู้รับข้อมูล',
+    doc_nda_h2_body:'ฝ่ายผู้รับข้อมูลตกลงเก็บรักษาข้อมูลอันเป็นความลับทั้งหมดไว้เป็นความลับ ใช้เพื่อวัตถุประสงค์ของงานนี้เท่านั้น และจะไม่เปิดเผยต่อบุคคลที่สามโดยไม่ได้รับความยินยอมเป็นลายลักษณ์อักษรล่วงหน้า',
+    doc_nda_h3_title:'3. ข้อยกเว้น',
+    doc_nda_h3_body:'ข้อมูลอันเป็นความลับไม่รวมถึงข้อมูลที่เผยแพร่สู่สาธารณะแล้วหรือกลายเป็นข้อมูลสาธารณะโดยมิใช่ความผิดของฝ่ายผู้รับข้อมูล',
+    doc_nda_h4_title:'4. ระยะเวลา', doc_nda_h4_body:'สัญญาฉบับนี้มีผลบังคับใช้เป็นเวลา {duration} นับจากวันที่มีผลบังคับใช้ข้างต้น',
+    doc_month_unit:'เดือน', doc_nda_h5_title:'5. หมายเหตุ',
+    doc_prepared_for_label:'จัดทำสำหรับ:', doc_received_from_label:'ได้รับเงินจาก:',
+    doc_field_description:'รายการ', doc_field_qty:'จำนวน', doc_field_unit_price:'ราคาต่อหน่วย', doc_col_total:'รวม',
+    doc_subtotal_label:'รวมเป็นเงิน:', doc_quote_footer:'ใบเสนอราคานี้ใช้ได้ถึงวันที่ {date} และยังไม่รวมภาษี เว้นแต่ระบุไว้ในใบแจ้งหนี้อย่างเป็นทางการ',
+    doc_amount_received_header:'จำนวนเงินที่ได้รับ', doc_payment_method_header:'ช่องทางการชำระเงิน', doc_reference_header:'อ้างอิง',
+    doc_receipt_footer:'ใบเสร็จฉบับนี้ยืนยันว่าได้รับชำระเงินเต็มจำนวนตามยอดที่ระบุข้างต้นแล้ว',
+    doc_provider_suffix:'(ผู้ให้บริการ)', doc_client_suffix:'(ลูกค้า)', doc_signature_label:'ลงชื่อ:', doc_date_label:'วันที่:',
+    doc_taxid_short:'เลขประจำตัวผู้เสียภาษี:',
     // misc
     welcome:'ยินดีต้อนรับ', welcome_back:'ยินดีต้อนรับกลับมา', guest_name:'ผู้เยี่ยมชม', logged_out:'ออกจากระบบแล้ว',
     greeting_morning:'สวัสดีตอนเช้า', greeting_afternoon:'สวัสดีตอนบ่าย', greeting_evening:'สวัสดีตอนเย็น',
