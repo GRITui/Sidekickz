@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>(function(){var K='sidekick_ui_theme',t=localStorage.getItem(K);if(t==='dark')document.documentElement.dataset.theme='dark';else if(t!=='auto')document.documentElement.dataset.theme='light';})();</script><!-- light by default: set before CSS paints to avoid a flash of the wrong theme -->
-<link rel="stylesheet" href="styles.css?v=0.9.37">
+<link rel="stylesheet" href="styles.css?v=0.9.38">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -90,23 +90,22 @@
   <div class="content"><div id="invoices-body"></div></div>
 </section>
 
-<!-- ══ TAX (M2 — owned by tax.js) ══ -->
-<section class="screen" id="s-tax">
-  <div class="hdr-plain">
-    <div class="hdr-row">
-      <div style="display:flex;align-items:center;gap:12px">
-        <button class="avatar" onclick="switchScreen('docs')" aria-label="Back" style="font-size:22px">‹</button>
-        <h1>Tax calculator</h1>
-      </div>
-    </div>
-  </div>
-  <div class="content"><div id="tax-body"></div></div>
-</section>
-
 <!-- ══ DOCS / DOC-GEN (M2 — owned by docgen.js) ══ -->
+<!-- M4 Pass P1: the standalone Tax screen (formerly #s-tax) was folded in
+     here as a collapsible details block so the tax calculator (tax.js,
+     untouched — still just fills #tax-body) lives inside Docs instead of
+     its own screen. switchScreen('tax') is kept as an alias in app.js that
+     opens this screen and expands+scrolls to this block, so old nav rows /
+     onclick references / logEvent history can't break. -->
 <section class="screen" id="s-docs">
   <div class="hdr-plain"><h1>Documents</h1></div>
-  <div class="content"><div id="docgen-body"></div></div>
+  <div class="content">
+    <div id="docgen-body"></div>
+    <details class="settings-section" id="docs-tax-details" ontoggle="if(this.open && typeof renderTax==='function') renderTax()">
+      <summary class="section-title" data-i18n="tax_calc_title">Tax calculator</summary>
+      <div id="tax-body"></div>
+    </details>
+  </div>
 </section>
 
 <!-- ══ BOOK / DAY VIEW (M3 — owned by bookings.js) ══ -->
@@ -161,6 +160,7 @@
     <div id="backup-reminder-body"></div>
     <div id="cloud-backup-body"></div>
     <div id="subscription-body"></div>
+    <div id="card-waitlist-body"></div>
 
     <details class="settings-section" open>
       <summary class="section-title" data-i18n="manage">Manage</summary>
@@ -366,7 +366,7 @@
 
     <div class="settings-list" style="margin-top:16px">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.37</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.38</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
@@ -660,22 +660,22 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.9.37"></script>
+<script src="app.js?v=0.9.38"></script>
 <!-- Phase 1 of the local-first -> backend migration: a fetch()-only mirror
      for the `clients` store, exposing window.SidekickBackend. Local
      IndexedDB stays authoritative for every read/write in this phase; see
      dataClient.js's own header for why. -->
-<script src="dataClient.js?v=0.9.37"></script>
+<script src="dataClient.js?v=0.9.38"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.9.37"></script>
-<script src="invoices.js?v=0.9.37"></script>
-<script src="docgen.js?v=0.9.37"></script>
+<script src="tax.js?v=0.9.38"></script>
+<script src="invoices.js?v=0.9.38"></script>
+<script src="docgen.js?v=0.9.38"></script>
 <!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
      the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
-<script src="bookings.js?v=0.9.37"></script>
-<script src="followups.js?v=0.9.37"></script>
-<script src="portfolio.js?v=0.9.37"></script>
+<script src="bookings.js?v=0.9.38"></script>
+<script src="followups.js?v=0.9.38"></script>
+<script src="portfolio.js?v=0.9.38"></script>
 <!-- M5: research.js (content library, subscription UI stubbed open — no
      payment verification yet; see project-changelog-handshake.md). -->
-<script src="research.js?v=0.9.37"></script>
+<script src="research.js?v=0.9.38"></script>

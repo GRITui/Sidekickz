@@ -26,9 +26,12 @@ let dgLastPreviewHtml = '';
 // Internal fallback only — client-visible titles come from dgTypeLabel()
 // below, which localizes at generation time (Pass E, 2026-07-17).
 const DG_TYPE_LABEL = { contract: 'Contract', nda: 'NDA', quote: 'Quote', receipt: 'Receipt' };
-function dgTypeLabel(type) {
+// M4 Pass P1: optional `lang` resolves against that language via tLang()
+// instead of the current UI language, for buildDocHtml(rec)'s per-document
+// picker. Omitted, this behaves exactly as before (curLang()).
+function dgTypeLabel(type, lang) {
   const key = 'doc_title_' + type;
-  const label = (typeof t === 'function') ? t(key) : key;
+  const label = (typeof tLang === 'function') ? tLang(key, lang) : ((typeof t === 'function') ? t(key) : key);
   return label === key ? (DG_TYPE_LABEL[type] || type) : label;
 }
 // Client-visible document dates. Thai business paperwork conventionally uses
@@ -39,10 +42,15 @@ function dgTypeLabel(type) {
 // keep their CE convention; only the paperwork handed to a Thai client
 // follows Thai-document norms.
 const DG_TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-function docDate(iso) {
+// M4 Pass P1: `lang` is the per-document language ('th'|'en'), threaded down
+// from buildDocHtml(rec) so a document keeps its own date convention
+// regardless of the app's current UI language. Omit it (or pass something
+// else) and this falls back to curLang(), exactly like before — callers
+// outside buildDocHtml (there are none today) keep working unchanged.
+function docDate(iso, lang) {
   if (!iso) return iso;
-  const lang = (typeof curLang === 'function') ? curLang() : 'en';
-  if (lang !== 'th') return iso;
+  const l = (lang === 'th' || lang === 'en') ? lang : ((typeof curLang === 'function') ? curLang() : 'en');
+  if (l !== 'th') return iso;
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
   if (!m) return iso;
   return `${parseInt(m[3], 10)} ${DG_TH_MONTHS[parseInt(m[2], 10) - 1]} ${parseInt(m[1], 10) + 543}`;
@@ -218,6 +226,20 @@ function dgGenerateModalHTML() {
           <label for="dg-issue-date">Issue date</label>
           <input type="date" id="dg-issue-date">
         </div>
+        <!-- M4 Pass P1: per-document TH/EN picker — reuses the .ap-seg/
+             .seg-active toggle pattern (see #modal-service's svc-kind
+             buttons). Label + button text are English here (this form is
+             English-only per file header) and re-set via t() in
+             openGenerateForm() each time the form opens, so they track the
+             app's current language same as the modal title does. -->
+        <div class="field">
+          <label id="dg-lang-label">Document language</label>
+          <div class="ap-seg" id="dg-lang-seg">
+            <button type="button" id="dg-lang-th" class="seg-active" onclick="setDgLang('th')">Thai</button>
+            <button type="button" id="dg-lang-en" onclick="setDgLang('en')">English</button>
+          </div>
+          <input type="hidden" id="dg-lang-val" value="th">
+        </div>
       </div>
 
       <div class="form-section" id="dg-fields-contract">
@@ -345,6 +367,17 @@ function openGenerateForm(type, rec) {
   document.getElementById('dg-title').value = rec ? (rec.title || '') : defaultTitle(type, document.getElementById('dg-client-name').value);
   document.getElementById('dg-issue-date').value = (rec && rec.issueDate) || todayISO();
 
+  // M4 Pass P1: language toggle. Re-localize the (English-only-by-default)
+  // label/buttons via t() every time the form opens, same idea as the
+  // modal title a few lines up. Default = the record's saved lang (edit) or
+  // the CURRENT UI language (new doc, or an old record with no rec.lang).
+  const langLabelEl = document.getElementById('dg-lang-label');
+  if (langLabelEl) langLabelEl.textContent = t('doc_lang_label');
+  const dgLangThBtn = document.getElementById('dg-lang-th'), dgLangEnBtn = document.getElementById('dg-lang-en');
+  if (dgLangThBtn) dgLangThBtn.textContent = t('doc_lang_th');
+  if (dgLangEnBtn) dgLangEnBtn.textContent = t('doc_lang_en');
+  setDgLang((rec && rec.lang) || curLang());
+
   if (type === 'contract') {
     setVal('dg-c-deliverables', f.deliverables || '');
     setVal('dg-c-fee', f.fee != null ? f.fee : '');
@@ -377,6 +410,17 @@ function openGenerateForm(type, rec) {
 window.openGenerateForm = openGenerateForm;
 
 function setVal(id, v) { const e = document.getElementById(id); if (e) e.value = v; }
+
+// M4 Pass P1: flips the generate form's TH/EN document-language toggle.
+function setDgLang(lang) {
+  const l = lang === 'en' ? 'en' : 'th';
+  const hidden = document.getElementById('dg-lang-val');
+  if (hidden) hidden.value = l;
+  const thBtn = document.getElementById('dg-lang-th'), enBtn = document.getElementById('dg-lang-en');
+  if (thBtn) thBtn.classList.toggle('seg-active', l === 'th');
+  if (enBtn) enBtn.classList.toggle('seg-active', l === 'en');
+}
+window.setDgLang = setDgLang;
 
 function defaultTitle(type, clientName) {
   const label = DG_TYPE_LABEL[type] || 'Document';
@@ -494,6 +538,8 @@ function buildDocFromForm() {
 
   const title = (document.getElementById('dg-title').value || '').trim() || defaultTitle(dgCurrentType, clientName);
   const issueDate = document.getElementById('dg-issue-date').value || todayISO();
+  const langEl = document.getElementById('dg-lang-val');
+  const lang = (langEl && langEl.value === 'en') ? 'en' : 'th';
   const c = clientId != null ? customers.find(x => x.id === clientId) : null;
 
   const fields = { clientId, clientName };
@@ -541,7 +587,7 @@ function buildDocFromForm() {
   }
 
   if (!ok) return null;
-  return { type: dgCurrentType, title, clientId, clientName, issueDate, fields };
+  return { type: dgCurrentType, title, clientId, clientName, issueDate, lang, fields };
 }
 
 // ─── document body rendering (used for preview, save snapshot, print) ──
@@ -580,96 +626,102 @@ function sellerLogoHtml() {
 }
 // Optional client billing address/tax ID, snapshotted from the customer
 // profile onto the document's fields when a customer was selected.
-function clientInfoLine(f) {
+function clientInfoLine(f, lang) {
   const bits = [];
   if (f.billingAddress) bits.push(esc(f.billingAddress));
-  if (f.taxId) bits.push(esc(t('doc_taxid_short')) + ' ' + esc(f.taxId));
+  if (f.taxId) bits.push(esc(tLang('doc_taxid_short', lang)) + ' ' + esc(f.taxId));
   return bits.length ? '<p class="dg-meta">' + bits.join(' · ') + '</p>' : '';
 }
 
-function signatureBlock(fname, cname) {
-  const sig = esc(t('doc_signature_label')) + ' ______________________<br>' + esc(t('doc_date_label')) + ' __________';
+function signatureBlock(fname, cname, lang) {
+  const sig = esc(tLang('doc_signature_label', lang)) + ' ______________________<br>' + esc(tLang('doc_date_label', lang)) + ' __________';
   return '<div class="dg-sign-row">'
-    + '<div>' + fname + ' ' + esc(t('doc_provider_suffix')) + '<br>' + sig + '</div>'
-    + '<div>' + cname + ' ' + esc(t('doc_client_suffix')) + '<br>' + sig + '</div>'
+    + '<div>' + fname + ' ' + esc(tLang('doc_provider_suffix', lang)) + '<br>' + sig + '</div>'
+    + '<div>' + cname + ' ' + esc(tLang('doc_client_suffix', lang)) + '<br>' + sig + '</div>'
     + '</div>';
 }
 
-// Pass E (2026-07-17): every client-visible string below renders through
-// t() — the paperwork this Thai-first product hands to Thai clients was its
-// least Thai surface. A document is rendered in the app's CURRENT language
-// at generation time (t() resolves at call time); there is deliberately no
-// per-document language picker yet — flip the app language, regenerate.
-// Dates go through docDate() (Buddhist-Era in Thai mode, see above).
+// Pass E (2026-07-17) rendered every client-visible string below through
+// t() — the app's CURRENT language at generation time, no per-document
+// picker. M4 Pass P1 (2026-07-17) adds one: `rec.lang` ('th'|'en'), set by
+// the TH/EN toggle in the generate form. Every i18n lookup in this function
+// now goes through the local `dt`/`dd` helpers below instead of the bare
+// t()/docDate() globals, resolved against rec.lang. A document saved before
+// this feature has no `rec.lang` — dt/dd fall back to curLang() in that
+// case, which is exactly what the bare t()/docDate() calls resolved to
+// before, so old documents render byte-identical to pre-Pass-P1 output.
 function buildDocHtml(rec) {
   const f = rec.fields || {};
-  const fname = esc(freelancerName() || t('doc_freelancer_fallback'));
-  const cname = esc(rec.clientName || t('doc_client_fallback'));
+  const lang = (rec.lang === 'th' || rec.lang === 'en') ? rec.lang : ((typeof curLang === 'function') ? curLang() : 'en');
+  const dt = (k) => tLang(k, lang);
+  const dd = (iso) => docDate(iso, lang);
+  const fname = esc(freelancerName() || dt('doc_freelancer_fallback'));
+  const cname = esc(rec.clientName || dt('doc_client_fallback'));
   const title = rec.title && !Object.values(DG_TYPE_LABEL).includes(rec.title)
-    ? rec.title              // user-customized title — keep verbatim
-    : dgTypeLabel(rec.type); // stock title — localize at render time
+    ? rec.title                     // user-customized title — keep verbatim
+    : dgTypeLabel(rec.type, lang);  // stock title — localize at render time
   let body = '<div class="dg-doc">' + sellerLogoHtml() + '<h1>' + esc(title) + '</h1>' + sellerInfoLine(fname);
 
   if (rec.type === 'contract') {
-    body += '<p class="dg-meta">' + esc(t('doc_issue_date_label')) + ' ' + esc(docDate(rec.issueDate)) + '</p>';
-    body += '<p>' + esc(t('doc_contract_intro'))
-      .replace('{date}', '<b>' + esc(docDate(rec.issueDate)) + '</b>')
+    body += '<p class="dg-meta">' + esc(dt('doc_issue_date_label')) + ' ' + esc(dd(rec.issueDate)) + '</p>';
+    body += '<p>' + esc(dt('doc_contract_intro'))
+      .replace('{date}', '<b>' + esc(dd(rec.issueDate)) + '</b>')
       .replace('{provider}', '<b>' + fname + '</b>')
       .replace('{client}', '<b>' + cname + '</b>') + '</p>';
-    if (f.company) body += '<p><b>' + esc(t('doc_client_company_label')) + '</b> ' + esc(f.company) + '</p>';
-    if (f.billingAddress) body += '<p><b>' + esc(t('doc_billing_address_label')) + '</b> ' + esc(f.billingAddress) + '</p>';
-    if (f.taxId) body += '<p><b>' + esc(t('doc_client_taxid_label')) + '</b> ' + esc(f.taxId) + '</p>';
-    body += '<h3>' + esc(t('doc_deliverables_header')) + '</h3>' + nlToP(f.deliverables);
-    body += '<h3>' + esc(t('doc_fee_header')) + '</h3><p>' + esc(t('doc_total_fee_label')) + ' <b>' + money(f.fee || 0) + '</b></p>';
-    body += '<h3>' + esc(t('doc_term_header')) + '</h3><p>' + (f.startDate ? esc(docDate(f.startDate)) : '—') + ' ' + esc(t('doc_date_range_sep')) + ' ' + (f.endDate ? esc(docDate(f.endDate)) : '—') + '</p>';
-    if (f.usageRights) body += '<h3>' + esc(t('doc_usage_rights_header')) + '</h3>' + nlToP(f.usageRights);
+    if (f.company) body += '<p><b>' + esc(dt('doc_client_company_label')) + '</b> ' + esc(f.company) + '</p>';
+    if (f.billingAddress) body += '<p><b>' + esc(dt('doc_billing_address_label')) + '</b> ' + esc(f.billingAddress) + '</p>';
+    if (f.taxId) body += '<p><b>' + esc(dt('doc_client_taxid_label')) + '</b> ' + esc(f.taxId) + '</p>';
+    body += '<h3>' + esc(dt('doc_deliverables_header')) + '</h3>' + nlToP(f.deliverables);
+    body += '<h3>' + esc(dt('doc_fee_header')) + '</h3><p>' + esc(dt('doc_total_fee_label')) + ' <b>' + money(f.fee || 0) + '</b></p>';
+    body += '<h3>' + esc(dt('doc_term_header')) + '</h3><p>' + (f.startDate ? esc(dd(f.startDate)) : '—') + ' ' + esc(dt('doc_date_range_sep')) + ' ' + (f.endDate ? esc(dd(f.endDate)) : '—') + '</p>';
+    if (f.usageRights) body += '<h3>' + esc(dt('doc_usage_rights_header')) + '</h3>' + nlToP(f.usageRights);
     if (f.healthNotes || f.allergies || f.goals) {
-      body += '<h3>' + esc(t('doc_health_waiver_header')) + '</h3>'
-        + '<p>' + esc(t('doc_health_waiver_body')) + '</p><ul>';
-      if (f.goals) body += '<li><b>' + esc(t('doc_goals_label')) + '</b> ' + esc(f.goals) + '</li>';
-      if (f.healthNotes) body += '<li><b>' + esc(t('doc_health_notes_label')) + '</b> ' + esc(f.healthNotes) + '</li>';
-      if (f.allergies) body += '<li><b>' + esc(t('doc_allergies_label')) + '</b> ' + esc(f.allergies) + '</li>';
+      body += '<h3>' + esc(dt('doc_health_waiver_header')) + '</h3>'
+        + '<p>' + esc(dt('doc_health_waiver_body')) + '</p><ul>';
+      if (f.goals) body += '<li><b>' + esc(dt('doc_goals_label')) + '</b> ' + esc(f.goals) + '</li>';
+      if (f.healthNotes) body += '<li><b>' + esc(dt('doc_health_notes_label')) + '</b> ' + esc(f.healthNotes) + '</li>';
+      if (f.allergies) body += '<li><b>' + esc(dt('doc_allergies_label')) + '</b> ' + esc(f.allergies) + '</li>';
       body += '</ul>';
     }
-    body += '<h3>' + esc(t('doc_additional_terms_header')) + '</h3>' + nlToP(f.terms);
-    body += signatureBlock(fname, cname);
+    body += '<h3>' + esc(dt('doc_additional_terms_header')) + '</h3>' + nlToP(f.terms);
+    body += signatureBlock(fname, cname, lang);
   } else if (rec.type === 'nda') {
-    const eff = esc(docDate(f.effectiveDate || rec.issueDate));
-    body += '<p class="dg-meta">' + esc(t('doc_effective_date_label')) + ' ' + eff + '</p>';
-    body += '<p>' + esc(t('doc_nda_intro'))
+    const eff = esc(dd(f.effectiveDate || rec.issueDate));
+    body += '<p class="dg-meta">' + esc(dt('doc_effective_date_label')) + ' ' + eff + '</p>';
+    body += '<p>' + esc(dt('doc_nda_intro'))
       .replace('{provider}', '<b>' + fname + '</b>')
       .replace('{client}', '<b>' + cname + '</b>')
       .replace('{date}', '<b>' + eff + '</b>') + '</p>';
-    body += '<h3>' + esc(t('doc_nda_h1_title')) + '</h3><p>' + esc(t('doc_nda_h1_body')) + '</p>';
-    body += '<h3>' + esc(t('doc_nda_h2_title')) + '</h3><p>' + esc(t('doc_nda_h2_body')) + '</p>';
-    body += '<h3>' + esc(t('doc_nda_h3_title')) + '</h3><p>' + esc(t('doc_nda_h3_body')) + '</p>';
-    body += '<h3>' + esc(t('doc_nda_h4_title')) + '</h3><p>' + esc(t('doc_nda_h4_body'))
-      .replace('{duration}', '<b>' + esc(f.durationMonths) + ' ' + esc(t('doc_month_unit')) + '</b>') + '</p>';
-    body += '<h3>' + esc(t('doc_nda_h5_title')) + '</h3>' + nlToP(f.notes);
-    body += signatureBlock(fname, cname);
+    body += '<h3>' + esc(dt('doc_nda_h1_title')) + '</h3><p>' + esc(dt('doc_nda_h1_body')) + '</p>';
+    body += '<h3>' + esc(dt('doc_nda_h2_title')) + '</h3><p>' + esc(dt('doc_nda_h2_body')) + '</p>';
+    body += '<h3>' + esc(dt('doc_nda_h3_title')) + '</h3><p>' + esc(dt('doc_nda_h3_body')) + '</p>';
+    body += '<h3>' + esc(dt('doc_nda_h4_title')) + '</h3><p>' + esc(dt('doc_nda_h4_body'))
+      .replace('{duration}', '<b>' + esc(f.durationMonths) + ' ' + esc(dt('doc_month_unit')) + '</b>') + '</p>';
+    body += '<h3>' + esc(dt('doc_nda_h5_title')) + '</h3>' + nlToP(f.notes);
+    body += signatureBlock(fname, cname, lang);
   } else if (rec.type === 'quote') {
-    body += '<p class="dg-meta">' + (rec.number ? esc(t('doc_quote_number_prefix')) + esc(rec.number) + ' · ' : '') + esc(t('doc_issue_date_label')) + ' ' + esc(docDate(rec.issueDate)) + (f.validUntil ? ' · ' + esc(t('doc_valid_until_label')) + ' ' + esc(docDate(f.validUntil)) : '') + '</p>';
-    body += '<p><b>' + esc(t('doc_prepared_for_label')) + '</b> ' + cname + (f.company ? ' (' + esc(f.company) + ')' : '') + '</p>';
-    body += clientInfoLine(f);
-    body += '<table><thead><tr><th>' + esc(t('doc_field_description')) + '</th><th>' + esc(t('doc_field_qty')) + '</th><th>' + esc(t('doc_field_unit_price')) + '</th><th>' + esc(t('doc_col_total')) + '</th></tr></thead><tbody>';
+    body += '<p class="dg-meta">' + (rec.number ? esc(dt('doc_quote_number_prefix')) + esc(rec.number) + ' · ' : '') + esc(dt('doc_issue_date_label')) + ' ' + esc(dd(rec.issueDate)) + (f.validUntil ? ' · ' + esc(dt('doc_valid_until_label')) + ' ' + esc(dd(f.validUntil)) : '') + '</p>';
+    body += '<p><b>' + esc(dt('doc_prepared_for_label')) + '</b> ' + cname + (f.company ? ' (' + esc(f.company) + ')' : '') + '</p>';
+    body += clientInfoLine(f, lang);
+    body += '<table><thead><tr><th>' + esc(dt('doc_field_description')) + '</th><th>' + esc(dt('doc_field_qty')) + '</th><th>' + esc(dt('doc_field_unit_price')) + '</th><th>' + esc(dt('doc_col_total')) + '</th></tr></thead><tbody>';
     (f.lineItems || []).forEach(li => {
       const qtyNum = Number(li.qty) || 0;
       const lineTotal = qtyNum * (Number(li.unitPrice) || 0);
       body += '<tr><td>' + esc(li.description) + '</td><td>' + fmt(qtyNum, qtyNum % 1 !== 0 ? 2 : 0) + '</td><td>' + money(li.unitPrice) + '</td><td>' + money(lineTotal) + '</td></tr>';
     });
     body += '</tbody></table>';
-    body += '<p style="text-align:right;font-weight:800">' + esc(t('doc_subtotal_label')) + ' ' + money(f.subtotal || 0) + '</p>';
-    if (f.notes) body += '<h3>' + esc(t('doc_notes_header')) + '</h3>' + nlToP(f.notes);
-    body += '<p style="margin-top:16px">' + esc(t('doc_quote_footer')).replace('{date}', '<b>' + (f.validUntil ? esc(docDate(f.validUntil)) : '—') + '</b>') + '</p>';
+    body += '<p style="text-align:right;font-weight:800">' + esc(dt('doc_subtotal_label')) + ' ' + money(f.subtotal || 0) + '</p>';
+    if (f.notes) body += '<h3>' + esc(dt('doc_notes_header')) + '</h3>' + nlToP(f.notes);
+    body += '<p style="margin-top:16px">' + esc(dt('doc_quote_footer')).replace('{date}', '<b>' + (f.validUntil ? esc(dd(f.validUntil)) : '—') + '</b>') + '</p>';
   } else if (rec.type === 'receipt') {
-    body += '<p class="dg-meta">' + (rec.number ? esc(t('doc_receipt_number_prefix')) + esc(rec.number) + ' · ' : '') + esc(t('doc_payment_date_label')) + ' ' + esc(docDate(f.paymentDate || rec.issueDate)) + '</p>';
-    body += '<p><b>' + esc(t('doc_received_from_label')) + '</b> ' + cname + (f.company ? ' (' + esc(f.company) + ')' : '') + '</p>';
-    body += clientInfoLine(f);
-    body += '<h3>' + esc(t('doc_amount_received_header')) + '</h3><p><b>' + money(f.amount || 0) + '</b></p>';
-    body += '<h3>' + esc(t('doc_payment_method_header')) + '</h3><p>' + (f.method ? esc(f.method) : '—') + '</p>';
-    if (f.reference) body += '<h3>' + esc(t('doc_reference_header')) + '</h3><p>' + esc(f.reference) + '</p>';
-    if (f.notes) body += '<h3>' + esc(t('doc_notes_header')) + '</h3>' + nlToP(f.notes);
-    body += '<p style="margin-top:16px">' + esc(t('doc_receipt_footer')) + '</p>';
+    body += '<p class="dg-meta">' + (rec.number ? esc(dt('doc_receipt_number_prefix')) + esc(rec.number) + ' · ' : '') + esc(dt('doc_payment_date_label')) + ' ' + esc(dd(f.paymentDate || rec.issueDate)) + '</p>';
+    body += '<p><b>' + esc(dt('doc_received_from_label')) + '</b> ' + cname + (f.company ? ' (' + esc(f.company) + ')' : '') + '</p>';
+    body += clientInfoLine(f, lang);
+    body += '<h3>' + esc(dt('doc_amount_received_header')) + '</h3><p><b>' + money(f.amount || 0) + '</b></p>';
+    body += '<h3>' + esc(dt('doc_payment_method_header')) + '</h3><p>' + (f.method ? esc(f.method) : '—') + '</p>';
+    if (f.reference) body += '<h3>' + esc(dt('doc_reference_header')) + '</h3><p>' + esc(f.reference) + '</p>';
+    if (f.notes) body += '<h3>' + esc(dt('doc_notes_header')) + '</h3>' + nlToP(f.notes);
+    body += '<p style="margin-top:16px">' + esc(dt('doc_receipt_footer')) + '</p>';
   }
 
   body += '</div>';
@@ -729,6 +781,7 @@ async function saveDocumentFromForm() {
     content,
     number,
     issueDate: draft.issueDate,
+    lang: draft.lang,
     updatedAt: nowISO(),
   };
   try {

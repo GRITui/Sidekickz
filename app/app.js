@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.37';          // <-> sw.js SW_VERSION 'sidekick-v0.9.37'
+const APP_VERSION = '0.9.38';          // <-> sw.js SW_VERSION 'sidekick-v0.9.38'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -880,6 +880,13 @@ const I18N = {
     doc_receipt_footer:'This receipt confirms payment has been received in full for the amount stated above.',
     doc_provider_suffix:'(Provider)', doc_client_suffix:'(Client)', doc_signature_label:'Signature:', doc_date_label:'Date:',
     doc_taxid_short:'Tax ID:',
+    // M4 Pass P1 — per-document language picker (docgen.js) + Docs-screen tax
+    // calculator + card-payments waitlist row.
+    doc_lang_label:'Document language', doc_lang_th:'Thai', doc_lang_en:'English',
+    tax_calc_title:'Tax calculator',
+    card_waitlist_label:'Accept card payments',
+    card_waitlist_sub:'Coming later — tap to register interest so we build it sooner.',
+    card_waitlist_thanks:'Noted — you’re on the list ✓',
     // misc
     welcome:'Welcome', welcome_back:'Welcome back', guest_name:'Guest', logged_out:'Logged out',
     greeting_morning:'Good morning', greeting_afternoon:'Good afternoon', greeting_evening:'Good evening',
@@ -1286,6 +1293,12 @@ const I18N = {
     doc_receipt_footer:'ใบเสร็จฉบับนี้ยืนยันว่าได้รับชำระเงินเต็มจำนวนตามยอดที่ระบุข้างต้นแล้ว',
     doc_provider_suffix:'(ผู้ให้บริการ)', doc_client_suffix:'(ลูกค้า)', doc_signature_label:'ลงชื่อ:', doc_date_label:'วันที่:',
     doc_taxid_short:'เลขประจำตัวผู้เสียภาษี:',
+    // M4 Pass P1 — ตัวเลือกภาษาเอกสารต่อฉบับ + คำนวณภาษีในหน้าเอกสาร + คิวรอรับบัตร
+    doc_lang_label:'ภาษาของเอกสาร', doc_lang_th:'ไทย', doc_lang_en:'อังกฤษ',
+    tax_calc_title:'คำนวณภาษี',
+    card_waitlist_label:'รับชำระด้วยบัตรเครดิต',
+    card_waitlist_sub:'เร็ว ๆ นี้ — แตะเพื่อแจ้งความสนใจ ให้เราสร้างเร็วขึ้น',
+    card_waitlist_thanks:'รับทราบแล้ว — อยู่ในรายชื่อ ✓',
     // misc
     welcome:'ยินดีต้อนรับ', welcome_back:'ยินดีต้อนรับกลับมา', guest_name:'ผู้เยี่ยมชม', logged_out:'ออกจากระบบแล้ว',
     greeting_morning:'สวัสดีตอนเช้า', greeting_afternoon:'สวัสดีตอนบ่าย', greeting_evening:'สวัสดีตอนเย็น',
@@ -1453,6 +1466,15 @@ const I18N = {
 function curLang() { return (settings && settings.lang) || localStorage.getItem('sidekick_ui_lang') || 'th'; }
 function t(key) {
   const l = curLang();
+  return (I18N[l] && I18N[l][key]) ?? I18N.en[key] ?? key;
+}
+// M4 Pass P1 — like t(), but resolves against an explicit language instead
+// of curLang(), for surfaces that can render in a language other than the
+// current UI's (docgen.js's per-document TH/EN picker). Same fallback chain
+// as t(): requested lang -> EN dict -> the raw key. An invalid/missing lang
+// falls back to curLang(), so tLang(key) behaves exactly like t(key).
+function tLang(key, lang) {
+  const l = (lang === 'th' || lang === 'en') ? lang : curLang();
   return (I18N[l] && I18N[l][key]) ?? I18N.en[key] ?? key;
 }
 function greetingPeriod() {
@@ -2271,6 +2293,40 @@ async function renderSubscriptionSection() {
       ${upgradeBtns.length ? `<div style="padding:0 16px 14px;display:flex;flex-direction:column;gap:8px">${upgradeBtns.join('')}</div>` : ''}
     </div>`;
 }
+// M4 Pass P1 — card-checkout waitlist: pure demand instrumentation (a
+// local settings flag + a usage event), no payment code at all. Rendered
+// right after the Billing/subscription card so it reads as part of the
+// same "money in" area, but deliberately independent of SidekickBackend/
+// plan/guest status — unlike the subscription card itself, anyone (guest
+// or not, cloud-backend on or off) can register interest.
+function renderCardWaitlistSection() {
+  const el = document.getElementById('card-waitlist-body');
+  if (!el) return;
+  const on = !!settings.cardWaitlist;
+  el.innerHTML = `<div class="list-card">
+      <div class="settings-row" style="cursor:pointer" onclick="toggleCardWaitlist()">
+        <div style="flex:1">
+          <div class="settings-label">💳 ${htmlEsc(t('card_waitlist_label'))}</div>
+          <div class="list-sub">${htmlEsc(on ? t('card_waitlist_thanks') : t('card_waitlist_sub'))}</div>
+        </div>
+        <button type="button" id="card-waitlist-toggle" aria-pressed="${on ? 'true' : 'false'}"
+          onclick="event.stopPropagation();toggleCardWaitlist()"
+          style="flex:none;width:36px;height:36px;border-radius:50%;font-size:16px;cursor:pointer;font-family:inherit;${on
+            ? 'border:1.5px solid var(--brand);background:var(--brand-tint);color:var(--brand)'
+            : 'border:1.5px solid var(--border);background:none;color:var(--text3)'}">${on ? '✓' : '🔔'}</button>
+      </div>
+    </div>`;
+}
+window.renderCardWaitlistSection = renderCardWaitlistSection;
+// Flips settings.cardWaitlist — undoable (tap again to take yourself back
+// off the list), same as any other Settings toggle.
+async function toggleCardWaitlist() {
+  const on = !settings.cardWaitlist;
+  await saveSetting('cardWaitlist', on);
+  logEvent('card_waitlist:' + (on ? 'on' : 'off'));
+  renderCardWaitlistSection();
+}
+window.toggleCardWaitlist = toggleCardWaitlist;
 async function startTeamCheckout() {
   const input = prompt(t('team_seats_prompt'), '2');
   if (input == null) return;
@@ -6948,6 +7004,13 @@ window.restoreFromCloud = restoreFromCloud;
 // ─── NAV / SCREENS ────────────────────────────────────────────────────
 function switchScreen(name) {
   if (name === 'insights' && !settings.insightsUnlocked) name = 'more';   // hidden dev-only screen — bounce direct navigation
+  // M4 Pass P1: the standalone Tax screen (#s-tax) was folded into Docs as a
+  // collapsible details block (#docs-tax-details, tax.js untouched — still
+  // just fills #tax-body). switchScreen('tax') is kept as an alias so old
+  // nav rows / onclick handlers / logEvent history referencing it can't
+  // break: it opens Docs and expands+scrolls to the calculator instead of
+  // landing on a screen that no longer exists.
+  if (name === 'tax') { openDocsTaxCalculator(); return; }
   logEvent('screen_view:' + name);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => { b.classList.remove('active'); b.removeAttribute('aria-current'); });
@@ -6965,6 +7028,7 @@ function switchScreen(name) {
   if (name === 'more') renderBackupReminder();
   if (name === 'more') renderCloudBackupSection();
   if (name === 'more') renderSubscriptionSection();
+  if (name === 'more') renderCardWaitlistSection();
   if (name === 'more') renderSellerLogoSection();
   if (name === 'more') renderLineChannelSection();
   if (name === 'more') renderTeamSection();
@@ -6973,8 +7037,11 @@ function switchScreen(name) {
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.
   if (name === 'invoices' && typeof renderInvoices === 'function') renderInvoices();
-  if (name === 'tax' && typeof renderTax === 'function') renderTax();
   if (name === 'docs' && typeof renderDocgen === 'function') renderDocgen();
+  // Tax calculator now lives inside Docs (#docs-tax-details) — render it
+  // whenever the Docs screen shows so it's ready the moment the details
+  // block is expanded (either by hand or via openDocsTaxCalculator()).
+  if (name === 'docs' && typeof renderTax === 'function') renderTax();
   // M3 modules (bookings.js / followups.js / portfolio.js).
   if (name === 'book' && typeof renderBookings === 'function') renderBookings();
   if (name === 'followups' && typeof renderFollowups === 'function') renderFollowups();
@@ -6983,6 +7050,21 @@ function switchScreen(name) {
   if (name === 'research' && typeof renderResearch === 'function') renderResearch();
   window.scrollTo(0, 0);
 }
+// M4 Pass P1: switchScreen('tax') alias target — see the comment at the top
+// of switchScreen(). Opens Docs, expands the tax calculator's details
+// block (re-rendering it, in case renderTax() wasn't defined yet the last
+// time Docs rendered), and scrolls it into view.
+function openDocsTaxCalculator() {
+  logEvent('screen_view:tax');
+  switchScreen('docs');
+  const det = document.getElementById('docs-tax-details');
+  if (det) {
+    det.open = true;
+    if (typeof renderTax === 'function') renderTax();
+    det.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+window.openDocsTaxCalculator = openDocsTaxCalculator;
 // ─── i18n render pass ─────────────────────────────────────────────────
 function applyLang() {
   const lang = curLang();
