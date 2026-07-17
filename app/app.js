@@ -962,8 +962,9 @@ const I18N = {
     booking_requests_title:'Booking requests', no_booking_requests:'No pending requests.',
     booking_confirm_btn:'Confirm', booking_decline_btn:'Decline',
     booking_confirmed_toast:'Booking confirmed', booking_declined_toast:'Request declined',
+    booking_confirmed_calendar_toast:'Booking confirmed — added to your calendar',
     booking_slot_taken_toast:'That slot was already booked by another confirmed request.',
-    booking_hold_expired_hint:'hold expired',
+    booking_hold_expired_hint:'hold expired', booking_from_line_note:'LINE booking',
     appt_booking_note:'From pipeline job',
     appt_booked_toast:'Appointment booked', appt_step_added_toast:'Step added',
     appt_err_step:'Please enter a step name', appt_err_date:'Please pick a date',
@@ -1304,8 +1305,9 @@ const I18N = {
     booking_requests_title:'คำขอจอง', no_booking_requests:'ยังไม่มีคำขอที่รอยืนยัน',
     booking_confirm_btn:'ยืนยัน', booking_decline_btn:'ปฏิเสธ',
     booking_confirmed_toast:'ยืนยันการจองแล้ว', booking_declined_toast:'ปฏิเสธคำขอแล้ว',
+    booking_confirmed_calendar_toast:'ยืนยันการจองแล้ว — เพิ่มลงปฏิทินของคุณแล้ว',
     booking_slot_taken_toast:'ช่วงเวลานี้ถูกยืนยันให้คำขออื่นไปแล้ว',
-    booking_hold_expired_hint:'การจองชั่วคราวหมดอายุ',
+    booking_hold_expired_hint:'การจองชั่วคราวหมดอายุ', booking_from_line_note:'การจองจาก LINE',
     appt_booking_note:'จากงานในแผนงาน',
     appt_booked_toast:'จองนัดหมายแล้ว', appt_step_added_toast:'เพิ่มขั้นตอนแล้ว',
     appt_err_step:'กรุณาใส่ชื่อขั้นตอน', appt_err_date:'กรุณาเลือกวันที่',
@@ -2558,6 +2560,15 @@ async function renderBookingRequestsSection() {
   const r = await SidekickBackend.bookingRequestsList();
   if (!r.ok) { el.innerHTML = ''; return; }
   const rows = r.data.rows || [];
+  // resolveBookingRequest() needs clientName/serviceName/startsAt/endsAt to
+  // materialize a local calendar booking on confirm, but those are freeform
+  // strings from the public booking page — putting them straight into an
+  // onclick="" attribute would mean hand-escaping into JS-string-inside-
+  // HTML-attribute context (easy to get wrong, easy to reintroduce an XSS
+  // hole later). Instead the full row is kept here, keyed by id, and the
+  // button only ever carries the numeric id + action through onclick.
+  window.__pendingBookingRows = {};
+  rows.forEach(b => { window.__pendingBookingRows[b.id] = b; });
   const fmtStart = (iso) => {
     const d = new Date(iso);
     return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
@@ -2575,6 +2586,56 @@ async function renderBookingRequestsSection() {
     <div class="section-title" style="font-size:12px;margin:14px 16px 8px">${htmlEsc(t('booking_requests_title'))}</div>
     <div class="list-card" style="margin:0 16px 14px">${rowsHtml}</div>`;
 }
+// Local-time date/HH:MM extraction for a booking's startsAt (an ISO instant
+// off the wire, e.g. '2026-08-01T20:00:00Z') — Date's plain getters
+// (getFullYear/getMonth/getDate/getHours/getMinutes) are already local-time,
+// same convention todayISO() (above) relies on; toISOString()/getUTC* would
+// silently shift the calendar date whenever local time and UTC disagree on
+// which day it is (very much the common case for Bangkok evenings/nights).
+function localDateTimeParts(iso) {
+  const d = new Date(iso);
+  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const startTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return { date, startTime };
+}
+// Materialize a freelancer-confirmed LINE booking request as a local
+// calendar booking — closes the P2 gap where a confirmed public booking
+// only ever lived server-side (availability_slots/bookings) and never
+// appeared on the freelancer's own calendar (bookings.js's 'bookings'
+// store), i.e. nothing stopped them from double-booking that same slot
+// against their own pipeline work. v1 scope is one-directional (a LINE
+// confirm creates a local booking); the reverse — a local calendar entry
+// auto-blocking an open public slot — needs a two-way sync design and is a
+// deliberate residual, along with slot-vs-booking conflict warnings.
+async function createLocalBookingFromLineRequest(b) {
+  // Idempotence guard: a double-tap on Confirm, or resolveBookingRequest
+  // running twice against the same id across a re-render (see
+  // window.__pendingBookingRows below), must never create two calendar
+  // entries for one LINE request.
+  const already = (await dbAll('bookings')).some(x => x.lineBookingId === b.id);
+  if (already) return;
+  const { date, startTime } = localDateTimeParts(b.startsAt);
+  const startMs = new Date(b.startsAt).getTime();
+  const endMs = new Date(b.endsAt).getTime();
+  const durationMin = (isFinite(startMs) && isFinite(endMs) && endMs > startMs) ? Math.round((endMs - startMs) / 60000) : 60;
+  const row = {
+    uid: currentUser.id, cuid: cuid(), customerId: null,
+    title: (b.clientName || '') + (b.serviceName ? ' — ' + b.serviceName : ''),
+    date, startTime, durationMin, travelBufferMin: 0,
+    location: '', notes: t('booking_from_line_note'), status: 'scheduled',
+    jobCuid: null, createdAt: nowISO(), updatedAt: nowISO(),
+    // Local-only marker (this LINE booking request's server-side `id`),
+    // used by the idempotence check above. Deliberately NOT included in
+    // bookingsMirror's toPayload (dataClient.js) — the server drops
+    // unknown fields on write, so leaving it out of that FIELDS list is
+    // harmless, and the server already tracks this link on its own side
+    // (bookings.slot_id/status in sql/schema-core.sql).
+    lineBookingId: b.id,
+  };
+  const key = await dbAdd('bookings', row); row.id = key;
+  if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+    SidekickBackend.mirrorBookingSave(row).catch(() => {});
+}
 async function resolveBookingRequest(bookingId, action) {
   const r = await SidekickBackend.bookingRequestResolve(bookingId, action);
   if (!r.ok) {
@@ -2582,7 +2643,16 @@ async function resolveBookingRequest(bookingId, action) {
     renderBookingRequestsSection();   // list is stale either way — refresh
     return;
   }
-  toast(t(action === 'confirm' ? 'booking_confirmed_toast' : 'booking_declined_toast'));
+  if (action === 'confirm') {
+    // window.__pendingBookingRows (renderBookingRequestsSection above) carries
+    // the full row — clientName/serviceName/startsAt/endsAt — keyed by id, so
+    // this never has to stuff those freeform strings into the onclick markup.
+    const row = window.__pendingBookingRows && window.__pendingBookingRows[bookingId];
+    if (row) await createLocalBookingFromLineRequest(row);
+    toast(t('booking_confirmed_calendar_toast'));
+  } else {
+    toast(t('booking_declined_toast'));
+  }
   renderBookingSlotsSection();   // re-renders slots AND the requests list
 }
 window.resolveBookingRequest = resolveBookingRequest;
