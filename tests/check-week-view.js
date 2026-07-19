@@ -51,7 +51,20 @@ const { chromium } = require('playwright');
   // logic, single-lane geometry, and cross-day-column placement in one pass.
   const fixture = await page.evaluate(async () => {
     const today = todayISO();
-    const plus2 = tlAddDays(today, 2);
+    // Gamma (and later the "empty cell" probe) must land inside the *same*
+    // Mon–Sun week bookings.js's weekDates() computes for `today`
+    // (mondayOffset = (getDay()+6)%7, week spans Monday-start offsets 0..6,
+    // i.e. calendar-day deltas -mondayOffset..6-mondayOffset from `today`).
+    // A flat "+N days" only stays in-week when today's mondayOffset is
+    // small enough; on Thu/Fri/Sat/Sun a naive "+2" or "+1" can roll into
+    // next week and no .wk-daycol for it is ever rendered. Instead, pick
+    // target days by their Monday-start offset within the week (which is
+    // in-week by construction) and convert back to a calendar delta from
+    // `today` — correct on every day of the week.
+    const mondayOffset = (new Date(today + 'T12:00:00').getDay() + 6) % 7;
+    const deltaForWeekOffset = weekOffset => weekOffset - mondayOffset;
+    const plus2 = tlAddDays(today, deltaForWeekOffset((mondayOffset + 2) % 7));
+    const emptyDay = tlAddDays(today, deltaForWeekOffset((mondayOffset + 1) % 7));
     const mk = (title, date, startTime, durationMin) => dbAdd('bookings', {
       uid: currentUser.id, customerId: null, title, date, startTime, durationMin,
       travelBufferMin: 0, location: '', notes: '', status: 'scheduled',
@@ -60,7 +73,7 @@ const { chromium } = require('playwright');
     const alphaId = await mk('Alpha Session', today, '10:00', 60);
     const betaId = await mk('Beta Session', today, '10:30', 60);
     const gammaId = await mk('Gamma Trip', plus2, '07:00', 90);
-    return { today, plus2, alphaId, betaId, gammaId };
+    return { today, plus2, emptyDay, alphaId, betaId, gammaId };
   });
 
   await page.evaluate(() => switchScreen('book'));
@@ -135,9 +148,11 @@ const { chromium } = require('playwright');
   await page.waitForTimeout(200);
 
   // ═══ 7. Tap an empty hour cell → new-booking form prefilled ══════════
-  // Pick tomorrow (no fixture booking there) at 09:00, clearly empty.
-  const tomorrow = await page.evaluate(() => tlAddDays(todayISO(), 1));
-  await page.click(`.wk-daycol[data-wk-day="${tomorrow}"] .wk-hourcell[data-wk-cell-time="09:00"]`);
+  // Use fixture.emptyDay: a day within the same rendered week that has no
+  // fixture booking on it (distinct from `today` and `plus2` by construction
+  // — see the fixture setup above), clearly empty.
+  const emptyDay = fixture.emptyDay;
+  await page.click(`.wk-daycol[data-wk-day="${emptyDay}"] .wk-hourcell[data-wk-cell-time="09:00"]`);
   await page.waitForSelector('#bk-form-modal', { timeout: 5000 });
   const newForm = await page.evaluate(() => ({
     date: document.getElementById('bk-date').value,
@@ -145,7 +160,7 @@ const { chromium } = require('playwright');
     isNew: document.querySelector('#bk-del') === null,
   }));
   assert(newForm.isNew, '7: tapping an empty cell opens the CREATE form (no delete button), got isNew=' + newForm.isNew);
-  assert(newForm.date === tomorrow, `7: new-booking form date prefilled to the tapped column ${tomorrow}, got ${newForm.date}`);
+  assert(newForm.date === emptyDay, `7: new-booking form date prefilled to the tapped column ${emptyDay}, got ${newForm.date}`);
   assert(newForm.start === '09:00', '7: new-booking form start time prefilled to the tapped hour, got ' + newForm.start);
   await page.click('#bk-cancel');
   await page.waitForTimeout(200);
