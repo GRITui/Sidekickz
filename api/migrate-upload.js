@@ -16,6 +16,7 @@
 import { db } from '../lib/db.js';
 import { requireSession } from '../lib/auth.js';
 import { corsHeaders, handlePreflight } from '../lib/cors.js';
+import { toParam } from '../lib/crudHandler.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -48,7 +49,7 @@ export default async function handler(request) {
       if (typeof c.cuid !== 'string' || !c.cuid) continue; // skip malformed rows, don't fail the whole batch
       const cols = ['cuid', 'user_cuid', ...CLIENT_FIELDS, 'updated_at'];
       const placeholders = cols.map((_, i) => `$${i + 1}`);
-      const values = [c.cuid, userCuid, ...CLIENT_FIELDS.map(f => c[f] ?? null), c.updatedAt || new Date().toISOString()];
+      const values = [c.cuid, userCuid, ...CLIENT_FIELDS.map(f => toParam(c[f] ?? null)), c.updatedAt || new Date().toISOString()];
       const rows = await sql(
         `insert into clients (${cols.join(', ')}) values (${placeholders.join(', ')})
          on conflict (cuid) do nothing

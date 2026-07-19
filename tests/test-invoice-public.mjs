@@ -50,7 +50,11 @@ function fakeSql(text, params) {
   }
   if (t.includes('update invoices set slips')) {
     const inv = invoices.find(i => i.cuid === p[1]);
-    if (inv) inv.slips = p[0];
+    // p[0] arrives JSON-stringified (lib/crudHandler.js's toParam() — a
+    // real Postgres jsonb column round-trips the same way: text in,
+    // already-parsed value out) — mirror that here instead of storing the
+    // raw string, so downstream assertions read it as an array again.
+    if (inv) inv.slips = typeof p[0] === 'string' ? JSON.parse(p[0]) : p[0];
     return Promise.resolve([]);
   }
   throw new Error('unexpected query in fakeSql: ' + t);
