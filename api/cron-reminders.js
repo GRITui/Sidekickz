@@ -4,14 +4,18 @@
  * freelancer's public booking page (app/book.html) and arrived via LINE
  * (client_line_user_id set) gets one automatic LINE push roughly a day
  * before their CONFIRMED appointment. Vercel Cron hits this endpoint once
- * an hour (vercel.json) — there is no per-booking scheduling, just a
- * recurring sweep for anything that has entered the 24h window and hasn't
- * been reminded yet.
+ * a day at 00:00 UTC / 07:00 Bangkok (vercel.json — daily is the Hobby-plan
+ * ceiling; an hourly schedule 403s at deploy time on that plan) — there is
+ * no per-booking scheduling, just a recurring sweep for anything that has
+ * entered the 24h window and hasn't been reminded yet. Note the tradeoff:
+ * with a daily cadence a booking can land anywhere from ~0 to ~24h before
+ * its start by the time it's first swept, not a tight T-24h window — move
+ * this to an hourly schedule (needs a Vercel Pro plan) for tighter timing.
  *
  * Idempotency: `bookings.reminder_sent_at` (sql/schema-core.sql) is the
  * only source of truth. It is stamped ONLY after a push actually succeeds,
  * so a failed push (LINE API hiccup, bad token, etc.) just leaves the row
- * NULL for the next hourly run to retry — never a silent drop, never a
+ * NULL for the next daily run to retry — never a silent drop, never a
  * double-send. Bookings whose start time has already passed permanently
  * fall out of the query's `starts_at > now()` bound: this is deliberate,
  * not a bug — nobody should ever get a "reminder" for a meeting that's
@@ -59,9 +63,10 @@ function formatBangkok(startsAt) {
   return { date, time };
 }
 
-// No "tomorrow"/"พรุ่งนี้" wording on purpose: the hourly sweep can catch a
-// booking made (or first swept) only hours before it starts, and the
-// explicit date already says when. Owner suffix is dropped entirely when
+// No "tomorrow"/"พรุ่งนี้" wording on purpose: the sweep can catch a booking
+// anywhere from shortly before to nearly a day before it starts, so a
+// relative-day word would often be wrong — the explicit date already says
+// when. Owner suffix is dropped entirely when
 // the account has no display name — "กับ " with nothing after it reads
 // broken in both languages.
 function reminderText({ date, time, serviceName, ownerName }) {
