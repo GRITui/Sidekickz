@@ -61,9 +61,13 @@ function fakeSql(text, params) {
   }
   if (t.startsWith('insert into order_requests')) {
     const [userCuid, clientName, contact, items, total] = p;
+    // items arrives JSON-stringified (lib/crudHandler.js's toParam()) — a
+    // real Postgres jsonb column round-trips the same way, so mirror that
+    // here instead of storing the raw string.
     orderRequests.push({
       id: nextOrderId++, user_cuid: userCuid, client_name: clientName, contact,
-      items, total, status: 'requested', created_at: new Date().toISOString(),
+      items: typeof items === 'string' ? JSON.parse(items) : items,
+      total, status: 'requested', created_at: new Date().toISOString(),
     });
     return Promise.resolve([]);
   }

@@ -32,6 +32,7 @@ import { db } from '../lib/db.js';
 import { corsHeaders, handlePreflight } from '../lib/cors.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { getLineAccessToken, linePush } from '../lib/line.js';
+import { toParam } from '../lib/crudHandler.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -165,7 +166,7 @@ export function createShopPublicHandler(opts = {}) {
         await sql(
           `insert into order_requests (user_cuid, client_name, contact, items, total, status)
            values ($1, $2, $3, $4, $5, 'requested')`,
-          [userCuid, clientName, contact, snapshot, total]
+          [userCuid, clientName, contact, toParam(snapshot), total]
         );
 
         // M4 Pass P2: best-effort LINE push to the FREELANCER — mirror of

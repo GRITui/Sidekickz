@@ -23,6 +23,7 @@
 import { db } from '../lib/db.js';
 import { corsHeaders, handlePreflight } from '../lib/cors.js';
 import { rateLimit } from '../lib/rateLimit.js';
+import { toParam } from '../lib/crudHandler.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -134,7 +135,7 @@ export function createInvoicePublicHandler(opts = {}) {
           ...slips,
           { id: crypto.randomUUID(), dataUrl, at: new Date().toISOString(), source: 'client' },
         ];
-        await sql(`update invoices set slips = $1, updated_at = now() where cuid = $2`, [nextSlips, cuid]);
+        await sql(`update invoices set slips = $1, updated_at = now() where cuid = $2`, [toParam(nextSlips), cuid]);
 
         return json({ ok: true, slipCount: nextSlips.length }, 200, request);
       } catch (err) {

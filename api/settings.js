@@ -29,6 +29,7 @@ import { requireSession } from '../lib/auth.js';
 import { corsHeaders, handlePreflight } from '../lib/cors.js';
 import { canWrite } from '../lib/entitlements.js';
 import { resolveDataOwner } from '../lib/teams.js';
+import { toParam } from '../lib/crudHandler.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -77,7 +78,11 @@ export default async function handler(request) {
       if (!body || !Object.prototype.hasOwnProperty.call(body, 'value')) {
         return json({ error: 'Missing value' }, 400, request);
       }
-      const value = body.value ?? null;
+      // A setting's value is arbitrary JSON by design (paymentChannels[]
+      // and stageOrder[] are both arrays — see lib/crudHandler.js's
+      // toParam() header comment for why a bare array must never reach
+      // the driver directly).
+      const value = toParam(body.value ?? null);
 
       const updated = await sql(
         `update settings set value = $3, updated_at = now()

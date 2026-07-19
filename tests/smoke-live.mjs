@@ -68,7 +68,9 @@ const TINY_JPEG = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBg
   const hash = await hashPassword(password, salt, iters);
   let res = await api('/api/auth-register', { method: 'POST', body: { username, salt, hash, iters, firstName: 'Smoke Test' } });
   let data = await j(res);
-  ok(res.status === 200 && data?.token && data?.user?.cuid, `register ${username} → 200 + session token`, `${res.status} ${JSON.stringify(data)?.slice(0, 200)}`);
+  // 201 Created is the API's real contract (see api/auth-register.js) — a
+  // strict ===200 here was this script's own bug, not the API's.
+  ok(res.status === 201 && data?.token && data?.user?.cuid, `register ${username} → 201 + session token`, `${res.status} ${JSON.stringify(data)?.slice(0, 200)}`);
   if (!data?.token) { console.log('\nCannot continue without a session — fix the failure above first.'); process.exit(1); }
   const token = data.token, userCuid = data.user.cuid;
 

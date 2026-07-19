@@ -25,6 +25,7 @@ import { canWrite } from '../lib/entitlements.js';
 import { resolveDataOwner } from '../lib/teams.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { verifySlip } from '../lib/slipVerify.js';
+import { toParam } from '../lib/crudHandler.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -114,7 +115,7 @@ export function createSlipVerifyHandler(opts = {}) {
       const nextSlips = slips.slice();
       nextSlips[idx] = { ...nextSlips[idx], verify: verifyRecord };
 
-      await sql(`update invoices set slips = $1, updated_at = now() where cuid = $2`, [nextSlips, invoiceCuid]);
+      await sql(`update invoices set slips = $1, updated_at = now() where cuid = $2`, [toParam(nextSlips), invoiceCuid]);
 
       // apiKey never echoed back — see file header.
       return json({ ok: true, verify: verifyRecord }, 200, request);
