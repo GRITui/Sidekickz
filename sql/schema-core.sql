@@ -26,6 +26,16 @@
 -- single-tenant shape, so no data migration is needed to retire it — this
 -- is a from-scratch definition, not a breaking change to a populated table.
 
+-- 2026-07-17: P5 Phase 1 (auto-migrate on cold start, lib/autoMigrate.js) —
+-- one row, key='version', stamped with lib/migrate.js's SCHEMA_VERSION
+-- after a successful apply. No seed row here on purpose: an unstamped
+-- (missing-row) database reads as "never migrated," which is exactly the
+-- state a brand-new database or a pre-Phase-1 one is actually in.
+create table if not exists schema_meta (
+  key   text primary key,
+  value text
+);
+
 create table if not exists users (
   cuid              text primary key,
   username          text not null unique,

@@ -147,6 +147,14 @@
   async function orderRequestResolve(id, action) {
     return apiFetch('/api/order-requests', { method: 'POST', body: { id, action } });
   }
+  // M4 Pass P2: provider-pluggable slip auto-verify (api/slip-verify.js).
+  // Credentials never live server-side — they're this account's own Settings
+  // ▸ Shop ▸ Slip verification fields (settings.slipVerifyProvider/Key/
+  // Branch), sent fresh on every call by the caller (app/invoices.js), same
+  // per-account-secret convention as lineChannelConnect() above.
+  async function slipVerify(invoiceCuid, slipId, { provider, apiKey, branchId }) {
+    return apiFetch('/api/slip-verify', { method: 'POST', body: { invoiceCuid, slipId, provider, apiKey, branchId } });
+  }
 
   // ── Team (Phase 2) ──────────────────────────────────────────────────────
   // See api/team-invite.js/api/team-join.js/api/team-members.js — a Team
@@ -591,7 +599,7 @@
     lineChannelStatus, lineChannelConnect, lineChannelDisconnect,
     bookingSlotsList, bookingSlotCreate, bookingSlotDelete,
     bookingRequestsList, bookingRequestResolve,
-    orderRequestsList, orderRequestResolve,
+    orderRequestsList, orderRequestResolve, slipVerify,
     teamCheckout, teamInvite, teamJoin, teamMembersList, teamMemberRemove,
     mirrorClientSave, mirrorClientDelete,
     mirrorJobSave: jobsMirror.mirrorSave, mirrorJobDelete: jobsMirror.mirrorDelete,

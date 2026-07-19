@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.37';          // <-> sw.js SW_VERSION 'sidekick-v0.9.37'
+const APP_VERSION = '0.9.41';          // <-> sw.js SW_VERSION 'sidekick-v0.9.41'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -725,6 +725,11 @@ const I18N = {
     business_type_custom:'Other',
     onboard_persona_title:'What kind of business do you run?', onboard_persona_sub:'Pick the closest match — we’ll set up starting services for it. You can change this anytime in Settings.',
     subtasks_title:'Sub-tasks', subtask_add_ph:'Add a sub-task…', btn_add:'+ Add', no_subtasks:'No sub-tasks yet.',
+    // M4-P3 Merge 1: dated steps + milestones now share one header in the job
+    // modal (index.html), so subtasks_title/milestones_title below are no
+    // longer read as a heading — left in place per the spec ("old i18n keys
+    // stay"), plan_section_title is the one actually rendered now.
+    plan_section_title:'Plan & payments',
     milestones_title:'Milestone payments', add_milestone:'+ Add milestone', save_milestone:'Save milestone',
     draft_invoice:'Draft invoice', milestone_locked:'Locked', no_milestones:'No milestones yet.',
     unlocks_with:'Unlocks with: ', no_gating_subtask:'No gating sub-task',
@@ -734,9 +739,18 @@ const I18N = {
     billable_session:'Billable this session:', focus_pause:'Pause', focus_resume:'Resume', focus_stop:'Stop',
     tracker_deal_title:'Deal tracker', tracker_order_title:'Order tracker', tracker_policy_title:'Policy tracker', tracker_vehicle_title:'Vehicle tracker',
     field_search_brief:'Budget / areas / needs', field_offer_status:'Offer status', field_est_commission:'Est. commission',
-    deals_title:'Deals', no_deals:'No deals yet.', add_deal_btn:'+ Add deal', delete_deal_btn:'Delete deal',
+    // deals_title/no_deals stay defined (still theoretically referenceable)
+    // even though the deals CRUD UI that used them is gone as of M4-P3 Merge
+    // 2 — add_deal_btn/delete_deal_btn were CRUD-button-only and unreferenced
+    // anywhere else, so those two were removed outright.
+    deals_title:'Deals', no_deals:'No deals yet.',
     field_deal_stage:'Stage', deal_stage_searching:'Searching', deal_stage_viewing:'Viewing', deal_stage_offer:'Offer submitted',
     deal_stage_negotiating:'Negotiating', deal_stage_closing:'Closing', deal_stage_closed:'Closed',
+    // M4-P3 Merge 2: deals[] → job options[] migration + its read-through
+    // "Properties in play" section in the client modal (replaces the old
+    // deals CRUD above).
+    deal_search_service:'Property search', deal_viewing_step:'Viewing — {name}',
+    client_options_title:'Properties in play', open_engagement_link:'Open engagement →',
     field_order_status:'Order status', order_step_received:'Received', order_step_washing:'Washing', order_step_drying:'Drying', order_step_ready:'Ready',
     field_monthly_kg_plan:'Monthly kg plan', field_preferences:'Preferences',
     current_order_title:'Current order', no_active_order:'No active order.', start_new_order_btn:'+ Start new order',
@@ -880,6 +894,30 @@ const I18N = {
     doc_receipt_footer:'This receipt confirms payment has been received in full for the amount stated above.',
     doc_provider_suffix:'(Provider)', doc_client_suffix:'(Client)', doc_signature_label:'Signature:', doc_date_label:'Date:',
     doc_taxid_short:'Tax ID:',
+    // M4 Pass P1 — per-document language picker (docgen.js) + Docs-screen tax
+    // calculator + card-payments waitlist row.
+    doc_lang_label:'Document language', doc_lang_th:'Thai', doc_lang_en:'English',
+    tax_calc_title:'Tax calculator',
+    // M4 Pass P4 — annual ภ.ง.ด.90/94 filing-prep roll-up (report-only,
+    // second block inside #docs-tax-details, owned by tax.js's
+    // renderTaxRollup()).
+    taxr_title:'Annual tax summary',
+    taxr_income_invoices:'Paid invoices', taxr_income_cash:'Cash engagements', taxr_income_total:'Assessable income',
+    taxr_category_label:'Income category',
+    taxr_cat_40_2:'Service fees / commissions — §40(2)', taxr_cat_40_6:'Liberal profession — §40(6)', taxr_cat_40_7_8:'Contracting / business — §40(7)(8)',
+    taxr_deduct_std:'Standard', taxr_deduct_actual:'Actual expenses', taxr_deduction:'Expense deduction',
+    taxr_allowance:'Personal allowance (add your own others)',
+    taxr_net_income:'Net taxable income', taxr_est_tax:'Estimated tax', taxr_wht_credit:'WHT already withheld',
+    taxr_tawi_hint:'{n} of {m} 50-Tawi certificates received',
+    taxr_net_due:'Estimated payable', taxr_refund:'Estimated refund',
+    taxr_deadlines:'Filing windows',
+    taxr_due_94:'ภ.ง.ด.94 (Jan–Jun income) — due 30 Sep (e-file 8 Oct)',
+    taxr_due_90:'ภ.ง.ด.90 (annual) — due 31 Mar (e-file 8 Apr)',
+    taxr_days_left:'{n} days left',
+    taxr_disclaimer:'Estimate only — not tax advice. Rates and deductions verified Jul 2026; confirm current rules and your own allowances with the Revenue Department (rd.go.th).',
+    card_waitlist_label:'Accept card payments',
+    card_waitlist_sub:'Coming later — tap to register interest so we build it sooner.',
+    card_waitlist_thanks:'Noted — you’re on the list ✓',
     // misc
     welcome:'Welcome', welcome_back:'Welcome back', guest_name:'Guest', logged_out:'Logged out',
     greeting_morning:'Good morning', greeting_afternoon:'Good afternoon', greeting_evening:'Good evening',
@@ -1030,6 +1068,17 @@ const I18N = {
     shop_order_service:'Shop order',
     shop_order_confirmed_toast:'Order confirmed — engagement created on your board',
     shop_order_declined_toast:'Order declined',
+    // M4 Pass P2 — provider-pluggable slip auto-verify + Home "needs attention"
+    slipverify_title:'Slip verification', slipverify_none:'Off',
+    slipverify_key_label:'API key', slipverify_branch_label:'Branch ID',
+    slipverify_hint:'Auto-check client slips against the bank record via your SlipOK account.',
+    slipverify_btn:'Verify',
+    slipverify_ok_chip:'Verified ฿{amt}', slipverify_mismatch_chip:'Amount mismatch',
+    slipverify_dup_chip:'Duplicate slip', slipverify_invalid_chip:'Not a valid slip',
+    slipverify_err_toast:'Could not verify — try again',
+    attn_title:'Needs attention',
+    attn_orders:'{n} order request(s) waiting',
+    attn_slips:'{n} invoice(s) with new client slips',
     appt_booking_note:'From pipeline job',
     appt_booked_toast:'Appointment booked', appt_step_added_toast:'Step added',
     appt_err_step:'Please enter a step name', appt_err_date:'Please pick a date',
@@ -1135,6 +1184,7 @@ const I18N = {
     business_type_custom:'อื่นๆ',
     onboard_persona_title:'ธุรกิจของคุณเป็นแบบไหน?', onboard_persona_sub:'เลือกที่ใกล้เคียงที่สุด — เราจะตั้งค่าบริการเริ่มต้นให้ คุณเปลี่ยนได้ทุกเมื่อในการตั้งค่า',
     subtasks_title:'งานย่อย', subtask_add_ph:'เพิ่มงานย่อย…', btn_add:'+ เพิ่ม', no_subtasks:'ยังไม่มีงานย่อย',
+    plan_section_title:'แผนงานและการชำระเงิน',
     milestones_title:'การจ่ายเงินตามช่วงงาน', add_milestone:'+ เพิ่มช่วงงาน', save_milestone:'บันทึกช่วงงาน',
     draft_invoice:'ร่างใบแจ้งหนี้', milestone_locked:'ล็อกอยู่', no_milestones:'ยังไม่มีช่วงงาน',
     unlocks_with:'ปลดล็อกเมื่อ: ', no_gating_subtask:'ไม่มีงานย่อยที่ต้องรอ',
@@ -1144,9 +1194,11 @@ const I18N = {
     billable_session:'เวลาที่เรียกเก็บเงินได้ในเซสชันนี้:', focus_pause:'หยุดชั่วคราว', focus_resume:'ดำเนินการต่อ', focus_stop:'หยุด',
     tracker_deal_title:'ติดตามดีล', tracker_order_title:'ติดตามออเดอร์', tracker_policy_title:'ติดตามกรมธรรม์', tracker_vehicle_title:'ติดตามรถ',
     field_search_brief:'งบประมาณ / ทำเล / ความต้องการ', field_offer_status:'สถานะข้อเสนอ', field_est_commission:'ค่าคอมมิชชั่นโดยประมาณ',
-    deals_title:'ดีล', no_deals:'ยังไม่มีดีล', add_deal_btn:'+ เพิ่มดีล', delete_deal_btn:'ลบดีล',
+    deals_title:'ดีล', no_deals:'ยังไม่มีดีล',
     field_deal_stage:'ขั้นตอน', deal_stage_searching:'กำลังหา', deal_stage_viewing:'กำลังดูสถานที่', deal_stage_offer:'ยื่นข้อเสนอแล้ว',
     deal_stage_negotiating:'กำลังต่อรอง', deal_stage_closing:'ปิดการขาย', deal_stage_closed:'ปิดแล้ว',
+    deal_search_service:'หาอสังหาฯ', deal_viewing_step:'นัดดู — {name}',
+    client_options_title:'อสังหาฯ ที่กำลังดู', open_engagement_link:'เปิดงาน →',
     field_order_status:'สถานะออเดอร์', order_step_received:'รับผ้าแล้ว', order_step_washing:'กำลังซัก', order_step_drying:'กำลังตาก', order_step_ready:'พร้อมรับ',
     field_monthly_kg_plan:'แผนกิโลกรัมต่อเดือน', field_preferences:'ความต้องการเฉพาะ',
     current_order_title:'ออเดอร์ปัจจุบัน', no_active_order:'ไม่มีออเดอร์ที่กำลังดำเนินการ', start_new_order_btn:'+ เริ่มออเดอร์ใหม่',
@@ -1286,6 +1338,28 @@ const I18N = {
     doc_receipt_footer:'ใบเสร็จฉบับนี้ยืนยันว่าได้รับชำระเงินเต็มจำนวนตามยอดที่ระบุข้างต้นแล้ว',
     doc_provider_suffix:'(ผู้ให้บริการ)', doc_client_suffix:'(ลูกค้า)', doc_signature_label:'ลงชื่อ:', doc_date_label:'วันที่:',
     doc_taxid_short:'เลขประจำตัวผู้เสียภาษี:',
+    // M4 Pass P1 — ตัวเลือกภาษาเอกสารต่อฉบับ + คำนวณภาษีในหน้าเอกสาร + คิวรอรับบัตร
+    doc_lang_label:'ภาษาของเอกสาร', doc_lang_th:'ไทย', doc_lang_en:'อังกฤษ',
+    tax_calc_title:'คำนวณภาษี',
+    // M4 Pass P4 — สรุปภาษีทั้งปีสำหรับเตรียมยื่น ภ.ง.ด.90/94 (สำหรับดูข้อมูล
+    // ประกอบการยื่นแบบเท่านั้น อยู่ในบล็อกที่สองภายใน #docs-tax-details)
+    taxr_title:'สรุปภาษีทั้งปี',
+    taxr_income_invoices:'ใบแจ้งหนี้ที่ชำระแล้ว', taxr_income_cash:'งานเงินสด', taxr_income_total:'เงินได้พึงประเมิน',
+    taxr_category_label:'ประเภทเงินได้',
+    taxr_cat_40_2:'ค่ารับจ้าง/นายหน้า — ม.40(2)', taxr_cat_40_6:'วิชาชีพอิสระ — ม.40(6)', taxr_cat_40_7_8:'รับเหมา/ธุรกิจ — ม.40(7)(8)',
+    taxr_deduct_std:'เหมาจ่าย', taxr_deduct_actual:'ตามจริง', taxr_deduction:'หักค่าใช้จ่าย',
+    taxr_allowance:'ค่าลดหย่อนส่วนตัว (เพิ่มรายการอื่นเอง)',
+    taxr_net_income:'เงินได้สุทธิ', taxr_est_tax:'ภาษีโดยประมาณ', taxr_wht_credit:'ถูกหัก ณ ที่จ่ายแล้ว',
+    taxr_tawi_hint:'ได้รับ 50 ทวิ {n} จาก {m} ใบ',
+    taxr_net_due:'ประมาณต้องชำระเพิ่ม', taxr_refund:'ประมาณได้คืน',
+    taxr_deadlines:'กำหนดยื่นแบบ',
+    taxr_due_94:'ภ.ง.ด.94 (เงินได้ ม.ค.–มิ.ย.) — ยื่นภายใน 30 ก.ย. (ออนไลน์ 8 ต.ค.)',
+    taxr_due_90:'ภ.ง.ด.90 (ทั้งปี) — ยื่นภายใน 31 มี.ค. (ออนไลน์ 8 เม.ย.)',
+    taxr_days_left:'เหลือ {n} วัน',
+    taxr_disclaimer:'เป็นการประมาณการเท่านั้น ไม่ใช่คำแนะนำทางภาษี — อัตราและค่าลดหย่อนตรวจสอบเมื่อ ก.ค. 2569 โปรดยืนยันกฎปัจจุบันและค่าลดหย่อนของคุณกับกรมสรรพากร (rd.go.th)',
+    card_waitlist_label:'รับชำระด้วยบัตรเครดิต',
+    card_waitlist_sub:'เร็ว ๆ นี้ — แตะเพื่อแจ้งความสนใจ ให้เราสร้างเร็วขึ้น',
+    card_waitlist_thanks:'รับทราบแล้ว — อยู่ในรายชื่อ ✓',
     // misc
     welcome:'ยินดีต้อนรับ', welcome_back:'ยินดีต้อนรับกลับมา', guest_name:'ผู้เยี่ยมชม', logged_out:'ออกจากระบบแล้ว',
     greeting_morning:'สวัสดีตอนเช้า', greeting_afternoon:'สวัสดีตอนบ่าย', greeting_evening:'สวัสดีตอนเย็น',
@@ -1433,6 +1507,17 @@ const I18N = {
     shop_order_service:'ออเดอร์จากหน้าร้าน',
     shop_order_confirmed_toast:'ยืนยันออเดอร์แล้ว — สร้างงานบนบอร์ดให้แล้ว',
     shop_order_declined_toast:'ปฏิเสธออเดอร์แล้ว',
+    // M4 Pass P2 — ตรวจสลิปอัตโนมัติแบบเลือกผู้ให้บริการ + การ์ด "รอดำเนินการ" หน้าแรก
+    slipverify_title:'ตรวจสอบสลิปอัตโนมัติ', slipverify_none:'ปิด',
+    slipverify_key_label:'API key', slipverify_branch_label:'Branch ID',
+    slipverify_hint:'ตรวจสลิปกับข้อมูลธนาคารอัตโนมัติผ่านบัญชี SlipOK ของคุณ',
+    slipverify_btn:'ตรวจสลิป',
+    slipverify_ok_chip:'ตรวจแล้ว ฿{amt}', slipverify_mismatch_chip:'ยอดไม่ตรง',
+    slipverify_dup_chip:'สลิปซ้ำ', slipverify_invalid_chip:'สลิปไม่ถูกต้อง',
+    slipverify_err_toast:'ตรวจไม่สำเร็จ — ลองใหม่',
+    attn_title:'รอดำเนินการ',
+    attn_orders:'คำสั่งซื้อรอยืนยัน {n} รายการ',
+    attn_slips:'มีสลิปใหม่จากลูกค้า {n} ใบแจ้งหนี้',
     appt_booking_note:'จากงานในแผนงาน',
     appt_booked_toast:'จองนัดหมายแล้ว', appt_step_added_toast:'เพิ่มขั้นตอนแล้ว',
     appt_err_step:'กรุณาใส่ชื่อขั้นตอน', appt_err_date:'กรุณาเลือกวันที่',
@@ -1453,6 +1538,15 @@ const I18N = {
 function curLang() { return (settings && settings.lang) || localStorage.getItem('sidekick_ui_lang') || 'th'; }
 function t(key) {
   const l = curLang();
+  return (I18N[l] && I18N[l][key]) ?? I18N.en[key] ?? key;
+}
+// M4 Pass P1 — like t(), but resolves against an explicit language instead
+// of curLang(), for surfaces that can render in a language other than the
+// current UI's (docgen.js's per-document TH/EN picker). Same fallback chain
+// as t(): requested lang -> EN dict -> the raw key. An invalid/missing lang
+// falls back to curLang(), so tLang(key) behaves exactly like t(key).
+function tLang(key, lang) {
+  const l = (lang === 'th' || lang === 'en') ? lang : curLang();
   return (I18N[l] && I18N[l][key]) ?? I18N.en[key] ?? key;
 }
 function greetingPeriod() {
@@ -2271,6 +2365,40 @@ async function renderSubscriptionSection() {
       ${upgradeBtns.length ? `<div style="padding:0 16px 14px;display:flex;flex-direction:column;gap:8px">${upgradeBtns.join('')}</div>` : ''}
     </div>`;
 }
+// M4 Pass P1 — card-checkout waitlist: pure demand instrumentation (a
+// local settings flag + a usage event), no payment code at all. Rendered
+// right after the Billing/subscription card so it reads as part of the
+// same "money in" area, but deliberately independent of SidekickBackend/
+// plan/guest status — unlike the subscription card itself, anyone (guest
+// or not, cloud-backend on or off) can register interest.
+function renderCardWaitlistSection() {
+  const el = document.getElementById('card-waitlist-body');
+  if (!el) return;
+  const on = !!settings.cardWaitlist;
+  el.innerHTML = `<div class="list-card">
+      <div class="settings-row" style="cursor:pointer" onclick="toggleCardWaitlist()">
+        <div style="flex:1">
+          <div class="settings-label">💳 ${htmlEsc(t('card_waitlist_label'))}</div>
+          <div class="list-sub">${htmlEsc(on ? t('card_waitlist_thanks') : t('card_waitlist_sub'))}</div>
+        </div>
+        <button type="button" id="card-waitlist-toggle" aria-pressed="${on ? 'true' : 'false'}"
+          onclick="event.stopPropagation();toggleCardWaitlist()"
+          style="flex:none;width:36px;height:36px;border-radius:50%;font-size:16px;cursor:pointer;font-family:inherit;${on
+            ? 'border:1.5px solid var(--brand);background:var(--brand-tint);color:var(--brand)'
+            : 'border:1.5px solid var(--border);background:none;color:var(--text3)'}">${on ? '✓' : '🔔'}</button>
+      </div>
+    </div>`;
+}
+window.renderCardWaitlistSection = renderCardWaitlistSection;
+// Flips settings.cardWaitlist — undoable (tap again to take yourself back
+// off the list), same as any other Settings toggle.
+async function toggleCardWaitlist() {
+  const on = !settings.cardWaitlist;
+  await saveSetting('cardWaitlist', on);
+  logEvent('card_waitlist:' + (on ? 'on' : 'off'));
+  renderCardWaitlistSection();
+}
+window.toggleCardWaitlist = toggleCardWaitlist;
 async function startTeamCheckout() {
   const input = prompt(t('team_seats_prompt'), '2');
   if (input == null) return;
@@ -2940,6 +3068,52 @@ async function resolveOrderRequest(id, action) {
 }
 window.resolveOrderRequest = resolveOrderRequest;
 
+// ─── SLIP VERIFICATION (M4 Pass P2) ──────────────────────────────────────
+// Settings ▸ Shop ▸ Slip verification: provider-pluggable auto-check of
+// client-uploaded payment slips against the bank record (lib/slipVerify.js
+// + api/slip-verify.js). Provider credentials are a per-account secret,
+// same convention as the LINE channel secret (renderLineChannelSection) —
+// saved via saveSetting() into this account's own settings store, and never
+// sent anywhere except fresh on each verify call itself (the server never
+// persists them, see api/slip-verify.js's header). Same backend-gated
+// pattern as renderShopSection() — verification only exists server-side.
+const SLIP_VERIFY_PROVIDERS = ['slipok'];
+async function renderSlipVerifySection() {
+  const el = document.getElementById('slip-verify-body');
+  if (!el) return;
+  if (isGuest || typeof SidekickBackend === 'undefined' || !SidekickBackend.isEnabled()) {
+    el.innerHTML = '';
+    return;
+  }
+  const provider = SLIP_VERIFY_PROVIDERS.includes(settings.slipVerifyProvider) ? settings.slipVerifyProvider : '';
+  el.innerHTML = `
+    <div class="section-title" style="font-size:12px;margin:14px 16px 4px">${htmlEsc(t('slipverify_title'))}</div>
+    <p style="font-size:12px;color:var(--text3);margin:0 16px 10px">${htmlEsc(t('slipverify_hint'))}</p>
+    <div class="field" style="margin:0 16px 10px;padding:0;border:1px solid var(--border);border-radius:var(--radius-sm)">
+      <label for="slipverify-provider" style="display:block;font-size:11px;font-weight:700;color:var(--text3);padding:8px 12px 0;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(t('slipverify_title'))}</label>
+      <select id="slipverify-provider" style="width:100%;border:none;background:none;padding:2px 12px 10px;font-family:inherit;font-size:14px;color:var(--text)" onchange="onSlipVerifyProviderChange(this.value)">
+        <option value=""${provider ? '' : ' selected'}>${htmlEsc(t('slipverify_none'))}</option>
+        <option value="slipok"${provider === 'slipok' ? ' selected' : ''}>SlipOK</option>
+      </select>
+    </div>
+    ${provider ? `
+    <div class="field" style="margin:0 16px 10px;padding:0;border:1px solid var(--border);border-radius:var(--radius-sm)">
+      <label for="slipverify-key" style="display:block;font-size:11px;font-weight:700;color:var(--text3);padding:8px 12px 0;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(t('slipverify_key_label'))}</label>
+      <input class="settings-input" id="slipverify-key" type="password" value="${attrEsc(settings.slipVerifyKey || '')}" style="width:100%;border:none;background:none;padding:2px 12px 10px" onchange="onSlipVerifyKeyChange(this.value)">
+    </div>
+    <div class="field" style="margin:0 16px 14px;padding:0;border:1px solid var(--border);border-radius:var(--radius-sm)">
+      <label for="slipverify-branch" style="display:block;font-size:11px;font-weight:700;color:var(--text3);padding:8px 12px 0;text-transform:uppercase;letter-spacing:.3px">${htmlEsc(t('slipverify_branch_label'))}</label>
+      <input class="settings-input" id="slipverify-branch" type="text" value="${attrEsc(settings.slipVerifyBranch || '')}" style="width:100%;border:none;background:none;padding:2px 12px 10px" onchange="onSlipVerifyBranchChange(this.value)">
+    </div>` : ''}
+  `;
+}
+async function onSlipVerifyProviderChange(v) {
+  await saveSetting('slipVerifyProvider', SLIP_VERIFY_PROVIDERS.includes(v) ? v : '');
+  renderSlipVerifySection();
+}
+async function onSlipVerifyKeyChange(v) { await saveSetting('slipVerifyKey', (v || '').trim()); }
+async function onSlipVerifyBranchChange(v) { await saveSetting('slipVerifyBranch', (v || '').trim()); }
+
 async function addBookingSlot() {
   const startEl = document.getElementById('slot-start-input');
   const endEl = document.getElementById('slot-end-input');
@@ -3305,8 +3479,61 @@ async function renderHome() {
 
   renderGoal();
   renderHomeAlert();
+  renderHomeAttention();
   updateMoreNavBadge();
   renderIncomingPipeline();
+}
+// M4 Pass P2 — "Needs attention" card: pending public shop order requests
+// (Settings ▸ Shop) + invoices carrying a client-uploaded slip the
+// freelancer hasn't opened yet. Both signals are backend-only concepts
+// (order_requests and slip `source`/`at` tracking both only exist once
+// cloud backup is on) — same gated pattern as renderShopSection().
+//
+// orderRequestsList() is a real network fetch, and renderHome() can run on
+// every screen switch/save — caching it here for ATTN_ORDERS_CACHE_MS keeps
+// that from turning into a fetch storm; a stale order count for up to a
+// minute is an acceptable trade. The new-slip count is a pure local
+// IndexedDB read (dbAll('invoices')) so it's always recomputed fresh —
+// that's also what makes it drop immediately once stampSlipsSeen()
+// (app/invoices.js's openInvoiceDetail) marks an invoice's slips seen.
+let __attnOrdersCache = { at: 0, count: 0 };
+const ATTN_ORDERS_CACHE_MS = 60_000;
+async function attnOrdersCount() {
+  const now = Date.now();
+  if (now - __attnOrdersCache.at < ATTN_ORDERS_CACHE_MS) return __attnOrdersCache.count;
+  const r = await SidekickBackend.orderRequestsList();
+  const count = r.ok && Array.isArray(r.data.rows) ? r.data.rows.length : __attnOrdersCache.count;
+  __attnOrdersCache = { at: now, count };
+  return count;
+}
+// A slip counts as "new" for this invoice when it's client-sourced (came in
+// through the public invoice page, api/invoice-public.js — a slip the
+// freelancer attached herself was never unseen to begin with) AND is newer
+// than the last time she opened this invoice's detail modal.
+async function attnNewSlipInvoiceCount() {
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const rows = await dbAll('invoices');
+  return rows.filter(inv => inv.uid === uid && Array.isArray(inv.slips) &&
+    inv.slips.some(s => s && s.source === 'client' && String(s.at || '') > String(inv.slipsSeenAt || ''))
+  ).length;
+}
+async function renderHomeAttention() {
+  const card = document.getElementById('attn-card');
+  if (!card) return;
+  const backendReady = !isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled();
+  if (!backendReady) { card.style.display = 'none'; return; }
+  const [ordersN, slipsN] = await Promise.all([attnOrdersCount(), attnNewSlipInvoiceCount()]);
+  if (!ordersN && !slipsN) { card.style.display = 'none'; return; }
+  const rows = [];
+  if (ordersN) rows.push(`<div class="list-row" onclick="switchScreen('more')">
+      <div class="list-main"><div class="list-title">${htmlEsc(t('attn_orders').replace('{n}', ordersN))}</div></div>
+    </div>`);
+  if (slipsN) rows.push(`<div class="list-row" onclick="switchScreen('invoices')">
+      <div class="list-main"><div class="list-title">${htmlEsc(t('attn_slips').replace('{n}', slipsN))}</div></div>
+    </div>`);
+  const body = document.getElementById('attn-body');
+  if (body) body.innerHTML = rows.join('');
+  card.style.display = 'block';
 }
 // Amber alert card — surfaces the single highest-priority "needs attention"
 // item (same computeClientsNeedingAttention() source as the Clients screen's
@@ -5187,38 +5414,11 @@ function addMealPlanRow(clientId) {
 }
 window.addMealPlanRow = addMealPlanRow;
 
-const VIEWING_VERDICTS = ['interested', 'maybe', 'passed'];
-// A deal's own viewings are a nested array (deal.viewings), not a top-level
-// client-list field — addClientListItem/deleteClientListItem/
-// saveClientListItemField only reach c[field] directly, so these two are the
-// deal-scoped equivalents, following the exact same shape.
-function addDealViewing(clientId, dealId, viewing) {
-  const c = customers.find(x => x.id === clientId);
-  if (!c) return;
-  const deal = (c.deals || []).find(d => d.id === dealId);
-  if (!deal) return;
-  deal.viewings = deal.viewings || [];
-  deal.viewings.push({ id: cuid(), ...viewing });
-  c.updatedAt = nowISO();
-  return dbPut('clients', c).then(() => renderClientPersonaTracker(clientId));
-}
-window.addDealViewing = addDealViewing;
-function deleteDealViewing(clientId, dealId, viewingId) {
-  const c = customers.find(x => x.id === clientId);
-  if (!c) return;
-  const deal = (c.deals || []).find(d => d.id === dealId);
-  if (!deal) return;
-  deal.viewings = (deal.viewings || []).filter(v => v.id !== viewingId);
-  c.updatedAt = nowISO();
-  return dbPut('clients', c).then(() => renderClientPersonaTracker(clientId));
-}
-window.deleteDealViewing = deleteDealViewing;
-function addViewingRowToDeal(clientId, dealId) {
-  const date = (document.getElementById('viewing-date-' + dealId) || {}).value || '';
-  const verdict = (document.getElementById('viewing-verdict-' + dealId) || {}).value || 'interested';
-  addDealViewing(clientId, dealId, { date, verdict });
-}
-window.addViewingRowToDeal = addViewingRowToDeal;
+// addDealViewing/deleteDealViewing/addViewingRowToDeal (the deal-scoped
+// viewing-log CRUD) and VIEWING_VERDICTS were removed in M4-P3 Merge 2 along
+// with the deals CRUD UI that was their only caller — see
+// migrateClientDealsToOptions below for where deal.viewings[] now goes
+// instead (a future-dated viewing becomes a real dated step + booking).
 
 function addServiceHistoryRow(clientId) {
   const date = (document.getElementById('svc-date-' + clientId) || {}).value || '';
@@ -5252,18 +5452,13 @@ function listRowsHtml(rows, clientId, field, lineFn) {
       </div>`).join('') + '</div>';
 }
 
-// A structured deal-stage pipeline, replacing the old flat activity log:
-// each deal is one property pursuit moving through these stages, rather
-// than one undifferentiated list of viewings across however many
-// properties a client happens to be looking at.
-const DEAL_STAGES = ['searching', 'viewing', 'offer', 'negotiating', 'closing', 'closed'];
 // One-time, non-destructive: pre-deal-pipeline real estate clients had a flat
 // searchBrief/offerStatus/estCommission per client plus one undifferentiated
 // viewings[] log (no notion of which property a viewing was for, or where
 // the deal stood). Folds them into a single deal[0] the first time this
 // client's tracker renders: offerStatus becomes the deal's free-text notes
 // (it was already free text, e.g. "Offer submitted, awaiting reply" — not a
-// stage enum, so it can't map onto DEAL_STAGES automatically), estCommission
+// stage enum, so it can't map onto a fixed stage list automatically), estCommission
 // becomes the deal's commission, and every existing viewing carries over
 // as-is (its own `property` field dropped only going forward — see the
 // render side below). searchBrief stays flat: it's the client's general
@@ -5278,6 +5473,90 @@ function migrateRealEstateDealsIfNeeded(c) {
   dbPut('clients', c);
   return c.deals;
 }
+// ── deals[] → job options[] (M4-P3 Merge 2) ─────────────────────────────
+// One-time, non-destructive fold of a realestate client's dormant deals[]
+// pipeline into option rows on ONE of that client's own jobs — the same
+// options[]/subTasks[] machinery every other persona already gets via
+// "Options compared" (renderJobOptions above), rather than a bespoke
+// deals CRUD living only on the client record. deals[] itself is NEVER
+// mutated or cleared here — it stays exactly as it was, dormant rollback
+// data — guarded by c.dealsMigratedAt (stamped once, checked first) plus
+// an in-memory in-flight set so re-rendering the client modal quickly
+// (e.g. reopening it) can never run this twice or race itself into two
+// jobs / duplicate options.
+const DEAL_STAGE_TO_OPTION_STATUS = {
+  searching: 'viewing', viewing: 'viewing',
+  offer: 'interested', negotiating: 'interested',
+  closing: 'chosen', closed: 'chosen',
+};
+const _dealsMigrationInFlight = new Set();
+async function migrateClientDealsToOptions(clientId) {
+  const c = customers.find(x => x.id === clientId);
+  if (!c) return;
+  const deals = migrateRealEstateDealsIfNeeded(c);
+  if (!deals.length || c.dealsMigratedAt || _dealsMigrationInFlight.has(clientId)) return;
+  _dealsMigrationInFlight.add(clientId);
+  try {
+    // Prefer the client's own most recent still-open job (jobs is already
+    // date-descending — see reload()); only spin up a fresh one, mirroring
+    // the shape createLocalJobFromOrderRequest builds, when nothing's open.
+    let job = jobs.find(j => j.clientId === clientId && !jobComplete(j));
+    let isNewJob = false;
+    if (!job) {
+      isNewJob = true;
+      job = {
+        uid: c.uid, date: todayISO(), client: c.name, clientId: c.id,
+        serviceId: null, serviceName: t('deal_search_service'),
+        jobType: settings.workType || '',
+        amount: 0, tip: 0, expense: 0, count: 1, notes: '', netAmount: 0,
+        cuid: cuid(), stageOrder: getStageOrder().slice(), stage: getStageOrder()[0], complete: false,
+        invoiceId: null, quoteDocId: null, packageId: null,
+        subTasks: [], milestones: [], timeEntries: [], timerStartedAt: null,
+        outcome: null, lostReason: null, options: [], items: [],
+        createdAt: nowISO(), updatedAt: nowISO(),
+      };
+    }
+    job.options = job.options || [];
+    job.subTasks = job.subTasks || [];
+    const today = todayISO();
+    for (const deal of deals) {
+      const status = DEAL_STAGE_TO_OPTION_STATUS[deal.stage] || 'considering';
+      const notes = [deal.notes, deal.commission ? ('commission ' + money(deal.commission)) : ''].filter(Boolean).join(' · ');
+      job.options.push({ id: cuid(), name: deal.property, status, notes });
+      // Only a FUTURE viewing becomes a real dated step + calendar booking —
+      // a past one is just history the deal's own record already carries.
+      for (const v of (deal.viewings || [])) {
+        if (v.date && v.date > today) {
+          const st = { id: cuid(), text: t('deal_viewing_step').replace('{name}', deal.property),
+            done: false, dateType: 'exact', date: v.date, startTime: v.startTime || '09:00',
+            bookingCuid: null, stage: null, repeatOfId: null };
+          job.subTasks.push(st);
+          await createBookingForStep(job, st);
+        }
+      }
+    }
+    job.updatedAt = nowISO();
+    if (isNewJob) { const key = await dbAdd('jobs', job); job.id = key; }
+    else await dbPut('jobs', job);
+    mirrorJob(job);
+    c.dealsMigratedAt = nowISO();
+    c.updatedAt = c.dealsMigratedAt;
+    await dbPut('clients', c);
+    if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled()) {
+      SidekickBackend.mirrorClientSave(c).catch(() => {});
+    }
+    await reload();
+  } finally {
+    _dealsMigrationInFlight.delete(clientId);
+  }
+}
+// Read-through "Open engagement →" link (client modal's Properties-in-play
+// section) — jumps straight to the job carrying that option.
+function openClientEngagement(clientId, jobId) {
+  closeCustomerModal();
+  openEditJob(jobId);
+}
+window.openClientEngagement = openClientEngagement;
 // One-time, non-destructive: pre-multi-policy insurance clients had one flat
 // policyName/policyRenewalDate per client (no second policy possible).
 // Folds them into policies[0] the first time this client's tracker renders,
@@ -5350,37 +5629,28 @@ function renderClientPersonaTracker(clientId) {
       </div>
     `;
   } else if (bt === 'realestate') {
+    // M4-P3 Merge 2: the old deals CRUD (property/stage/commission/viewing
+    // log editors) is gone — deals[] now migrates once into option rows on
+    // one of this client's own jobs (migrateClientDealsToOptions above) and
+    // this section becomes a read-through of THOSE options, reusing the
+    // same "Options compared" machinery every other persona already has.
     const deals = migrateRealEstateDealsIfNeeded(c);
-    const dealHtml = d => {
-      const viewingRows = (d.viewings || []).slice().reverse();
-      return `<div class="list-card" style="margin-bottom:8px;padding:10px 14px">
-          <div class="field"><label>${htmlEsc(t('field_viewing_property'))}</label><input type="text" value="${attrEsc(d.property || '')}" onchange="saveClientListItemField(${clientId},'deals','${d.id}','property',this.value)"></div>
-          <div class="field"><label>${htmlEsc(t('field_deal_stage'))}</label><select onchange="saveClientListItemField(${clientId},'deals','${d.id}','stage',this.value)">
-            ${DEAL_STAGES.map(s => `<option value="${s}"${s === d.stage ? ' selected' : ''}>${htmlEsc(t('deal_stage_' + s))}</option>`).join('')}
-          </select></div>
-          <div class="field"><label>${htmlEsc(t('field_est_commission'))}</label><input type="number" class="tnum" inputmode="decimal" min="0" value="${d.commission || ''}" onchange="saveClientListItemField(${clientId},'deals','${d.id}','commission',parseFloat(this.value)||0)"></div>
-          <div class="field"><label>${htmlEsc(t('field_notes'))}</label><textarea rows="2" onchange="saveClientListItemField(${clientId},'deals','${d.id}','notes',this.value)">${htmlEsc(d.notes || '')}</textarea></div>
-          <div class="section-title" style="font-size:11px;margin:10px 0 6px">${htmlEsc(t('viewing_log_title'))}</div>
-          ${viewingRows.length ? '<div class="list-card" style="margin-bottom:8px">' + viewingRows.map(v => `
+    if (deals.length && !c.dealsMigratedAt && !_dealsMigrationInFlight.has(clientId)) {
+      migrateClientDealsToOptions(clientId).then(() => renderClientPersonaTracker(clientId));
+    }
+    const jobsWithOptions = jobs.filter(j => j.clientId === clientId && !jobComplete(j) && (j.options || []).length);
+    const optionsHtml = jobsWithOptions.map(j => `
+        <div class="list-card" style="margin-bottom:8px">
+          ${(j.options || []).map(o => `
             <div class="list-row" style="cursor:default">
-              <div class="list-main"><div class="list-sub">${v.date ? htmlEsc(fmtDate(v.date)) + ' · ' : ''}${htmlEsc(t('viewing_verdict_' + (v.verdict || 'interested')))}</div></div>
-              <div class="list-right"><button type="button" class="qc-btn" aria-label="Delete" onclick="deleteDealViewing(${clientId},'${d.id}','${v.id}')">✕</button></div>
-            </div>`).join('') + '</div>' : `<div class="pkg-status"><span>${htmlEsc(t('no_viewings'))}</span></div>`}
-          <div class="form-row" style="margin-top:8px">
-            <input type="date" id="viewing-date-${d.id}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
-            <select id="viewing-verdict-${d.id}" style="padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
-              ${VIEWING_VERDICTS.map(v => `<option value="${v}">${htmlEsc(t('viewing_verdict_' + v))}</option>`).join('')}
-            </select>
-            <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addViewingRowToDeal(${clientId},'${d.id}')">${htmlEsc(t('btn_add'))}</button>
-          </div>
-          <button type="button" class="qc-btn" style="width:100%;margin-top:8px;color:var(--overdue)" onclick="deleteClientListItem(${clientId},'deals','${d.id}')">${htmlEsc(t('delete_deal_btn'))}</button>
-        </div>`;
-    };
+              <div class="list-main"><div class="list-title">${htmlEsc(o.name)}</div><div class="list-sub">${htmlEsc(t('option_status_' + o.status))}</div></div>
+            </div>`).join('')}
+          <button type="button" class="qc-btn" style="width:100%" onclick="openClientEngagement(${clientId},${j.id})">${htmlEsc(t('open_engagement_link'))}</button>
+        </div>`).join('');
     wrap.innerHTML = `
       <div class="field"><label>${htmlEsc(t('field_search_brief'))}</label><textarea rows="2" onchange="saveClientField(${clientId},'searchBrief',this.value)">${htmlEsc(c.searchBrief || '')}</textarea></div>
-      <div class="section-title" style="font-size:12px;margin:14px 0 8px">${htmlEsc(t('deals_title'))}</div>
-      ${deals.length ? deals.map(dealHtml).join('') : `<div class="pkg-status"><span>${htmlEsc(t('no_deals'))}</span></div>`}
-      <button type="button" class="qc-btn" style="width:100%" onclick="addClientListItem(${clientId},'deals',{property:'',stage:'searching',commission:0,notes:'',viewings:[]})">${htmlEsc(t('add_deal_btn'))}</button>
+      <div class="section-title" style="font-size:12px;margin:14px 0 8px">${htmlEsc(t('client_options_title'))}</div>
+      ${jobsWithOptions.length ? optionsHtml : `<div class="pkg-status"><span>${htmlEsc(t('options_none'))}</span></div>`}
     `;
   } else if (bt === 'laundry') {
     const orders = migrateLaundryOrdersIfNeeded(c);
@@ -5794,7 +6064,7 @@ function renderMilestones(jobId) {
     const ready = !gate || gate.done;
     return `<div class="list-row" style="cursor:default">
         <div class="list-main">
-          <div class="list-title">${fmt(m.pct, 0)}% · ${htmlEsc(money(m.amount))}</div>
+          <div class="list-title"><span class="chip" style="background:var(--brand-tint);color:var(--brand);margin-right:6px;vertical-align:middle">💰</span>${fmt(m.pct, 0)}% · ${htmlEsc(money(m.amount))}</div>
           <div class="list-sub">${gate ? htmlEsc(t('unlocks_with')) + htmlEsc(gate.text) : htmlEsc(t('no_gating_subtask'))}</div>
         </div>
         <div class="list-right">
@@ -6948,6 +7218,13 @@ window.restoreFromCloud = restoreFromCloud;
 // ─── NAV / SCREENS ────────────────────────────────────────────────────
 function switchScreen(name) {
   if (name === 'insights' && !settings.insightsUnlocked) name = 'more';   // hidden dev-only screen — bounce direct navigation
+  // M4 Pass P1: the standalone Tax screen (#s-tax) was folded into Docs as a
+  // collapsible details block (#docs-tax-details, tax.js untouched — still
+  // just fills #tax-body). switchScreen('tax') is kept as an alias so old
+  // nav rows / onclick handlers / logEvent history referencing it can't
+  // break: it opens Docs and expands+scrolls to the calculator instead of
+  // landing on a screen that no longer exists.
+  if (name === 'tax') { openDocsTaxCalculator(); return; }
   logEvent('screen_view:' + name);
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => { b.classList.remove('active'); b.removeAttribute('aria-current'); });
@@ -6965,16 +7242,24 @@ function switchScreen(name) {
   if (name === 'more') renderBackupReminder();
   if (name === 'more') renderCloudBackupSection();
   if (name === 'more') renderSubscriptionSection();
+  if (name === 'more') renderCardWaitlistSection();
   if (name === 'more') renderSellerLogoSection();
   if (name === 'more') renderLineChannelSection();
   if (name === 'more') renderTeamSection();
   if (name === 'more') renderShopSection();
+  if (name === 'more') renderSlipVerifySection();
   if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.
   if (name === 'invoices' && typeof renderInvoices === 'function') renderInvoices();
-  if (name === 'tax' && typeof renderTax === 'function') renderTax();
   if (name === 'docs' && typeof renderDocgen === 'function') renderDocgen();
+  // Tax calculator now lives inside Docs (#docs-tax-details) — render it
+  // whenever the Docs screen shows so it's ready the moment the details
+  // block is expanded (either by hand or via openDocsTaxCalculator()).
+  if (name === 'docs' && typeof renderTax === 'function') renderTax();
+  // M4 Pass P4: the annual tax roll-up is a second block inside the same
+  // details area — render it alongside the calculator above.
+  if (name === 'docs' && typeof renderTaxRollup === 'function') renderTaxRollup();
   // M3 modules (bookings.js / followups.js / portfolio.js).
   if (name === 'book' && typeof renderBookings === 'function') renderBookings();
   if (name === 'followups' && typeof renderFollowups === 'function') renderFollowups();
@@ -6983,6 +7268,22 @@ function switchScreen(name) {
   if (name === 'research' && typeof renderResearch === 'function') renderResearch();
   window.scrollTo(0, 0);
 }
+// M4 Pass P1: switchScreen('tax') alias target — see the comment at the top
+// of switchScreen(). Opens Docs, expands the tax calculator's details
+// block (re-rendering it, in case renderTax() wasn't defined yet the last
+// time Docs rendered), and scrolls it into view.
+function openDocsTaxCalculator() {
+  logEvent('screen_view:tax');
+  switchScreen('docs');
+  const det = document.getElementById('docs-tax-details');
+  if (det) {
+    det.open = true;
+    if (typeof renderTax === 'function') renderTax();
+    if (typeof renderTaxRollup === 'function') renderTaxRollup();
+    det.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+window.openDocsTaxCalculator = openDocsTaxCalculator;
 // ─── i18n render pass ─────────────────────────────────────────────────
 function applyLang() {
   const lang = curLang();
@@ -6994,7 +7295,10 @@ function applyLang() {
   if (hintEl) hintEl.innerHTML = t('auth_hint');
   const submitBtn = document.getElementById('auth-submit');
   if (submitBtn) submitBtn.textContent = authMode === 'register' ? t('create_account') : t('login');
-  try { if (currentUser) { renderHome(); applyUser(); renderPaymentChannels(); } } catch(e) {}
+  // M4 Pass P4: the tax roll-up (unlike tax.js's English-only calculator)
+  // is fully localized — keep it in sync with a live language switch too,
+  // not just the next time Docs re-renders.
+  try { if (currentUser) { renderHome(); applyUser(); renderPaymentChannels(); if (typeof renderTaxRollup === 'function') renderTaxRollup(); } } catch(e) {}
 }
 
 // ─── UTILS ────────────────────────────────────────────────────────────

@@ -31,6 +31,7 @@
 import { db } from '../lib/db.js';
 import { corsHeaders, handlePreflight } from '../lib/cors.js';
 import { rateLimit } from '../lib/rateLimit.js';
+import { getLineAccessToken, linePush } from '../lib/line.js';
 
 function json(body, status, request) {
   return new Response(JSON.stringify(body), {
@@ -166,6 +167,32 @@ export function createShopPublicHandler(opts = {}) {
            values ($1, $2, $3, $4, $5, 'requested')`,
           [userCuid, clientName, contact, snapshot, total]
         );
+
+        // M4 Pass P2: best-effort LINE push to the FREELANCER — mirror of
+        // api/booking-request.js's own freelancer alert (see that file's
+        // header). Silent catch, same reasoning: a failed notification must
+        // never undo the order_requests row already written above, and the
+        // freelancer still sees the pending order next time she opens
+        // Settings ▸ Shop either way. Only fires when the account has both
+        // a connected LINE channel AND gave an optional alert user ID at
+        // connect time — no behavior change (and no extra query cost on the
+        // hot path) when neither is set up.
+        try {
+          const [channel] = await sql(
+            `select channel_id, channel_secret, freelancer_line_user_id from line_channels where user_cuid = $1`,
+            [userCuid]
+          );
+          if (channel && channel.freelancer_line_user_id) {
+            const accessToken = await getLineAccessToken(channel.channel_id, channel.channel_secret);
+            const totalStr = Number(total).toLocaleString('en-US');
+            await linePush(accessToken, channel.freelancer_line_user_id, [{
+              type: 'text',
+              text: `มีคำสั่งซื้อใหม่จากหน้าร้าน: ${clientName} · ฿${totalStr}\nNew shop order: ${clientName} · ฿${totalStr}`,
+            }]);
+          }
+        } catch (notifyErr) {
+          console.error('shop-public notify failed', notifyErr.message);
+        }
 
         // Never echoes name/contact/items back — see file header.
         return json({ ok: true }, 200, request);
