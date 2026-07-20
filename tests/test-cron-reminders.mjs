@@ -163,7 +163,7 @@ async function main() {
     const data = await res.json();
     assert(updateCalls.length === 0, 'a failed push never fires the reminder_sent_at stamp');
     assert(data.due === 1 && data.sent === 0 && data.failed === 1, 'response counts: due:1 sent:0 failed:1');
-    assert(bookings[0].reminder_sent_at === null, 'the in-memory booking row stays unstamped, eligible for the next hourly run');
+    assert(bookings[0].reminder_sent_at === null, 'the in-memory booking row stays unstamped, eligible for the next run');
   }
 
   // ── Missing LINE channel: row skipped, no stamp, no crash ────────────
