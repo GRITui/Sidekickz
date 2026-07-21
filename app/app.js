@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.42';          // <-> sw.js SW_VERSION 'sidekick-v0.9.42'
+const APP_VERSION = '0.9.43';          // <-> sw.js SW_VERSION 'sidekick-v0.9.43'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -476,6 +476,7 @@ const BUSINESS_TYPES = {
   laundry:    { label:'Laundry service',   unitWord:'Order',   seedServices:[['Wash & fold',150,'kg'],['Dry cleaning',80,'item']] },
   insurance:  { label:'Insurance agent',   unitWord:'Policy',  seedServices:[['Policy review',0,'review'],['Claim assistance',0,'case']] },
   garage:     { label:'Car garage',        unitWord:'Job',     seedServices:[['Oil change',600,'job'],['Full service',2500,'job']] },
+  kol:        { label:'KOL / Influencer',  unitWord:'Campaign',seedServices:[['Content posting',3000,'post'],['Live broadcast + affiliate',8000,'session']] },
   custom:     { label:'Other',             unitWord:'Job',     seedServices:[] },
 };
 function businessType() { return BUSINESS_TYPES[settings && settings.businessType] ? settings.businessType : 'trainer'; }
@@ -487,7 +488,7 @@ function unitWord() { return BUSINESS_TYPES[businessType()].unitWord; }
 // this registry doesn't know about yet still works with zero code changes —
 // the user just types whatever word fits.
 const PACKAGE_UNIT_DEFAULTS = {
-  trainer: 'Sessions', realestate: 'Deals', laundry: 'Pieces', insurance: 'Policies', garage: 'Jobs', custom: 'Units',
+  trainer: 'Sessions', realestate: 'Deals', laundry: 'Pieces', insurance: 'Policies', garage: 'Jobs', kol: 'Campaigns', custom: 'Units',
 };
 function packageUnitLabel() {
   return (settings && settings.packageUnitLabel) || PACKAGE_UNIT_DEFAULTS[businessType()] || 'Units';
@@ -722,7 +723,7 @@ const I18N = {
     daily_goal:'Daily income goal', goal_target_month:'Monthly income goal', goal_target_quarter:'Quarterly income goal', goal_target_year:'Yearly income goal',
     business_type_label:'Business type', business_type_trainer:'Personal trainer', business_type_realestate:'Real estate agent',
     business_type_laundry:'Laundry service', business_type_insurance:'Insurance agent', business_type_garage:'Car garage',
-    business_type_custom:'Other',
+    business_type_kol:'KOL / Influencer', business_type_custom:'Other',
     onboard_persona_title:'What kind of business do you run?', onboard_persona_sub:'Pick the closest match — we’ll set up starting services for it. You can change this anytime in Settings.',
     subtasks_title:'Sub-tasks', subtask_add_ph:'Add a sub-task…', btn_add:'+ Add', no_subtasks:'No sub-tasks yet.',
     // M4-P3 Merge 1: dated steps + milestones now share one header in the job
@@ -3315,6 +3316,33 @@ const DEMO_PERSONA_DATA = {
       { clientIndex: 4, title: 'Diagnostic check', daysOffset: 0, startTime: '09:00', durationMin: 60 },
       { clientIndex: 0, title: 'Full service pickup', daysOffset: 1, startTime: '16:00', durationMin: 30 },
       { clientIndex: 2, title: 'Fleet service', daysOffset: 2, startTime: '08:00', durationMin: 180 },
+    ],
+  },
+  kol: {
+    clients: [
+      { name: 'Mai Suksawat', phone: '081-789-0121', email: 'mai.s@example.com', tags: 'beauty brand' },
+      { name: 'Ken Charoenphol', phone: '081-789-0122', tags: 'tech/gadget brand' },
+      { name: 'Fon Rattanasiri', phone: '081-789-0123', tags: 'food & lifestyle brand' },
+      { name: 'Boss Wiriyaporn', phone: '081-789-0124', tags: 'fashion brand' },
+      { name: 'Ice Thanawat', phone: '081-789-0125', tags: 'general/affiliate brand' },
+    ],
+    jobs: [
+      { clientIndex: 4, stage: 'pitch', daysOffset: 0, amount: 0, serviceName: 'Content posting', notes: 'Brand reached out about a product review post' },
+      { clientIndex: 3, stage: 'quote', daysOffset: -1, amount: 8000, serviceName: 'Live broadcast + affiliate', notes: 'Quoted a live selling session with affiliate commission tie-in' },
+      { clientIndex: 2, stage: 'invoice', daysOffset: -3, amount: 3000, serviceName: 'Content posting' },
+      { clientIndex: 1, stage: 'paid', daysOffset: -5, amount: 3000, serviceName: 'Content posting' },
+      { clientIndex: 0, stage: 'delivery', daysOffset: -1, amount: 8000, serviceName: 'Live broadcast + affiliate', notes: 'Live airs tonight' },
+      { clientIndex: 0, stage: 'extend', daysOffset: -30, amount: 3000, serviceName: 'Content posting', complete: true, outcome: 'extended', notes: 'Rebooked for next month’s campaign' },
+    ],
+    invoices: [
+      { clientIndex: 2, daysOffset: -3, status: 'draft', lineItems: [{ description: 'Content posting x1', qty: 1, unitPrice: 3000 }] },
+      { clientIndex: 3, daysOffset: -1, status: 'sent', lineItems: [{ description: 'Live broadcast + affiliate', qty: 1, unitPrice: 8000 }] },
+      { clientIndex: 1, daysOffset: -5, status: 'paid', lineItems: [{ description: 'Content posting x1', qty: 1, unitPrice: 3000 }] },
+    ],
+    bookings: [
+      { clientIndex: 0, title: 'Live broadcast', daysOffset: 1, startTime: '20:00', durationMin: 90 },
+      { clientIndex: 2, title: 'Content shoot', daysOffset: 2, startTime: '10:00', durationMin: 120 },
+      { clientIndex: 3, title: 'Brand kickoff call', daysOffset: 0, startTime: '14:00', durationMin: 30 },
     ],
   },
 };
