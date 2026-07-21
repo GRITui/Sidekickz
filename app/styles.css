@@ -153,6 +153,15 @@ details.settings-section:not([open]) summary.section-title::after{transform:rota
   margin-right:8px;vertical-align:middle;font-family:inherit;}
 .qc-btn:active{background:var(--border);}
 
+/* Clients screen: per-row engagement stage pill — reuses the same semantic
+   --paid/--due/--overdue vars (and the color-mix tint formula) as
+   .chip-paid/.chip-due/.chip-overdue, never new arbitrary colors. */
+.stage-pill{display:inline-block;padding:2px 7px;border-radius:8px;font-size:10px;font-weight:800;
+  letter-spacing:.2px;vertical-align:middle;white-space:nowrap;}
+.stage-pill-active{background:color-mix(in srgb,var(--paid) 16%,transparent);color:var(--paid);}
+.stage-pill-inquiry{background:color-mix(in srgb,var(--due) 18%,transparent);color:var(--due);}
+.stage-pill-lost{background:color-mix(in srgb,var(--overdue) 16%,transparent);color:var(--overdue);}
+
 /* ── Session packages / progress log (Customer modal) ──────────────── */
 .pkg-status{background:var(--card);border:0.5px solid var(--border);border-radius:var(--radius-sm);
   padding:12px 14px;font-size:13px;color:var(--text2);}

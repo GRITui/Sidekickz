@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.41';          // <-> sw.js SW_VERSION 'sidekick-v0.9.41'
+const APP_VERSION = '0.9.42';          // <-> sw.js SW_VERSION 'sidekick-v0.9.42'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -1009,6 +1009,10 @@ const I18N = {
     no_customers:'No clients yet', no_customers_sub:'Add your first client to reuse their details.',
     needs_attention_title:'Needs attention', all_clients_title:'All clients', remind_action:'Remind', offer_renewal_action:'Offer renewal',
     customer_saved:'Client saved', customer_deleted:'Client deleted',
+    search_clients_ph:'Search clients…',
+    client_filter_all:'All', client_filter_inquiry:'Inquiry', client_filter_active:'Active customer', client_filter_lost:'Lost customer',
+    client_stage_active:'Active customer', client_stage_inquiry:'Inquiry', client_stage_lost:'Lost customer',
+    no_engagement_yet:'No engagement yet',
     field_name:'Name', field_phone:'Phone', field_email:'Email', field_tags:'Tags (comma-separated)',
     field_taxid:'Tax ID', field_billing:'Billing address', field_member_no:'Member ID',
     field_health:'Health notes', field_allergies:'Allergies', field_goals:'Goals',
@@ -1448,6 +1452,10 @@ const I18N = {
     no_customers:'ยังไม่มีลูกค้า', no_customers_sub:'เพิ่มลูกค้ารายแรกเพื่อใช้ข้อมูลซ้ำได้',
     needs_attention_title:'ต้องดำเนินการ', all_clients_title:'ลูกค้าทั้งหมด', remind_action:'เตือน', offer_renewal_action:'เสนอต่ออายุ',
     customer_saved:'บันทึกลูกค้าแล้ว', customer_deleted:'ลบลูกค้าแล้ว',
+    search_clients_ph:'ค้นหาลูกค้า…',
+    client_filter_all:'ทั้งหมด', client_filter_inquiry:'สอบถาม', client_filter_active:'ลูกค้าประจำ', client_filter_lost:'ลูกค้าที่เสียไป',
+    client_stage_active:'ลูกค้าประจำ', client_stage_inquiry:'สอบถาม', client_stage_lost:'ลูกค้าที่เสียไป',
+    no_engagement_yet:'ยังไม่มีการติดต่อ',
     field_name:'ชื่อ', field_phone:'เบอร์โทร', field_email:'อีเมล', field_tags:'แท็ก (คั่นด้วยจุลภาค)',
     field_taxid:'เลขประจำตัวผู้เสียภาษี', field_billing:'ที่อยู่สำหรับเรียกเก็บเงิน', field_member_no:'รหัสสมาชิก',
     field_health:'บันทึกสุขภาพ', field_allergies:'อาการแพ้', field_goals:'เป้าหมาย',
@@ -5160,6 +5168,41 @@ function offerRenewalForClient(clientId) {
 }
 window.offerRenewalForClient = offerRenewalForClient;
 window.__clientAttentionActions = [];
+// Client engagement stage — 'active-customer' | 'inquiry' | 'lost' — purely
+// engagement-based (jobEarned/outcome), never persona-specific, so it works
+// identically across every BUSINESS_TYPES persona (trainer/realestate/
+// laundry/insurance/garage/custom). `jobs` is already sorted date-descending
+// (see reload()), so the first match below is already the client's
+// most-recent job — no re-sort needed.
+function clientStage(c) {
+  const cj = jobs.filter(j => j.clientId === c.id);
+  if (cj.some(jobEarned)) return 'active-customer';
+  const mostRecent = cj[0];
+  if (mostRecent && mostRecent.outcome === 'lost') return 'lost';
+  return 'inquiry'; // covers zero jobs and in-progress-not-yet-earned
+}
+// The service name of the client's most-recently-dated job, or a "no
+// engagement yet" fallback for a client with zero jobs — also covers a job
+// that exists but has a blank serviceName (e.g. the `custom` persona's empty
+// seedServices list can leave a job's service name unset).
+function clientProspectService(c) {
+  const mostRecent = jobs.find(j => j.clientId === c.id);
+  return (mostRecent && mostRecent.serviceName) || t('no_engagement_yet');
+}
+// Transient UI state for the Clients screen's search + filter chips — not
+// persisted, same pattern as window.__pkgFormOpen/__plView.
+window.__clientFilterStage = 'all';
+window.__clientSearchQuery = '';
+function selectClientFilterStage(stage) {
+  window.__clientFilterStage = stage;
+  renderCustomers();
+}
+window.selectClientFilterStage = selectClientFilterStage;
+function onClientSearchInput(value) {
+  window.__clientSearchQuery = value || '';
+  renderCustomers();
+}
+window.onClientSearchInput = onClientSearchInput;
 function needsAttentionRowHtml(item, idx) {
   const initial = (item.client.name || '?').charAt(0).toUpperCase();
   return `<div class="list-row" style="cursor:default">
@@ -5173,10 +5216,12 @@ function needsAttentionRowHtml(item, idx) {
 }
 async function renderCustomers() {
   const wrap = document.getElementById('customers-body');
+  const chipsWrap = document.getElementById('client-filter-chips');
   if (!wrap) return;
   if (!customers.length) {
     wrap.innerHTML = `<div class="empty"><div class="empty-icon">👤</div>
       <p>${htmlEsc(t('no_customers'))}</p><span>${htmlEsc(t('no_customers_sub'))}</span></div>`;
+    if (chipsWrap) chipsWrap.innerHTML = '';
     return;
   }
   const attention = await computeClientsNeedingAttention();
@@ -5186,25 +5231,65 @@ async function renderCustomers() {
        <div class="list-card" style="margin-bottom:16px">${attention.map(needsAttentionRowHtml).join('')}</div>
        <div class="section-title" style="font-size:12px;margin-bottom:8px">${htmlEsc(t('all_clients_title'))}</div>`
     : '';
-  wrap.innerHTML = attentionHtml + '<div class="list-card">' + customers.map(c => {
-    const rest = c.company || c.phone || c.email || '';
-    const sub = (c.memberNo ? `<span class="tnum">${htmlEsc(c.memberNo)}</span>` : '') + (c.memberNo && rest ? ' · ' : '') + htmlEsc(rest);
-    const pkg = activePackageFor(c.id);
-    const pkgBadge = pkg
-      ? `<span class="pkg-badge">${packageRemaining(pkg)}/${htmlEsc(pkg.totalSessions)} left</span>` : '';
-    return `<div class="list-row" onclick="openEditCustomer(${c.id})">
-      <div class="list-icon">👤</div>
-      <div class="list-main">
-        <div class="list-title">${htmlEsc(c.name)}</div>
-        <div class="list-sub">${sub}</div>
-      </div>
-      <div class="list-right">
-        ${pkgBadge}
-        <button type="button" class="qc-btn" title="Quick check-in" aria-label="Quick check-in for ${attrEsc(c.name)}" onclick="event.stopPropagation(); quickCheckIn(${c.id})">⚡</button>
-        <span style="color:var(--text3);font-size:18px">›</span>
-      </div>
-    </div>`;
-  }).join('') + '</div>';
+
+  // Search (name, case-insensitive) narrows the pool the filter chips count
+  // and list from — live as-you-type, transient (window.__clientSearchQuery).
+  const query = (window.__clientSearchQuery || '').trim().toLowerCase();
+  const searchFiltered = query ? customers.filter(c => (c.name || '').toLowerCase().includes(query)) : customers.slice();
+  const stageOf = new Map(searchFiltered.map(c => [c.id, clientStage(c)]));
+  const counts = {all: searchFiltered.length, inquiry: 0, 'active-customer': 0, lost: 0};
+  searchFiltered.forEach(c => { counts[stageOf.get(c.id)]++; });
+  const activeFilter = ['all', 'inquiry', 'active-customer', 'lost'].includes(window.__clientFilterStage)
+    ? window.__clientFilterStage : 'all';
+
+  if (chipsWrap) {
+    const filterDefs = [
+      {key: 'all', label: 'client_filter_all'},
+      {key: 'inquiry', label: 'client_filter_inquiry'},
+      {key: 'active-customer', label: 'client_filter_active'},
+      {key: 'lost', label: 'client_filter_lost'},
+    ];
+    chipsWrap.innerHTML = filterDefs.map(f => {
+      const isActive = f.key === activeFilter;
+      return `<button type="button" class="pl-chip${isActive ? ' active' : ''}" onclick="selectClientFilterStage('${f.key}')" aria-current="${isActive ? 'true' : 'false'}">
+        <span>${htmlEsc(t(f.label))}</span>
+        <span class="pl-chip-count">${counts[f.key]}</span>
+      </button>`;
+    }).join('');
+  }
+
+  const listFiltered = activeFilter === 'all' ? searchFiltered : searchFiltered.filter(c => stageOf.get(c.id) === activeFilter);
+  const STAGE_PILL = {
+    'active-customer': {cls: 'stage-pill-active', label: 'client_stage_active'},
+    inquiry: {cls: 'stage-pill-inquiry', label: 'client_stage_inquiry'},
+    lost: {cls: 'stage-pill-lost', label: 'client_stage_lost'},
+  };
+  const listHtml = listFiltered.length
+    ? listFiltered.map(c => {
+      const rest = c.company || c.phone || c.email || '';
+      const idBits = (c.memberNo ? `<span class="tnum">${htmlEsc(c.memberNo)}</span>` : '') + (c.memberNo && rest ? ' · ' : '') + htmlEsc(rest);
+      const stage = stageOf.get(c.id);
+      const pillMeta = STAGE_PILL[stage] || STAGE_PILL.inquiry;
+      const prospect = clientProspectService(c);
+      const sub = (idBits ? idBits + ' · ' : '') + htmlEsc(prospect) + ` <span class="stage-pill ${pillMeta.cls}">${htmlEsc(t(pillMeta.label))}</span>`;
+      const pkg = activePackageFor(c.id);
+      const pkgBadge = pkg
+        ? `<span class="pkg-badge">${packageRemaining(pkg)}/${htmlEsc(pkg.totalSessions)} left</span>` : '';
+      return `<div class="list-row" onclick="openEditCustomer(${c.id})">
+        <div class="list-icon">👤</div>
+        <div class="list-main">
+          <div class="list-title">${htmlEsc(c.name)}</div>
+          <div class="list-sub">${sub}</div>
+        </div>
+        <div class="list-right">
+          ${pkgBadge}
+          <button type="button" class="qc-btn" title="Quick check-in" aria-label="Quick check-in for ${attrEsc(c.name)}" onclick="event.stopPropagation(); quickCheckIn(${c.id})">⚡</button>
+          <span style="color:var(--text3);font-size:18px">›</span>
+        </div>
+      </div>`;
+    }).join('')
+    : `<div class="list-row" style="cursor:default"><div class="list-main"><div class="list-sub">${htmlEsc(t('no_customers_sub'))}</div></div></div>`;
+  wrap.innerHTML = attentionHtml + '<div class="list-card">' + listHtml + '</div>';
 }
 function renderIntakeFields(c) {
   const wrap = document.getElementById('cust-intake');
