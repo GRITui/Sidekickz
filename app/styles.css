@@ -112,13 +112,6 @@ details.settings-section:not([open]) summary.section-title::after{transform:rota
 .goal-amt{font-size:13px;color:var(--text3);font-weight:600;}
 .goal-pct{font-size:16px;font-weight:800;color:var(--brand);letter-spacing:-.3px;}
 
-.home-alert-card{display:flex;align-items:center;gap:10px;margin:0 16px 16px;padding:13px 14px;
-  border-radius:var(--radius-sm);background:var(--marigold-tint);border:1px solid var(--marigold);cursor:pointer;}
-.home-alert-icon{font-size:19px;flex-shrink:0;}
-.home-alert-body{flex:1;min-width:0;}
-.home-alert-text{font-size:13px;font-weight:700;color:var(--marigold-ink);}
-.home-alert-btn{flex-shrink:0;background:var(--marigold-ink);color:#fff;border:none;border-radius:999px;
-  padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;}
 .goal-track{height:10px;background:var(--border);border-radius:6px;overflow:hidden;}
 .goal-fill{height:100%;width:0;background:var(--brand-bright);border-radius:6px;transition:width .45s ease;}
 .goal-fill.reached{background:var(--paid);}
@@ -146,6 +139,13 @@ details.settings-section:not([open]) summary.section-title::after{transform:rota
 .list-amt{font-size:15px;font-weight:800;color:var(--text);}
 .list-amt.pos{color:var(--paid);}
 .list-amt-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+/* TSK-009: the Today card's right-aligned status-pill accessory (e.g. "Renew",
+   "Booked") — same color-mix tint formula as .stage-pill-active/-inquiry
+   below, new class because these pills sit inside .list-row (not the Clients
+   engagement-stage rows .stage-pill was built for). */
+.list-pill{display:inline-block;padding:3px 9px;border-radius:9px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;}
+.list-pill-marigold{background:color-mix(in srgb,var(--marigold) 18%,transparent);color:var(--marigold);}
+.list-pill-paid{background:color-mix(in srgb,var(--paid) 16%,transparent);color:var(--paid);}
 .pkg-badge{display:inline-block;background:var(--brand-tint);color:var(--brand);font-size:10px;font-weight:800;
   padding:3px 7px;border-radius:999px;margin-right:8px;vertical-align:middle;white-space:nowrap;}
 .qc-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:none;

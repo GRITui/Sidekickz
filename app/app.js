@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.46';          // <-> sw.js SW_VERSION 'sidekick-v0.9.46'
+const APP_VERSION = '0.9.47';          // <-> sw.js SW_VERSION 'sidekick-v0.9.47'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -754,6 +754,9 @@ const I18N = {
     my_task_goal:'My Task Goal', period_month:'Month', period_quarter:'Quarter', period_year:'Year',
     goal_pace_on:'On pace — ', goal_to_go_month:' to go this month', goal_to_go_quarter:' to go this quarter', goal_to_go_year:' to go this year',
     incoming_pipeline:'Up next', incoming_pipeline_empty:'Nothing scheduled.', incoming_pipeline_empty_sub:'New engagements will appear here as you log sessions.',
+    // TSK-009: merged "Today" card (home-alert-card + attn-card + incoming-pipeline)
+    today_title:'Today', today_empty:'All caught up', today_empty_sub:'Nothing needs attention right now — new items appear here as they come up.',
+    today_pill_renew:'Renew', today_pill_booked:'Booked', today_next_up:'Next up',
     coming_m2:'Invoices ship in M2',
     // job form
     add_job:'Add session', edit_job:'Edit session', save_job:'Save session', delete_job:'Delete session',
@@ -1268,6 +1271,9 @@ const I18N = {
     my_task_goal:'เป้าหมายงานของฉัน', period_month:'เดือน', period_quarter:'ไตรมาส', period_year:'ปี',
     goal_pace_on:'ตามเป้า — เหลืออีก ', goal_to_go_month:' ในเดือนนี้', goal_to_go_quarter:' ในไตรมาสนี้', goal_to_go_year:' ในปีนี้',
     incoming_pipeline:'ถัดไป', incoming_pipeline_empty:'ยังไม่มีนัดหมาย', incoming_pipeline_empty_sub:'งานใหม่จะปรากฏที่นี่เมื่อคุณบันทึกเซสชัน',
+    // TSK-009: การ์ด "วันนี้" ที่รวม home-alert-card + attn-card + incoming-pipeline
+    today_title:'วันนี้', today_empty:'จัดการครบแล้ว', today_empty_sub:'ตอนนี้ยังไม่มีเรื่องด่วน — รายการใหม่จะปรากฏที่นี่เมื่อมีอัปเดต',
+    today_pill_renew:'ต่ออายุ', today_pill_booked:'จองแล้ว', today_next_up:'ถัดไป',
     coming_m2:'ใบแจ้งหนี้จะเปิดใช้งานใน M2',
     // job form
     add_job:'เพิ่มเซสชัน', edit_job:'แก้ไขเซสชัน', save_job:'บันทึกเซสชัน', delete_job:'ลบเซสชัน',
@@ -3798,16 +3804,12 @@ async function renderHome() {
   setTxt('stat-exp-val', money(exp));
 
   renderGoal();
-  renderHomeAlert();
-  renderHomeAttention();
   updateMoreNavBadge();
-  renderIncomingPipeline();
+  renderHomeToday();
 }
-// M4 Pass P2 — "Needs attention" card: pending public shop order requests
-// (Settings ▸ Shop) + invoices carrying a client-uploaded slip the
-// freelancer hasn't opened yet. Both signals are backend-only concepts
-// (order_requests and slip `source`/`at` tracking both only exist once
-// cloud backup is on) — same gated pattern as renderShopSection().
+// ─── HOME "TODAY" CARD (TSK-009 — merges the old home-alert-card,
+// attn-card "Needs attention" and incoming-pipeline "Up next" into one
+// prioritized list-card) ────────────────────────────────────────────────
 //
 // orderRequestsList() is a real network fetch, and renderHome() can run on
 // every screen switch/save — caching it here for ATTN_ORDERS_CACHE_MS keeps
@@ -3837,49 +3839,62 @@ async function attnNewSlipInvoiceCount() {
     inv.slips.some(s => s && s.source === 'client' && String(s.at || '') > String(inv.slipsSeenAt || ''))
   ).length;
 }
-async function renderHomeAttention() {
-  const card = document.getElementById('attn-card');
-  if (!card) return;
-  const backendReady = !isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled();
-  if (!backendReady) { card.style.display = 'none'; return; }
-  const [ordersN, slipsN] = await Promise.all([attnOrdersCount(), attnNewSlipInvoiceCount()]);
-  if (!ordersN && !slipsN) { card.style.display = 'none'; return; }
-  const rows = [];
-  if (ordersN) rows.push(`<div class="list-row" onclick="switchScreen('more')">
-      <div class="list-main"><div class="list-title">${htmlEsc(t('attn_orders').replace('{n}', ordersN))}</div></div>
-    </div>`);
-  if (slipsN) rows.push(`<div class="list-row" onclick="switchScreen('invoices')">
-      <div class="list-main"><div class="list-title">${htmlEsc(t('attn_slips').replace('{n}', slipsN))}</div></div>
-    </div>`);
-  const body = document.getElementById('attn-body');
-  if (body) body.innerHTML = rows.join('');
-  card.style.display = 'block';
+// Today's next not-yet-started booking (TSK-009: new capability — the design
+// mockup's "16:00 — Session with Mek / Next up · Booked" row has no equivalent
+// pre-merge source; a `booked`-stage pipeline job is a different concept (no
+// time-of-day, no "next" selection) so this reads the real bookings store
+// instead of re-purposing pipeline data. Same store computeNotificationConditions()
+// already reads for the "upcoming booking" OS notification, so Home and the
+// notification never disagree about what "today's next booking" means.
+async function nextBookingToday() {
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const todayStr = todayISO();
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  const rows = (await dbAll('bookings'))
+    .filter(b => b.uid === uid && b.status === 'scheduled' && b.date === todayStr && hhmmToMin(b.startTime) >= nowMin)
+    .sort((a, b) => hhmmToMin(a.startTime) - hhmmToMin(b.startTime));
+  return rows[0] || null;
 }
-// Amber alert card — surfaces the single highest-priority "needs attention"
-// item (same computeClientsNeedingAttention() source as the Clients screen's
-// own list) right on Home, with one action button, instead of making the
-// user go find it. Tapping the card body (not the button) jumps to Clients
-// to see the rest.
-async function renderHomeAlert() {
-  const card = document.getElementById('home-alert-card');
-  if (!card) return;
-  const items = await computeClientsNeedingAttention();
-  if (!items.length) { card.style.display = 'none'; return; }
-  card.style.display = 'flex';
-  const top = items[0];
-  const extra = items.length - 1;
-  document.getElementById('home-alert-text').textContent = `${top.client.name} — ${top.reason}` + (extra > 0 ? ` (+${extra} more)` : '');
-  const btn = document.getElementById('home-alert-btn');
-  btn.textContent = top.actionLabel;
-  btn.onclick = (e) => { e.stopPropagation(); top.action(); };
+// Icon-tile SVGs for the Today card's row types — 24x24 viewBox, stroke-width
+// 1.8, stroke=currentColor, matching the design handoff's icon convention
+// (loop/design-handoff/README.md §1) and STAGE_META's existing icon style.
+const TODAY_ICON_INVOICE = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>';
+const TODAY_ICON_SLIP = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/>';
+const TODAY_ICON_RENEW = '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>';
+const TODAY_ICON_ORDERS = '<path d="M20.5 7.3 12 12l-8.5-4.7M12 12v9M3.5 7.3v9.4a1 1 0 0 0 .5.87l7.5 4.15a1 1 0 0 0 1 0l7.5-4.15a1 1 0 0 0 .5-.87V7.3a1 1 0 0 0-.5-.87l-7.5-4.15a1 1 0 0 0-1 0l-7.5 4.15a1 1 0 0 0-.5.87Z"/>';
+const TODAY_ICON_CLOCK = '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>';
+function todayIconHtml(bg, stroke, inner) {
+  return `<div class="list-icon" style="background:${bg};color:${stroke}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${inner}</svg></div>`;
 }
-// Incoming pipeline: replaces the old Action Queue nudge list with a direct
-// preview of active engagements, so Home shows what's actually moving through
-// the pipeline instead of a separate notification-style summary. Overdue
-// invoices / imminent bookings / stale engagements still drive OS-level
-// notifications (checkAndFireNotifications(), unaffected by this) — this is
-// just Home's own in-app view.
-const INCOMING_PIPELINE_LIMIT = 6;
+function todayRowHtml(iconHtml, onclick, title, sub, rightHtml) {
+  return `<div class="list-row" onclick="${onclick}">
+      ${iconHtml}
+      <div class="list-main">
+        <div class="list-title">${title}</div>
+        <div class="list-sub">${sub}</div>
+      </div>
+      <div class="list-right">${rightHtml}</div>
+    </div>`;
+}
+// Attention rows (overdue invoice / package expiring / package almost done) —
+// tapping the row runs the item's own action directly (remind / offer
+// renewal), matching the single-tap-per-row pattern every other Today row
+// (and the design mockup) uses, rather than the old home-alert-card's split
+// of "tap card body to jump to Clients, tap the button to act".
+function attentionRowHtml(item, idx) {
+  const title = htmlEsc(item.client.name);
+  const sub = htmlEsc(item.todaySub || item.reason);
+  if (item.kind === 'overdue') {
+    return todayRowHtml(
+      todayIconHtml('var(--brand-tint)', 'var(--brand)', TODAY_ICON_INVOICE),
+      `window.__todayAttentionActions[${idx}]()`, title, sub,
+      `<span class="list-amt tnum" style="color:var(--overdue)">${htmlEsc(money(item.amount))}</span>`);
+  }
+  return todayRowHtml(
+    todayIconHtml('var(--marigold-tint)', 'var(--marigold-ink)', TODAY_ICON_RENEW),
+    `window.__todayAttentionActions[${idx}]()`, title, sub,
+    `<span class="list-pill list-pill-marigold">${htmlEsc(t('today_pill_renew'))}</span>`);
+}
 function incomingPipelineRowHtml(j) {
   const stage = jobStage(j);
   const meta = STAGE_META[stage] || {};
@@ -3887,42 +3902,110 @@ function incomingPipelineRowHtml(j) {
   const subParts = [htmlEsc((meta.label && t(meta.label)) || stage || '')];
   if (pkg) subParts.push(`${packageUsed(pkg)} ${t('goal_of')} ${htmlEsc(pkg.totalSessions)}`);
   else if (j.serviceName) subParts.push(htmlEsc(j.serviceName));
-  return `<div class="list-row" onclick="openPipelineAt('${stage}')">
-      <div class="list-icon" style="background:${meta.dot}22;color:${meta.dot}">${meta.icon || ''}</div>
-      <div class="list-main">
-        <div class="list-title">${htmlEsc(j.client || 'Client')}</div>
-        <div class="list-sub">${subParts.join(' · ')}</div>
-      </div>
-      <div class="list-right"><div class="list-amt tnum">${htmlEsc(money(j.amount))}</div></div>
-    </div>`;
+  return todayRowHtml(
+    `<div class="list-icon" style="background:${meta.dot}22;color:${meta.dot}">${meta.icon || ''}</div>`,
+    `openPipelineAt('${stage}')`, htmlEsc(j.client || 'Client'), subParts.join(' · '),
+    `<div class="list-amt tnum">${htmlEsc(money(j.amount))}</div>`);
 }
-function renderIncomingPipeline() {
-  const el = document.getElementById('incoming-pipeline-body');
+// Row-type inventory (TSK-009 merge — every row type the pre-merge surfaces
+// could produce is still representable here; see loop/backlog-inbox.md
+// TSK-009 and the merge research map for the full audit):
+//   1. Overdue invoice reminder       — was home-alert-card
+//   2. Package expiring soon          — was home-alert-card
+//   3. Package almost done            — was home-alert-card
+//   4. Shop order requests waiting    — was attn-card (backend-only)
+//   5. Invoices with new client slips — was attn-card (backend-only)
+//   6. Next booking today             — NEW capability (see nextBookingToday())
+//   7. Active pipeline job preview    — was incoming-pipeline "Up next"
+//
+// Priority order (most urgent/actionable first): overdue invoices ->
+// package-expiring -> package-almost-done -> backend order requests ->
+// backend new-slip invoices -> today's next booking -> general pipeline
+// preview. The pipeline preview goes LAST because — per the merge research —
+// it's the one row type that ISN'T itself an urgency signal (every active
+// job shows up there, urgent or not); everything above it is a real
+// "needs your attention" or "happening soon" item.
+//
+// Row-count caps: attention rows (overdue/expiring/almost combined) are
+// capped at TODAY_ATTENTION_LIMIT with a "+N more" jump to Clients — the old
+// home-alert-card only ever showed its single highest-priority item (+"(+N
+// more)" text); the merged card has room for a few more before folding, so
+// the cap is raised from 1 to 4. attn-card's two backend rows are unchanged
+// (0-2, gated on backend+guest state). The next-booking row is naturally
+// 0-1. The pipeline preview keeps its pre-existing INCOMING_PIPELINE_LIMIT
+// (6) + "+N more in Pipeline" link, unchanged from before the merge.
+const TODAY_ATTENTION_LIMIT = 4;
+const INCOMING_PIPELINE_LIMIT = 6;
+async function renderHomeToday() {
+  const el = document.getElementById('today-body');
   if (!el) return;
   const uid = isGuest ? 'guest' : currentUser.id;
+  const backendReady = !isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled();
+
+  const [attentionAll, ordersN, slipsN, booking] = await Promise.all([
+    computeClientsNeedingAttention(),
+    backendReady ? attnOrdersCount() : Promise.resolve(0),
+    backendReady ? attnNewSlipInvoiceCount() : Promise.resolve(0),
+    nextBookingToday(),
+  ]);
+
+  const kindRank = { overdue: 0, expiring: 1, almost: 2 };
+  const attention = attentionAll.slice().sort((a, b) => {
+    const kr = kindRank[a.kind] - kindRank[b.kind];
+    return kr !== 0 ? kr : (a.sortKey - b.sortKey);
+  });
+  const attentionShown = attention.slice(0, TODAY_ATTENTION_LIMIT);
+  window.__todayAttentionActions = attentionShown.map(item => item.action);
+
   const order = getStageOrder();
   // Earliest stage first (newest leads read as most "incoming"), then oldest
   // updatedAt within the same stage (surfaces stalled engagements first —
   // keeps the one thing the old stale-engagement nudge was good for).
-  const active = jobs.filter(j => j.uid === uid && !jobComplete(j)).sort((a, b) => {
+  const activePipeline = jobs.filter(j => j.uid === uid && !jobComplete(j)).sort((a, b) => {
     const ai = order.indexOf(jobStage(a)), bi = order.indexOf(jobStage(b));
     if (ai !== bi) return ai - bi;
     return (a.updatedAt || '').localeCompare(b.updatedAt || '');
   });
-  const shown = active.slice(0, INCOMING_PIPELINE_LIMIT);
-  if (!shown.length) {
+  const pipelineShown = activePipeline.slice(0, INCOMING_PIPELINE_LIMIT);
+
+  const rows = [];
+  attentionShown.forEach((item, idx) => rows.push(attentionRowHtml(item, idx)));
+  if (ordersN) rows.push(todayRowHtml(
+    todayIconHtml('var(--brand-tint)', 'var(--brand)', TODAY_ICON_ORDERS),
+    "switchScreen('more')", htmlEsc(t('attn_orders').replace('{n}', ordersN)), '', ''));
+  if (slipsN) rows.push(todayRowHtml(
+    todayIconHtml('var(--brand-tint)', 'var(--brand)', TODAY_ICON_SLIP),
+    "switchScreen('invoices')", htmlEsc(t('attn_slips').replace('{n}', slipsN)), '', ''));
+  if (booking) {
+    const cust = customers.find(c => c.id === booking.customerId);
+    const title = `${htmlEsc(booking.startTime || '')} — ${htmlEsc(booking.title || (cust && cust.name) || t('field_client'))}`;
+    const sub = [t('today_next_up'), booking.location].filter(Boolean).map(htmlEsc).join(' · ');
+    rows.push(todayRowHtml(
+      todayIconHtml('var(--brand-tint)', 'var(--brand)', TODAY_ICON_CLOCK),
+      "switchScreen('book')", title, sub,
+      `<span class="list-pill list-pill-paid">${htmlEsc(t('today_pill_booked'))}</span>`));
+  }
+  pipelineShown.forEach(j => rows.push(incomingPipelineRowHtml(j)));
+
+  if (!rows.length) {
     el.innerHTML = `<div class="empty"><div class="empty-icon">✅</div>
-        <p data-i18n="incoming_pipeline_empty">${t('incoming_pipeline_empty')}</p>
-        <span data-i18n="incoming_pipeline_empty_sub">${t('incoming_pipeline_empty_sub')}</span></div>`;
+        <p data-i18n="today_empty">${t('today_empty')}</p>
+        <span data-i18n="today_empty_sub">${t('today_empty_sub')}</span></div>`;
     return;
   }
-  let html = '<div class="list-card">' + shown.map(incomingPipelineRowHtml).join('') + '</div>';
-  if (active.length > shown.length) {
-    html += `<div style="text-align:center;padding:12px;color:var(--brand);font-weight:700;font-size:13px;cursor:pointer" onclick="switchScreen('pipeline')">+${active.length - shown.length} more in Pipeline →</div>`;
+
+  let html = '<div class="list-card">' + rows.join('') + '</div>';
+  const extraAttention = attention.length - attentionShown.length;
+  if (extraAttention > 0) {
+    html += `<div style="text-align:center;padding:12px;color:var(--marigold-ink);font-weight:700;font-size:13px;cursor:pointer" onclick="switchScreen('customers')">+${extraAttention} more need attention →</div>`;
+  }
+  const extraPipeline = activePipeline.length - pipelineShown.length;
+  if (extraPipeline > 0) {
+    html += `<div style="text-align:center;padding:12px;color:var(--brand);font-weight:700;font-size:13px;cursor:pointer" onclick="switchScreen('pipeline')">+${extraPipeline} more in Pipeline →</div>`;
   }
   el.innerHTML = html;
 }
-window.renderIncomingPipeline = renderIncomingPipeline;
+window.renderHomeToday = renderHomeToday;
 // My Task Goal — replaces the old single daily-goal card with a Month /
 // Quarter / Year switch, each period tracking its own target and net-income
 // progress. settings.goalTargets = {month, quarter, year} (migrated once
@@ -5752,7 +5835,18 @@ async function computeClientsNeedingAttention() {
       const days = daysSinceISO(inv.dueDate);
       items.push({
         client: c,
+        // `kind` + `todaySub`/`amount`/`sortKey` (TSK-009) are additive — the
+        // Clients screen's needsAttentionRowHtml() only ever reads
+        // client/reason/actionLabel/action, unchanged. `todaySub`/`amount`
+        // exist so Home's merged "Today" card can put the invoice amount in
+        // its own right-aligned red mono column instead of folding it into
+        // the sub-line text (which `reason` still does, for the Clients
+        // screen's plain-text row).
+        kind: 'overdue',
         reason: `Invoice ${days} day${days === 1 ? '' : 's'} overdue · ${money(inv.clientPays)}`,
+        todaySub: `${days} day${days === 1 ? '' : 's'} overdue`,
+        amount: (Number(inv.clientPays) || 0),
+        sortKey: -days, // most-overdue first
         actionLabel: t('remind_action'),
         action: () => remindAboutInvoice(inv.id),
       });
@@ -5769,14 +5863,20 @@ async function computeClientsNeedingAttention() {
         if (remaining > 0 && daysToExpiry != null && daysToExpiry >= 0 && daysToExpiry <= PACKAGE_EXPIRY_WARNING_DAYS) {
           items.push({
             client: c,
+            kind: 'expiring',
             reason: `Package expires in ${daysToExpiry} day${daysToExpiry === 1 ? '' : 's'} · ${remaining} ${packageUnitLabel()} left`,
+            todaySub: `Package expires in ${daysToExpiry} day${daysToExpiry === 1 ? '' : 's'} · ${remaining} ${packageUnitLabel()} left`,
+            sortKey: daysToExpiry, // soonest-expiring first
             actionLabel: t('offer_renewal_action'),
             action: () => offerRenewalForClient(c.id),
           });
         } else if (remaining > 0 && remaining <= PACKAGE_ALMOST_DONE_THRESHOLD) {
           items.push({
             client: c,
+            kind: 'almost',
             reason: `Package almost done · ${remaining} ${packageUnitLabel()} left`,
+            todaySub: `Package almost done · ${remaining} ${packageUnitLabel()} left`,
+            sortKey: remaining, // fewest-remaining first
             actionLabel: t('offer_renewal_action'),
             action: () => offerRenewalForClient(c.id),
           });
