@@ -72,6 +72,11 @@ const errors = [];
   // ═══ 1. Undated sub-task via #job-subtask-new + Enter ═══════════════════
   await page.evaluate(id => openEditJob(id), jobA);
   await page.waitForTimeout(300);
+  // TSK-008: Plan & payments now lives behind Full details + a collapsed
+  // drill row — switch mode and pop the row open before interacting with it.
+  // It stays open across re-renders (renderSubTasks/renderMilestones only
+  // replace their own inner containers, never the <details> itself).
+  await page.evaluate(() => { setJobModalMode('full'); document.getElementById('job-plan-details').open = true; });
   await page.fill('#job-subtask-new', 'Undated task');
   await page.press('#job-subtask-new', 'Enter');
   await page.waitForTimeout(300);

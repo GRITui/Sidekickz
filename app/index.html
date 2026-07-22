@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>(function(){var K='sidekick_ui_theme',t=localStorage.getItem(K);if(t==='dark')document.documentElement.dataset.theme='dark';else if(t!=='auto')document.documentElement.dataset.theme='light';})();</script><!-- light by default: set before CSS paints to avoid a flash of the wrong theme -->
-<link rel="stylesheet" href="styles.css?v=0.9.47">
+<link rel="stylesheet" href="styles.css?v=0.9.48">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -269,7 +269,7 @@
 
     <div class="settings-list">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.47</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.48</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
@@ -517,6 +517,20 @@
     <div class="modal-title" id="modal-title" data-i18n="add_job">Add session</div>
     <input type="hidden" id="j-edit-id">
 
+    <!-- TSK-008: Quick log / Full details split. Reuses the .seg control
+         verbatim (styles.css "Segmented control (theme picker etc.)",
+         canonical live usage: #theme-seg in More/Settings) — same track/
+         active-segment tokens, no new segmented-control styling invented.
+         setJobModalMode() toggles which fields below are visible; it does
+         NOT remove any field/section from the DOM, so every existing
+         Playwright selector into #job-tracking-section still resolves once
+         Full details (or the relevant drill row) is opened — see
+         applyJobModalMode() in app.js. -->
+    <div class="seg" id="job-mode-seg" style="margin:0 16px 14px">
+      <button type="button" id="seg-job-quick" onclick="setJobModalMode('quick')" data-i18n="job_seg_quick">Quick log</button>
+      <button type="button" id="seg-job-full" onclick="setJobModalMode('full')" data-i18n="job_seg_full">Full details</button>
+    </div>
+
     <div class="form-section">
       <div class="field">
         <label for="j-date" data-i18n="field_date">Date</label>
@@ -536,7 +550,17 @@
       <div id="j-fastpath-confirm" style="display:none"></div>
 
       <div id="j-standard-fields">
-        <div class="field">
+        <div class="form-row">
+          <div class="field-half"><label for="j-amount" data-i18n="field_amount">Fee</label><input type="number" id="j-amount" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
+          <div class="field-half"><label for="j-tip" data-i18n="field_tip">Tip</label><input type="number" id="j-tip" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
+        </div>
+        <!-- Full-details-only fields below (id="j-full-only"). Quick log
+             deliberately omits Service/apply-to-package/Expense/Sessions/
+             Notes — see the design handoff README §2. Hiding is a visibility
+             toggle only (applyJobModalMode() in app.js): values already set
+             by populateJobSelects()/refreshJobPackageRow() are preserved and
+             still submitted by saveJob() regardless of which mode is showing. -->
+        <div class="field" id="j-service-field">
           <label for="j-service" data-i18n="field_service">Service</label>
           <select id="j-service" onchange="onJobServiceChange(this.value)"></select>
         </div>
@@ -545,15 +569,11 @@
           <input type="checkbox" id="j-apply-package" style="width:20px;height:20px;flex-shrink:0">
           <input type="hidden" id="j-package-id">
         </div>
-        <div class="form-row">
-          <div class="field-half"><label for="j-amount" data-i18n="field_amount">Fee</label><input type="number" id="j-amount" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
-          <div class="field-half"><label for="j-tip" data-i18n="field_tip">Tip</label><input type="number" id="j-tip" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
-        </div>
-        <div class="form-row">
+        <div class="form-row" id="j-full-row">
           <div class="field-half"><label for="j-expense" data-i18n="field_expense">Expense</label><input type="number" id="j-expense" class="tnum" inputmode="decimal" min="0" placeholder="0" oninput="calcNet()"></div>
           <div class="field-half"><label id="j-count-label" for="j-count" data-i18n="field_count">Sessions</label><input type="number" id="j-count" class="tnum" inputmode="numeric" min="0" placeholder="0"></div>
         </div>
-        <div class="field">
+        <div class="field" id="j-notes-field">
           <label for="j-notes" data-i18n="field_notes">Notes</label>
           <textarea id="j-notes" rows="2" data-i18n-ph="field_notes_ph" placeholder="Anything to remember…"></textarea>
         </div>
@@ -565,37 +585,70 @@
       <span class="net-box-val tnum" id="j-net">฿0</span>
     </div>
 
+    <!-- Full-details-only: the 4 sub-feature sections, each collapsed to a
+         drill row (native <details>/<summary class="section-title">, the
+         same collapsible pattern already used for Settings sections —
+         styles.css "Collapsible Settings sections"). Closed by default so
+         a Full-details job modal reads as 4 summary rows with counts; the
+         inner containers (#job-options-body etc.) stay in the DOM at all
+         times — only their *visibility* is gated by [open] — so every
+         existing Playwright test that queries/fills/clicks inside them
+         still works once it opens the relevant <details> first (see
+         tests/check-*.js). -->
     <div class="form-section" id="job-tracking-section" style="display:none">
-      <!-- Title text is persona-dependent ("Buildings" for realestate) and set
-           by renderJobOptions(), so no data-i18n here — JS owns it. -->
-      <div class="section-title" style="margin:0 0 8px" id="job-options-title">Options compared</div>
-      <div id="job-options-body"></div>
+      <details class="job-drill" id="job-options-details">
+        <summary class="section-title">
+          <!-- Title text is persona-dependent ("Buildings" for realestate)
+               and set by renderJobOptions(), so no data-i18n on the span —
+               JS owns it. Count lives in a separate sibling span so
+               #job-options-title's own textContent stays exactly the
+               persona title (tests compare it for exact equality). Both
+               are wrapped in one outer span so the summary's flex
+               space-between (title-block vs. chevron) still lays out as
+               two items, matching the existing settings-section pattern. -->
+          <span><span id="job-options-title">Options compared</span><span class="job-drill-count" id="job-options-count"></span></span>
+        </summary>
+        <div id="job-options-body"></div>
+      </details>
+
       <!-- Pass M3-L2: products/extra services attached to this engagement —
            flow automatically into the quote and invoice (see renderJobItems). -->
-      <div class="section-title" style="margin:14px 0 8px" data-i18n="job_items_title">Items on this engagement</div>
-      <div id="job-items-body"></div>
+      <details class="job-drill" id="job-items-details">
+        <summary class="section-title"><span><span data-i18n="job_items_title">Items on this engagement</span><span class="job-drill-count" id="job-items-count"></span></span></summary>
+        <div id="job-items-body"></div>
+      </details>
+
       <!-- M4-P3 Merge 1: dated steps (subTasks[]) and milestone payments
            (milestones[]) folded into one "Plan & payments" section — UI-only,
            the underlying data model/mechanics are untouched (see
            renderSubTasks/renderMilestones in app.js). -->
-      <div class="section-title" style="margin:14px 0 8px" data-i18n="plan_section_title">Plan &amp; payments</div>
-      <div id="job-subtasks-body"></div>
-      <div class="form-row" style="margin-top:8px">
-        <input type="text" id="job-subtask-new" data-i18n-ph="subtask_add_ph" placeholder="Add a sub-task…" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubTask(document.getElementById('j-edit-id').value);}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
-        <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addSubTask(document.getElementById('j-edit-id').value)" data-i18n="btn_add">+ Add</button>
-      </div>
-      <button type="button" class="btn-text" data-i18n="appt_add_dated" onclick="openApptModal({mode:'add', jobId: parseInt(document.getElementById('j-edit-id').value,10)})">+ Step with date</button>
+      <details class="job-drill" id="job-plan-details">
+        <summary class="section-title"><span><span data-i18n="plan_section_title">Plan &amp; payments</span><span class="job-drill-count" id="job-plan-count"></span></span></summary>
+        <div id="job-subtasks-body"></div>
+        <div class="form-row" style="margin-top:8px">
+          <input type="text" id="job-subtask-new" data-i18n-ph="subtask_add_ph" placeholder="Add a sub-task…" onkeydown="if(event.key==='Enter'){event.preventDefault();addSubTask(document.getElementById('j-edit-id').value);}" style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
+          <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addSubTask(document.getElementById('j-edit-id').value)" data-i18n="btn_add">+ Add</button>
+        </div>
+        <button type="button" class="btn-text" data-i18n="appt_add_dated" onclick="openApptModal({mode:'add', jobId: parseInt(document.getElementById('j-edit-id').value,10)})">+ Step with date</button>
 
-      <div id="job-milestones-body" style="margin-top:14px"></div>
-      <button type="button" class="btn-submit" style="margin-top:8px" onclick="addMilestone(document.getElementById('j-edit-id').value)" data-i18n="add_milestone">+ Add milestone</button>
+        <div id="job-milestones-body" style="margin-top:14px"></div>
+        <button type="button" class="btn-submit" style="margin-top:8px" onclick="addMilestone(document.getElementById('j-edit-id').value)" data-i18n="add_milestone">+ Add milestone</button>
+      </details>
 
-      <div class="section-title" style="margin:18px 0 8px" data-i18n="time_tracking_title">Time tracking</div>
-      <div id="job-timer-body"></div>
+      <details class="job-drill" id="job-time-details">
+        <summary class="section-title"><span><span data-i18n="time_tracking_title">Time tracking</span><span class="job-drill-count" id="job-time-count"></span></span></summary>
+        <div id="job-timer-body"></div>
+      </details>
     </div>
 
     <button class="btn-submit" onclick="saveJob()" data-i18n="save_job">Save session</button>
     <button class="btn-danger" id="j-delete" style="display:none" onclick="deleteJob()" data-i18n="delete_job">Delete session</button>
-    <button class="btn-danger" style="border-color:var(--border-mid);color:var(--text3)" onclick="closeJobModal()" data-i18n="cancel">Cancel</button>
+    <!-- De-escalated from .btn-danger to plain-text (design handoff README
+         §2: "Cancel is a plain text button ... deliberately de-escalated
+         from the old danger styling") — reuses the existing .btn-text class
+         (styles.css, already used for "+ Step with date" above) rather than
+         inventing a new button style. -->
+    <button type="button" class="btn-text" style="width:calc(100% - 32px);margin:0 16px 20px;text-align:center;padding:14px 16px;color:var(--text3)" onclick="closeJobModal()" data-i18n="cancel">Cancel</button>
   </div>
 </div>
 
@@ -745,22 +798,22 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.9.47"></script>
+<script src="app.js?v=0.9.48"></script>
 <!-- Phase 1 of the local-first -> backend migration: a fetch()-only mirror
      for the `clients` store, exposing window.SidekickBackend. Local
      IndexedDB stays authoritative for every read/write in this phase; see
      dataClient.js's own header for why. -->
-<script src="dataClient.js?v=0.9.47"></script>
+<script src="dataClient.js?v=0.9.48"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.9.47"></script>
-<script src="invoices.js?v=0.9.47"></script>
-<script src="docgen.js?v=0.9.47"></script>
+<script src="tax.js?v=0.9.48"></script>
+<script src="invoices.js?v=0.9.48"></script>
+<script src="docgen.js?v=0.9.48"></script>
 <!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
      the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
-<script src="bookings.js?v=0.9.47"></script>
-<script src="followups.js?v=0.9.47"></script>
-<script src="portfolio.js?v=0.9.47"></script>
+<script src="bookings.js?v=0.9.48"></script>
+<script src="followups.js?v=0.9.48"></script>
+<script src="portfolio.js?v=0.9.48"></script>
 <!-- M5: research.js (content library, subscription UI stubbed open — no
      payment verification yet; see project-changelog-handshake.md). -->
-<script src="research.js?v=0.9.47"></script>
+<script src="research.js?v=0.9.48"></script>

@@ -89,6 +89,15 @@ summary.section-title::after{content:'';width:7px;height:7px;flex-shrink:0;borde
   transform:rotate(45deg);margin-left:8px;transition:transform .15s;}
 details.settings-section:not([open]) summary.section-title::after{transform:rotate(-45deg);}
 
+/* Job modal drill rows (TSK-008 Quick log / Full details) — same collapsible
+   details/summary mechanics as the Settings sections above, just closed by
+   default (Full details reads as 4 summary rows with counts; tapping one
+   opens the existing sub-view/list in place). */
+details.job-drill:not([open]) summary.section-title::after{transform:rotate(-45deg);}
+details.job-drill{margin:0 0 14px;}
+details.job-drill:last-of-type{margin-bottom:0;}
+.job-drill-count{color:var(--text3);font-weight:600;margin-left:2px;}
+
 /* Hero card — overlaps the header band via negative top margin */
 .hero{background:var(--card);margin:0 16px 16px;border-radius:var(--radius);padding:20px;
   color:var(--text);border:0.5px solid var(--border);box-shadow:0 1px 2px rgba(26,36,33,.05);

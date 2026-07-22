@@ -90,6 +90,10 @@ const assert = (cond, msg) => { if (cond) { pass++; } else { fail++; console.log
   assert(await pageA.locator('#job-tracking-section #job-subtasks-body').count() === 1, '2: steps list container present in the section');
   assert(await pageA.locator('#job-tracking-section #job-milestones-body').count() === 1, '2: milestone list container present in the section');
 
+  // TSK-008: Plan & payments now lives behind Full details + a collapsed
+  // drill row — switch mode and pop the row open before the UI clicks below.
+  await pageA.evaluate(() => { setJobModalMode('full'); document.getElementById('job-plan-details').open = true; });
+
   // ═══ 3. "+ Step with date" still creates a real dated step (mechanics intact) ═
   await pageA.click('#job-tracking-section button[data-i18n="appt_add_dated"]');
   await pageA.waitForSelector('#modal-appt', { timeout: 5000 });

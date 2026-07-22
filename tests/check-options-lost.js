@@ -54,6 +54,12 @@ const { chromium } = require('playwright');
   assert(await page.locator('#job-options-body').count() === 1, '1: options section present in edit modal');
   assert((await page.locator('#job-options-body .pkg-status').textContent()).length > 0, '1: empty state shown with no options');
 
+  // TSK-008: Options now lives behind Full details + a collapsed drill row —
+  // switch mode and pop the row open once; it stays open across the
+  // re-renders below (renderJobOptions only replaces #job-options-body's
+  // innerHTML, never the <details> itself).
+  await page.evaluate(() => { setJobModalMode('full'); document.getElementById('job-options-details').open = true; });
+
   // ═══ 2. Add options ═════════════════════════════════════════════════════
   await page.fill('#job-option-new', 'Ashton Asoke');
   await page.press('#job-option-new', 'Enter');

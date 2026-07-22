@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.47';          // <-> sw.js SW_VERSION 'sidekick-v0.9.47'
+const APP_VERSION = '0.9.48';          // <-> sw.js SW_VERSION 'sidekick-v0.9.48'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -764,6 +764,9 @@ const I18N = {
     field_client:'Member', field_amount:'Fee', field_tip:'Tip', field_expense:'Expense', field_count:'Sessions', field_notes:'Notes',
     field_notes_ph:'Anything to remember…',
     net_take:'Net take',
+    // TSK-008: Quick log / Full details segmented control + drill-row counts
+    job_seg_quick:'Quick log', job_seg_full:'Full details',
+    drill_steps_unit:'step(s)', drill_milestones_unit:'milestone(s)', drill_running_suffix:'running',
     // validation
     err_enter_date:'Please pick a date', err_amount:'Amount must be 0 or more', err_neg:'Values cannot be negative', err_too_big:'That value is too large',
     // settings
@@ -1281,6 +1284,9 @@ const I18N = {
     field_client:'สมาชิก', field_amount:'ค่าธรรมเนียม', field_tip:'ทิป', field_expense:'ค่าใช้จ่าย', field_count:'จำนวนเซสชัน', field_notes:'บันทึกช่วยจำ',
     field_notes_ph:'สิ่งที่ต้องจำ…',
     net_take:'รายรับสุทธิ',
+    // TSK-008: ตัวสลับ Quick log / Full details + จำนวนรายการในแถวย่อ
+    job_seg_quick:'บันทึกด่วน', job_seg_full:'รายละเอียดเต็ม',
+    drill_steps_unit:'ขั้นตอน', drill_milestones_unit:'งวดการชำระ', drill_running_suffix:'กำลังจับเวลา',
     // validation
     err_enter_date:'กรุณาเลือกวันที่', err_amount:'จำนวนเงินต้องมากกว่าหรือเท่ากับ 0', err_neg:'ค่าต้องไม่ติดลบ', err_too_big:'ค่านี้สูงเกินไป',
     // settings
@@ -4113,17 +4119,21 @@ function refreshJobPackageRow(clientId, existingPackageId) {
     if (!pkg) pkg = activePackageFor(cid);
   }
   if (!pkg) {
+    row.dataset.wantShow = 'false';   // TSK-008: business-logic want-shown flag; applyJobModalMode() ANDs this with the Quick/Full mode gate
     row.style.display = 'none';
     hidden.value = '';
     checkbox.checked = false;
+    applyJobModalMode();
     return;
   }
+  row.dataset.wantShow = 'true';
   row.style.display = 'flex';
   hidden.value = pkg.id;
   label.textContent = `${t('apply_to_package')} (${packageRemaining(pkg)} ${t('of_label')} ${pkg.totalSessions} ${t('left_label')})`;
   checkbox.checked = existingPackageId != null ? existingPackageId === pkg.id : true;
   const countLabel = document.getElementById('j-count-label');
   if (countLabel) countLabel.textContent = packageUnitLabel();
+  applyJobModalMode();   // re-apply the Quick/Full gate on top of the row's own visibility logic
   refreshPackageFastPathButton(cid);
 }
 // "Ship remaining service" fast path — for a client who already has an
@@ -4248,6 +4258,46 @@ function onJobServiceChange(v) {
   const s = services.find(x => x.id === parseInt(v));
   if (s) { document.getElementById('j-amount').value = s.rate; calcNet(); }
 }
+// TSK-008: Quick log / Full details segmented control (design-handoff
+// README §2). This is a presentation-only toggle — every field/section
+// stays in the DOM regardless of mode and keeps whatever value it was
+// populated with, so saveJob() and the sub-feature renderers (renderJob
+// Options/Items/SubTasks/Milestones/Timer) are completely unaffected; only
+// applyJobModalMode()'s display toggles change. That's also what keeps the
+// existing Playwright suites working: they can still reach every element
+// by id, they just need to open the relevant drill row (or switch to Full
+// details) first — see tests/check-*.js and check-job-modal-v2.js.
+let jobModalMode = 'quick';
+function setJobModalMode(mode) {
+  jobModalMode = (mode === 'full') ? 'full' : 'quick';
+  applyJobModalMode();
+}
+window.setJobModalMode = setJobModalMode;
+function applyJobModalMode() {
+  const full = jobModalMode === 'full';
+  const quickSeg = document.getElementById('seg-job-quick');
+  const fullSeg = document.getElementById('seg-job-full');
+  if (quickSeg) quickSeg.classList.toggle('on', !full);
+  if (fullSeg) fullSeg.classList.toggle('on', full);
+  // Full-details-only fields: Service, Expense/Sessions, Notes.
+  ['j-service-field', 'j-full-row', 'j-notes-field'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = full ? '' : 'none';
+  });
+  // j-package-row has its own show/hide business logic (refreshJobPackageRow,
+  // gated on whether the selected client actually has a linked/active
+  // package) — this only ANDs the Quick/Full mode on top of that, it never
+  // shows the row when the business logic itself says there's no package.
+  const pkgRow = document.getElementById('j-package-row');
+  if (pkgRow) pkgRow.style.display = (full && pkgRow.dataset.wantShow === 'true') ? 'flex' : 'none';
+  // The 4 drill-row sections only ever exist once a job is saved (edit
+  // mode) — add-mode has nothing to show yet (sub-tasks/milestones/items/
+  // options/time all need a saved job id). openAddJob/openEditJob stamp
+  // dataset.editMode so add-mode stays hidden even if Full details is tapped.
+  const tracking = document.getElementById('job-tracking-section');
+  if (tracking && tracking.dataset.editMode === 'true') tracking.style.display = full ? 'block' : 'none';
+}
+window.applyJobModalMode = applyJobModalMode;
 function openAddJob(dateISO) {
   document.getElementById('modal-title').textContent = t('add_job');
   document.getElementById('j-edit-id').value = '';
@@ -4255,10 +4305,13 @@ function openAddJob(dateISO) {
   ['j-amount','j-tip','j-expense','j-count','j-notes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   populateJobSelects('', '');
   resetPackageFastPath();
-  refreshJobPackageRow(null, null);
-  document.getElementById('j-delete').style.display = 'none';
   // Sub-tasks/milestones/time tracking all need a saved job id to attach to.
-  document.getElementById('job-tracking-section').style.display = 'none';
+  const tracking = document.getElementById('job-tracking-section');
+  if (tracking) tracking.dataset.editMode = 'false';
+  jobModalMode = 'quick';   // a brand-new job always opens Quick log
+  refreshJobPackageRow(null, null);   // also applies the mode (calls applyJobModalMode())
+  applyJobModalMode();
+  document.getElementById('j-delete').style.display = 'none';
   clearFieldErrors();
   calcNet();
   openJobModal();
@@ -4274,11 +4327,23 @@ function openEditJob(id) {
   set('j-amount', j.amount); set('j-tip', j.tip);
   set('j-expense', j.expense); set('j-count', j.count); set('j-notes', j.notes);
   populateJobSelects(j.clientId != null ? j.clientId : '', j.serviceId != null ? j.serviceId : '');
+  // TSK-008 design decision (research map §5): an edit must never silently
+  // hide data the job already has behind Quick log — so a job carrying
+  // anything in a "full" field (expense, notes, sessions, or any sub-
+  // feature: options/items/plan-and-payments/time) opens straight into
+  // Full details. Only a genuinely empty job defaults to Quick log.
+  const hasFullData = (Number(j.expense) > 0) || !!(j.notes && String(j.notes).trim()) ||
+    (Number(j.count) > 0) || ((j.subTasks || []).length > 0) || ((j.milestones || []).length > 0) ||
+    ((j.items || []).length > 0) || ((j.options || []).length > 0) ||
+    ((j.timeEntries || []).length > 0) || !!j.timerStartedAt;
+  jobModalMode = hasFullData ? 'full' : 'quick';
+  const tracking = document.getElementById('job-tracking-section');
+  if (tracking) tracking.dataset.editMode = 'true';
   refreshJobPackageRow(j.clientId, j.packageId != null ? j.packageId : null);
   document.getElementById('j-delete').style.display = 'block';
   window.__milestoneFormOpen = false;
-  document.getElementById('job-tracking-section').style.display = 'block';
   renderJobTracking(id);
+  applyJobModalMode();
   clearFieldErrors();
   calcNet();
   openJobModal();
@@ -6611,6 +6676,30 @@ function renderJobTracking(jobId) {
   renderJobTimer(jobId);
 }
 
+// TSK-008: keeps each drill row's "· N" count in sync with the underlying
+// job record. Called from the tail of each of the 5 render*() functions
+// above (not just renderJobTracking) so every mutation path — whether it
+// re-renders just its own section (addJobOption etc.) or the whole tracking
+// block (addSubTask/timer start-stop etc.) — updates the count too.
+// #job-options-title itself is left untouched (persona-dependent text,
+// compared for exact equality by tests/check-options-lost.js); the count
+// lives in the separate sibling span next to it.
+function updateJobDrillSummaries(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const setCount = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text ? ` · ${text}` : ''; };
+  setCount('job-options-count', (j.options || []).length || '');
+  setCount('job-items-count', (j.items || []).length || '');
+  const subs = (j.subTasks || []).length, miles = (j.milestones || []).length;
+  const planParts = [];
+  if (subs) planParts.push(`${subs} ${t('drill_steps_unit')}`);
+  if (miles) planParts.push(`${miles} ${t('drill_milestones_unit')}`);
+  setCount('job-plan-count', planParts.join(' · '));
+  const totalMin = (j.timeEntries || []).reduce((s, e) => s + (Number(e.minutes) || 0), 0);
+  const running = !!j.timerStartedAt;
+  setCount('job-time-count', (totalMin > 0 || running) ? `${fmtHM(totalMin)}${running ? ' ' + t('drill_running_suffix') : ''}` : '');
+}
+
 // ── Sub-tasks ──
 function renderSubTasks(jobId) {
   const wrap = document.getElementById('job-subtasks-body');
@@ -6618,7 +6707,7 @@ function renderSubTasks(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
   const subs = j.subTasks || [];
-  if (!subs.length) { wrap.innerHTML = `<div class="pkg-status"><span>${htmlEsc(t('no_subtasks'))}</span></div>`; return; }
+  if (!subs.length) { wrap.innerHTML = `<div class="pkg-status"><span>${htmlEsc(t('no_subtasks'))}</span></div>`; updateJobDrillSummaries(jobId); return; }
   const done = subs.filter(s => s.done).length;
   wrap.innerHTML = `
     <div class="pkg-status-row" style="margin-bottom:8px"><span>${done} of ${subs.length} done</span></div>
@@ -6632,6 +6721,7 @@ function renderSubTasks(jobId) {
         <button type="button" class="qc-btn" aria-label="Delete sub-task" onclick="event.stopPropagation();deleteSubTask(${jobId},'${s.id}')">✕</button>
       </div>`).join('')}</div>
   `;
+  updateJobDrillSummaries(jobId);
 }
 // Date chip under a dated sub-task's title. Falsy dateType = undated legacy
 // row → empty string, so those rows render byte-identically to before dated
@@ -6758,6 +6848,7 @@ function renderJobOptions(jobId) {
              style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
       <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addJobOption(${jobId})">${htmlEsc(t('option_add_btn'))}</button>
     </div>`;
+  updateJobDrillSummaries(jobId);
 }
 async function addJobOption(jobId) {
   jobId = parseInt(jobId, 10);
@@ -6860,6 +6951,7 @@ function renderJobItems(jobId) {
              style="width:64px;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
       <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addJobItem(${jobId})">${htmlEsc(t('job_items_add'))}</button>
     </div>`;
+  updateJobDrillSummaries(jobId);
 }
 async function addJobItem(jobId) {
   jobId = parseInt(jobId, 10);
@@ -6940,6 +7032,7 @@ function renderMilestones(jobId) {
     `;
   }
   wrap.innerHTML = html;
+  updateJobDrillSummaries(jobId);
 }
 function addMilestone(jobId) {
   window.__milestoneFormOpen = true;
@@ -7053,6 +7146,7 @@ function renderJobTimer(jobId) {
     liveRow();
     _jobTimerTickHandle = setInterval(liveRow, 1000);
   }
+  updateJobDrillSummaries(jobId);
 }
 async function startJobTimer(jobId) {
   const j = jobs.find(x => x.id === jobId);
