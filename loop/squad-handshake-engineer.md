@@ -37,17 +37,16 @@ freshly re-run regression battery and, where relevant, the raw diff itself
 (none — no task hit the 3-strike breaker across the whole batch)
 
 ## Cross-Squad Requests
-* Owner: PR #65 has one open decision, unresolved across the whole batch —
-  the new inline stage-gate (TSK-012) writes `job.due` as a scalar reminder
-  and no longer creates a real calendar booking (`createBookingForStep()`),
-  per the design handoff's literal `due: ISO|null` spec. The OLD gate, at
-  least for Inquiry-stage exact dates, DID create a real `bookings` row
-  visible on Calendar/Week view. Gate copy ("Book the follow-up") still
-  reads as if it books a slot. TSK-010's verify pass confirmed this is
-  still the only loose end in the whole batch — Calendar itself works
-  correctly, it just never receives a booking from this specific path.
-  Needs an explicit call: keep as reminder-only (reword the gate copy), or
-  wire `createBookingForStep()` back in for exact-date gates.
+* RESOLVED 2026-07-22: the calendar-booking decision is closed. Owner
+  reviewed a side-by-side mockup (reminder-only vs. real booking, rendered
+  from real app/styles.css tokens + app/app.js gate copy) and chose to
+  restore the booking — logged as **TSK-016** in backlog-inbox.md,
+  `READY_FOR_PM`, priority MEDIUM. Scope: call the existing
+  `createBookingForStep()` (app/app.js:5623) from `resolveGateAdvance()`
+  and its two siblings for the 3 basic gate transitions; Redo/Postpone need
+  the linked booking moved/recreated, not just `job.due` rewritten — the
+  one non-trivial part. No i18n changes needed (existing gate copy already
+  matches booking behavior). Next Engineer-Squad pickup.
 * Owner (lower priority, noted not urgent): the old `markJobLost()` fixed-
   reason chip picker is now unreachable from any UI button (Cancel's
   free-text `job.note` replaced it in practice) but is still fully defined
