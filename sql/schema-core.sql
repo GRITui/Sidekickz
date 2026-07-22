@@ -215,6 +215,15 @@ alter table jobs add column if not exists options jsonb;
 -- never rewrites an engagement's own history.
 alter table jobs add column if not exists items jsonb;
 
+-- 2026-07-22: TSK-014 — collapsed the pipeline from 6 stages
+-- ('pitch'/'quote'/'invoice'/'paid'/'delivery'/'extend') to 4
+-- ('inquiry'/'quote'/'booked'/'deliver'). Invoice+Paid folded into Booked,
+-- so "money actually collected" is no longer a stage a job can be at — it's
+-- this plain per-job flag instead (app.js jobEarned()), set by
+-- markJobPaid()/the invoice-paid reverse hook/the cash-job path, and
+-- preserved for pre-migration jobs by app.js migrateJobStagesToV2IfNeeded().
+alter table jobs add column if not exists paid boolean not null default false;
+
 create table if not exists services (
   cuid              text primary key,
   user_cuid         text not null references users(cuid) on delete cascade,

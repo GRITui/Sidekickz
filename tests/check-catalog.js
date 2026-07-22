@@ -276,17 +276,17 @@ const errors = [];
   await page.click('#inv-cancel');
   await page.waitForTimeout(150);
 
-  // ═══ 9. markJobPaid path: a pipeline job at 'paid' stage linked to a product ═══
-  // invoice, advanced via the normal pipeline action, decrements stock too.
+  // ═══ 9. markJobPaid path: a booked job linked to a product invoice, ═══
+  // marked paid directly (TSK-014: paid is a job-level flag, not a stage —
+  // pipelineAction() no longer routes to markJobPaid), decrements stock too.
   const mopId = await mkProduct({ name: 'Mop Head', sku: 'MOP-1', stockQty: 4, cost: 20 });
   const jobInvId = await mkInvoice({
     lineItems: [{ description: 'Mop Head', qty: 1, unitPrice: 40, serviceId: mopId }],
     subtotal: 40, clientPays: 40, youReceive: 40, status: 'sent',
   });
-  const jobId = await mkJob('paid', { invoiceId: jobInvId });
-  await page.evaluate(id => pipelineAction(id), jobId);
+  const jobId = await mkJob('booked', { invoiceId: jobInvId });
+  await page.evaluate(id => markJobPaid(id), jobId);
   await waitStamped(jobInvId);
-  await page.evaluate(() => { document.getElementById('modal-appt')?.remove(); }); // stage-gate popup from the advance
   const mopStock = await svcRow(mopId, 's.stockQty');
   assert(mopStock === 3, '9: markJobPaid path decrements linked product stock too (4 -> 3), got ' + mopStock);
   const jobInvStatus = await invRow(jobInvId, 'inv.status');

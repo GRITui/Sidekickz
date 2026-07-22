@@ -41,7 +41,7 @@ const { chromium } = require('playwright');
       documents: [], packages: [], bookings: [], portfolio: [], research: [], expenses: [], progressLogs: [],
       jobs: [{ id: 904, uid, date: todayISO(), client: 'Remap Client', clientId: 901, serviceId: 902,
         serviceName: 'Remap Svc', amount: 500, cuid: 'j-rm-1', stageOrder: getStageOrder().slice(),
-        stage: 'invoice', complete: false, invoiceId: 903, quoteDocId: null, packageId: null,
+        stage: 'booked', paid: false, complete: false, invoiceId: 903, quoteDocId: null, packageId: null,
         milestones: [{ id: 'm1', pct: 50, amount: 250, invoiceId: 903 }], updatedAt: nowISO() }],
       followups: [{ id: 905, uid, key: 'overdue:901:903', dismissed: false, cuid: 'f-rm-1', updatedAt: nowISO() }],
     };
@@ -82,27 +82,30 @@ const { chromium } = require('playwright');
       serviceId: null, serviceName: 'E', amount, tip: 0, expense: 0, count: 1, notes: '', netAmount: amount,
       cuid: cuid(), stageOrder: getStageOrder().slice(), stage, complete: false, invoiceId: null,
       quoteDocId: null, packageId: null, updatedAt: nowISO() }, extra || {}));
-    await mk('pitch', 1000);                                    // not earned
-    await mk('paid', 200);                                      // earned
-    await mk('quote', 400, { complete: true, outcome: 'lost' }); // lost pre-paid: not earned
-    await mk('delivery', 300);                                  // earned (past paid)
+    await mk('inquiry', 1000);                                    // not earned
+    await mk('booked', 200, { paid: true });                       // earned
+    await mk('quote', 400, { complete: true, outcome: 'lost' });    // lost pre-paid: not earned
+    await mk('deliver', 300, { paid: true });                       // earned
     await reload();
     renderHome();
     await new Promise(r => setTimeout(r, 200));
     return document.getElementById('hero-amt').textContent;
   });
   const digits = earned.replace(/[^0-9]/g, '');
-  assert(digits === '1000' || digits === '500', '2: hero counts only paid+ jobs — expected ฿500 (+฿500 from remap job at invoice stage? no) got: ' + earned);
-  // Precise check: 200 + 300 = 500 (the remap job sits at 'invoice' stage → excluded)
-  assert(digits === '500', '2: hero-amt is exactly ฿500 (paid 200 + delivery 300; pitch/lost/invoice-stage excluded), got ' + earned);
+  assert(digits === '1000' || digits === '500', '2: hero counts only paid jobs — expected ฿500 (+฿500 from remap job, booked but unpaid? no) got: ' + earned);
+  // Precise check: 200 + 300 = 500 (the remap job sits at 'booked', unpaid → excluded)
+  assert(digits === '500', '2: hero-amt is exactly ฿500 (paid booked 200 + paid deliver 300; inquiry/lost/unpaid-booked excluded), got ' + earned);
 
-  // ═══ 3. Invoice-marked-paid advances the linked job ═══════════════════
+  // ═══ 3. Invoice-marked-paid flips the linked job's paid flag ══════════
+  // TSK-014: paid is a job-level flag now, not a stage — the reverse hook
+  // (onInvoiceMarkedPaid -> markJobPaid) never moves the stage or gates
+  // anymore; it only sets job.paid = true and flips the invoice.
   const rev = await page.evaluate(async () => {
     const uid = currentUser.id;
     const invId = await dbAdd('invoices', { uid, number: 'INV-RH', clientId: null, status: 'sent', cuid: cuid(), lineItems: [], updatedAt: nowISO() });
     const jId = await dbPut('jobs', { uid, date: todayISO(), client: 'RH', clientId: null, serviceId: null,
       serviceName: 'RH', amount: 100, tip: 0, expense: 0, count: 1, notes: '', netAmount: 100, cuid: cuid(),
-      stageOrder: getStageOrder().slice(), stage: 'paid', complete: false, invoiceId: invId, quoteDocId: null,
+      stageOrder: getStageOrder().slice(), stage: 'booked', paid: false, complete: false, invoiceId: invId, quoteDocId: null,
       packageId: null, updatedAt: nowISO() });
     await reload();
     await window.onInvoiceMarkedPaid(invId);
@@ -110,17 +113,18 @@ const { chromium } = require('playwright');
     const j = jobs.find(x => x.id === jId);
     const modalOpen = !!document.getElementById('modal-appt');
     if (modalOpen) closeApptModal();
-    return { stage: jobStage(j), gated: !!j.pendingGateStage || modalOpen };
+    return { stage: jobStage(j), paid: !!j.paid, gated: !!j.pendingGateStage || modalOpen };
   });
-  assert(rev.stage === 'delivery', '3: job advanced paid → delivery via the reverse hook, got ' + rev.stage);
-  assert(rev.gated, '3: the stage-gate fired after the hook-driven advance');
+  assert(rev.paid === true, '3: job.paid flipped via the reverse hook, got ' + rev.paid);
+  assert(rev.stage === 'booked', '3: TSK-014 — marking paid never moves the stage, stayed at ' + rev.stage);
+  assert(!rev.gated, '3: TSK-014 — marking paid never gates (no stage move to gate after)');
 
   // ═══ 4. Reschedule (✎) + delete cleanup ════════════════════════════════
   const resched = await page.evaluate(async () => {
     const uid = currentUser.id;
     const jId = await dbPut('jobs', { uid, date: todayISO(), client: 'RS', clientId: null, serviceId: null,
       serviceName: 'RS', amount: 100, tip: 0, expense: 0, count: 1, notes: '', netAmount: 100, cuid: cuid(),
-      stageOrder: getStageOrder().slice(), stage: 'pitch', complete: false, invoiceId: null, quoteDocId: null,
+      stageOrder: getStageOrder().slice(), stage: 'inquiry', complete: false, invoiceId: null, quoteDocId: null,
       packageId: null, subTasks: [], updatedAt: nowISO() });
     await reload();
     const j = jobs.find(x => x.id === jId);
@@ -167,7 +171,7 @@ const { chromium } = require('playwright');
     const uid = currentUser.id;
     const jId = await dbPut('jobs', { uid, date: todayISO(), client: 'G', clientId: null, serviceId: null,
       serviceName: 'G', amount: 1, tip: 0, expense: 0, count: 1, notes: '', netAmount: 1, cuid: cuid(),
-      stageOrder: getStageOrder().slice(), stage: 'pitch', complete: false, invoiceId: null, quoteDocId: null,
+      stageOrder: getStageOrder().slice(), stage: 'inquiry', complete: false, invoiceId: null, quoteDocId: null,
       packageId: null, updatedAt: nowISO() });
     await reload();
     await advanceJobStage(jId);

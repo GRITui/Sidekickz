@@ -288,6 +288,9 @@
     service_id: j.serviceId, service_name: j.serviceName, job_type: j.jobType,
     amount: j.amount, tip: j.tip, expense: j.expense, count: j.count, notes: j.notes,
     net_amount: j.netAmount, stage_order: j.stageOrder, stage: j.stage, complete: j.complete,
+    // 2026-07-22: TSK-014 — 'paid' collapsed from a pipeline stage into a
+    // job-level flag (see app.js jobEarned()); mirror it alongside stage.
+    paid: !!j.paid,
     invoice_id: j.invoiceId, quote_doc_id: j.quoteDocId, package_id: j.packageId,
     sub_tasks: j.subTasks, milestones: j.milestones, time_entries: j.timeEntries,
     timer_started_at: j.timerStartedAt,
@@ -330,6 +333,7 @@
       serviceId: num(row.service_id), serviceName: row.service_name, jobType: row.job_type,
       amount: num(row.amount), tip: num(row.tip), expense: num(row.expense), count: num(row.count),
       notes: row.notes, netAmount: num(row.net_amount), stageOrder: row.stage_order, stage: row.stage,
+      paid: !!row.paid,
       complete: row.complete, invoiceId: num(row.invoice_id), quoteDocId: num(row.quote_doc_id),
       packageId: num(row.package_id), subTasks: row.sub_tasks, milestones: row.milestones,
       timeEntries: row.time_entries, timerStartedAt: row.timer_started_at,

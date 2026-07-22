@@ -70,7 +70,7 @@ const assert = (cond, msg) => { if (cond) { pass++; } else { fail++; console.log
   const job = (id, expr) => pageA.evaluate(args => { const j = jobs.find(x => x.id === args[0]); return eval(args[1]); }, [id, expr]);
   const tA = (key) => pageA.evaluate(k => t(k), key);
 
-  const jobA = await mkJob('Plan test job', 'pitch');
+  const jobA = await mkJob('Plan test job', 'inquiry');
   assert(typeof jobA === 'number', 'setup: job created for Merge 1 tests');
   await pageA.evaluate(id => openEditJob(id), jobA);
   await pageA.waitForTimeout(300);

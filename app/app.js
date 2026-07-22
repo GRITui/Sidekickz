@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.43';          // <-> sw.js SW_VERSION 'sidekick-v0.9.43'
+const APP_VERSION = '0.9.44';          // <-> sw.js SW_VERSION 'sidekick-v0.9.44'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -499,17 +499,25 @@ function packageUnitLabel() {
 // internal stage id stays `pitch` even though its display label is now
 // "Inquiry" — same rename convention as Booking→Calendar, only the
 // user-facing text changed:
-//   pitch    → initial outreach to a prospective client ("Inquiry")
-//   quote    → send a price quote for a session/package
-//   invoice  → send the invoice
-//   paid     → payment received
-//   delivery → deliver the session(s) themselves
-//   extend   → offer a renewal/extension once delivered
-// All six are mandatory and always present (no optional/toggleable stage,
+//   inquiry → initial outreach to/from a prospective client
+//   quote   → send a price quote for a session/package
+//   booked  → client accepted; can carry zero/one/many linked invoices, and
+//             whether money actually came in is a job-level flag (job.paid,
+//             see jobEarned() below), not a separate stage
+//   deliver → deliver the session(s); a renewal is an explicit action
+//             (offerRenewalForClient/spawnRenewalQuoteJob) that spawns a NEW
+//             job at 'quote', not a stage this job sits in
+// All four are mandatory and always present (no optional/toggleable stage,
 // no per-persona presets) — this fixed order IS the business process. Still
 // reorderable in Settings ▸ Stage order for personal preference, guarded so
-// Paid can't precede Invoice.
-const STAGES = ['pitch', 'quote', 'invoice', 'paid', 'delivery', 'extend'];
+// Deliver can't precede Booked.
+//
+// 2026-07-22 (TSK-014): collapsed from the original 6 stages
+// ['pitch','quote','invoice','paid','delivery','extend'] — Invoice+Paid
+// folded into Booked, Delivery+Extend folded into Deliver. Existing
+// installs' stored job.stage values are remapped once on load — see
+// migrateJobStagesToV2IfNeeded().
+const STAGES = ['inquiry', 'quote', 'booked', 'deliver'];
 // dot: a distinct per-stage color used by the Booking calendar's activity
 // legend (bookings.js) to show which stage(s) a day's engagements are in —
 // chosen to read clearly at a few px each, separate from the semantically-
@@ -521,12 +529,10 @@ const STAGES = ['pitch', 'quote', 'invoice', 'paid', 'delivery', 'extend'];
 // site already reads `meta.label` etc, so only the read needs a `t()`
 // wrapper, not a field rename everywhere.
 const STAGE_META = {
-  pitch:    {label:'stage_pitch_label',    dot:'#64748B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'stage_pitch_action',     done:'stage_pitch_done', hint:'stage_pitch_hint'},
-  quote:    {label:'stage_quote_label',    dot:'#8B5CF6', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'stage_quote_action',       done:'stage_quote_done', skippable:true, hint:'stage_quote_hint'},
-  invoice:  {label:'stage_invoice_label',  dot:'#F59E0B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'stage_invoice_action',      done:'stage_invoice_done', skippable:true, hint:'stage_invoice_hint'},
-  paid:     {label:'stage_paid_label',     dot:'#2F9E5B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M14.5 9.3C14.5 8.3 13.4 8 12 8s-2.5.6-2.5 1.7c0 2.4 5 1.2 5 3.6 0 1.1-1.1 1.7-2.5 1.7s-2.5-.4-2.5-1.4"/></svg>', action:'stage_paid_action',         done:'stage_paid_done', hint:'stage_paid_hint'},
-  delivery: {label:'stage_delivery_label', dot:'#22554B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'stage_delivery_action',  done:'stage_delivery_done', hint:'stage_delivery_hint'},
-  extend:   {label:'stage_extend_label',   dot:'#0EA5E9', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>', action:'stage_extend_action',           done:'stage_extend_done', hint:'stage_extend_hint'},
+  inquiry: {label:'stage_inquiry_label', dot:'#64748B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>', action:'stage_inquiry_action', done:'stage_inquiry_done', hint:'stage_inquiry_hint'},
+  quote:   {label:'stage_quote_label',   dot:'#8B5CF6', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12z"/></svg>', action:'stage_quote_action', done:'stage_quote_done', skippable:true, hint:'stage_quote_hint'},
+  booked:  {label:'stage_booked_label',  dot:'#F59E0B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>', action:'stage_booked_action', done:'stage_booked_done', hint:'stage_booked_hint'},
+  deliver: {label:'stage_deliver_label', dot:'#22554B', icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:1em;height:1em;display:inline-block;vertical-align:middle"><path d="M14.5 5.5a3.5 3.5 0 0 0-4.6 4.4L4 15.8V20h4.2l5.9-5.9a3.5 3.5 0 0 0 4.4-4.6l-2.3 2.3-2-2z"/></svg>', action:'stage_deliver_action', done:'stage_deliver_done', hint:'stage_deliver_hint'},
 };
 const DEFAULT_STAGE_ORDER = STAGES.slice();
 function getStageOrder() {
@@ -558,43 +564,43 @@ function jobComplete(j) {
   if (j.stage == null) return true;
   return false;
 }
-// A session "ships" (counts against a package) once it reaches Delivery or
+// A session "ships" (counts against a package) once it reaches Deliver or
 // later in its own stage order, or is otherwise complete — matches the
 // business meaning of "delivery" regardless of where a reorder puts it.
-// A job's money is EARNED once its own stage order reached 'paid' (same
-// stage-index test clientLifetimeSpend uses) — a complete non-lost job at
-// delivery/extend passes naturally, an inquiry-stage job or a deal lost at
-// quote does not. This is the single predicate behind Home's "Earned this
-// month" and the goal card, which used to count every job by date alone
-// (pitch-stage AND lost deals inflated the headline number — the honesty
-// bug the product re-assessment ranked first).
+// A job's money is EARNED once it has actually been paid — TSK-014: 'paid'
+// is no longer a pipeline stage (a job can sit at Booked with any number of
+// invoices, paid or not), so this is now a plain job-level flag rather than
+// a stage-index comparison. Set by markJobPaid()/the invoice-paid reverse
+// hook (onInvoiceMarkedPaid), and by the cash-job path. This is the single
+// predicate behind Home's "Earned this month" and the goal card, which used
+// to count every job by date alone (pitch-stage AND lost deals inflated the
+// headline number — the honesty bug the product re-assessment ranked
+// first) — a job merely reaching Booked must NOT count as earned.
 function jobEarned(j) {
-  const order = jobOrder(j);
-  const paidIdx = order.indexOf('paid');
-  return paidIdx >= 0 && order.indexOf(jobStage(j)) >= paidIdx;
+  return !!j.paid;
 }
 function jobDelivered(j) {
   // A lost engagement (outcome 'lost') never shipped anything — it only
-  // counts as delivered if its stage genuinely reached Delivery before the
+  // counts as delivered if its stage genuinely reached Deliver before the
   // client walked away (the stage check below), never via the blanket
   // "complete ⇒ delivered" shortcut, which would wrongly burn package
-  // sessions (packageUsed()) for a deal that died at Pitch.
+  // sessions (packageUsed()) for a deal that died at Inquiry.
   if (jobComplete(j) && j.outcome !== 'lost') return true;
   const order = jobOrder(j);
-  const deliveryIdx = order.indexOf('delivery');
+  const deliverIdx = order.indexOf('deliver');
   const idx = order.indexOf(jobStage(j));
-  return deliveryIdx >= 0 && idx >= deliveryIdx;
+  return deliverIdx >= 0 && idx >= deliverIdx;
 }
 // True exactly when the single next stage-advance would cross this job into
 // "delivered" for the first time (not already there) — the one moment a
 // package-linked job needs its quantity confirmed, since that's when it
 // first counts against the package (see jobDelivered() above).
-function entersDeliveryOnAdvance(j) {
+function entersDeliverOnAdvance(j) {
   const order = jobOrder(j);
   const idx = order.indexOf(jobStage(j));
-  const deliveryIdx = order.indexOf('delivery');
-  if (idx < 0 || deliveryIdx < 0) return false;
-  return idx < deliveryIdx && (idx + 1) >= deliveryIdx;
+  const deliverIdx = order.indexOf('deliver');
+  if (idx < 0 || deliverIdx < 0) return false;
+  return idx < deliverIdx && (idx + 1) >= deliverIdx;
 }
 
 // ─── PACKAGES (N-unit bundles, e.g. "buy 10 sessions" / "50 pieces of laundry") ──
@@ -683,18 +689,15 @@ const I18N = {
     job_items_chip:'{n} item(s) · {amt}', job_items_qty_ph:'Qty',
     option_status_considering:'Considering', option_status_viewing:'Viewing booked', option_status_interested:'Interested',
     option_status_passed:'Passed', option_status_quoted:'Quoted', option_status_chosen:'Chosen ✓', option_status_dropped:'Dropped',
-    stage_pitch_label:'Inquiry', stage_pitch_action:'Log inquiry', stage_pitch_done:'Inquired',
-    stage_pitch_hint:'Inquiry — a prospective client reached out, not booked yet.',
+    stage_inquiry_label:'Inquiry', stage_inquiry_action:'Log inquiry', stage_inquiry_done:'Inquired',
+    stage_inquiry_hint:'Inquiry — a prospective client reached out, not booked yet.',
     stage_quote_label:'Quote', stage_quote_action:'Send quote', stage_quote_done:'Quote sent',
     stage_quote_hint:'Quote — waiting on a price quote to go out.',
-    stage_invoice_label:'Invoice', stage_invoice_action:'Send invoice', stage_invoice_done:'Invoice sent',
-    stage_invoice_hint:'Invoice — quote accepted, waiting on the invoice to go out.',
-    stage_paid_label:'Paid', stage_paid_action:'Mark paid', stage_paid_done:'Paid',
-    stage_paid_hint:'Paid — invoiced, waiting on payment to come in.',
-    stage_delivery_label:'Delivery', stage_delivery_action:'Mark delivered', stage_delivery_done:'Delivered',
-    stage_delivery_hint:'Delivery — sessions scheduled, not yet delivered.',
-    stage_extend_label:'Renew', stage_extend_action:'Renew', stage_extend_done:'Renewed',
-    stage_extend_hint:'Renew — delivered, offer a renewal or wrap up.',
+    stage_booked_label:'Booked', stage_booked_action:'Start delivery', stage_booked_done:'Booked',
+    stage_booked_hint:'Booked — client accepted; invoice and payment tracked here, delivery next.',
+    stage_deliver_label:'Deliver', stage_deliver_action:'Complete', stage_deliver_done:'Delivered',
+    stage_deliver_hint:'Deliver — sessions in progress; mark complete when finished, or offer a renewal.',
+    send_invoice_btn:'+ Invoice', mark_paid_btn:'Mark paid', renewal_job_note:'Renewal follow-up',
     pl_nothing_here:'Nothing here yet',
     // dashboard
     earned_this_month:'Earned this month', net_after_expenses:'net after expenses',
@@ -1146,18 +1149,15 @@ const I18N = {
     job_items_chip:'{n} รายการ · {amt}', job_items_qty_ph:'จำนวน',
     option_status_considering:'กำลังพิจารณา', option_status_viewing:'นัดดูแล้ว', option_status_interested:'สนใจ',
     option_status_passed:'ไม่เอา', option_status_quoted:'เสนอราคาแล้ว', option_status_chosen:'เลือกแล้ว ✓', option_status_dropped:'ยกเลิก',
-    stage_pitch_label:'สอบถาม', stage_pitch_action:'บันทึกการสอบถาม', stage_pitch_done:'สอบถามแล้ว',
-    stage_pitch_hint:'สอบถาม — ลูกค้าที่มีแนวโน้มติดต่อมา ยังไม่ได้จองงาน',
+    stage_inquiry_label:'สอบถาม', stage_inquiry_action:'บันทึกการสอบถาม', stage_inquiry_done:'สอบถามแล้ว',
+    stage_inquiry_hint:'สอบถาม — ลูกค้าที่มีแนวโน้มติดต่อมา ยังไม่ได้จองงาน',
     stage_quote_label:'เสนอราคา', stage_quote_action:'ส่งใบเสนอราคา', stage_quote_done:'ส่งใบเสนอราคาแล้ว',
     stage_quote_hint:'เสนอราคา — รอส่งใบเสนอราคาให้ลูกค้า',
-    stage_invoice_label:'ใบแจ้งหนี้', stage_invoice_action:'ส่งใบแจ้งหนี้', stage_invoice_done:'ส่งใบแจ้งหนี้แล้ว',
-    stage_invoice_hint:'ใบแจ้งหนี้ — ลูกค้ายอมรับราคาแล้ว รอส่งใบแจ้งหนี้',
-    stage_paid_label:'ชำระแล้ว', stage_paid_action:'บันทึกว่าชำระแล้ว', stage_paid_done:'ชำระแล้ว',
-    stage_paid_hint:'ชำระแล้ว — ส่งใบแจ้งหนี้แล้ว รอรับชำระเงิน',
-    stage_delivery_label:'ส่งมอบ', stage_delivery_action:'บันทึกว่าส่งมอบแล้ว', stage_delivery_done:'ส่งมอบแล้ว',
-    stage_delivery_hint:'ส่งมอบ — นัดหมายแล้ว ยังไม่ได้ส่งมอบงาน',
-    stage_extend_label:'ต่ออายุ', stage_extend_action:'ต่ออายุ', stage_extend_done:'ต่ออายุแล้ว',
-    stage_extend_hint:'ต่ออายุ — ส่งมอบแล้ว เสนอการต่ออายุหรือปิดงาน',
+    stage_booked_label:'จองแล้ว', stage_booked_action:'เริ่มส่งมอบ', stage_booked_done:'จองแล้ว',
+    stage_booked_hint:'จองแล้ว — ลูกค้ายอมรับแล้ว ติดตามใบแจ้งหนี้และการชำระเงินที่นี่',
+    stage_deliver_label:'ส่งมอบ', stage_deliver_action:'เสร็จสิ้น', stage_deliver_done:'ส่งมอบแล้ว',
+    stage_deliver_hint:'ส่งมอบ — กำลังดำเนินการ ทำเครื่องหมายเสร็จสิ้นเมื่อจบงาน หรือเสนอการต่ออายุ',
+    send_invoice_btn:'+ ใบแจ้งหนี้', mark_paid_btn:'บันทึกว่าชำระแล้ว', renewal_job_note:'ติดตามผลการต่ออายุ',
     pl_nothing_here:'ยังไม่มีงานในขั้นตอนนี้',
     // dashboard
     earned_this_month:'รายได้เดือนนี้', net_after_expenses:'สุทธิหลังหักค่าใช้จ่าย',
@@ -1643,6 +1643,77 @@ function boot() {
   });
 }
 
+// ─── TSK-014: one-time 6-stage → 4-stage job migration ─────────────────
+// Existing installs' stored job.stage values ('pitch'/'invoice'/'paid'/
+// 'delivery'/'extend') need remapping to the new STAGES vocabulary
+// (['inquiry','quote','booked','deliver']) on load, not a hard break.
+// Modeled on migrateLegacyStorageIfNeeded()'s shape (boot-time, whole-store,
+// one-shot, idempotent) rather than migrateClientDealsToOptions()'s
+// (per-record/lazy/render-triggered) — this must run for EVERY job
+// unconditionally, and BEFORE reload() ever populates the in-memory `jobs`
+// array or renderPipeline()/renderHome() read a stage value, since a stale
+// 6-stage j.stage leaking into jobEarned()/STAGE_META[stage] would break
+// the UI (undefined lookups) on first render. Guarded by a per-uid settings
+// flag via the existing saveSetting()/settings mechanism (same pattern as
+// settings.stageGateOff) rather than a bare localStorage key, so it's
+// correctly scoped per-account on a shared device and survives the
+// existing settings-mirroring path.
+//
+// LEGACY_STAGES/LEGACY_STAGE_MAP are intentionally NOT derived from the
+// (already-updated) STAGES/getStageOrder() — those now describe the NEW
+// 4-stage world, so the pre-migration index math below needs its own fixed
+// copy of the old 6-stage vocabulary to correctly answer "was this job's
+// OLD stage 'paid' or later" per job (mirroring jobEarned()'s old
+// paidIdx-comparison logic exactly, so no already-earned revenue silently
+// disappears from Home/goal-card/tax-rollup after the migration runs).
+const LEGACY_STAGES = ['pitch', 'quote', 'invoice', 'paid', 'delivery', 'extend'];
+const LEGACY_STAGE_MAP = { pitch: 'inquiry', quote: 'quote', invoice: 'booked', paid: 'booked', delivery: 'deliver', extend: 'deliver' };
+async function migrateJobStagesToV2IfNeeded() {
+  if (settings.jobStagesV2MigratedAt) return;
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const rows = (await dbAll('jobs')).filter(j => j.uid === uid);
+  for (const j of rows) {
+    let touched = false;
+    if (j.stage == null) {
+      // Pre-dates the stage feature entirely (the original "Freelanz Gym"
+      // session log) — jobComplete() already treats these as done, and the
+      // old jobEarned() counted them as earned too (jobStage() falls back
+      // to the final stage when j.stage is null, which was >= the old
+      // paidIdx). Carry that forward as job.paid so the revenue they
+      // already contributed to Home/tax doesn't disappear.
+      if (!j.paid) { j.paid = true; touched = true; }
+    } else if (Object.prototype.hasOwnProperty.call(LEGACY_STAGE_MAP, j.stage)) {
+      const legacyOrder = (Array.isArray(j.stageOrder) && j.stageOrder.length === LEGACY_STAGES.length
+        && j.stageOrder.every(x => LEGACY_STAGES.includes(x)) && new Set(j.stageOrder).size === j.stageOrder.length)
+        ? j.stageOrder.slice() : LEGACY_STAGES.slice();
+      const legacyPaidIdx = legacyOrder.indexOf('paid');
+      const legacyCurIdx = legacyOrder.indexOf(j.stage);
+      const wasEarned = legacyPaidIdx >= 0 && legacyCurIdx >= 0 && legacyCurIdx >= legacyPaidIdx;
+      j.stage = LEGACY_STAGE_MAP[j.stage];
+      // The job's own stageOrder snapshot can't be remapped position-for-
+      // position (a 6-element order doesn't map onto a 4-element one) —
+      // reset it to the account's current 4-stage order. jobOrder()'s own
+      // validation would have safely fallen back to this anyway for a
+      // stale 6-length array, so this is a proactive cleanup, not a
+      // behavior change.
+      j.stageOrder = STAGES.slice();
+      if (wasEarned && !j.paid) j.paid = true;
+      // A pending gate banner referencing an old stage name would otherwise
+      // point at a STAGE_META entry that no longer exists.
+      if (j.pendingGateStage && Object.prototype.hasOwnProperty.call(LEGACY_STAGE_MAP, j.pendingGateStage)) {
+        j.pendingGateStage = LEGACY_STAGE_MAP[j.pendingGateStage];
+      }
+      touched = true;
+    }
+    if (touched) {
+      j.updatedAt = nowISO();
+      await dbPut('jobs', j);
+      mirrorJob(j);
+    }
+  }
+  await saveSetting('jobStagesV2MigratedAt', nowISO());
+}
+
 async function enterApp() {
   document.body.classList.add('authed');
   settings = {lang:'th', currency:'THB'};
@@ -1653,6 +1724,14 @@ async function enterApp() {
   // mirrored in-memory so renderPipeline (sync) never awaits IDB. Must be set
   // before the reload() below, which triggers the first renderPipeline().
   window.__plView = settings.plViewMode === 'timeline' ? 'timeline' : 'board';
+
+  // One-time per-account remap of any job still holding a pre-TSK-014 stage
+  // value — MUST run before reload() populates the in-memory `jobs` array
+  // (and before renderPipeline()/renderHome() ever read a stage value), and
+  // needs `settings` (just loaded above) to resolve each job's own
+  // pre-migration stage order. See migrateJobStagesToV2IfNeeded()'s own
+  // comment for the full rationale.
+  await migrateJobStagesToV2IfNeeded();
 
   await reload();
   applyUser();
@@ -1857,7 +1936,7 @@ async function seedDemoData(persona) {
       serviceId: svc ? svc.id : null, serviceName: svc ? svc.name : j.serviceName,
       jobType: settings.workType || '', amount: j.amount, tip: j.tip || 0, expense: j.expense || 0,
       count: j.count || 1, notes: j.notes || '', netAmount: j.amount + (j.tip || 0) - (j.expense || 0),
-      cuid: cuid(), stageOrder: stageOrderNow.slice(), stage: j.stage,
+      cuid: cuid(), stageOrder: stageOrderNow.slice(), stage: j.stage, paid: !!j.paid,
       complete: !!j.complete, invoiceId: null, quoteDocId: null, packageId: null, updatedAt: nowISO(),
     };
     if (j.outcome) job.outcome = j.outcome;
@@ -2054,7 +2133,7 @@ function renderInsights() {
     }
   });
   const stageOrderForDisplay = (typeof getStageOrder === 'function') ? getStageOrder().concat(['extended', 'finished', 'done']) : Object.keys(stageCounts);
-  const STAGE_DISPLAY_LABELS = { done: t('insights_stage_done'), extended: STAGE_META.extend && t(STAGE_META.extend.done), finished: t('mark_finished') };
+  const STAGE_DISPLAY_LABELS = { done: t('insights_stage_done'), extended: STAGE_META.deliver && t(STAGE_META.deliver.done), finished: t('mark_finished') };
   const stageRows = stageOrderForDisplay.filter(s => stageCounts[s]).map(s => {
     const label = STAGE_DISPLAY_LABELS[s] || (STAGE_META[s] && t(STAGE_META[s].label)) || s;
     return {label, count: stageCounts[s]};
@@ -3166,12 +3245,12 @@ const DEMO_PERSONA_DATA = {
         goals: 'Improve balance and mobility', healthNotes: 'Mild hypertension — keep heart rate moderate' },
     ],
     jobs: [
-      { clientIndex: 3, stage: 'pitch', daysOffset: -1, amount: 800, serviceName: '1-on-1 session', notes: 'Interested in a marathon prep package' },
+      { clientIndex: 3, stage: 'inquiry', daysOffset: -1, amount: 800, serviceName: '1-on-1 session', notes: 'Interested in a marathon prep package' },
       { clientIndex: 4, stage: 'quote', daysOffset: -2, amount: 1600, count: 2, serviceName: '1-on-1 session', notes: 'Sent quote for 2x/week sessions' },
-      { clientIndex: 2, stage: 'invoice', daysOffset: -3, amount: 2400, count: 3, serviceName: '1-on-1 session', notes: '3 sessions this week' },
-      { clientIndex: 1, stage: 'paid', daysOffset: -5, amount: 800, serviceName: '1-on-1 session' },
-      { clientIndex: 0, stage: 'delivery', daysOffset: -7, amount: 800, serviceName: '1-on-1 session' },
-      { clientIndex: 0, stage: 'extend', daysOffset: -14, amount: 4000, serviceName: 'Nutrition plan', complete: true, outcome: 'extended', notes: 'Renewed for another month' },
+      { clientIndex: 2, stage: 'booked', daysOffset: -3, amount: 2400, count: 3, serviceName: '1-on-1 session', notes: '3 sessions this week' },
+      { clientIndex: 1, stage: 'booked', paid: true, daysOffset: -5, amount: 800, serviceName: '1-on-1 session' },
+      { clientIndex: 0, stage: 'deliver', paid: true, daysOffset: -7, amount: 800, serviceName: '1-on-1 session' },
+      { clientIndex: 0, stage: 'deliver', paid: true, daysOffset: -14, amount: 4000, serviceName: 'Nutrition plan', complete: true, outcome: 'extended', notes: 'Renewed for another month' },
     ],
     invoices: [
       { clientIndex: 2, daysOffset: -3, status: 'draft', lineItems: [{ description: '1-on-1 session x3', qty: 3, unitPrice: 800 }] },
@@ -3211,12 +3290,12 @@ const DEMO_PERSONA_DATA = {
         deals: [{ property: '', stage: 'searching', commission: 0, notes: 'Still narrowing down neighborhoods', viewings: [] }] },
     ],
     jobs: [
-      { clientIndex: 4, stage: 'pitch', daysOffset: -1, amount: 0, serviceName: 'Listing consultation', notes: 'Initial consultation call' },
+      { clientIndex: 4, stage: 'inquiry', daysOffset: -1, amount: 0, serviceName: 'Listing consultation', notes: 'Initial consultation call' },
       { clientIndex: 2, stage: 'quote', daysOffset: -3, amount: 120000, serviceName: 'Property viewing', notes: 'Quoted commission structure for land deal' },
-      { clientIndex: 1, stage: 'invoice', daysOffset: -4, amount: 150000, serviceName: 'Property viewing', notes: 'Invoice sent for closed negotiation' },
-      { clientIndex: 0, stage: 'paid', daysOffset: -6, amount: 90000, serviceName: 'Property viewing' },
-      { clientIndex: 3, stage: 'delivery', daysOffset: -10, amount: 75000, serviceName: 'Property viewing', notes: 'Finalizing paperwork' },
-      { clientIndex: 3, stage: 'extend', daysOffset: -40, amount: 75000, serviceName: 'Property viewing', complete: true, outcome: 'finished', notes: 'Deal fully closed' },
+      { clientIndex: 1, stage: 'booked', daysOffset: -4, amount: 150000, serviceName: 'Property viewing', notes: 'Invoice sent for closed negotiation' },
+      { clientIndex: 0, stage: 'booked', paid: true, daysOffset: -6, amount: 90000, serviceName: 'Property viewing' },
+      { clientIndex: 3, stage: 'deliver', paid: true, daysOffset: -10, amount: 75000, serviceName: 'Property viewing', notes: 'Finalizing paperwork' },
+      { clientIndex: 3, stage: 'deliver', paid: true, daysOffset: -40, amount: 75000, serviceName: 'Property viewing', complete: true, outcome: 'finished', notes: 'Deal fully closed' },
     ],
     invoices: [
       { clientIndex: 2, daysOffset: -3, status: 'draft', lineItems: [{ description: 'Commission — Land plot Bang Na', qty: 1, unitPrice: 120000 }] },
@@ -3239,12 +3318,12 @@ const DEMO_PERSONA_DATA = {
       { name: 'Milk Chaowarat', phone: '081-456-7895', tags: 'regular', orders: [{ date: -3, kg: 6, status: 'completed', notes: 'Weekly household laundry' }] },
     ],
     jobs: [
-      { clientIndex: 3, stage: 'pitch', daysOffset: 0, amount: 600, serviceName: 'Wash & fold', notes: 'New customer inquiry' },
+      { clientIndex: 3, stage: 'inquiry', daysOffset: 0, amount: 600, serviceName: 'Wash & fold', notes: 'New customer inquiry' },
       { clientIndex: 0, stage: 'quote', daysOffset: -1, amount: 750, count: 5, serviceName: 'Wash & fold', notes: 'Quoted for 5kg wash & fold' },
-      { clientIndex: 1, stage: 'invoice', daysOffset: -2, amount: 450, count: 3, serviceName: 'Wash & fold' },
-      { clientIndex: 2, stage: 'paid', daysOffset: -5, amount: 160, count: 2, serviceName: 'Dry cleaning' },
-      { clientIndex: 4, stage: 'delivery', daysOffset: -3, amount: 900, count: 6, serviceName: 'Wash & fold' },
-      { clientIndex: 4, stage: 'extend', daysOffset: -10, amount: 900, serviceName: 'Wash & fold', complete: true, outcome: 'extended', notes: 'Signed up for weekly plan' },
+      { clientIndex: 1, stage: 'booked', daysOffset: -2, amount: 450, count: 3, serviceName: 'Wash & fold' },
+      { clientIndex: 2, stage: 'booked', paid: true, daysOffset: -5, amount: 160, count: 2, serviceName: 'Dry cleaning' },
+      { clientIndex: 4, stage: 'deliver', paid: true, daysOffset: -3, amount: 900, count: 6, serviceName: 'Wash & fold' },
+      { clientIndex: 4, stage: 'deliver', paid: true, daysOffset: -10, amount: 900, serviceName: 'Wash & fold', complete: true, outcome: 'extended', notes: 'Signed up for weekly plan' },
     ],
     invoices: [
       { clientIndex: 0, daysOffset: -1, status: 'draft', lineItems: [{ description: 'Wash & fold 5kg', qty: 5, unitPrice: 150 }] },
@@ -3268,12 +3347,12 @@ const DEMO_PERSONA_DATA = {
       { name: 'Anurak Thepsuwan', phone: '081-567-8905', tags: 'new lead', policies: [] },
     ],
     jobs: [
-      { clientIndex: 4, stage: 'pitch', daysOffset: 0, amount: 0, serviceName: 'Policy review', notes: 'Requested a quote for health coverage' },
+      { clientIndex: 4, stage: 'inquiry', daysOffset: 0, amount: 0, serviceName: 'Policy review', notes: 'Requested a quote for health coverage' },
       { clientIndex: 1, stage: 'quote', daysOffset: -1, amount: 18000, serviceName: 'Policy review', notes: 'Quoted motor renewal + home bundle' },
-      { clientIndex: 0, stage: 'invoice', daysOffset: -3, amount: 24000, serviceName: 'Policy review', notes: 'Health Plus Premium renewal' },
-      { clientIndex: 2, stage: 'paid', daysOffset: -7, amount: 45000, serviceName: 'Policy review' },
-      { clientIndex: 3, stage: 'delivery', daysOffset: -2, amount: 0, serviceName: 'Claim assistance', notes: 'Processing hospital claim' },
-      { clientIndex: 3, stage: 'extend', daysOffset: -30, amount: 0, serviceName: 'Claim assistance', complete: true, outcome: 'finished', notes: 'Claim settled successfully' },
+      { clientIndex: 0, stage: 'booked', daysOffset: -3, amount: 24000, serviceName: 'Policy review', notes: 'Health Plus Premium renewal' },
+      { clientIndex: 2, stage: 'booked', paid: true, daysOffset: -7, amount: 45000, serviceName: 'Policy review' },
+      { clientIndex: 3, stage: 'deliver', paid: true, daysOffset: -2, amount: 0, serviceName: 'Claim assistance', notes: 'Processing hospital claim' },
+      { clientIndex: 3, stage: 'deliver', paid: true, daysOffset: -30, amount: 0, serviceName: 'Claim assistance', complete: true, outcome: 'finished', notes: 'Claim settled successfully' },
     ],
     invoices: [
       { clientIndex: 1, daysOffset: -1, status: 'draft', lineItems: [{ description: 'Motor Comprehensive renewal', qty: 1, unitPrice: 12000 }, { description: 'Home Insurance renewal', qty: 1, unitPrice: 6000 }] },
@@ -3300,12 +3379,12 @@ const DEMO_PERSONA_DATA = {
       { name: 'Somsak Intharaphan', phone: '081-678-9015', tags: 'urgent', vehicles: [{ plate: '3กจ 7890 กรุงเทพ', mileage: 95000, nextServiceDate: 0 }], serviceHistory: [] },
     ],
     jobs: [
-      { clientIndex: 4, stage: 'pitch', daysOffset: 0, amount: 0, serviceName: 'Oil change', notes: 'Called about strange engine noise' },
+      { clientIndex: 4, stage: 'inquiry', daysOffset: 0, amount: 0, serviceName: 'Oil change', notes: 'Called about strange engine noise' },
       { clientIndex: 2, stage: 'quote', daysOffset: -1, amount: 5000, count: 2, serviceName: 'Full service', notes: 'Quoted fleet service for both vehicles' },
-      { clientIndex: 3, stage: 'invoice', daysOffset: -3, amount: 2500, serviceName: 'Full service' },
-      { clientIndex: 1, stage: 'paid', daysOffset: -5, amount: 600, serviceName: 'Oil change' },
-      { clientIndex: 0, stage: 'delivery', daysOffset: -1, amount: 2500, serviceName: 'Full service', notes: 'In the shop now' },
-      { clientIndex: 0, stage: 'extend', daysOffset: -90, amount: 1800, serviceName: 'Full service', complete: true, outcome: 'extended', notes: 'Rebooked for next service' },
+      { clientIndex: 3, stage: 'booked', daysOffset: -3, amount: 2500, serviceName: 'Full service' },
+      { clientIndex: 1, stage: 'booked', paid: true, daysOffset: -5, amount: 600, serviceName: 'Oil change' },
+      { clientIndex: 0, stage: 'deliver', paid: true, daysOffset: -1, amount: 2500, serviceName: 'Full service', notes: 'In the shop now' },
+      { clientIndex: 0, stage: 'deliver', paid: true, daysOffset: -90, amount: 1800, serviceName: 'Full service', complete: true, outcome: 'extended', notes: 'Rebooked for next service' },
     ],
     invoices: [
       { clientIndex: 3, daysOffset: -3, status: 'draft', lineItems: [{ description: 'Full service', qty: 1, unitPrice: 2500 }] },
@@ -3327,12 +3406,12 @@ const DEMO_PERSONA_DATA = {
       { name: 'Ice Thanawat', phone: '081-789-0125', tags: 'general/affiliate brand' },
     ],
     jobs: [
-      { clientIndex: 4, stage: 'pitch', daysOffset: 0, amount: 0, serviceName: 'Content posting', notes: 'Brand reached out about a product review post' },
+      { clientIndex: 4, stage: 'inquiry', daysOffset: 0, amount: 0, serviceName: 'Content posting', notes: 'Brand reached out about a product review post' },
       { clientIndex: 3, stage: 'quote', daysOffset: -1, amount: 8000, serviceName: 'Live broadcast + affiliate', notes: 'Quoted a live selling session with affiliate commission tie-in' },
-      { clientIndex: 2, stage: 'invoice', daysOffset: -3, amount: 3000, serviceName: 'Content posting' },
-      { clientIndex: 1, stage: 'paid', daysOffset: -5, amount: 3000, serviceName: 'Content posting' },
-      { clientIndex: 0, stage: 'delivery', daysOffset: -1, amount: 8000, serviceName: 'Live broadcast + affiliate', notes: 'Live airs tonight' },
-      { clientIndex: 0, stage: 'extend', daysOffset: -30, amount: 3000, serviceName: 'Content posting', complete: true, outcome: 'extended', notes: 'Rebooked for next month’s campaign' },
+      { clientIndex: 2, stage: 'booked', daysOffset: -3, amount: 3000, serviceName: 'Content posting' },
+      { clientIndex: 1, stage: 'booked', paid: true, daysOffset: -5, amount: 3000, serviceName: 'Content posting' },
+      { clientIndex: 0, stage: 'deliver', paid: true, daysOffset: -1, amount: 8000, serviceName: 'Live broadcast + affiliate', notes: 'Live airs tonight' },
+      { clientIndex: 0, stage: 'deliver', paid: true, daysOffset: -30, amount: 3000, serviceName: 'Content posting', complete: true, outcome: 'extended', notes: 'Rebooked for next month’s campaign' },
     ],
     invoices: [
       { clientIndex: 2, daysOffset: -3, status: 'draft', lineItems: [{ description: 'Content posting x1', qty: 1, unitPrice: 3000 }] },
@@ -3849,7 +3928,12 @@ async function saveFastPathDelivery() {
     uid, date, client, clientId: cid, serviceId: null, serviceName: '',
     jobType: settings.workType || '',
     amount: 0, tip: 0, expense: 0, count: val, notes: '', netAmount: 0,
-    cuid: cuid(), stageOrder: getStageOrder().slice(), stage: 'delivery', complete: false,
+    cuid: cuid(), stageOrder: getStageOrder().slice(), stage: 'deliver', complete: false,
+    // Package sessions are pre-paid via the package purchase itself — this
+    // job earns its share the moment it's logged delivered, same as the old
+    // 6-stage model (a job landing directly on Delivery/Extend was already
+    // >= the old paidIdx, so jobEarned() counted it automatically).
+    paid: true,
     invoiceId: null, quoteDocId: null, packageId: pkg.id, updatedAt: nowISO(),
   };
   await dbPut('jobs', obj);
@@ -4291,14 +4375,16 @@ function pipelineCard(j, stage) {
   const skip = (!complete && meta.skippable)
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();skipJobStage(${j.id})">${htmlEsc(t('skip_stage'))}</button>`
     : '';
-  const finish = (!complete && stage === 'extend')
+  const finish = (!complete && stage === 'deliver')
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();finishJobStage(${j.id})">${htmlEsc(t('mark_finished'))}</button>`
     : '';
   // Cash-job path: paid on the spot, no client-facing quote/invoice needed —
   // only offered at Inquiry (deciding this up front, before either document
-  // exists, is the natural moment) rather than on every pre-Paid stage,
-  // which would crowd this row with a 5th button.
-  const cashJob = (!complete && stage === 'pitch')
+  // exists, is the natural moment) rather than on every pre-Booked stage,
+  // which would crowd this row with a 5th button. Jumps straight to Booked
+  // AND flips the job's paid flag (TSK-014: paid is a job-level flag now,
+  // not a stage) — cash in hand IS the payment.
+  const cashJob = (!complete && stage === 'inquiry')
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();cashJobPath(${j.id})">${htmlEsc(t('cash_job'))}</button>`
     : '';
   const reschedule = !complete
@@ -4313,6 +4399,17 @@ function pipelineCard(j, stage) {
     : '';
   const reviseInvoice = (!complete && j.invoiceId != null)
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();reviseInvoiceForJob(${j.id})">${htmlEsc(t('revise_invoice_btn'))}</button>`
+    : '';
+  // TSK-014: a Booked job can carry zero/one/many invoices, and neither
+  // creating nor paying one moves the stage anymore (see onEngagementInvoiceCreated/
+  // markJobPaid) — so a Booked card offers its own explicit "Send invoice"
+  // (first-time attach; reviseInvoice above covers every later edit) and
+  // "Mark paid" (independent of any invoice — cash/bank transfer works too).
+  const sendInvoice = (!complete && stage === 'booked' && j.invoiceId == null)
+    ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();typeof openInvoiceForm==='function'&&openInvoiceForm(${j.id})">${htmlEsc(t('send_invoice_btn'))}</button>`
+    : '';
+  const markPaidBtn = (!complete && stage === 'booked' && !j.paid)
+    ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();markJobPaid(${j.id})">${htmlEsc(t('mark_paid_btn'))}</button>`
     : '';
   // The deal-died exit — available at every live stage, because clients walk
   // away at Pitch and Quote far more often than at the end. Keeps the record
@@ -4329,7 +4426,7 @@ function pipelineCard(j, stage) {
   const confirming = window.__packageConfirmJobId === j.id;
   const footRow = confirming
     ? packageConfirmCardHtml(j)
-    : `<div class="kb-card-foot">${back}${skip}${finish}${cashJob}${foot}${reschedule}${reviseQuote}${reviseInvoice}${lostBtn}</div>`;
+    : `<div class="kb-card-foot">${back}${skip}${finish}${cashJob}${foot}${reschedule}${reviseQuote}${reviseInvoice}${sendInvoice}${markPaidBtn}${lostBtn}</div>`;
   // Recovery path for a gate left unresolved across a reload (the flag is
   // persisted with the stage move) — the amber banner reopens the same modal.
   const pendingGate = (!complete && j.pendingGateStage)
@@ -4369,35 +4466,27 @@ function pipelineAction(jobId) {
   const stage = jobStage(j);
   if (stage === 'quote') {
     // docgen.js fires window.onEngagementQuoteCreated(docId, jobId) on save,
-    // which links quoteDocId and advances. If cancelled, stage stays put.
+    // which links quoteDocId and advances quote -> booked. If cancelled,
+    // stage stays put.
     openQuoteForJob(j);
-  } else if (stage === 'invoice') {
-    if (typeof openInvoiceForm === 'function') {
-      // invoices.js fires window.onEngagementInvoiceCreated(id, jobId) on create,
-      // which links invoiceId and advances. If cancelled, stage stays put.
-      openInvoiceForm(jobId);
-    } else {
-      advanceJobStage(jobId);
-    }
-  } else if (stage === 'paid') {
-    markJobPaid(jobId);
-  } else if (j.packageId != null && entersDeliveryOnAdvance(j)) {
-    // Stop for a required quantity confirmation instead of advancing
-    // immediately — this is the moment the job first counts against its
-    // package, and a fixed "1 unit per job" assumption doesn't hold once
-    // packages apply to every business type (12 pieces this drop-off, not
-    // always 1). Cancelling leaves the stage exactly where it was, same as
-    // the quote/invoice hooks above.
+  } else if (stage === 'booked' && j.packageId != null && entersDeliverOnAdvance(j)) {
+    // Booked -> Deliver is the moment a package-linked job first counts
+    // against its package (see jobDelivered()/entersDeliverOnAdvance()) —
+    // stop for a required quantity confirmation instead of advancing
+    // immediately. TSK-014: this used to live inside markJobPaid's own
+    // paid->delivery advance; now that paid is a job-level flag rather than
+    // a stage (see jobEarned()), the confirm belongs on the actual
+    // booked->deliver move, whenever that happens — invoiced/paid or not.
     window.__packageConfirmJobId = jobId;
     renderPipeline();
   } else {
-    advanceJobStage(jobId);   // 'pitch', 'delivery', 'extend': just advance, no linked record
+    advanceJobStage(jobId);   // 'inquiry', 'booked' (non-package), 'deliver': just advance
   }
 }
 window.pipelineAction = pipelineAction;
 
 // ── Package quantity confirmation (required before a package-linked job
-// can advance into Delivery) ──
+// can advance into Deliver) ──
 window.__packageConfirmJobId = null;
 function validatePackageConfirmQty(jobId, remaining) {
   const input = document.getElementById('pkg-confirm-qty-' + jobId);
@@ -4463,7 +4552,7 @@ async function advanceJobStage(jobId) {
   const order = jobOrder(j);
   const idx = order.indexOf(jobStage(j));
   if (idx < 0) { j.stage = order[0]; j.complete = false; }
-  else if (idx >= order.length - 1) { j.stage = order[idx]; j.complete = true; j.outcome = 'extended'; }
+  else if (idx >= order.length - 1) { j.stage = order[idx]; j.complete = true; j.outcome = 'extended'; }   // "Mark extended" — reachable again via a real renewal, see spawnRenewalQuoteJob()
   else { j.stage = order[idx + 1]; j.complete = false; }
   gateAfterForwardMove(j);   // persisted in the same put as the move — see the stage-gate section
   j.updatedAt = nowISO();
@@ -4477,11 +4566,11 @@ async function advanceJobStage(jobId) {
   if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
 }
 
-// Skip the current stage's linked action (no quote/invoice document required) and
-// just move the card forward, same mechanics as advanceJobStage — only exposed
-// on stages flagged skippable (Quote, Invoice) since those are paperwork, not
-// money-received checkpoints. Paid is never skippable: it's what Home's earnings
-// stats are built on.
+// Skip the current stage's linked action (no quote document required) and
+// just move the card forward, same mechanics as advanceJobStage — only
+// exposed on stages flagged skippable (Quote) since that's paperwork, not a
+// money-received checkpoint. TSK-014: Paid is a job-level flag now, not a
+// stage, so "never skippable" no longer applies here at all — see jobEarned().
 async function skipJobStage(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (j) logEvent('pipeline_stage_skipped:' + jobStage(j));
@@ -4489,20 +4578,23 @@ async function skipJobStage(jobId) {
 }
 window.skipJobStage = skipJobStage;
 
-// Cash-job path: skip both Quote and Invoice in one tap and land straight on
-// Paid — for a session paid in cash on the spot, neither document is ever
-// needed. Still uses the job's own order (jobOrder(j)), same as everywhere
-// else, so a Settings reorder never strands this on a stage that doesn't
-// precede Paid in that particular job's chain.
+// Cash-job path: skip Quote in one tap and land straight on Booked, already
+// marked paid — for a session paid in cash on the spot, no client-facing
+// quote is ever needed and there's no separate "money in" step to wait for
+// (TSK-014: paid is a job-level flag, see jobEarned()). Still uses the job's
+// own order (jobOrder(j)), same as everywhere else, so a Settings reorder
+// never strands this on a stage that doesn't precede Booked in that
+// particular job's chain.
 async function cashJobPath(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
   const order = jobOrder(j);
-  const paidIdx = order.indexOf('paid');
+  const bookedIdx = order.indexOf('booked');
   const curIdx = order.indexOf(jobStage(j));
-  if (paidIdx < 0 || curIdx < 0 || curIdx >= paidIdx) return;
+  if (bookedIdx < 0 || curIdx < 0 || curIdx >= bookedIdx) return;
   logEvent('pipeline_stage_skipped:cash_job');
-  j.stage = order[paidIdx];
+  j.stage = order[bookedIdx];
+  j.paid = true;
   j.complete = false;
   gateAfterForwardMove(j);
   j.updatedAt = nowISO();
@@ -4516,7 +4608,7 @@ async function cashJobPath(jobId) {
 }
 window.cashJobPath = cashJobPath;
 
-// Alt completion for the Extend stage: the engagement is over without a renewal.
+// Alt completion for the Deliver stage: the engagement is over without a renewal.
 // Distinct from the primary "Mark extended" action so the completed badge (and
 // the Insights pipeline-activity breakdown) can tell "extended" and "finished"
 // engagements apart.
@@ -4628,6 +4720,11 @@ async function moveJobStageBack(jobId) {
 }
 window.moveJobStageBack = moveJobStageBack;
 
+// TSK-014: paid is a job-level flag now, not a pipeline stage — marking a
+// job paid NEVER moves its stage. Booked -> Deliver (where a package-linked
+// job first counts against its package) happens on the card's own advance
+// action (see pipelineAction()'s booked branch / entersDeliverOnAdvance()),
+// independently of whether the job has been paid yet.
 async function markJobPaid(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
@@ -4647,30 +4744,14 @@ async function markJobPaid(jobId) {
     } catch (e) { /* non-fatal */ }
   }
   if (typeof renderInvoices === 'function') renderInvoices();
-  toast('Marked paid');
-  // Paid -> Delivery is exactly the transition that first counts a job
-  // against its package (see jobDelivered()/entersDeliveryOnAdvance()) — the
-  // invoice side effect above always happens, but the stage advance itself
-  // routes through the same required-confirm check as every other path
-  // into Delivery, instead of duplicating the advance here unconditionally.
-  if (j.packageId != null && entersDeliveryOnAdvance(j)) {
-    window.__packageConfirmJobId = jobId;
-    renderPipeline();
-    return;
-  }
-  const order = jobOrder(j);
-  const idx = order.indexOf(jobStage(j));
-  if (idx >= order.length - 1) { j.complete = true; }
-  else { j.stage = order[idx + 1]; j.complete = false; }
-  gateAfterForwardMove(j);
+  j.paid = true;
   j.updatedAt = nowISO();
-  logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
-  _pipelineActiveStage = j.stage;
+  logEvent('pipeline_stage:paid');
   await dbPut('jobs', j);
   mirrorJob(j);
   await reload();
   renderPipeline();
-  if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
+  toast('Marked paid');
 }
 
 // Open the doc-gen quote flow prefilled from this session's customer + service.
@@ -4743,51 +4824,40 @@ window.reviseInvoiceForJob = reviseInvoiceForJob;
 // (detail-modal select or an edit save) — the reverse of markJobPaid's own
 // invoice flip. Users record payment where the invoice lives; without this
 // they had to mark the same payment twice. Deliberately narrow:
-// - only a job LINKED to this invoice (j.invoiceId), sitting exactly at its
-//   'paid' stage, not complete — any other position means the pipeline is
-//   ahead of or behind the paperwork and a silent jump would be wrong;
-// - never package-linked jobs (j.packageId) — those must stop at the
-//   quantity-confirm card, which lives on the pipeline screen;
+// - only a job LINKED to this invoice (j.invoiceId), not already paid, not
+//   complete — TSK-014: paid is a job-level flag now (jobEarned()), not a
+//   stage, so there's no "which stage is it sitting at" check needed
+//   anymore, and package-linked jobs no longer need excluding either (the
+//   quantity-confirm gate lives on the booked->deliver move, independent of
+//   payment — see pipelineAction());
 // - no loop risk: markJobPaid's own invoice flip writes dbPut directly
 //   (not through invoices.js's handlers), so it can never re-fire this.
 window.onInvoiceMarkedPaid = async function (invoiceId) {
   const j = jobs.find(x => x.invoiceId === invoiceId);
-  if (!j || jobComplete(j) || jobStage(j) !== 'paid' || j.packageId != null) return;
+  if (!j || jobComplete(j) || j.paid) return;
   await markJobPaid(j.id);
 };
 
 // Called by invoices.js after an invoice is created from a pipeline session.
+// TSK-014: a Booked job can carry zero/one/many invoices, and attaching one
+// never moves the stage anymore (paperwork and "client accepted" are
+// orthogonal now — see markJobPaid()/jobEarned()) — this is purely a link.
 window.onEngagementInvoiceCreated = async function (invoiceId, jobId) {
   if (jobId == null) return;
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
-  // Revise path (reviseInvoiceForJob): relink the paperwork, stage untouched,
-  // no re-gate — a redo shouldn't cost another round trip through the gate.
-  if (window.__invoiceReviseJobId === jobId) {
-    window.__invoiceReviseJobId = null;
-    j.invoiceId = invoiceId;
-    j.updatedAt = nowISO();
-    await dbPut('jobs', j);
-    mirrorJob(j);
-    await reload();
-    renderPipeline();
-    toast(t('invoice_revised_toast'));
-    return;
-  }
+  const wasRevise = window.__invoiceReviseJobId === jobId;
+  window.__invoiceReviseJobId = null;
   j.invoiceId = invoiceId;
-  const order = jobOrder(j);
-  const idx = order.indexOf(jobStage(j));
-  if (idx >= 0 && idx < order.length - 1) { j.stage = order[idx + 1]; j.complete = false; }
-  else if (idx >= order.length - 1) { j.complete = true; }
-  gateAfterForwardMove(j);
   j.updatedAt = nowISO();
-  logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
-  _pipelineActiveStage = j.stage;
   await dbPut('jobs', j);
   mirrorJob(j);
   await reload();
   renderPipeline();
-  if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
+  // A first-time attach already gets its own "Invoice INV-... created" toast
+  // from invoices.js's own save handler — only the revise path needs this
+  // one, to make clear the stage didn't move on a redo.
+  if (wasRevise) toast(t('invoice_revised_toast'));
 };
 
 // Called by docgen.js after a quote document is saved from a pipeline session:
@@ -4923,11 +4993,11 @@ function openApptModal(ctx) {
     if (e.target === overlay && window.__apCtx && window.__apCtx.mode !== 'gate') closeApptModal();
   });
   // Repeat mode inherits the source step's type; everything else starts on
-  // 'exact' EXCEPT a gate at a non-pitch stage — "send quote", "send
-  // invoice", "collect payment", "deliver", "follow up" are deadline-shaped,
-  // not calendar bookings, so default them to 'by'. Only Pitch (an inquiry/
-  // first-meeting) is a real appointment.
-  setApptType(ctx.mode === 'gate' ? (ctx.stage === 'pitch' ? 'exact' : 'by') : (src && src.dateType === 'by' ? 'by' : 'exact'));
+  // 'exact' EXCEPT a gate at a non-inquiry stage — "send quote", "start
+  // delivery", "follow up" are deadline-shaped, not calendar bookings, so
+  // default them to 'by'. Only Inquiry (a first-meeting) is a real
+  // appointment.
+  setApptType(ctx.mode === 'gate' ? (ctx.stage === 'inquiry' ? 'exact' : 'by') : (src && src.dateType === 'by' ? 'by' : 'exact'));
 }
 window.openApptModal = openApptModal;
 
@@ -5069,9 +5139,12 @@ async function wfMove(i, delta) {
   const j = i + delta;
   if (j < 0 || j >= order.length) return;
   const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
-  // 'paid' must never precede 'invoice'.
-  if (order.indexOf('paid') < order.indexOf('invoice')) {
-    toast('Payment must come after the invoice');
+  // 'deliver' must never precede 'booked' — nothing can be delivered before
+  // it's booked. (TSK-014: the old "'paid' must never precede 'invoice'"
+  // guard retired along with the 'paid'/'invoice' stages themselves — paid
+  // is a job-level flag now, see jobEarned().)
+  if (order.indexOf('deliver') < order.indexOf('booked')) {
+    toast('Deliver must come after Booked');
     return;   // revert: order is a local copy, nothing saved
   }
   await saveSetting('stageOrder', order);
@@ -5193,8 +5266,38 @@ window.remindAboutInvoice = remindAboutInvoice;
 function offerRenewalForClient(clientId) {
   openEditCustomer(clientId);
   togglePackageForm(true, clientId);
+  spawnRenewalQuoteJob(clientId).catch(() => {});
 }
 window.offerRenewalForClient = offerRenewalForClient;
+
+// TSK-014: renewal is now an explicit action, not a stage a job sits in
+// ('extend' is retired — see STAGES) — offering a renewal spawns a brand
+// NEW job/card at the 'quote' stage instead. Best-effort: a client with no
+// prior job to clone the service/amount from (e.g. no engagement yet) just
+// gets the package-purchase form above; there's nothing to quote yet.
+async function spawnRenewalQuoteJob(clientId) {
+  const c = customers.find(x => x.id === clientId);
+  if (!c) return;
+  const source = jobs.find(j => j.clientId === clientId && j.packageId != null) || jobs.find(j => j.clientId === clientId);
+  if (!source) return;
+  const order = getStageOrder();
+  const quoteIdx = order.indexOf('quote');
+  const job = {
+    uid: c.uid, date: todayISO(), client: c.name, clientId: c.id,
+    serviceId: source.serviceId || null, serviceName: source.serviceName || '',
+    jobType: settings.workType || '', amount: Number(source.amount) || 0, tip: 0, expense: 0,
+    count: 1, notes: t('renewal_job_note'), netAmount: Number(source.amount) || 0,
+    cuid: cuid(), stageOrder: order.slice(), stage: quoteIdx >= 0 ? order[quoteIdx] : order[0], complete: false,
+    invoiceId: null, quoteDocId: null, packageId: null,
+    subTasks: [], milestones: [], timeEntries: [], timerStartedAt: null,
+    outcome: null, lostReason: null, options: [], items: [], paid: false,
+    createdAt: nowISO(), updatedAt: nowISO(),
+  };
+  const key = await dbAdd('jobs', job);
+  job.id = key;
+  mirrorJob(job);
+  await reload();
+}
 window.__clientAttentionActions = [];
 // Client engagement stage — 'active-customer' | 'inquiry' | 'lost' — purely
 // engagement-based (jobEarned/outcome), never persona-specific, so it works
@@ -5545,14 +5648,13 @@ function addServiceHistoryRow(clientId) {
 }
 window.addServiceHistoryRow = addServiceHistoryRow;
 
-// Sum of what a garage client has actually paid (amount+tip on jobs that
-// reached the 'paid' stage or later) — a computed display stat, not stored,
-// so it always reflects the live job list.
+// Sum of what a garage client has actually paid (amount+tip on jobs marked
+// paid — TSK-014: jobEarned() is now a plain job.paid flag rather than a
+// stage-index comparison, so this just calls it) — a computed display
+// stat, not stored, so it always reflects the live job list.
 function clientLifetimeSpend(clientId) {
-  const order = getStageOrder();
-  const paidIdx = order.indexOf('paid');
   return jobs
-    .filter(j => j.clientId === clientId && order.indexOf(jobStage(j)) >= paidIdx && paidIdx >= 0)
+    .filter(j => j.clientId === clientId && jobEarned(j))
     .reduce((s, j) => s + (Number(j.amount) || 0) + (Number(j.tip) || 0), 0);
 }
 
@@ -6461,7 +6563,7 @@ window.deleteProgressEntry = deleteProgressEntry;
 // ─── QUICK SESSION CHECK-IN — one-tap log for a recurring client ──────────
 // Reuses the client's most recent session's service/amount so a routine
 // repeat visit doesn't need the full Add Session form; goes straight to the
-// Delivery stage (skipping Pitch/Quote/Invoice/Paid) since this is a repeat
+// Deliver stage (skipping Inquiry/Quote/Booked) since this is a repeat
 // client, not a new sale, and auto-applies their active package if they have
 // one — this IS the "did the package session happen" moment those exist for.
 async function quickCheckIn(clientId) {
@@ -6479,7 +6581,11 @@ async function quickCheckIn(clientId) {
     jobType: settings.workType || '',
     amount: last ? last.amount : 0, tip: 0, expense: 0, count: 1, notes: '',
     netAmount: last ? last.amount : 0,
-    cuid: cuid(), stageOrder: order, stage: 'delivery', complete: false,
+    cuid: cuid(), stageOrder: order, stage: 'deliver', complete: false,
+    // Landing directly on Deliver means the session already happened —
+    // same as the old 6-stage model, where a job created straight onto
+    // Delivery was already >= the old paidIdx and so counted as earned.
+    paid: true,
     invoiceId: null, quoteDocId: null,
     packageId: pkg ? pkg.id : null,
     updatedAt: nowISO(),

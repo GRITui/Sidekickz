@@ -381,8 +381,9 @@ window.taxrTodayISO = taxrTodayISO;
 // convention (status==='paid', youReceive is the cash actually received,
 // wht is the credit withheld on your behalf). Cash engagements come from
 // app.js's already-loaded `jobs` global (kept fresh by reload()), filtered
-// to jobs that reached the 'paid' pipeline stage (jobEarned()) with no
-// linked invoice — an invoiced job's money is already counted above.
+// to jobs actually marked paid (jobEarned() — a job-level flag, not a
+// pipeline stage, see app.js TSK-014) with no linked invoice — an invoiced
+// job's money is already counted above.
 async function taxrGatherData() {
   const uid = (typeof isGuest !== 'undefined' && isGuest) ? 'guest' :
     (typeof currentUser !== 'undefined' && currentUser ? currentUser.id : null);

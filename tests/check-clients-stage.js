@@ -60,7 +60,7 @@ const { chromium } = require('playwright');
   const zeroName = `Zero-${stamp}`;
 
   const activeId = await mkClient(activeName);
-  await mkJob(activeId, '1-on-1 session', 'paid'); // reaches 'paid' → jobEarned → active-customer
+  await mkJob(activeId, '1-on-1 session', 'booked', { paid: true }); // paid → jobEarned → active-customer
 
   const inquiryId = await mkClient(inquiryName);
   await mkJob(inquiryId, 'Nutrition plan', 'quote'); // in progress, not earned, not lost
