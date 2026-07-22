@@ -47,10 +47,16 @@ freshly re-run regression battery and, where relevant, the raw diff itself
   the linked booking moved/recreated, not just `job.due` rewritten — the
   one non-trivial part. No i18n changes needed (existing gate copy already
   matches booking behavior). Next Engineer-Squad pickup.
-* Owner (lower priority, noted not urgent): the old `markJobLost()` fixed-
-  reason chip picker is now unreachable from any UI button (Cancel's
-  free-text `job.note` replaced it in practice) but is still fully defined
-  and tested. Two "why lost" mechanisms coexist, one orphaned.
+* RESOLVED 2026-07-22: the orphaned `markJobLost()` picker question is
+  closed. Owner reviewed a before/after mockup and rejected fully restoring
+  the old standalone modal (would recreate the two-mechanism duplication).
+  Chose the lighter option instead — logged as **TSK-017** in
+  backlog-inbox.md, `READY_FOR_PM`, priority LOW (not urgent): layer the
+  same 4 canned reasons as optional toggle chips above the existing
+  free-text note in the Cancel gate, writing into the already-existing but
+  unused `job.lostReason` column. No new modal, no schema change. Next
+  Engineer-Squad pickup, whenever picked — no downstream regression from
+  leaving it unbuilt.
 * Owner (lower priority, noted not urgent): TSK-002's rebuild dropped
   Manage's Invoices/Docs rows from More entirely — verified as a legitimate
   no-op (Home's quick-action row already reaches both, predates this task).
