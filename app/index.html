@@ -11,7 +11,7 @@
 <link rel="icon" href="icons/icon.svg">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script>(function(){var K='sidekick_ui_theme',t=localStorage.getItem(K);if(t==='dark')document.documentElement.dataset.theme='dark';else if(t!=='auto')document.documentElement.dataset.theme='light';})();</script><!-- light by default: set before CSS paints to avoid a flash of the wrong theme -->
-<link rel="stylesheet" href="styles.css?v=0.9.45">
+<link rel="stylesheet" href="styles.css?v=0.9.46">
 <!-- data-page absent/non-login → boot() runs bootApp() (redirects to login.html with no session) -->
 <body data-page="app">
 
@@ -154,7 +154,12 @@
   <div class="content"><div id="insights-body"></div></div>
 </section>
 
-<!-- ══ MORE / SETTINGS ══ -->
+<!-- ══ MORE / SETTINGS (TSK-002/007 rebuild — root: account + Tools grid +
+     "Set up your business" drill-in rows + Preferences + About; the 4 drill-in
+     sub-pages (#s-more-biz/#s-more-pay/#s-more-line/#s-more-data) hold every
+     one-time-setup section that used to live here as a <details> block. See
+     project-changelog-handshake-gym.md for the full old-section -> new-home
+     map. ══ -->
 <section class="screen" id="s-more">
   <div class="hdr-plain"><h1 data-i18n="more_title">More</h1></div>
   <div class="content">
@@ -166,220 +171,289 @@
       </div>
     </div>
 
+    <!-- Conditional top-of-screen cards: unchanged ids/functions, kept at
+         root (not folded into a drill-in) so the More-nav-badge <-> backup
+         reminder relationship and every plan-upsell card stay exactly as
+         discoverable as before — no design mockup slot covers these. -->
     <div id="backup-reminder-body"></div>
     <div id="cloud-backup-body"></div>
     <div id="subscription-body"></div>
     <div id="card-waitlist-body"></div>
 
-    <details class="settings-section" open>
-      <summary class="section-title" data-i18n="manage">Manage</summary>
-      <div class="settings-list">
-        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('services')">
-          <span class="settings-label" data-i18n="services_title">Services</span>
-          <span class="settings-label" style="color:var(--text3)">›</span>
+    <div class="section-title" data-i18n="tools_grid_title">Tools</div>
+    <div class="tools-grid">
+      <button type="button" class="tool-tile" onclick="switchScreen('followups')">
+        <div class="tool-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 2L11 13"></path><path d="M22 2l-7 20-4-9-9-4z"></path></svg>
+          <span class="tool-badge" id="tool-badge-followups" hidden>0</span>
         </div>
-        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('invoices')">
-          <span class="settings-label" data-i18n="invoices_title">Invoices</span>
-          <span class="settings-label" style="color:var(--text3)">›</span>
-        </div>
-        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('docs')">
-          <span class="settings-label" data-i18n="manage_docs_row">Docs</span>
-          <span class="settings-label" style="color:var(--text3)">›</span>
+        <div class="tool-name" data-i18n="followups_row_title">Follow-ups</div>
+        <div class="tool-sub" id="tool-sub-followups" data-i18n="followups_tool_sub">Stay on top of it</div>
+      </button>
+      <button type="button" class="tool-tile" onclick="switchScreen('portfolio')">
+        <div class="tool-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><path d="M21 15l-5-5L5 21"></path></svg></div>
+        <div class="tool-name" data-i18n="portfolio_row_title">Portfolio</div>
+        <div class="tool-sub" data-i18n="portfolio_tool_sub">Photo &amp; video library</div>
+      </button>
+      <button type="button" class="tool-tile" onclick="switchScreen('research')">
+        <div class="tool-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg></div>
+        <div class="tool-name" data-i18n="research_row_title">Research</div>
+        <div class="tool-sub" data-i18n="research_tool_sub">Content library</div>
+      </button>
+      <button type="button" class="tool-tile" id="tool-tile-insights" hidden onclick="switchScreen('insights')">
+        <div class="tool-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"></path><path d="M7 15l4-4 3 3 5-6"></path></svg></div>
+        <div class="tool-name" data-i18n="insights_title">Insights</div>
+        <div class="tool-sub" data-i18n="insights_tool_sub">On-device analytics</div>
+      </button>
+    </div>
+
+    <div class="section-title" data-i18n="biz_setup_group_title">Set up your business</div>
+    <div class="list-card">
+      <div class="biz-row" onclick="switchScreen('more-biz')">
+        <div><div class="biz-row-title" data-i18n="biz_docs_title">Business &amp; documents</div><div class="biz-row-sub" data-i18n="biz_docs_sub">Info · services · tax defaults · page size</div></div>
+        <span class="biz-row-right">›</span>
+      </div>
+      <div class="biz-row" onclick="switchScreen('more-pay')">
+        <div><div class="biz-row-title" data-i18n="payments_shop_title">Payments &amp; shop</div><div class="biz-row-sub" data-i18n="payments_shop_sub">PromptPay · channels · storefront link</div></div>
+        <span class="biz-row-right"><span class="status-pill amber" id="pill-payments"></span>›</span>
+      </div>
+      <div class="biz-row" onclick="switchScreen('more-line')">
+        <div><div class="biz-row-title" data-i18n="line_team_title">LINE &amp; team</div><div class="biz-row-sub" data-i18n="line_team_sub">Booking channel · staff logins</div></div>
+        <span class="biz-row-right"><span class="status-pill amber" id="pill-line-team"></span>›</span>
+      </div>
+      <div class="biz-row" onclick="switchScreen('more-data')">
+        <div><div class="biz-row-title" data-i18n="data_backup_title">Data &amp; backup</div><div class="biz-row-sub" data-i18n="data_backup_sub">CSV exports · JSON backup · restore</div></div>
+        <span class="biz-row-right"><span class="status-pill plain" id="pill-data-backup"></span>›</span>
+      </div>
+    </div>
+
+    <div class="section-title" data-i18n="preferences">Preferences</div>
+    <div class="settings-list">
+      <div class="settings-row">
+        <span class="settings-label" data-i18n="theme">Theme</span>
+        <div class="seg" id="theme-seg">
+          <button type="button" id="seg-theme-light" onclick="onThemeChange('light')" data-i18n="theme_light">Light</button>
+          <button type="button" id="seg-theme-dark" onclick="onThemeChange('dark')" data-i18n="theme_dark">Dark</button>
+          <button type="button" id="seg-theme-auto" onclick="onThemeChange('auto')" data-i18n="theme_auto">Auto</button>
         </div>
       </div>
-    </details>
-
-    <details class="settings-section">
-      <summary class="section-title" data-i18n="more_tools_title">More tools</summary>
-      <div class="settings-list">
-        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('followups')">
-          <span class="settings-label" data-i18n="followups_row_title">Follow-ups</span>
-          <span class="settings-label" style="color:var(--text3)">›</span>
-        </div>
-        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('portfolio')">
-          <span class="settings-label" data-i18n="portfolio_row_title">Portfolio</span>
-          <span class="settings-label" style="color:var(--text3)">›</span>
-        </div>
-        <div class="settings-row" style="cursor:pointer" onclick="switchScreen('research')">
-          <span class="settings-label" data-i18n="research_row_title">Research</span>
-          <span class="settings-label" style="color:var(--text3)">›</span>
-        </div>
-        <div class="settings-row" id="insights-row" style="cursor:pointer;display:none" onclick="switchScreen('insights')">
-          <span class="settings-label" data-i18n="insights_title">Insights</span>
-          <span class="settings-label" style="color:var(--text3)">›</span>
-        </div>
+      <div class="settings-row">
+        <label class="settings-label" for="set-lang" data-i18n="language">Language</label>
+        <select id="set-lang" onchange="onLangChange(this.value)">
+          <option value="en">English</option>
+          <option value="th">ไทย</option>
+        </select>
       </div>
-    </details>
-
-    <details class="settings-section" open>
-      <summary class="section-title" data-i18n="workflow_title">Stage order</summary>
-      <div class="settings-list">
-        <div id="workflow-body"></div>
+      <div class="settings-row">
+        <label class="settings-label" for="set-currency" data-i18n="currency">Currency</label>
+        <select id="set-currency" onchange="onCurrencyChange(this.value)">
+          <option value="THB">฿ THB</option><option value="USD">$ USD</option>
+          <option value="EUR">€ EUR</option><option value="GBP">£ GBP</option>
+          <option value="SGD">S$ SGD</option><option value="MYR">RM MYR</option>
+        </select>
       </div>
-    </details>
-
-    <details class="settings-section" open>
-      <summary class="section-title" data-i18n="preferences">Preferences</summary>
-      <div class="settings-list">
-        <div class="settings-row">
-          <label class="settings-label" for="set-business-type" data-i18n="business_type_label">Business type</label>
-          <select id="set-business-type" onchange="onBusinessTypeChange(this.value)">
-            <option value="trainer" data-i18n="business_type_trainer">Personal trainer</option>
-            <option value="realestate" data-i18n="business_type_realestate">Real estate agent</option>
-            <option value="laundry" data-i18n="business_type_laundry">Laundry service</option>
-            <option value="insurance" data-i18n="business_type_insurance">Insurance agent</option>
-            <option value="garage" data-i18n="business_type_garage">Car garage</option>
-            <option value="custom" data-i18n="business_type_custom">Other</option>
-          </select>
-        </div>
-        <div class="settings-row">
-          <label class="settings-label" for="set-package-unit" data-i18n="package_unit_label">Package unit</label>
-          <input class="settings-input" id="set-package-unit" type="text" data-i18n-ph="package_unit_ph" placeholder="Sessions" onchange="onPackageUnitLabelChange(this.value)">
-        </div>
-        <p style="font-size:12px;color:var(--text3);margin:-4px 16px 4px" data-i18n="package_unit_sub">What one unit of a package is called — "Pieces," "Sessions," "Policies," whatever fits.</p>
-        <div class="settings-row">
-          <label class="settings-label" for="set-theme" data-i18n="theme">Theme</label>
-          <select id="set-theme" onchange="onThemeChange(this.value)">
-            <option value="dark" data-i18n="theme_dark">Dark</option>
-            <option value="light" data-i18n="theme_light">Light</option>
-            <option value="auto" data-i18n="theme_auto">Auto</option>
-          </select>
-        </div>
-        <div class="settings-row">
-          <label class="settings-label" for="set-lang" data-i18n="language">Language</label>
-          <select id="set-lang" onchange="onLangChange(this.value)">
-            <option value="en">English</option>
-            <option value="th">ไทย</option>
-          </select>
-        </div>
-        <div class="settings-row">
-          <label class="settings-label" for="set-currency" data-i18n="currency">Currency</label>
-          <select id="set-currency" onchange="onCurrencyChange(this.value)">
-            <option value="THB">฿ THB</option><option value="USD">$ USD</option>
-            <option value="EUR">€ EUR</option><option value="GBP">£ GBP</option>
-            <option value="SGD">S$ SGD</option><option value="MYR">RM MYR</option>
-          </select>
-        </div>
-        <div class="settings-row">
-          <label class="settings-label" for="set-goal-month" data-i18n="goal_target_month">Monthly income goal</label>
-          <input class="settings-input tnum" id="set-goal-month" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalTargetChange('month', this.value)">
-        </div>
-        <div class="settings-row">
-          <label class="settings-label" for="set-goal-quarter" data-i18n="goal_target_quarter">Quarterly income goal</label>
-          <input class="settings-input tnum" id="set-goal-quarter" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalTargetChange('quarter', this.value)">
-        </div>
-        <div class="settings-row">
-          <label class="settings-label" for="set-goal-year" data-i18n="goal_target_year">Yearly income goal</label>
-          <input class="settings-input tnum" id="set-goal-year" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalTargetChange('year', this.value)">
-        </div>
-        <div class="settings-row">
-          <label class="settings-label" for="set-page-size" data-i18n="page_size_label">Document page size</label>
-          <select id="set-page-size" onchange="onPageSizeChange(this.value)">
-            <option value="A4">A4</option>
-            <option value="A5">A5</option>
-          </select>
-        </div>
-        <div class="settings-row">
-          <label class="settings-label" for="set-notifications" data-i18n="notifications_label">Notifications</label>
-          <input type="checkbox" id="set-notifications" style="width:20px;height:20px" onchange="onNotificationsToggle(this.checked)">
-        </div>
-        <div class="settings-row">
-          <label class="settings-label" for="set-stage-gate" data-i18n="stage_gate_label">Ask to book the next step when a card moves forward</label>
-          <input type="checkbox" id="set-stage-gate" style="width:20px;height:20px" onchange="onStageGateToggle(this.checked)">
-        </div>
+      <div class="settings-row">
+        <label class="settings-label" for="set-goal-month" data-i18n="goal_target_month">Monthly income goal</label>
+        <input class="settings-input tnum" id="set-goal-month" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalTargetChange('month', this.value)">
       </div>
-      <p style="font-size:12px;color:var(--text3);margin:-4px 16px 4px" data-i18n="notifications_sub">Overdue invoices, bookings starting soon, and stuck engagements — only while this app is open or recently open in the background.</p>
-    </details>
-
-    <details class="settings-section" open>
-      <summary class="section-title" data-i18n="payment_channels_title">Payment channels</summary>
-      <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px" data-i18n="payment_channels_sub">Add PromptPay, bank transfer, cash, or another method so clients know how to pay you. PromptPay shows a scannable QR on invoices; the rest show as reference text.</p>
-      <div id="payment-channels-list" style="margin:0 16px 10px"></div>
-      <button class="btn-submit" style="margin:0 16px 20px;width:calc(100% - 32px)" onclick="openAddPaymentChannel()" data-i18n="add_payment_channel">+ Add payment channel</button>
-    </details>
-
-    <details class="settings-section" open>
-      <summary class="section-title" data-i18n="business_info_title">Business info (optional)</summary>
-      <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px" data-i18n="business_info_sub">Fill these in to have them show up automatically on your quotes, invoices, and receipts — none of them are required.</p>
-      <div class="settings-list">
-        <div class="settings-row">
-          <label class="settings-label" for="set-seller-name" data-i18n="business_name">Business name</label>
-          <input class="settings-input" id="set-seller-name" type="text" placeholder="Defaults to your account name" data-i18n-ph="business_name_ph" onchange="onSellerBusinessNameChange(this.value)">
-        </div>
-        <div class="settings-row">
-          <label class="settings-label" for="set-seller-taxid" data-i18n="business_taxid">Tax ID</label>
-          <input class="settings-input" id="set-seller-taxid" type="text" onchange="onSellerTaxIdChange(this.value)">
-        </div>
-        <div class="settings-row">
-          <label class="settings-label" for="set-seller-address" data-i18n="business_address">Address</label>
-          <input class="settings-input" id="set-seller-address" type="text" onchange="onSellerAddressChange(this.value)">
-        </div>
+      <div class="settings-row">
+        <label class="settings-label" for="set-goal-quarter" data-i18n="goal_target_quarter">Quarterly income goal</label>
+        <input class="settings-input tnum" id="set-goal-quarter" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalTargetChange('quarter', this.value)">
       </div>
-      <div id="seller-logo-body"></div>
-    </details>
-
-    <details class="settings-section" open>
-      <summary class="section-title" data-i18n="line_booking_title">LINE booking</summary>
-      <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px" data-i18n="line_booking_sub">Connect your own LINE Official Account so clients can request a booking straight from a chat — no separate app for them to install.</p>
-      <div id="line-channel-body"></div>
-      <div id="booking-slots-body"></div>
-    </details>
-
-    <details class="settings-section" open>
-      <summary class="section-title" data-i18n="shop_section_title">Shop / storefront</summary>
-      <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px" data-i18n="shop_section_sub">Share one link — clients browse your products, pick quantities, and send an order request. No payment happens on this page; confirming an order creates a normal job on your board.</p>
-      <div id="shop-link-body"></div>
-      <div id="shop-orders-body"></div>
-      <div id="slip-verify-body"></div>
-    </details>
-
-    <details class="settings-section" open>
-      <summary class="section-title" data-i18n="team_title">Team</summary>
-      <p style="font-size:12px;color:var(--text3);margin:-6px 16px 10px" data-i18n="team_sub">Give staff their own logins under one subscription — the work they save goes to your account. Staff can load your existing data anytime from Settings ▸ Cloud backup.</p>
-      <div id="team-body"></div>
-    </details>
-
-    <details class="settings-section" open>
-      <summary class="section-title" data-i18n="tax_defaults">Tax defaults</summary>
-      <div class="settings-list">
-        <div class="settings-row">
-          <label class="settings-label" for="set-wht" data-i18n="wht">Withholding tax %</label>
-          <input class="settings-input tnum" id="set-wht" type="number" inputmode="decimal" min="0" max="100" placeholder="3" onchange="onWhtChange(this.value)">
-        </div>
-        <div class="settings-row">
-          <label class="settings-label" for="set-vat" data-i18n="vat">VAT %</label>
-          <input class="settings-input tnum" id="set-vat" type="number" inputmode="decimal" min="0" max="100" placeholder="7" onchange="onVatChange(this.value)">
-        </div>
+      <div class="settings-row">
+        <label class="settings-label" for="set-goal-year" data-i18n="goal_target_year">Yearly income goal</label>
+        <input class="settings-input tnum" id="set-goal-year" type="number" inputmode="decimal" min="0" placeholder="0" onchange="onGoalTargetChange('year', this.value)">
       </div>
-    </details>
+      <div class="settings-row">
+        <label class="settings-label" for="set-notifications" data-i18n="notifications_label">Notifications</label>
+        <input type="checkbox" id="set-notifications" style="width:20px;height:20px" onchange="onNotificationsToggle(this.checked)">
+      </div>
+      <div class="settings-row">
+        <label class="settings-label" for="set-stage-gate" data-i18n="stage_gate_label">Ask to book the next step when a card moves forward</label>
+        <input type="checkbox" id="set-stage-gate" style="width:20px;height:20px" onchange="onStageGateToggle(this.checked)">
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--text3);margin:-10px 0 16px" data-i18n="notifications_sub">Overdue invoices, bookings starting soon, and stuck engagements — only while this app is open or recently open in the background.</p>
 
-    <details class="settings-section" open>
-      <summary class="section-title" data-i18n="data">Data</summary>
-      <div class="export-btns">
-        <button onclick="exportCSV()" data-i18n="export_csv">Export CSV</button>
-        <button onclick="exportBackup()" data-i18n="backup_json">Backup JSON</button>
-      </div>
-      <div class="export-btns" style="grid-template-columns:1fr">
-        <button onclick="exportCustomersCSV()" data-i18n="export_customers_csv">Export clients CSV</button>
-      </div>
-      <div class="export-btns" style="grid-template-columns:1fr">
-        <button onclick="exportInvoicesCSV()" data-i18n="export_invoices_csv">Export invoices CSV</button>
-      </div>
-      <div class="export-btns" style="grid-template-columns:1fr">
-        <button onclick="exportPndSummary()" data-i18n="export_pnd_summary">Export P.N.D. summary CSV</button>
-      </div>
-      <div class="export-btns" style="grid-template-columns:1fr">
-        <button onclick="pickBackupFile()" data-i18n="restore_json">Restore JSON</button>
-      </div>
-      <input type="file" id="backup-file" accept="application/json,.json" style="display:none" onchange="importBackup(this)">
-    </details>
-
-    <div class="settings-list" style="margin-top:16px">
+    <div class="settings-list">
       <div class="settings-row"><span class="settings-label" data-i18n="total_jobs">Total jobs</span><span class="settings-label tnum" id="set-count">0</span></div>
-      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.45</span></div>
+      <div class="settings-row"><span class="settings-label" data-i18n="version">Version</span><span class="settings-label tnum" id="app-version" onclick="tapVersion()" style="cursor:default">0.9.46</span></div>
     </div>
 
     <button class="btn-logout" onclick="logout()" data-i18n="logout">Log out</button>
+  </div>
+</section>
+
+<!-- ══ MORE ▸ Business & documents (drill-in) ══ -->
+<section class="screen" id="s-more-biz">
+  <div class="hdr-plain">
+    <div class="hdr-row">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="avatar" onclick="switchScreen('more')" aria-label="Back" style="font-size:22px">‹</button>
+        <h1 data-i18n="biz_docs_title">Business &amp; documents</h1>
+      </div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="section-title" data-i18n="business_setup_title">Business setup</div>
+    <div class="settings-list">
+      <div class="settings-row">
+        <label class="settings-label" for="set-business-type" data-i18n="business_type_label">Business type</label>
+        <select id="set-business-type" onchange="onBusinessTypeChange(this.value)">
+          <option value="trainer" data-i18n="business_type_trainer">Personal trainer</option>
+          <option value="realestate" data-i18n="business_type_realestate">Real estate agent</option>
+          <option value="laundry" data-i18n="business_type_laundry">Laundry service</option>
+          <option value="insurance" data-i18n="business_type_insurance">Insurance agent</option>
+          <option value="garage" data-i18n="business_type_garage">Car garage</option>
+          <option value="custom" data-i18n="business_type_custom">Other</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <label class="settings-label" for="set-package-unit" data-i18n="package_unit_label">Package unit</label>
+        <input class="settings-input" id="set-package-unit" type="text" data-i18n-ph="package_unit_ph" placeholder="Sessions" onchange="onPackageUnitLabelChange(this.value)">
+      </div>
+    </div>
+    <p style="font-size:12px;color:var(--text3);margin:-10px 0 16px" data-i18n="package_unit_sub">What one unit of a package is called — "Pieces," "Sessions," "Policies," whatever fits.</p>
+
+    <div class="section-title" data-i18n="business_info_title">Business info (optional)</div>
+    <p style="font-size:12px;color:var(--text3);margin:-6px 0 10px" data-i18n="business_info_sub">Fill these in to have them show up automatically on your quotes, invoices, and receipts — none of them are required.</p>
+    <div class="settings-list">
+      <div class="settings-row">
+        <label class="settings-label" for="set-seller-name" data-i18n="business_name">Business name</label>
+        <input class="settings-input" id="set-seller-name" type="text" placeholder="Defaults to your account name" data-i18n-ph="business_name_ph" onchange="onSellerBusinessNameChange(this.value)">
+      </div>
+      <div class="settings-row">
+        <label class="settings-label" for="set-seller-taxid" data-i18n="business_taxid">Tax ID</label>
+        <input class="settings-input" id="set-seller-taxid" type="text" onchange="onSellerTaxIdChange(this.value)">
+      </div>
+      <div class="settings-row">
+        <label class="settings-label" for="set-seller-address" data-i18n="business_address">Address</label>
+        <input class="settings-input" id="set-seller-address" type="text" onchange="onSellerAddressChange(this.value)">
+      </div>
+    </div>
+    <div id="seller-logo-body"></div>
+
+    <div class="section-title" data-i18n="services_title">Services</div>
+    <div class="list-card">
+      <div class="biz-row" onclick="switchScreen('services')">
+        <span class="biz-row-title" data-i18n="manage_services_row">Manage services &amp; products</span>
+        <span class="biz-row-right">›</span>
+      </div>
+    </div>
+
+    <div class="section-title" data-i18n="tax_defaults">Tax defaults</div>
+    <div class="settings-list">
+      <div class="settings-row">
+        <label class="settings-label" for="set-wht" data-i18n="wht">Withholding tax %</label>
+        <input class="settings-input tnum" id="set-wht" type="number" inputmode="decimal" min="0" max="100" placeholder="3" onchange="onWhtChange(this.value)">
+      </div>
+      <div class="settings-row">
+        <label class="settings-label" for="set-vat" data-i18n="vat">VAT %</label>
+        <input class="settings-input tnum" id="set-vat" type="number" inputmode="decimal" min="0" max="100" placeholder="7" onchange="onVatChange(this.value)">
+      </div>
+      <div class="settings-row">
+        <label class="settings-label" for="set-page-size" data-i18n="page_size_label">Document page size</label>
+        <select id="set-page-size" onchange="onPageSizeChange(this.value)">
+          <option value="A4">A4</option>
+          <option value="A5">A5</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Stage order (reorder-only pipeline settings) has no home in the
+         design's 4 drill-ins — kept reachable here as "business workflow"
+         config, the closest fit. See changelog for the full decision note. -->
+    <div class="section-title" data-i18n="workflow_title">Stage order</div>
+    <div class="settings-list">
+      <div id="workflow-body"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ MORE ▸ Payments & shop (drill-in) ══ -->
+<section class="screen" id="s-more-pay">
+  <div class="hdr-plain">
+    <div class="hdr-row">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="avatar" onclick="switchScreen('more')" aria-label="Back" style="font-size:22px">‹</button>
+        <h1 data-i18n="payments_shop_title">Payments &amp; shop</h1>
+      </div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="section-title" data-i18n="payment_channels_title">Payment channels</div>
+    <p style="font-size:12px;color:var(--text3);margin:-6px 0 10px" data-i18n="payment_channels_sub">Add PromptPay, bank transfer, cash, or another method so clients know how to pay you. PromptPay shows a scannable QR on invoices; the rest show as reference text.</p>
+    <div id="payment-channels-list" style="margin:0 0 10px"></div>
+    <button class="btn-submit" style="margin:0 0 20px;width:100%" onclick="openAddPaymentChannel()" data-i18n="add_payment_channel">+ Add payment channel</button>
+
+    <div class="section-title" data-i18n="shop_section_title">Shop / storefront</div>
+    <p style="font-size:12px;color:var(--text3);margin:-6px 0 10px" data-i18n="shop_section_sub">Share one link — clients browse your products, pick quantities, and send an order request. No payment happens on this page; confirming an order creates a normal job on your board.</p>
+    <div id="shop-link-body"></div>
+    <div id="shop-orders-body"></div>
+
+    <!-- Slip verification config has no dedicated slot in the design's
+         "Payments & shop" mockup — folded in here since it's payment-related
+         setup, per the assessment's note. -->
+    <div class="section-title" data-i18n="slipverify_section_title">Slip verification</div>
+    <div id="slip-verify-body"></div>
+  </div>
+</section>
+
+<!-- ══ MORE ▸ LINE & team (drill-in) ══ -->
+<section class="screen" id="s-more-line">
+  <div class="hdr-plain">
+    <div class="hdr-row">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="avatar" onclick="switchScreen('more')" aria-label="Back" style="font-size:22px">‹</button>
+        <h1 data-i18n="line_team_title">LINE &amp; team</h1>
+      </div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="section-title" data-i18n="line_booking_title">LINE booking</div>
+    <p style="font-size:12px;color:var(--text3);margin:-6px 0 10px" data-i18n="line_booking_sub">Connect your own LINE Official Account so clients can request a booking straight from a chat — no separate app for them to install.</p>
+    <div id="line-channel-body"></div>
+    <div id="booking-slots-body"></div>
+
+    <div class="section-title" data-i18n="team_title">Team</div>
+    <p style="font-size:12px;color:var(--text3);margin:-6px 0 10px" data-i18n="team_sub">Give staff their own logins under one subscription — the work they save goes to your account. Staff can load your existing data anytime from Settings ▸ Cloud backup.</p>
+    <div id="team-body"></div>
+  </div>
+</section>
+
+<!-- ══ MORE ▸ Data & backup (drill-in) ══ -->
+<section class="screen" id="s-more-data">
+  <div class="hdr-plain">
+    <div class="hdr-row">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="avatar" onclick="switchScreen('more')" aria-label="Back" style="font-size:22px">‹</button>
+        <h1 data-i18n="data_backup_title">Data &amp; backup</h1>
+      </div>
+    </div>
+  </div>
+  <div class="content">
+    <div id="data-backup-banner" style="background:var(--brand-tint);border:1px solid color-mix(in srgb,var(--brand) 25%,transparent);border-radius:var(--radius-sm);padding:13px 14px;margin-bottom:16px;font-size:13px;color:var(--brand);font-weight:700"></div>
+
+    <div class="section-title" data-i18n="export_section_title">Export</div>
+    <div class="export-btns">
+      <button onclick="exportCSV()" data-i18n="export_csv">Export CSV</button>
+      <button onclick="exportBackup()" data-i18n="backup_json">Backup JSON</button>
+    </div>
+    <div class="export-btns" style="grid-template-columns:1fr">
+      <button onclick="exportCustomersCSV()" data-i18n="export_customers_csv">Export clients CSV</button>
+    </div>
+    <div class="export-btns" style="grid-template-columns:1fr">
+      <button onclick="exportInvoicesCSV()" data-i18n="export_invoices_csv">Export invoices CSV</button>
+    </div>
+    <div class="export-btns" style="grid-template-columns:1fr">
+      <button onclick="exportPndSummary()" data-i18n="export_pnd_summary">Export P.N.D. summary CSV</button>
+    </div>
+
+    <div class="section-title" data-i18n="restore_section_title">Restore</div>
+    <div class="export-btns" style="grid-template-columns:1fr">
+      <button onclick="pickBackupFile()" data-i18n="restore_json">Restore JSON</button>
+    </div>
+    <input type="file" id="backup-file" accept="application/json,.json" style="display:none" onchange="importBackup(this)">
   </div>
 </section>
 
@@ -679,22 +753,22 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
-<script src="app.js?v=0.9.45"></script>
+<script src="app.js?v=0.9.46"></script>
 <!-- Phase 1 of the local-first -> backend migration: a fetch()-only mirror
      for the `clients` store, exposing window.SidekickBackend. Local
      IndexedDB stays authoritative for every read/write in this phase; see
      dataClient.js's own header for why. -->
-<script src="dataClient.js?v=0.9.45"></script>
+<script src="dataClient.js?v=0.9.46"></script>
 <!-- M2 modules load AFTER app.js so they can call its globals. tax.js first
      (invoices.js uses computeTax); each file is owned by one M2 agent. -->
-<script src="tax.js?v=0.9.45"></script>
-<script src="invoices.js?v=0.9.45"></script>
-<script src="docgen.js?v=0.9.45"></script>
+<script src="tax.js?v=0.9.46"></script>
+<script src="invoices.js?v=0.9.46"></script>
+<script src="docgen.js?v=0.9.46"></script>
 <!-- M3 modules: bookings.js / followups.js / portfolio.js. followups.js reads
      the 'invoices' store (owned by invoices.js) read-only, so it loads after. -->
-<script src="bookings.js?v=0.9.45"></script>
-<script src="followups.js?v=0.9.45"></script>
-<script src="portfolio.js?v=0.9.45"></script>
+<script src="bookings.js?v=0.9.46"></script>
+<script src="followups.js?v=0.9.46"></script>
+<script src="portfolio.js?v=0.9.46"></script>
 <!-- M5: research.js (content library, subscription UI stubbed open — no
      payment verification yet; see project-changelog-handshake.md). -->
-<script src="research.js?v=0.9.45"></script>
+<script src="research.js?v=0.9.46"></script>

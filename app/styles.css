@@ -451,6 +451,37 @@ select option{background:var(--select-option-bg);color:var(--select-option-fg);}
   color:var(--text3);cursor:pointer;font-family:inherit;}
 .seg button.on{background:var(--card);color:var(--brand);box-shadow:0 1px 3px rgba(0,0,0,.12);}
 
+/* More/Settings rebuild (TSK-002/007) — 2x2 Tools grid, "Set up your
+   business" drill-in rows w/ status pills. Reuses .list-card/.settings-input
+   tokens elsewhere; these are the few genuinely new shapes (see design-handoff
+   README §5 + assessment §8). */
+.tools-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 18px;}
+.tool-tile{text-align:left;background:var(--card);border:0.5px solid var(--border);border-radius:var(--radius-sm);
+  padding:14px;cursor:pointer;font-family:inherit;display:block;color:inherit;}
+.tool-tile:active{background:var(--brand-tint);}
+.tool-tile[hidden]{display:none;}
+.tool-icon{width:34px;height:34px;border-radius:10px;background:var(--brand-tint);color:var(--brand);
+  display:flex;align-items:center;justify-content:center;margin-bottom:8px;position:relative;}
+.tool-badge{position:absolute;top:-5px;right:-5px;background:var(--marigold);color:#2B1F0D;font-size:9px;
+  font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  padding:0 4px;line-height:1;}
+.tool-name{font-size:14px;font-weight:700;color:var(--text);}
+.tool-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.tool-sub.marigold{color:var(--marigold);font-weight:700;}
+
+.status-pill{padding:3px 8px;border-radius:999px;font-size:10px;font-weight:800;flex-shrink:0;}
+.status-pill.amber{background:var(--marigold-tint);color:var(--marigold-ink);}
+.status-pill.green{background:rgba(62,124,79,.16);color:var(--paid);}
+.status-pill.plain{background:none;color:var(--text3);font-weight:600;font-size:11px;padding:0;}
+
+.biz-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px 16px;
+  border-bottom:0.5px solid var(--border);cursor:pointer;}
+.biz-row:last-child{border-bottom:none;}
+.biz-row:active{background:var(--bg);}
+.biz-row-title{font-size:15px;font-weight:600;color:var(--text);}
+.biz-row-sub{font-size:11px;color:var(--text3);margin-top:1px;}
+.biz-row-right{display:inline-flex;gap:8px;align-items:center;color:var(--text3);}
+
 /* Booking month calendar */
 .cal-topnav{display:flex;align-items:center;gap:6px;margin-bottom:10px;}
 .cal-navbtn{flex:0 0 auto;width:36px;height:36px;border:none;background:var(--brand-tint);color:var(--brand);

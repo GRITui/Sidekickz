@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.45';          // <-> sw.js SW_VERSION 'sidekick-v0.9.45'
+const APP_VERSION = '0.9.46';          // <-> sw.js SW_VERSION 'sidekick-v0.9.46'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -768,6 +768,21 @@ const I18N = {
     edit_name_title:'Edit your name', save_name:'Save name',
     preferences:'Preferences', currency:'Currency', theme:'Theme', language:'Language',
     theme_auto:'Auto', theme_light:'Light', theme_dark:'Dark',
+    // TSK-002/007 More/Settings rebuild: Tools grid, "Set up your business"
+    // drill-in group + status pills, and the 4 drill-in sub-page headers.
+    tools_grid_title:'Tools',
+    followups_tool_sub:'Stay on top of it', followups_due_today:'{n} due today',
+    portfolio_tool_sub:'Photo & video library', research_tool_sub:'Content library', insights_tool_sub:'On-device analytics',
+    biz_setup_group_title:'Set up your business',
+    biz_docs_title:'Business & documents', biz_docs_sub:'Info · services · tax defaults · page size',
+    payments_shop_title:'Payments & shop', payments_shop_sub:'PromptPay · channels · storefront link',
+    line_team_title:'LINE & team', line_team_sub:'Booking channel · staff logins',
+    data_backup_title:'Data & backup', data_backup_sub:'CSV exports · JSON backup · restore',
+    status_set_up:'Set up', status_connected:'Connected', status_today:'Today',
+    status_days_ago:'{n}d ago', status_never_backed_up:'Never backed up',
+    data_backup_info_banner:'Last backup: {date} · everything stays on this device unless you export it.',
+    business_setup_title:'Business setup', manage_services_row:'Manage services & products',
+    slipverify_section_title:'Slip verification', export_section_title:'Export', restore_section_title:'Restore',
     business_info_title:'Business info (optional)', business_info_sub:'Fill these in to have them show up automatically on your quotes, invoices, and receipts — none of them are required.',
     business_name:'Business name', business_taxid:'Tax ID', business_address:'Address',
     tax_defaults:'Tax defaults', wht:'Withholding tax %', vat:'VAT %',
@@ -1267,6 +1282,19 @@ const I18N = {
     edit_name_title:'แก้ไขชื่อของคุณ', save_name:'บันทึกชื่อ',
     preferences:'การตั้งค่าทั่วไป', currency:'สกุลเงิน', theme:'ธีม', language:'ภาษา',
     theme_auto:'อัตโนมัติ', theme_light:'สว่าง', theme_dark:'มืด',
+    tools_grid_title:'เครื่องมือ',
+    followups_tool_sub:'ติดตามให้ทัน', followups_due_today:'ครบกำหนดวันนี้ {n} รายการ',
+    portfolio_tool_sub:'คลังภาพและวิดีโอ', research_tool_sub:'คลังความรู้', insights_tool_sub:'ข้อมูลเชิงลึกในเครื่อง',
+    biz_setup_group_title:'ตั้งค่าธุรกิจของคุณ',
+    biz_docs_title:'ธุรกิจ & เอกสาร', biz_docs_sub:'ข้อมูล · บริการ · ค่าเริ่มต้นภาษี · ขนาดหน้ากระดาษ',
+    payments_shop_title:'การชำระเงิน & ร้านค้า', payments_shop_sub:'พร้อมเพย์ · ช่องทางชำระเงิน · ลิงก์ร้านค้า',
+    line_team_title:'LINE & ทีม', line_team_sub:'ช่องทางการจอง · บัญชีพนักงาน',
+    data_backup_title:'ข้อมูล & สำรองข้อมูล', data_backup_sub:'ส่งออก CSV · สำรองข้อมูล JSON · กู้คืน',
+    status_set_up:'ตั้งค่า', status_connected:'เชื่อมต่อแล้ว', status_today:'วันนี้',
+    status_days_ago:'{n} วันที่แล้ว', status_never_backed_up:'ยังไม่เคยสำรองข้อมูล',
+    data_backup_info_banner:'สำรองข้อมูลล่าสุด: {date} · ข้อมูลอยู่ในเครื่องนี้จนกว่าคุณจะส่งออก',
+    business_setup_title:'ตั้งค่าธุรกิจ', manage_services_row:'จัดการบริการ & สินค้า',
+    slipverify_section_title:'ตรวจสอบสลิป', export_section_title:'ส่งออกข้อมูล', restore_section_title:'กู้คืนข้อมูล',
     business_info_title:'ข้อมูลธุรกิจ (ไม่บังคับ)', business_info_sub:'กรอกข้อมูลนี้เพื่อให้แสดงอัตโนมัติในใบเสนอราคา ใบแจ้งหนี้ และใบเสร็จ — ไม่บังคับกรอก',
     business_name:'ชื่อธุรกิจ', business_taxid:'เลขประจำตัวผู้เสียภาษี', business_address:'ที่อยู่',
     tax_defaults:'ค่าเริ่มต้นภาษี', wht:'ภาษีหัก ณ ที่จ่าย %', vat:'ภาษีมูลค่าเพิ่ม %',
@@ -1679,6 +1707,20 @@ function applyTheme() {
 async function onThemeChange(v) {
   localStorage.setItem(THEME_KEY, (v === 'dark' || v === 'auto') ? v : 'light');
   applyTheme();
+  renderThemeSeg();
+}
+// TSK-002/007: Theme moved from a native <select id="set-theme"> to a
+// 3-button segmented control (reusing the already-declared, previously-
+// unwired .seg/.seg button.on CSS — see design-handoff README §5 + the
+// research assessment's §3). This just toggles which button carries `.on`;
+// onThemeChange() above (unchanged signature, still takes 'light'|'dark'|
+// 'auto') does the actual persist + apply.
+function renderThemeSeg() {
+  const cur = localStorage.getItem(THEME_KEY) || 'light';
+  ['light', 'dark', 'auto'].forEach(v => {
+    const b = document.getElementById('seg-theme-' + v);
+    if (b) b.classList.toggle('on', v === cur);
+  });
 }
 
 // ─── BOOT ─────────────────────────────────────────────────────────────
@@ -1829,7 +1871,7 @@ async function enterApp() {
   if (settings.wht == null) settings.wht = 3;
   if (settings.vat == null) settings.vat = 7;
   const set = (id, v) => { const el = document.getElementById(id); if (el != null && v != null) el.value = v; };
-  set('set-theme', localStorage.getItem(THEME_KEY) || 'light');
+  renderThemeSeg();
   set('set-lang', settings.lang || 'th');
   set('set-currency', settings.currency || 'THB');
   set('set-page-size', settings.docPageSize || 'A4');
@@ -2179,9 +2221,16 @@ async function unlockInsights() {
   applyInsightsVisibility();
   toast(t('insights_unlocked'));
 }
+// TSK-002/007: Insights moved from a "More tools" settings-row to a Tools-
+// grid tile (#tool-tile-insights). The design mockup shows it as a
+// permanently-visible tile with no gating, but per the research assessment
+// (§1.2) this stays hidden-until-unlocked — dropping the tap-version-7x
+// easter egg silently would expose a dev/power-user-only screen to everyone,
+// a bigger behavior change than this rebuild is meant to make. Decision
+// logged in project-changelog-handshake-gym.md.
 function applyInsightsVisibility() {
-  const row = document.getElementById('insights-row');
-  if (row) row.style.display = settings.insightsUnlocked ? 'flex' : 'none';
+  const tile = document.getElementById('tool-tile-insights');
+  if (tile) tile.hidden = !settings.insightsUnlocked;
 }
 const SCREEN_LABELS = {
   home:'Home', pipeline:'Task flow', customers:'Clients', book:'Calendar', more:'Settings',
@@ -2334,6 +2383,72 @@ function updateMoreNavBadge() {
   const badge = document.getElementById('more-nav-badge');
   if (!badge) return;
   badge.style.display = backupReminderDue() ? 'flex' : 'none';
+}
+
+// ─── TSK-002/007 More/Settings rebuild: root status pills + Tools-grid badge
+// ─────────────────────────────────────────────────────────────────────────
+// "Data & backup" row's accessory: a relative timestamp (design shows "2d
+// ago"), reusing daysSinceISO()/settings.lastBackupAt — the exact same field
+// backupReminderDue() already reads, not a second tracked value. Also
+// updates the info banner at the top of the #s-more-data drill-in itself.
+function renderDataBackupStatus() {
+  const pill = document.getElementById('pill-data-backup');
+  if (pill) {
+    pill.textContent = !settings.lastBackupAt ? t('status_never_backed_up')
+      : (daysSinceISO(settings.lastBackupAt) <= 0 ? t('status_today')
+        : t('status_days_ago').replace('{n}', daysSinceISO(settings.lastBackupAt)));
+  }
+  const banner = document.getElementById('data-backup-banner');
+  if (banner) {
+    const last = settings.lastBackupAt ? fmtDate(settings.lastBackupAt.slice(0, 10)) : t('backup_never');
+    banner.textContent = t('data_backup_info_banner').replace('{date}', last);
+  }
+}
+// "Payments & shop" row's accessory pill — amber "Set up" / green "Connected"
+// reflecting whether any payment channel is actually configured (reuses
+// paymentChannels(), the same array renderPaymentChannels() itself reads;
+// this is never a separately-tracked flag).
+function updatePaymentsPill() {
+  const el = document.getElementById('pill-payments');
+  if (!el) return;
+  const has = paymentChannels().length > 0;
+  el.className = 'status-pill ' + (has ? 'green' : 'amber');
+  el.textContent = has ? t('status_connected') : t('status_set_up');
+}
+// "LINE & team" row's accessory pill — driven by the same LINE-channel
+// connected/disconnected boolean renderLineChannelSection() already fetches
+// from SidekickBackend.lineChannelStatus() (see that function's call sites
+// below); never a second network round trip.
+function updateLineTeamPill(connected) {
+  const el = document.getElementById('pill-line-team');
+  if (!el) return;
+  el.className = 'status-pill ' + (connected ? 'green' : 'amber');
+  el.textContent = connected ? t('status_connected') : t('status_set_up');
+}
+// Follow-ups Tools-grid tile: marigold count badge + "N due today" sub-line.
+// followups.js's queue has no distinct "due today" date field (see that
+// module's header) — the whole active queue (overdue invoices, stale drafts,
+// stale customers, used-up packages) IS the "needs attention now" set, so
+// its length is the real, non-fabricated count. followupsDueCount() (defined
+// in followups.js, reuses buildQueue() — never recomputed here) is the
+// single source; this just paints it onto the tile.
+async function renderFollowupsTile() {
+  const badge = document.getElementById('tool-badge-followups');
+  const sub = document.getElementById('tool-sub-followups');
+  if (!badge || !sub) return;
+  let n = 0;
+  if (typeof window.followupsDueCount === 'function') {
+    try { n = await window.followupsDueCount(); } catch (e) { n = 0; }
+  }
+  if (n > 0) {
+    badge.hidden = false; badge.textContent = String(n);
+    sub.textContent = t('followups_due_today').replace('{n}', n);
+    sub.classList.add('marigold');
+  } else {
+    badge.hidden = true;
+    sub.textContent = t('followups_tool_sub');
+    sub.classList.remove('marigold');
+  }
 }
 
 // ─── Cloud backup (beta) — Phase 1 of the local-first -> backend migration
@@ -2861,16 +2976,19 @@ async function renderLineChannelSection() {
         <span style="font-size:12px;color:var(--text3)">${htmlEsc(t('line_booking_locked'))}</span>
       </div>`;
     if (slotsEl) slotsEl.innerHTML = '';
+    updateLineTeamPill(false);
     return;
   }
   if (isGuest || typeof SidekickBackend === 'undefined' || !SidekickBackend.isEnabled()) {
     el.innerHTML = `<p style="font-size:12px;color:var(--text3);margin:0 16px 14px">${htmlEsc(t('line_booking_needs_account_hint'))}</p>`;
     if (slotsEl) slotsEl.innerHTML = '';
+    updateLineTeamPill(false);
     return;
   }
   const r = await SidekickBackend.lineChannelStatus();
-  if (!r.ok) { el.innerHTML = ''; if (slotsEl) slotsEl.innerHTML = ''; return; }
+  if (!r.ok) { el.innerHTML = ''; if (slotsEl) slotsEl.innerHTML = ''; updateLineTeamPill(false); return; }
   const s = r.data;
+  updateLineTeamPill(!!s.connected);
   if (!s.connected) {
     el.innerHTML = `
       <div class="field" style="padding:0 16px">
@@ -7402,6 +7520,7 @@ let editingPaymentChannelId = null;
 function paymentChannels() { return Array.isArray(settings.paymentChannels) ? settings.paymentChannels : []; }
 
 function renderPaymentChannels() {
+  updatePaymentsPill();
   const wrap = document.getElementById('payment-channels-list');
   if (!wrap) return;
   const chans = paymentChannels();
@@ -7872,6 +7991,16 @@ function switchScreen(name) {
   if (name === 'customers') renderCustomers();
   if (name === 'services') renderServices();
   if (name === 'pipeline' && typeof renderPipeline === 'function') renderPipeline();
+  // TSK-002/007 More/Settings rebuild: the root screen ('more') now only
+  // hosts the account card + Tools grid + "Set up your business" drill-in
+  // rows (with live status pills) + Preferences + About — everything that
+  // used to be a <details> block on this same screen moved into one of the
+  // 4 drill-in sub-screens below. Root still needs every one of these
+  // render calls (payment channels / LINE / team / shop / slip-verify / etc.)
+  // because their status feeds the root's status pills and Tools-grid badge
+  // even though their markup now lives on the sub-screen — see
+  // updatePaymentsPill()/updateLineTeamPill()/renderDataBackupStatus()
+  // called from inside those functions.
   if (name === 'more' && typeof renderWorkflowControls === 'function') renderWorkflowControls();
   if (name === 'more') applyInsightsVisibility();
   if (name === 'more') renderBackupReminder();
@@ -7883,6 +8012,21 @@ function switchScreen(name) {
   if (name === 'more') renderTeamSection();
   if (name === 'more') renderShopSection();
   if (name === 'more') renderSlipVerifySection();
+  if (name === 'more') renderPaymentChannels();
+  if (name === 'more') renderFollowupsTile();
+  if (name === 'more') renderDataBackupStatus();
+  if (name === 'more') renderThemeSeg();
+  // Drill-in sub-screens: re-render their own sections fresh on every visit
+  // (not just via root) so direct/back-forward navigation never shows stale
+  // data — all of these are idempotent and cheap.
+  if (name === 'more-biz' && typeof renderWorkflowControls === 'function') renderWorkflowControls();
+  if (name === 'more-biz') renderSellerLogoSection();
+  if (name === 'more-pay') renderPaymentChannels();
+  if (name === 'more-pay') renderShopSection();
+  if (name === 'more-pay') renderSlipVerifySection();
+  if (name === 'more-line') renderLineChannelSection();
+  if (name === 'more-line') renderTeamSection();
+  if (name === 'more-data') renderDataBackupStatus();
   if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.

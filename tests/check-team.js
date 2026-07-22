@@ -100,8 +100,13 @@ const { chromium } = require('playwright');
   };
 
   // ── 1. Pro plan, not on a team: locked hint, no roster ────────────────
+  // TSK-002/007: Team now lives on the "LINE & team" drill-in
+  // (#s-more-line), not directly on the More root — navigate there so the
+  // invite/remove click() calls further down hit a visible element.
   await setEntitlements(basePro);
   await page.evaluate(() => window.switchScreen && window.switchScreen('more'));
+  await page.waitForTimeout(200);
+  await page.evaluate(() => window.switchScreen && window.switchScreen('more-line'));
   await page.waitForTimeout(300);
   const hintText = await page.locator('#team-body').textContent();
   assert(hintText && hintText.trim().length > 0, 'shows the Team-plan-needed hint on Pro with no team membership');

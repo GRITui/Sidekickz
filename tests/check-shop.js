@@ -197,7 +197,12 @@ function waitForServer(url, timeoutMs) {
     // refresh it itself before switchScreen('more') reads it synchronously.
     await page.evaluate(() => window.refreshEntitlements && window.refreshEntitlements());
     await page.evaluate(() => window.switchScreen && window.switchScreen('more'));
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(200);
+    // TSK-002/007: shop link/orders now live on the "Payments & shop"
+    // drill-in (#s-more-pay) — the resolveOrderRequest click() below needs
+    // it visible.
+    await page.evaluate(() => window.switchScreen && window.switchScreen('more-pay'));
+    await page.waitForTimeout(300);
 
     // Shop link renders with the account's own cuid.
     const linkVal = await page.locator('#shop-link-body input[readonly]').inputValue().catch(() => '');

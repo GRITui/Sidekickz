@@ -209,7 +209,10 @@ const { chromium } = require('playwright');
       bookingRequestResolve: async (id, action) => { window.__resolved.push([id, action]); return { ok: true, data: { ok: true, status: action === 'confirm' ? 'confirmed' : 'declined' } }; },
     });
   });
-  await page.evaluate(() => switchScreen('more'));   // the section lives on the More screen — clicks need it visible
+  await page.evaluate(() => switchScreen('more'));
+  // TSK-002/007: booking requests now live on the "LINE & team" drill-in
+  // (#s-more-line) — clicks below need it visible.
+  await page.evaluate(() => switchScreen('more-line'));
   await page.waitForTimeout(300);
   await page.evaluate(() => renderBookingSlotsSection());
   await page.waitForTimeout(300);

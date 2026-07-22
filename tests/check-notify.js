@@ -140,6 +140,11 @@ function waitForServer(url, timeoutMs) {
 
   // ═══ 1. Settings ▸ Shop ▸ Slip verification: defaults to "Off" ══════════
   await page.evaluate(() => switchScreen('more'));
+  // TSK-002/007: slip verification now lives on the "Payments & shop"
+  // drill-in (#s-more-pay) — the selectOption()/fill() calls below need it
+  // visible (the '#slipverify-provider'.inputValue() read on its own would
+  // still work hidden, but the actions after it would not).
+  await page.evaluate(() => switchScreen('more-pay'));
   await page.waitForTimeout(500);
   const providerBefore = await page.locator('#slipverify-provider').inputValue().catch(() => null);
   assert(providerBefore === '', '1: provider select defaults to "" (Off), got ' + providerBefore);
@@ -156,6 +161,11 @@ function waitForServer(url, timeoutMs) {
 
   // ═══ 3. Selecting a provider reveals key/branch fields; saving persists ═
   await page.evaluate(() => switchScreen('more'));
+  // TSK-002/007: slip verification now lives on the "Payments & shop"
+  // drill-in (#s-more-pay) — the selectOption()/fill() calls below need it
+  // visible (the '#slipverify-provider'.inputValue() read on its own would
+  // still work hidden, but the actions after it would not).
+  await page.evaluate(() => switchScreen('more-pay'));
   await page.waitForTimeout(300);
   await page.selectOption('#slipverify-provider', 'slipok');
   await page.waitForTimeout(200);

@@ -87,7 +87,10 @@ const { chromium } = require('playwright');
     });
   }, { startsAt: fixture.startsAt, endsAt: fixture.endsAt });
 
-  await page.evaluate(() => switchScreen('more'));   // the section lives on the More screen — clicks need it visible
+  await page.evaluate(() => switchScreen('more'));
+  // TSK-002/007: booking requests now live on the "LINE & team" drill-in
+  // (#s-more-line) — clicks below need it visible.
+  await page.evaluate(() => switchScreen('more-line'));
   await page.waitForTimeout(300);
   await page.evaluate(() => renderBookingSlotsSection());
   await page.waitForTimeout(300);
