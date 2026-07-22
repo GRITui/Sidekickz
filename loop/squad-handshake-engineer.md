@@ -1,36 +1,35 @@
 <squad_metadata>
   <squad_name>Engineer-Squad</squad_name>
   <current_status>EXECUTING</current_status>
-  <active_task_id>TSK-009</active_task_id>
+  <active_task_id>TSK-008</active_task_id>
   <sprint_completion_percentage>100</sprint_completion_percentage>
 </squad_metadata>
 
 ## Current Focus
-Epoch 2 closed: TSK-002/007 (More/Settings restructure) shipped, folded into
-PR #65 (same designated branch, so it's an expanded PR rather than a new
-one). Epoch 3 now pulls TSK-009 (Home "Today" stack merge) per the parallel-
-pickup rule and the owner's recorded build order in TSK-015.
+Epoch 3 closed: TSK-009 (Home "Today" merge) shipped, folded into PR #65
+(same designated branch). Epoch 4 now pulls TSK-008 (Job modal Quick log /
+Full details split) per the owner's recorded build order in TSK-015 — the
+last item before TSK-010 (Calendar), which closes out the whole batch.
 
-Epoch 2's build finished clean (committed + pushed on its own, no stall) —
-unlike epoch 1. Independent verification caught one real cosmetic bug (the
-Follow-ups tool-badge never actually hid at zero due, a CSS specificity
-issue) that the build's own new test suite didn't catch because it only
-asserted the DOM `hidden` property, not actual computed rendering — fixed
-in a follow-up commit, confirmed live before shipping.
+Epoch 3's build finished clean again (committed + pushed on its own, no
+stall) — matches epoch 2, not epoch 1's stall pattern. Verify caught one
+immaterial discrepancy (task brief cited a slightly stale baseline number)
+and confirmed it reconciled exactly, no real issue.
 
 ## Recent Commits / PRs
 * PR #64 (merged): TSK-014 stage migration (6→4 stages) + LINE Login deferral.
-* PR #65 (open, now covers two tasks since both landed on the same
+* PR #65 (open, now covers three tasks since all landed on the same
   designated branch):
-  - TSK-012/013/011 Task-flow rebuild — chip rail w/ progress underline,
-    note line, attempt badge, deadline chip, pending banner, package
-    progress bar, inline 9-variant stage-gate card, package renewal loop.
-    Playwright 737/737. Also fixed an uncredited pre-existing bug from
-    TSK-014 (job.paid wasn't preserved on edit).
-  - TSK-002/007 More/Settings restructure — 12 collapsible sections down to
-    3 flat groups + 4 drill-in sub-pages, everything ≤1 tap deeper. Every
-    reachable action independently traced to a new home (zero losses).
-    Playwright 741/741 after the badge-fix follow-up commit.
+  - TSK-012/013/011 Task-flow rebuild. Playwright 737/737. Also fixed an
+    uncredited pre-existing bug from TSK-014 (job.paid not preserved on edit).
+  - TSK-002/007 More/Settings restructure — 12 sections down to 3 flat
+    groups + 4 drill-ins, zero lost actions (independently audited).
+    Playwright 741/741 after a badge-fix follow-up commit.
+  - TSK-009 Home "Today" merge — 3 old urgency surfaces (home-alert-card,
+    attn-card, incoming-pipeline) into one prioritized list-card, all 7 row
+    types preserved (independently re-derived from the raw diff), hero/goal
+    card byte-identical untouched, plus a genuinely new next-booking-today
+    row. Playwright 780/780.
 
 ## Blockers & QA Failures
 (none — no task hit the 3-strike breaker)
@@ -50,11 +49,7 @@ in a follow-up commit, confirmed live before shipping.
 * Owner (lower priority, noted not urgent): the old `markJobLost()` fixed-
   reason chip picker is now unreachable from any UI button (Cancel's
   free-text `job.note` replaced it in practice) but is still fully defined
-  and tested. Two "why lost" mechanisms coexist, one orphaned — worth a
-  conscious decision on a future pass (retire it, or wire it back in
-  alongside the free-text note).
+  and tested. Two "why lost" mechanisms coexist, one orphaned.
 * Owner (lower priority, noted not urgent): TSK-002's rebuild dropped
   Manage's Invoices/Docs rows from More entirely — verified as a legitimate
-  no-op (Home's quick-action row already reaches both screens, predates this
-  task), not a loss, but worth knowing About/More is slightly thinner now if
-  that redundancy was ever relied on.
+  no-op (Home's quick-action row already reaches both, predates this task).

@@ -84,7 +84,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-009</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status><!-- built interactive in More 1a.dc.html Home tab; QA PASS epoch 7; Owner-approved 2026-07-22, see TSK-015 -->
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit 7bcedbf, PR #65 (open, expanded scope). Playwright 780/780. See squad-handshake-engineer.md. -->
   <priority>MEDIUM</priority>
   <title>Home urgency-surface merge (candidate #3)</title>
   <description>Merge home-alert-card + attn-card + incoming pipeline into one "Today" stack using the existing list-row grammar and chip colors; hero and goal card untouched. Direction 2b delivered.</description>
