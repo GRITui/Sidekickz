@@ -94,7 +94,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-010</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status><!-- built interactive: Calendar tab in More 1a.dc.html (3-day pager, 72px rows, 62px blocks); epoch 8; Owner-approved 2026-07-22, see TSK-015 -->
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit fc61191, PR #65 (open). Playwright 840/840. Batch complete. See squad-handshake-engineer.md. -->
   <priority>MEDIUM</priority>
   <title>Calendar week view ergonomics (candidate #4)</title>
   <description>Default mobile zoom to 3-day columns (~118px), hour rows 72px, blocks min 44px with 12px+ type; 7-day stays for >=900px. Day pager reuses cal-navbtn tokens. Direction 2c delivered.</description>
