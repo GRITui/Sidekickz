@@ -104,7 +104,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-011</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status><!-- built interactive: Task flow tab in More 1a.dc.html (chip underlines replace minimap, cards move stages); epoch 8; Owner-approved 2026-07-22, see TSK-015 -->
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit 6e9acba, PR #65 (open). Playwright 737/737. See squad-handshake-engineer.md. -->
   <priority>LOW</priority>
   <title>Task flow rail light-touch (candidate #5)</title>
   <description>Keep the recent kb-* redesign. Light touch only: fold the marigold minimap into the chips as a progress underline, drop the always-on hint sentence to first-run only. Direction 2d delivered.</description>
@@ -114,7 +114,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-012</id>
   <source>OWNER_POPUP</source>
-  <status>READY_FOR_PM</status><!-- Owner-approved 2026-07-22, see TSK-015 -->
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit 6e9acba, PR #65 (open). One item held for owner decision: gate no longer creates a real calendar booking, see squad-handshake-engineer.md Cross-Squad Requests. -->
   <priority>HIGH</priority>
   <title>Task flow: 4 client paths + incident notes + stage-gate booking</title>
   <description>Cards gained Cancel (red, tweakable to quiet "Lost"), Redo (attempt counter), Postpone (tap deadline chip), and Advance. Advancing opens an inline stage-gate to book the next deadline (Skip allowed); skipped stages show an amber "No date booked" banner that reopens the gate. Cancel/Redo/Postpone capture an optional quick note, shown on the card as italic quote.</description>
@@ -124,7 +124,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-013</id>
   <source>OWNER_POPUP</source>
-  <status>READY_FOR_PM</status><!-- Owner-approved 2026-07-22, see TSK-015 -->
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit 6e9acba, PR #65 (open). -->
   <priority>HIGH</priority>
   <title>Task flow: multi-session package delivery + renewal loop</title>
   <description>Deliver-stage cards with pkg{used,total} show a session progress bar and "Log session N of M" action; each log opens a gate to book the NEXT session (skip = amber banner). Final session's gate offers "Send renewal quote" which completes the card and spawns a renewal card in Quote with the follow-up date, closing the renewal loop before a gap.</description>
