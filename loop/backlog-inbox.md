@@ -74,7 +74,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-008</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status><!-- built interactive in More 1a.dc.html; QA PASS epoch 7; Owner-approved 2026-07-22, see TSK-015 -->
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit 0a33910, PR #65 (open, expanded scope). Playwright 816/816. See squad-handshake-engineer.md. -->
   <priority>HIGH</priority>
   <title>Job modal refinement direction (candidate #2)</title>
   <description>Split the 2.5-screen sheet into a Quick log / Full details segmented sheet: quick path = date, client, fee, net, save; advanced sections (plan & payments, items, time tracking) collapse to drill rows with counts. Cancel de-escalated from danger styling to plain text. Direction 2a delivered.</description>
