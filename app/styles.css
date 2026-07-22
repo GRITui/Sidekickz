@@ -568,6 +568,23 @@ select option{background:var(--select-option-bg);color:var(--select-option-fg);}
 .wk-hint-up{top:1px;}
 .wk-hint-down{bottom:1px;}
 
+/* 3-day mobile grid (TSK-010, design handoff §4) — same .wk-* element/class
+   family as the 7-day grid above (wkHeadRowHtml/wkBodyRowHtml render both),
+   just with taller hour rows and equal-share day columns instead of fixed
+   76px ones. The .wk3 modifier is applied to .wk-scroll only below the
+   900px desktop breakpoint (bookings.js renderWeekView) — at >=900px the
+   7-day grid renders with none of these overrides, unchanged from before. */
+.wk-scroll.wk3 .wk-day-head{flex:1 1 0;}
+.wk-scroll.wk3 .wk-day-num{width:24px;height:24px;font-size:13px;}
+.wk-scroll.wk3 .wk-hour-lbl{height:72px;}
+.wk-scroll.wk3 .wk-daycol{flex:1 1 0;}
+.wk-scroll.wk3 .wk-hourcell{height:72px;}
+/* Blocks keep the SAME lane-based left/width percentage math as the 7-day
+   grid (wkBlockStyle(), unchanged) — required so an overlapping pair still
+   splits side-by-side in the single 3-day column, not just visually inset
+   from its edges (design's flat "left/right 4px" only covers the
+   non-overlapping case). */
+
 /* Focus mode — full-screen Pomodoro overlay (redesign handoff, design 9b) */
 .focus-overlay{position:fixed;inset:0;background:#121715;color:#EFEDE6;z-index:900;display:none;
   flex-direction:column;align-items:center;justify-content:center;gap:28px;}

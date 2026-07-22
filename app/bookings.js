@@ -187,13 +187,16 @@
     for (let i = -mondayOffset; i < 7 - mondayOffset; i++) out.push(addDays(iso, i));
     return out;
   }
-  // Nav-bar label for the week, e.g. "14–20 Jul 2026" or, across a month/
-  // year boundary, "28 Jun – 4 Jul 2026" / "29 Dec 2025 – 4 Jan 2026". Not
-  // run through t() — same as monthLabel()'s existing 'en-GB' formatting,
-  // which this mirrors rather than reinventing a second date-format path.
+  // Nav-bar label for the visible date range, e.g. "14–20 Jul 2026" or,
+  // across a month/year boundary, "28 Jun – 4 Jul 2026" / "29 Dec 2025 – 4
+  // Jan 2026". Works for any length `dates` array (7-day week or the 3-day
+  // mobile window) — reads the last element by position rather than a
+  // hardcoded index. Not run through t() — same as monthLabel()'s existing
+  // 'en-GB' formatting, which this mirrors rather than reinventing a second
+  // date-format path.
   function weekLabel(dates) {
     const start = new Date(dates[0] + 'T12:00:00');
-    const end = new Date(dates[6] + 'T12:00:00');
+    const end = new Date(dates[dates.length - 1] + 'T12:00:00');
     if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
       return `${start.getDate()}–${end.getDate()} ${end.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`;
     }
@@ -211,6 +214,35 @@
   const WK_HOUR_START = 6 * 60, WK_HOUR_END = 22 * 60, WK_PX_PER_MIN = 1;
   const WK_MIN_BLOCK_PX = 24; // a very short booking still needs room for its time+title text
   const WK_MAX_LANES = 2;     // side-by-side split cap — see assignLanes() below
+
+  // ── TSK-010: 3-day mobile grid vs 7-day desktop grid ────────────────────
+  // Both grids share the SAME date-driven pipeline (loadWeekBookings →
+  // assignLanes → wkBlockStyle) — assignLanes/wkBlockStyle are already
+  // percentage/lane based and don't care how many columns or how tall an
+  // hour is, so nothing about the overlap/lane logic itself changes here.
+  // Only the time->pixel scale (pxPerMin), the minimum block height, and a
+  // small inset (blockGapPx, so blocks don't touch edge-to-edge inside a
+  // taller hour row) differ per view. A "view config" object is threaded
+  // through wkBlockHtml() instead of forking it — the 7-day config's values
+  // reproduce the exact original math (blockGapPx:0 keeps top/bottom
+  // untouched from the pre-TSK-010 formula), so the desktop grid's pixel
+  // output is provably unchanged.
+  const CAL_DESKTOP_BP = 900; // matches the app-wide @media(min-width:900px) convention (styles.css)
+  function isDesktopCalWidth() { return typeof window !== 'undefined' && window.innerWidth >= CAL_DESKTOP_BP; }
+  const WK_VIEW_7DAY = { hourRowPx: 60, pxPerMin: WK_PX_PER_MIN, minBlockPx: WK_MIN_BLOCK_PX, blockGapPx: 0 };
+  // 72px hour rows (design spec), pxPerMin scaled so a booking still lines up
+  // exactly with the 72px hour-cell elements (same reasoning as WK_PX_PER_MIN
+  // above, just at the 3-day view's row height); blockGapPx:10 + minBlockPx:44
+  // together produce the spec's "62px tall for 1h, ≥44px minimum always"
+  // (60min * 1.2px/min = 72px raw, minus the 10px inset = 62px).
+  const WK3_HOUR_ROW_PX = 72;
+  const WK_VIEW_3DAY = { hourRowPx: WK3_HOUR_ROW_PX, pxPerMin: WK3_HOUR_ROW_PX / 60, minBlockPx: 44, blockGapPx: 10 };
+  // 3 consecutive dates starting at `iso` — the mobile-default window,
+  // shifted by 3 days at a time by the pager (vs weekDates()'s Mon-Sun 7).
+  function threeDayDates(iso) {
+    const base = iso || todayISO();
+    return [base, addDays(base, 1), addDays(base, 2)];
+  }
 
   // One dbAll(STORE) covers the whole visible week (same "load once, filter
   // client-side" approach computeActivitySets() uses for the month grid).
@@ -270,13 +302,18 @@
   // A booking that starts before 06:00 or ends after 22:00 clamps into the
   // visible range with a ▲/▼ hint rather than disappearing — a 05:30 run
   // must still show up somewhere, not silently vanish off the top of the grid.
-  function wkBlockHtml(r, lane, laneCount) {
+  // `view` (defaults to the 7-day config) supplies the time->pixel scale;
+  // see the WK_VIEW_7DAY/WK_VIEW_3DAY comment above for why this keeps the
+  // 7-day grid's pixel output byte-identical to before TSK-010.
+  function wkBlockHtml(r, lane, laneCount, view) {
+    view = view || WK_VIEW_7DAY;
     const start = toMin(r.startTime), dur = n(r.durationMin), end = start + dur;
     const clampedStart = Math.max(start, WK_HOUR_START);
     const clampedEnd = Math.min(end, WK_HOUR_END);
-    const top = Math.round((clampedStart - WK_HOUR_START) * WK_PX_PER_MIN);
-    const bottom = Math.round((clampedEnd - WK_HOUR_START) * WK_PX_PER_MIN);
-    const height = Math.max(bottom - top, WK_MIN_BLOCK_PX);
+    const gapHalf = view.blockGapPx / 2;
+    const top = Math.round((clampedStart - WK_HOUR_START) * view.pxPerMin + gapHalf);
+    const bottom = Math.round((clampedEnd - WK_HOUR_START) * view.pxPerMin - gapHalf);
+    const height = Math.max(bottom - top, view.minBlockPx);
     const style = wkBlockStyle(top, height, lane, laneCount);
     const doneCls = r.status === 'done' ? ' wk-block-done' : '';
     const hintUp = start < WK_HOUR_START ? '<span class="wk-hint wk-hint-up" aria-hidden="true">▲</span>' : '';
@@ -311,31 +348,42 @@
     return out;
   }
 
+  // Short weekday label, indexed by Date#getDay() (0=Sunday..6=Saturday) —
+  // used (along with the weekend check below) by actual calendar weekday
+  // rather than array *position*, so this works for any date window, not
+  // just a Monday-start 7-day one (the 3-day mobile window can start on any
+  // weekday).
+  const WD_SHORT_KEYS = ['wd_sun', 'wd_mon', 'wd_tue', 'wd_wed', 'wd_thu', 'wd_fri', 'wd_sat'];
+  function isWeekendIso(iso) {
+    const dow = new Date(iso + 'T12:00:00').getDay();
+    return dow === 0 || dow === 6;
+  }
+
   function wkHeadRowHtml(dates) {
     const todayIso = todayISO();
-    const WD = [t('wd_mon'), t('wd_tue'), t('wd_wed'), t('wd_thu'), t('wd_fri'), t('wd_sat'), t('wd_sun')];
     return `<div class="wk-headrow">
         <div class="wk-corner"></div>
-        ${dates.map((iso, i) => {
+        ${dates.map((iso) => {
           const d = new Date(iso + 'T12:00:00');
           const isToday = iso === todayIso;
-          const isWeekend = i >= 5; // Monday-start index: 5=Sat, 6=Sun
+          const isWeekend = isWeekendIso(iso);
           return `<div class="wk-day-head${isToday ? ' wk-today' : ''}${isWeekend ? ' wk-weekend' : ''}">
-              <span class="wk-day-name">${esc(WD[i])}</span>
+              <span class="wk-day-name">${esc(t(WD_SHORT_KEYS[d.getDay()]))}</span>
               <span class="wk-day-num">${d.getDate()}</span>
             </div>`;
         }).join('')}
       </div>`;
   }
 
-  function wkBodyRowHtml(dates, byDate) {
+  function wkBodyRowHtml(dates, byDate, view) {
+    view = view || WK_VIEW_7DAY;
     const todayIso = todayISO();
     return `<div class="wk-bodyrow">
         <div class="wk-hourgutter">${wkHourGutterHtml()}</div>
-        ${dates.map((iso, i) => {
-          const isWeekend = i >= 5;
+        ${dates.map((iso) => {
+          const isWeekend = isWeekendIso(iso);
           const laned = assignLanes(byDate[iso] || []);
-          const blocks = laned.map(({ r, lane, laneCount }) => wkBlockHtml(r, lane, laneCount)).join('');
+          const blocks = laned.map(({ r, lane, laneCount }) => wkBlockHtml(r, lane, laneCount, view)).join('');
           return `<div class="wk-daycol${iso === todayIso ? ' wk-today-col' : ''}${isWeekend ? ' wk-weekend' : ''}" data-wk-day="${aesc(iso)}">
               ${wkHourCellsHtml(iso)}
               ${blocks}
@@ -447,11 +495,17 @@
       </div>`;
   }
 
-  // Shared by both views — the segmented Week/Month switch itself never
-  // changes shape, only which render function runs underneath it.
+  // Shared by both views — the segmented switch itself never changes shape
+  // or its underlying data-cal-mode values ('week'/'month', still what's
+  // persisted to settings.calViewMode and what tests/check-week-view.js
+  // clicks), only its VISIBLE label for the 'week' mode: "Week" at desktop
+  // widths (still the real 7-day grid) vs "3-day" below the 900px breakpoint
+  // (design spec §4 — the "3-day / Month" pill), where 'week' mode now
+  // renders the 3-day grid. Month is unaffected either way.
   function calModeToggleHtml() {
+    const weekLabelKey = isDesktopCalWidth() ? 'cal_mode_week' : 'cal_mode_3day';
     return `<div class="cal-mode-switch">
-        <button type="button" class="cal-mode-btn${calMode === 'week' ? ' active' : ''}" data-cal-mode="week">${esc(t('cal_mode_week'))}</button>
+        <button type="button" class="cal-mode-btn${calMode === 'week' ? ' active' : ''}" data-cal-mode="week">${esc(t(weekLabelKey))}</button>
         <button type="button" class="cal-mode-btn${calMode === 'month' ? ' active' : ''}" data-cal-mode="month">${esc(t('cal_mode_month'))}</button>
       </div>`;
   }
@@ -489,8 +543,19 @@
   }
   window.renderBookings = renderBookings;
 
+  // Renders the 7-day desktop grid at >=900px (unchanged from before
+  // TSK-010) and the 3-day mobile grid below it — same data pipeline
+  // (loadWeekBookings/assignLanes/wkBlockStyle), same nav-button component
+  // (.cal-navbtn/.cal-todaybtn), same Week/Month toggle wiring; only the
+  // date window (weekDates vs threeDayDates), the pager's shift amount (7 vs
+  // 3 days), the view config passed to wkBodyRowHtml (WK_VIEW_7DAY vs
+  // WK_VIEW_3DAY), and a CSS modifier class (.wk3, for the 72px hour rows +
+  // equal-share 3-column width — see styles.css) differ per breakpoint.
   async function renderWeekView(el) {
-    const dates = weekDates(selectedDate);
+    const desktop = isDesktopCalWidth();
+    const view = desktop ? WK_VIEW_7DAY : WK_VIEW_3DAY;
+    const dates = desktop ? weekDates(selectedDate) : threeDayDates(selectedDate);
+    const shiftBy = desktop ? 7 : 3;
     let byDate;
     try {
       byDate = await loadWeekBookings(dates);
@@ -499,10 +564,12 @@
       el.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>${esc(t('bookings_load_error'))}</p></div>`;
       return;
     }
+    const prevAria = desktop ? t('cal_prev_week_aria') : t('cal_prev_3day_aria');
+    const nextAria = desktop ? t('cal_next_week_aria') : t('cal_next_3day_aria');
     const weekNav = `<div class="cal-topnav">
-        <button type="button" id="cal-prev" class="cal-navbtn" aria-label="${aesc(t('cal_prev_week_aria'))}">‹</button>
+        <button type="button" id="cal-prev" class="cal-navbtn" aria-label="${aesc(prevAria)}">‹</button>
         <button type="button" id="cal-label" class="cal-monthlabel">${esc(weekLabel(dates))}</button>
-        <button type="button" id="cal-next" class="cal-navbtn" aria-label="${aesc(t('cal_next_week_aria'))}">›</button>
+        <button type="button" id="cal-next" class="cal-navbtn" aria-label="${aesc(nextAria)}">›</button>
         <button type="button" id="cal-today-btn" class="cal-todaybtn">${esc(t('cal_today'))}</button>
         <input type="date" id="bk-jump" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
       </div>`;
@@ -510,13 +577,15 @@
     // .wk-scroll is the ONLY horizontal (and, since its content is taller
     // than any reasonable viewport, vertical) scroller — same "one
     // dedicated scroll container, page body never grows past the viewport"
-    // rule the Pipeline Gantt's .tl-scroll already established.
+    // rule the Pipeline Gantt's .tl-scroll already established. The .wk3
+    // modifier (mobile only) is a pure CSS hook — see styles.css for the
+    // 72px hour-row height + equal-share day-column width it drives.
     el.innerHTML = `${calModeToggleHtml()}${weekNav}
-        <div class="wk-scroll">${wkHeadRowHtml(dates)}${wkBodyRowHtml(dates, byDate)}</div>`;
+        <div class="wk-scroll${desktop ? '' : ' wk3'}">${wkHeadRowHtml(dates)}${wkBodyRowHtml(dates, byDate, view)}</div>`;
     wireCalModeToggle(el);
 
-    document.getElementById('cal-prev').addEventListener('click', () => { selectedDate = addDays(selectedDate, -7); renderBookings(); });
-    document.getElementById('cal-next').addEventListener('click', () => { selectedDate = addDays(selectedDate, 7); renderBookings(); });
+    document.getElementById('cal-prev').addEventListener('click', () => { selectedDate = addDays(selectedDate, -shiftBy); renderBookings(); });
+    document.getElementById('cal-next').addEventListener('click', () => { selectedDate = addDays(selectedDate, shiftBy); renderBookings(); });
     document.getElementById('cal-today-btn').addEventListener('click', () => { selectedDate = todayISO(); renderBookings(); });
     document.getElementById('cal-label').addEventListener('click', () => {
       const inp = document.getElementById('bk-jump');

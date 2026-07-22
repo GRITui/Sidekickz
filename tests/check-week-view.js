@@ -1,4 +1,5 @@
-/* Sidekick — Calendar Week view (2026-07-17).
+/* Sidekick — Calendar Week view (2026-07-17, viewport updated 2026-07-22 for
+ * TSK-010).
  *
  * Closes the recorded P2 "Calendar Week view" — assessed & recommended in
  * the project changelog, distinct from the REJECTED work-week/quarter/year
@@ -8,12 +9,21 @@
  * whole week is visible at once, bookings render as absolutely-positioned
  * blocks inside their day column, overlapping bookings split side-by-side.
  *
+ * TSK-010 note: this suite originally ran at a 360px (mobile) viewport, back
+ * when the 7-day grid was the only Week-mode shape at every width. TSK-010
+ * made a 3-day grid the mobile default below the app's 900px desktop
+ * breakpoint (see styles.css's existing @media(min-width:900px) convention)
+ * — the 7-day grid this suite exercises now only renders at >=900px, so the
+ * viewport below was moved to a desktop width to keep testing the same
+ * 7-day geometry/behavior this suite has always covered. The 3-day mobile
+ * grid has its own dedicated coverage in check-calendar-3day-v2.js.
+ *
  * v1 scope covered here: the grid renders correctly (7 columns, plausible
  * block geometry incl. an overlap split), the Week/Month toggle persists via
  * calViewMode, tapping a block opens its edit form, tapping an empty hour
  * cell opens a pre-filled new-booking form, and the grid's own scroll
- * container is the only source of any horizontal overflow at 360px. NOT
- * covered (residual, by design): 3+-way overlap cascading, cross-midnight
+ * container is the only source of any horizontal overflow at desktop width.
+ * NOT covered (residual, by design): 3+-way overlap cascading, cross-midnight
  * bookings, and the ▲/▼ off-range clamp hint (no fixture exercises a
  * booking starting before 06:00 or ending after 22:00).
  *
@@ -28,7 +38,8 @@ const { chromium } = require('playwright');
   const assert = (cond, msg) => { if (cond) { pass++; console.log('  PASS ', msg); } else { fail++; console.log('  FAIL ', msg); } };
   const errors = [];
 
-  const page = await browser.newPage({ viewport: { width: 360, height: 720 } });
+  // Desktop width (>=900px) — the 7-day grid's breakpoint as of TSK-010.
+  const page = await browser.newPage({ viewport: { width: 960, height: 800 } });
   page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
   page.on('pageerror', err => errors.push(String(err)));
 
@@ -165,12 +176,12 @@ const { chromium } = require('playwright');
   await page.click('#bk-cancel');
   await page.waitForTimeout(200);
 
-  // ═══ 8. No page-level horizontal scroll at 360px ═════════════════════
+  // ═══ 8. No page-level horizontal scroll at desktop width ═════════════
   const scrollCheck = await page.evaluate(() => ({
     bodyScrollW: document.body.scrollWidth, bodyClientW: document.body.clientWidth,
   }));
   assert(scrollCheck.bodyScrollW === scrollCheck.bodyClientW,
-    `8: horizontal scroll confined to .wk-scroll (body scrollWidth === clientWidth) at 360px, got ${JSON.stringify(scrollCheck)}`);
+    `8: horizontal scroll confined to .wk-scroll (body scrollWidth === clientWidth) at desktop width, got ${JSON.stringify(scrollCheck)}`);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   console.log('Console/page errors:', errors.length ? errors : 'none');

@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.48';          // <-> sw.js SW_VERSION 'sidekick-v0.9.48'
+const APP_VERSION = '0.9.49';          // <-> sw.js SW_VERSION 'sidekick-v0.9.49'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -869,9 +869,10 @@ const I18N = {
     wd_mon:'Mon', wd_tue:'Tue', wd_wed:'Wed', wd_thu:'Thu', wd_fri:'Fri', wd_sat:'Sat', wd_sun:'Sun',
     wd_full_mon:'Monday', wd_full_tue:'Tuesday', wd_full_wed:'Wednesday', wd_full_thu:'Thursday',
     wd_full_fri:'Friday', wd_full_sat:'Saturday', wd_full_sun:'Sunday',
-    cal_mode_week:'Week', cal_mode_month:'Month',
+    cal_mode_week:'Week', cal_mode_month:'Month', cal_mode_3day:'3-day',
     cal_prev_week_aria:'Previous week', cal_next_week_aria:'Next week',
     cal_prev_month_aria:'Previous month', cal_next_month_aria:'Next month',
+    cal_prev_3day_aria:'Previous 3 days', cal_next_3day_aria:'Next 3 days',
     session_singular:'session', session_plural:'sessions',
     booking_word:'Booking', no_client_option:'No client',
     cal_gap_free_word:'Free', cal_gap_add_word:'+ add', cal_add_at_time_aria:'Add booking at {time}',
@@ -1376,9 +1377,10 @@ const I18N = {
     wd_mon:'จ.', wd_tue:'อ.', wd_wed:'พ.', wd_thu:'พฤ.', wd_fri:'ศ.', wd_sat:'ส.', wd_sun:'อา.',
     wd_full_mon:'วันจันทร์', wd_full_tue:'วันอังคาร', wd_full_wed:'วันพุธ', wd_full_thu:'วันพฤหัสบดี',
     wd_full_fri:'วันศุกร์', wd_full_sat:'วันเสาร์', wd_full_sun:'วันอาทิตย์',
-    cal_mode_week:'สัปดาห์', cal_mode_month:'เดือน',
+    cal_mode_week:'สัปดาห์', cal_mode_month:'เดือน', cal_mode_3day:'3 วัน',
     cal_prev_week_aria:'สัปดาห์ก่อนหน้า', cal_next_week_aria:'สัปดาห์ถัดไป',
     cal_prev_month_aria:'เดือนก่อนหน้า', cal_next_month_aria:'เดือนถัดไป',
+    cal_prev_3day_aria:'ก่อนหน้า 3 วัน', cal_next_3day_aria:'ถัดไป 3 วัน',
     session_singular:'เซสชัน', session_plural:'เซสชัน',
     booking_word:'การจอง', no_client_option:'ไม่มีลูกค้า',
     cal_gap_free_word:'ว่าง', cal_gap_add_word:'+ เพิ่ม', cal_add_at_time_aria:'เพิ่มการจองเวลา {time}',
