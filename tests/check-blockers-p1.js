@@ -166,28 +166,32 @@ const { chromium } = require('playwright');
   await page.evaluate(() => closeJobModal());   // section 6 clicks need the page uncovered
 
   // ═══ 5. Stage-gate opt-out ═════════════════════════════════════════════
+  // TSK-012: the gate itself moved from a full-screen #modal-appt sheet to
+  // an inline card embedded in the pipeline card (window.__gateOpen /
+  // .gate-card — see openGateCard() in app.js). stageGateOff's own on/off
+  // semantics (gateAfterForwardMove) are otherwise unchanged.
   const gateOff = await page.evaluate(async () => {
     await saveSetting('stageGateOff', true);
     const uid = currentUser.id;
     const jId = await dbPut('jobs', { uid, date: todayISO(), client: 'G', clientId: null, serviceId: null,
       serviceName: 'G', amount: 1, tip: 0, expense: 0, count: 1, notes: '', netAmount: 1, cuid: cuid(),
       stageOrder: getStageOrder().slice(), stage: 'inquiry', complete: false, invoiceId: null, quoteDocId: null,
-      packageId: null, updatedAt: nowISO() });
+      packageId: null, due: null, note: null, attempt: 1, updatedAt: nowISO() });
     await reload();
     await advanceJobStage(jId);
     await new Promise(r => setTimeout(r, 200));
     const j = jobs.find(x => x.id === jId);
-    const off = { stage: jobStage(j), pending: j.pendingGateStage, modal: !!document.getElementById('modal-appt') };
+    const off = { stage: jobStage(j), pending: j.pendingGateStage, gate: !!(window.__gateOpen && window.__gateOpen.jobId === jId) };
     await saveSetting('stageGateOff', false);
     await advanceJobStage(jId);
     await new Promise(r => setTimeout(r, 200));
     const j2 = jobs.find(x => x.id === jId);
-    const on = { pending: j2.pendingGateStage, modal: !!document.getElementById('modal-appt') };
-    if (on.modal) resolveApptNone();
+    const on = { pending: j2.pendingGateStage, gate: !!(window.__gateOpen && window.__gateOpen.jobId === jId) };
+    if (on.gate) closeGateCard();
     return { off, on };
   });
-  assert(gateOff.off.stage === 'quote' && !gateOff.off.pending && !gateOff.off.modal, '5: gate off → card advances silently, no flag, no modal');
-  assert(gateOff.on.pending && gateOff.on.modal, '5: gate back on → advancing gates again');
+  assert(gateOff.off.stage === 'quote' && !gateOff.off.pending && !gateOff.off.gate, '5: gate off → card advances silently, no flag, no inline gate');
+  assert(gateOff.on.pending && gateOff.on.gate, '5: gate back on → advancing gates again');
 
   // ═══ 6. Booking-requests UI against the stubbed contract ═══════════════
   await page.exposeFunction('__fakeReqList', () => ({ rows: [
