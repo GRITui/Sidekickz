@@ -18,7 +18,7 @@ const { chromium } = require('playwright');
 
   // Choose "Other" (custom) persona this time
   const rows = page.locator('#modal-persona-onboard .list-row');
-  await rows.nth(5).click(); // 6th row = custom/Other
+  await rows.nth(6).click(); // 7th row = custom/Other (kol added as the 6th row)
   await page.waitForTimeout(500);
 
   const btVal = await page.evaluate(() => window.settings && window.settings.businessType);

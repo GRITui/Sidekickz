@@ -36,9 +36,9 @@ const { chromium } = require('playwright');
   const homeActive = await page.evaluate(() => document.getElementById('s-home').classList.contains('active'));
   assert(!homeActive, 'Home should NOT be active yet, onboarding should block boot');
 
-  // Onboarding modal shows 6 choices
+  // Onboarding modal shows 7 choices (trainer/realestate/laundry/insurance/garage/kol/custom)
   const rowCount = await page.locator('#modal-persona-onboard .list-row').count();
-  assert(rowCount === 6, 'onboarding should show 6 persona choices, got: ' + rowCount);
+  assert(rowCount === 7, 'onboarding should show 7 persona choices, got: ' + rowCount);
 
   // 4. Pick "garage" persona
   await page.click('#modal-persona-onboard .list-row:has-text("อู่ซ่อมรถ")').catch(async () => {
