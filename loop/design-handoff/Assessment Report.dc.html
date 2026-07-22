@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<style>
+@font-face{font-family:'Schibsted Grotesk';font-style:normal;font-weight:400 900;font-display:swap;src:url('app/fonts/schibsted-grotesk-variable.woff2') format('woff2-variations');}
+@font-face{font-family:'Spline Sans Mono';font-style:normal;font-weight:400 700;font-display:swap;src:url('app/fonts/spline-sans-mono-variable.woff2') format('woff2-variations');}
+body{margin:0;background:#EDEBE4;font-family:'Schibsted Grotesk',-apple-system,sans-serif;color:#1A2421}
+a{color:#22554B}a:hover{color:#2F6D64}
+.dv-turn{padding:40px 44px 32px;scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}
+.dv-tid{font:600 10px 'Spline Sans Mono',monospace;padding:3px 7px;background:#1A2421;color:#fff;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 'Schibsted Grotesk',sans-serif;color:#1A2421}
+.dv-opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px 'Spline Sans Mono',monospace;padding:3px 7px;background:rgba(26,36,33,.08);color:#1A2421;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 'Schibsted Grotesk',sans-serif;color:rgba(26,36,33,.6)}
+.dv-card{max-width:100%;background:#F7F6F2;border:1px solid rgba(26,36,33,.1);border-radius:12px;box-shadow:0 1px 3px rgba(26,36,33,.08);overflow:hidden}
+.dv-opt:target .dv-oid{background:#22554B;color:#fff}
+.dv-next{margin:22px 0 0;font:12px/1.5 'Schibsted Grotesk',sans-serif;color:rgba(26,36,33,.55)}
+</style>
+</helmet>
+<section class="dv-turn" id="t2" style="border-bottom:1px solid rgba(26,36,33,.1)">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Epochs 2–6 — <a class="dv-oid" href="#1a">1a</a> built as a full interactive screen (<a href="More 1a.dc.html">More 1a.dc.html</a>) · one refinement direction per remaining candidate</span></div>
+<div class="dv-opts">
+
+<!-- ══ 2a Job modal ══ -->
+<div class="dv-opt" id="2a">
+<div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Candidate #2 · Job modal — Quick log / Full details split, advanced sections collapse to drill rows</div>
+<div class="dv-card" style="width:390px;background:rgba(26,36,33,.45);padding:40px 0 0">
+  <div style="background:#FDFCFA;border-radius:22px 22px 0 0;padding-bottom:16px">
+    <div style="width:42px;height:4px;background:#C8C3B7;border-radius:2px;margin:12px auto 14px"></div>
+    <div style="font-size:18px;font-weight:800;padding:0 20px 12px">Add session</div>
+    <div style="display:flex;background:#DDD9CF;border-radius:11px;padding:3px;gap:2px;margin:0 16px 14px">
+      <div style="flex:1;padding:9px;background:#FDFCFA;border-radius:9px;font-size:13px;font-weight:700;text-align:center;color:#22554B;box-shadow:0 1px 3px rgba(0,0,0,.12)">Quick log</div>
+      <div style="flex:1;padding:9px;font-size:13px;font-weight:700;text-align:center;color:#5A5F58">Full details</div>
+    </div>
+    <div style="background:#FDFCFA;border:0.5px solid #DDD9CF;border-radius:11px;margin:0 16px 14px;overflow:hidden">
+      <div style="padding:12px 16px;border-bottom:0.5px solid #DDD9CF"><div style="font-size:11px;font-weight:700;color:#5A5F58;text-transform:uppercase;letter-spacing:.3px">Date</div><div style="font-size:16px;padding-top:5px;font-family:'Spline Sans Mono',monospace">2026-07-22</div></div>
+      <div style="padding:12px 16px;border-bottom:0.5px solid #DDD9CF"><div style="font-size:11px;font-weight:700;color:#5A5F58;text-transform:uppercase;letter-spacing:.3px">Client</div><div style="font-size:16px;padding-top:5px">Khun Ploy · <span style="background:#E7EEEA;color:#22554B;font-size:10px;font-weight:800;padding:3px 7px;border-radius:999px;vertical-align:middle">PKG 7/10</span></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr">
+        <div style="padding:12px 10px 12px 16px;border-right:0.5px solid #DDD9CF"><div style="font-size:11px;font-weight:700;color:#5A5F58;text-transform:uppercase;letter-spacing:.3px">Fee</div><div style="font-size:16px;padding-top:5px;font-family:'Spline Sans Mono',monospace">1,200</div></div>
+        <div style="padding:12px 16px 12px 10px"><div style="font-size:11px;font-weight:700;color:#5A5F58;text-transform:uppercase;letter-spacing:.3px">Tip</div><div style="font-size:16px;padding-top:5px;font-family:'Spline Sans Mono',monospace;color:#8A8579">0</div></div>
+      </div>
+    </div>
+    <div style="margin:0 16px 14px;background:#E7EEEA;border:1px solid rgba(34,85,75,.25);border-radius:11px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:14px;color:#22554B;font-weight:700">Net take</span><span style="font-size:26px;font-weight:800;color:#22554B;font-family:'Spline Sans Mono',monospace">฿1,200</span>
+    </div>
+    <div style="background:#FDFCFA;border:0.5px solid #DDD9CF;border-radius:11px;margin:0 16px 14px;overflow:hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 16px;border-bottom:0.5px solid #DDD9CF"><span style="font-size:14px;font-weight:600">Plan &amp; payments</span><span style="font-size:12px;color:#5A5F58">2 steps · 1 milestone ›</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 16px;border-bottom:0.5px solid #DDD9CF"><span style="font-size:14px;font-weight:600">Items on this engagement</span><span style="font-size:12px;color:#5A5F58">1 ›</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 16px"><span style="font-size:14px;font-weight:600">Time tracking</span><span style="font-size:12px;color:#5A5F58">0:00 ›</span></div>
+    </div>
+    <button style="margin:0 16px;width:calc(100% - 32px);padding:16px;background:#22554B;color:#fff;border:none;border-radius:11px;font-size:16px;font-weight:800;font-family:inherit;cursor:pointer">Save session</button>
+    <div style="text-align:center;padding-top:10px"><span style="font-size:14px;font-weight:700;color:#5A5F58;cursor:pointer">Cancel</span></div>
+  </div>
+</div>
+</div>
+
+<!-- ══ 2b Home Today merge ══ -->
+<div class="dv-opt" id="2b">
+<div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>Candidate #3 · Home — three urgency surfaces merge into one "Today" stack</div>
+<div class="dv-card" style="width:390px">
+  <div style="padding:52px 20px 44px"><div style="font-size:22px;font-weight:800;letter-spacing:-.4px">Hello, Fon</div><div style="font-size:13px;color:#5A5F58;margin-top:3px">Get booked. Get hired. Get paid.</div></div>
+  <div style="background:#FDFCFA;margin:-28px 16px 16px;border-radius:16px;padding:20px;border:0.5px solid #DDD9CF;box-shadow:0 1px 2px rgba(26,36,33,.05)">
+    <div style="font-size:12px;color:#5A5F58;margin-bottom:5px;font-weight:600">Earned this month</div>
+    <div style="font-size:40px;font-weight:800;letter-spacing:-1.4px;line-height:1;margin-bottom:12px;font-family:'Spline Sans Mono',monospace">฿38,400</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">
+      <div><div style="font-size:11px;color:#5A5F58">Sessions</div><div style="font-size:15px;font-weight:700;margin-top:2px;font-family:'Spline Sans Mono',monospace">24</div></div>
+      <div><div style="font-size:11px;color:#5A5F58">Avg / session</div><div style="font-size:15px;font-weight:700;margin-top:2px;font-family:'Spline Sans Mono',monospace">฿1,600</div></div>
+      <div><div style="font-size:11px;color:#5A5F58">Expenses</div><div style="font-size:15px;font-weight:700;margin-top:2px;font-family:'Spline Sans Mono',monospace">฿2,150</div></div>
+    </div>
+  </div>
+  <div style="padding:0 16px 20px">
+    <div style="font-size:14px;font-weight:800;margin:4px 0 10px">Today</div>
+    <div style="background:#FDFCFA;border-radius:11px;border:0.5px solid #DDD9CF;overflow:hidden;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:0.5px solid #DDD9CF">
+        <div style="width:38px;height:38px;border-radius:11px;background:#FAF3E7;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8A5E22" stroke-width="1.8"><path d="M12 9v4M12 17h.01"></path><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path></svg></div>
+        <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700">2 packages nearly used up</div><div style="font-size:12px;color:#5A5F58;margin-top:2px">Ploy 9/10 · Mek 10/10 — time to renew</div></div>
+        <span style="padding:3px 9px;border-radius:9px;background:rgba(192,138,62,.18);color:#C08A3E;font-size:11px;font-weight:700">Renew</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:14px;border-bottom:0.5px solid #DDD9CF">
+        <div style="width:38px;height:38px;border-radius:11px;background:#E7EEEA;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22554B" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg></div>
+        <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700">Invoice #0027 overdue 6 days</div><div style="font-size:12px;color:#5A5F58;margin-top:2px">Khun Nat · send a reminder</div></div>
+        <span style="font-size:15px;font-weight:800;color:#B4543E;font-family:'Spline Sans Mono',monospace">฿4,800</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:14px">
+        <div style="width:38px;height:38px;border-radius:11px;background:#E7EEEA;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22554B" stroke-width="1.8"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></div>
+        <div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:700">16:00 — Session with Mek</div><div style="font-size:12px;color:#5A5F58;margin-top:2px">Next up · Sukhumvit gym</div></div>
+        <span style="padding:3px 9px;border-radius:9px;background:rgba(62,124,79,.16);color:#3E7C4F;font-size:11px;font-weight:700">Booked</span>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#8A8579;text-align:center">One list, one grammar — alert card + "Needs attention" + "Up next" fold into a single prioritized stack</div>
+  </div>
+</div>
+</div>
+
+<!-- ══ 2c Week view ══ -->
+<div class="dv-opt" id="2c">
+<div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a>Candidate #4 · Calendar — 3-day zoom on mobile, 44px+ blocks, 72px hour rows</div>
+<div class="dv-card" style="width:390px">
+  <div style="padding:52px 20px 20px;border-bottom:0.5px solid #DDD9CF"><div style="font-size:20px;font-weight:800;letter-spacing:-.3px">Calendar</div></div>
+  <div style="padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="display:flex;background:#DDD9CF;border-radius:999px;padding:2px"><span style="padding:7px 16px;border-radius:999px;background:#22554B;color:#fff;font-size:13px;font-weight:700">3-day</span><span style="padding:7px 16px;font-size:13px;font-weight:700;color:#5A5F58">Month</span></div>
+      <div style="display:flex;gap:6px"><span style="width:36px;height:36px;background:#E7EEEA;color:#22554B;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:800">‹</span><span style="padding:8px 12px;background:#E7EEEA;color:#22554B;border-radius:9px;font-size:12px;font-weight:800">Today</span><span style="width:36px;height:36px;background:#E7EEEA;color:#22554B;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:800">›</span></div>
+    </div>
+    <div style="background:#FDFCFA;border:0.5px solid #DDD9CF;border-radius:16px;overflow:hidden">
+      <div style="display:flex;border-bottom:1px solid #DDD9CF">
+        <div style="flex:0 0 44px"></div>
+        <div style="flex:1;padding:8px 2px;text-align:center;background:rgba(231,238,234,.65)"><span style="font-size:10px;font-weight:700;color:#2F6D64">WED</span><div><span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;margin-top:2px;font-size:13px;font-weight:800;background:#22554B;color:#fff">22</span></div></div>
+        <div style="flex:1;padding:8px 2px;text-align:center"><span style="font-size:10px;font-weight:700;color:#5A5F58">THU</span><div><span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin-top:2px;font-size:13px;font-weight:800">23</span></div></div>
+        <div style="flex:1;padding:8px 2px;text-align:center"><span style="font-size:10px;font-weight:700;color:#5A5F58">FRI</span><div><span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin-top:2px;font-size:13px;font-weight:800">24</span></div></div>
+      </div>
+      <div style="display:flex">
+        <div style="flex:0 0 44px">
+          <div style="height:72px;border-top:0.5px solid #DDD9CF;font-size:10px;font-weight:600;color:#5A5F58;text-align:right;padding:2px 5px 0 0">09:00</div>
+          <div style="height:72px;border-top:0.5px solid #DDD9CF;font-size:10px;font-weight:600;color:#5A5F58;text-align:right;padding:2px 5px 0 0">10:00</div>
+          <div style="height:72px;border-top:0.5px solid #DDD9CF;font-size:10px;font-weight:600;color:#5A5F58;text-align:right;padding:2px 5px 0 0">11:00</div>
+        </div>
+        <div style="flex:1;position:relative;border-left:0.5px solid #DDD9CF;background:rgba(231,238,234,.4)">
+          <div style="height:72px;border-top:0.5px solid #DDD9CF"></div><div style="height:72px;border-top:0.5px solid #DDD9CF"></div><div style="height:72px;border-top:0.5px solid #DDD9CF"></div>
+          <div style="position:absolute;top:6px;left:4px;right:4px;height:62px;border-radius:8px;background:#E7EEEA;border-left:3px solid #2F6D64;padding:6px 8px;box-sizing:border-box"><div style="font-size:10px;font-weight:800;color:#22554B">09:00–10:00</div><div style="font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Ploy — PT session</div></div>
+          <div style="position:absolute;top:150px;left:4px;right:4px;height:62px;border-radius:8px;background:#E7EEEA;border-left:3px solid #2F6D64;padding:6px 8px;box-sizing:border-box"><div style="font-size:10px;font-weight:800;color:#22554B">11:00–12:00</div><div style="font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Mek — assessment</div></div>
+        </div>
+        <div style="flex:1;position:relative;border-left:0.5px solid #DDD9CF">
+          <div style="height:72px;border-top:0.5px solid #DDD9CF"></div><div style="height:72px;border-top:0.5px solid #DDD9CF"></div><div style="height:72px;border-top:0.5px solid #DDD9CF"></div>
+          <div style="position:absolute;top:78px;left:4px;right:4px;height:62px;border-radius:8px;background:#E7EEEA;border-left:3px solid #2F6D64;padding:6px 8px;box-sizing:border-box"><div style="font-size:10px;font-weight:800;color:#22554B">10:00–11:00</div><div style="font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Beam — PT session</div></div>
+        </div>
+        <div style="flex:1;position:relative;border-left:0.5px solid #DDD9CF">
+          <div style="height:72px;border-top:0.5px solid #DDD9CF"></div><div style="height:72px;border-top:0.5px solid #DDD9CF"></div><div style="height:72px;border-top:0.5px solid #DDD9CF"></div>
+        </div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#8A8579;text-align:center;margin-top:10px">Columns 76→118px · hour rows 60→72px · every block ≥44px tall, 12.5px titles · 7-day grid kept at ≥900px</div>
+  </div>
+</div>
+</div>
+
+<!-- ══ 2d Task flow light touch ══ -->
+<div class="dv-opt" id="2d">
+<div class="dv-olabel"><a class="dv-oid" href="#2d">2d</a>Candidate #5 · Task flow — keep; minimap folds into the chips as a progress underline</div>
+<div class="dv-card" style="width:390px">
+  <div style="padding:52px 20px 20px;border-bottom:0.5px solid #DDD9CF;display:flex;justify-content:space-between;align-items:flex-start"><div style="font-size:20px;font-weight:800;letter-spacing:-.3px">Task flow</div><span style="font-size:12px;font-weight:700;color:#5A5F58;padding-top:4px;font-family:'Spline Sans Mono',monospace">7 active</span></div>
+  <div style="padding:16px">
+    <div style="display:flex;gap:8px;overflow:hidden;padding:2px 0 14px">
+      <span style="flex:none;display:flex;flex-direction:column;gap:5px"><span style="display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;border:1px solid #DDD9CF;background:#FDFCFA;color:#3A423C;font-size:13px;font-weight:700">Inquiry <span style="font-size:11px;font-weight:800;background:#DDD9CF;color:#5A5F58;border-radius:999px;min-width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px">2</span></span><span style="height:4px;border-radius:3px;background:#2F6D64;margin:0 6px"></span></span>
+      <span style="flex:none;display:flex;flex-direction:column;gap:5px"><span style="display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;background:#22554B;color:#fff;font-size:13px;font-weight:700;border:1px solid #22554B">Quote <span style="font-size:11px;font-weight:800;background:rgba(255,255,255,.25);color:#fff;border-radius:999px;min-width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px">3</span></span><span style="height:4px;border-radius:3px;background:#C08A3E;margin:0 6px"></span></span>
+      <span style="flex:none;display:flex;flex-direction:column;gap:5px"><span style="display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;border:1px solid #DDD9CF;background:#FDFCFA;color:#3A423C;font-size:13px;font-weight:700">Booked <span style="font-size:11px;font-weight:800;background:#DDD9CF;color:#5A5F58;border-radius:999px;min-width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px">2</span></span><span style="height:4px;border-radius:3px;background:#DDD9CF;margin:0 6px"></span></span>
+      <span style="flex:none;display:flex;flex-direction:column;gap:5px"><span style="display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;border:1px solid #DDD9CF;background:#FDFCFA;color:#3A423C;font-size:13px;font-weight:700">Deliver</span><span style="height:4px;border-radius:3px;background:#DDD9CF;margin:0 6px"></span></span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="background:#FDFCFA;border:1px solid #DDD9CF;border-radius:13px;padding:11px 12px;box-shadow:0 1px 2px rgba(16,24,40,.05)">
+        <div style="font-size:14px;font-weight:700">Ploy — 10-session package renewal</div>
+        <div style="font-size:11.5px;color:#5A5F58;margin-top:2px">Quote sent 2d ago · ฿12,000</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
+          <span style="width:34px;height:34px;border:1px solid #DDD9CF;background:#F7F6F2;border-radius:9px;color:#5A5F58;font-size:15px;font-weight:800;display:flex;align-items:center;justify-content:center">‹</span>
+          <span style="flex:1;text-align:center;padding:9px 14px;border-radius:9px;background:#22554B;color:#fff;font-size:13px;font-weight:800">Mark booked →</span>
+        </div>
+      </div>
+      <div style="background:#FDFCFA;border:1px solid #DDD9CF;border-radius:13px;padding:11px 12px;box-shadow:0 1px 2px rgba(16,24,40,.05)">
+        <div style="font-size:14px;font-weight:700">Nat — nutrition plan</div>
+        <div style="font-size:11.5px;color:#5A5F58;margin-top:2px">Waiting on client · quoted ฿3,500</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#8A8579;text-align:center;margin-top:14px">Verdict: keep the recent redesign · minimap merges into chip underlines (marigold = you are here) · hint sentence shows first-run only</div>
+  </div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "build <a class="dv-oid" href="#2a">2a</a> interactive" · "apply <a class="dv-oid" href="#2b">2b</a> Today stack to the More 1a prototype's Home tab" · "run a QA epoch on More 1a"</p>
+</section>
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Epoch 1 — assessment report + refinement directions for the top candidate (More / Settings)</span></div>
+<div class="dv-opts">
+
+<!-- ══ REPORT CARD ══ -->
+<div class="dv-opt" id="1r">
+<div class="dv-olabel"><a class="dv-oid" href="#1r">1r</a>Loop output — Researcher-Squad triage, ranked candidates</div>
+<div class="dv-card" style="width:680px;background:#FDFCFA;padding:28px">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+    <img src="app/icons/icon.svg" style="width:34px;height:34px;border-radius:9px" alt="Sidekick">
+    <div>
+      <div style="font-size:20px;font-weight:800;letter-spacing:-.4px">Sidekick — functional design assessment</div>
+      <div style="font-size:12px;color:#5A5F58">Multi-agent loop · Epoch 1 · Researcher → UX-UI-Designer handoff · all personas weighted equally</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:6px;margin:14px 0 18px;flex-wrap:wrap">
+    <span style="padding:4px 10px;border-radius:999px;background:#E7EEEA;color:#22554B;font-size:11px;font-weight:800">Friction / UX debt</span>
+    <span style="padding:4px 10px;border-radius:999px;background:#E7EEEA;color:#22554B;font-size:11px;font-weight:800">Mobile ergonomics</span>
+    <span style="padding:4px 10px;border-radius:999px;background:#E7EEEA;color:#22554B;font-size:11px;font-weight:800">Discoverability</span>
+    <span style="padding:4px 10px;border-radius:999px;background:#FAF3E7;color:#8A5E22;font-size:11px;font-weight:800">Constraint: brand CI unchanged</span>
+  </div>
+  <div style="border:0.5px solid #DDD9CF;border-radius:11px;overflow:hidden;margin-bottom:16px">
+    <div style="display:grid;grid-template-columns:34px 1fr 64px 70px;gap:10px;padding:9px 14px;background:#F7F6F2;border-bottom:0.5px solid #DDD9CF;font-size:10px;font-weight:800;color:#5A5F58;text-transform:uppercase;letter-spacing:.5px"><span>#</span><span>Surface · finding</span><span>Score</span><span>Priority</span></div>
+    <div style="display:grid;grid-template-columns:34px 1fr 64px 70px;gap:10px;padding:12px 14px;border-bottom:0.5px solid #DDD9CF;align-items:center;background:#E7EEEA">
+      <span style="font-family:'Spline Sans Mono',monospace;font-weight:700;color:#22554B">1</span>
+      <span style="font-size:13px;line-height:1.45"><b>More / Settings</b> — 12 collapsible sections mix daily tools with one-time setup; Follow-ups, Portfolio &amp; Research are only reachable via More ▸ More tools. Long scroll, no search, badge signals hidden work.</span>
+      <span style="font-family:'Spline Sans Mono',monospace;font-weight:700;color:#22554B">9/10</span>
+      <span style="font-size:10px;font-weight:800;color:#22554B">REFINE NOW</span>
+    </div>
+    <div style="display:grid;grid-template-columns:34px 1fr 64px 70px;gap:10px;padding:12px 14px;border-bottom:0.5px solid #DDD9CF;align-items:center">
+      <span style="font-family:'Spline Sans Mono',monospace;font-weight:700;color:#5A5F58">2</span>
+      <span style="font-size:13px;line-height:1.45"><b>Job modal</b> — highest-frequency flow (FAB) stacks ~2.5 screens in one sheet: fields, packages, plan &amp; payments, time tracking; Cancel styled as danger.</span>
+      <span style="font-family:'Spline Sans Mono',monospace;font-weight:700;color:#5A5F58">8/10</span>
+      <span style="font-size:10px;font-weight:800;color:#C08A3E">HIGH</span>
+    </div>
+    <div style="display:grid;grid-template-columns:34px 1fr 64px 70px;gap:10px;padding:12px 14px;border-bottom:0.5px solid #DDD9CF;align-items:center">
+      <span style="font-family:'Spline Sans Mono',monospace;font-weight:700;color:#5A5F58">3</span>
+      <span style="font-size:13px;line-height:1.45"><b>Home</b> — three separate urgency surfaces (alert card, "Needs attention", "Up next") with different visual grammars compete on one screen.</span>
+      <span style="font-family:'Spline Sans Mono',monospace;font-weight:700;color:#5A5F58">6/10</span>
+      <span style="font-size:10px;font-weight:800;color:#C08A3E">MEDIUM</span>
+    </div>
+    <div style="display:grid;grid-template-columns:34px 1fr 64px 70px;gap:10px;padding:12px 14px;border-bottom:0.5px solid #DDD9CF;align-items:center">
+      <span style="font-family:'Spline Sans Mono',monospace;font-weight:700;color:#5A5F58">4</span>
+      <span style="font-size:13px;line-height:1.45"><b>Calendar week view</b> — 76px columns / 9–11px type; event blocks routinely under the 44px target minimum.</span>
+      <span style="font-family:'Spline Sans Mono',monospace;font-weight:700;color:#5A5F58">5/10</span>
+      <span style="font-size:10px;font-weight:800;color:#C08A3E">MEDIUM</span>
+    </div>
+    <div style="display:grid;grid-template-columns:34px 1fr 64px 70px;gap:10px;padding:12px 14px;align-items:center">
+      <span style="font-family:'Spline Sans Mono',monospace;font-weight:700;color:#5A5F58">5</span>
+      <span style="font-size:13px;line-height:1.45"><b>Task flow rail</b> — chip rail + marigold minimap + hint is a 3-layer navigation to learn, but recently redesigned and solid. Keep.</span>
+      <span style="font-family:'Spline Sans Mono',monospace;font-weight:700;color:#5A5F58">4/10</span>
+      <span style="font-size:10px;font-weight:800;color:#5A5F58">LOW</span>
+    </div>
+  </div>
+  <div style="background:#FAF3E7;border:1px solid #C08A3E;border-radius:11px;padding:13px 14px;font-size:13px;color:#8A5E22;font-weight:700;line-height:1.5">Recommendation: refine <b>More / Settings</b> first — it hits 2 of 3 owner criteria for every persona. Three directions below (<a href="#1a" style="color:#8A5E22">1a</a>–<a href="#1c" style="color:#8A5E22">1c</a>), all reusing the existing tokens, type and row grammar. Loop state: <span style="font-family:'Spline Sans Mono',monospace;font-size:11.5px">loop/backlog-inbox.md · squad-handshake-*.md</span></div>
+</div>
+</div>
+
+<!-- ══ BASELINE ══ -->
+<div class="dv-opt" id="1x">
+<div class="dv-olabel"><a class="dv-oid" href="#1x">1x</a>Current — faithful baseline (compressed scroll)</div>
+<div class="dv-card" style="width:390px">
+  <div style="padding:52px 20px 20px;border-bottom:0.5px solid #DDD9CF"><div style="font-size:20px;font-weight:800;letter-spacing:-.3px">More</div></div>
+  <div style="padding:16px">
+    <div style="background:#FDFCFA;border-radius:11px;border:0.5px solid #DDD9CF;overflow:hidden;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:12px;padding:15px 16px">
+        <div style="width:46px;height:46px;border-radius:50%;background:#22554B;color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800">F</div>
+        <div style="flex:1"><div style="font-size:16px;font-weight:700">Fon</div><div style="font-size:12px;color:#5A5F58;margin-top:1px">Personal trainer · Guest</div></div>
+        <span style="color:#5A5F58;font-size:15px">›</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:800;margin:4px 0 10px">Manage<span style="width:7px;height:7px;border-right:2px solid #5A5F58;border-bottom:2px solid #5A5F58;transform:rotate(45deg)"></span></div>
+    <div style="background:#FDFCFA;border-radius:11px;border:0.5px solid #DDD9CF;overflow:hidden;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid #DDD9CF;font-size:15px;font-weight:600">Services<span style="color:#5A5F58">›</span></div>
+      <div style="display:flex;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid #DDD9CF;font-size:15px;font-weight:600">Invoices<span style="color:#5A5F58">›</span></div>
+      <div style="display:flex;justify-content:space-between;padding:15px 16px;font-size:15px;font-weight:600">Docs<span style="color:#5A5F58">›</span></div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;font-size:14px;font-weight:800;margin:4px 0 10px">More tools<span style="width:7px;height:7px;border-right:2px solid #5A5F58;border-bottom:2px solid #5A5F58;transform:rotate(45deg)"></span></div>
+    <div style="background:#FDFCFA;border-radius:11px;border:0.5px solid #DDD9CF;overflow:hidden;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid #DDD9CF;font-size:15px;font-weight:600">Follow-ups<span style="color:#5A5F58">›</span></div>
+      <div style="display:flex;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid #DDD9CF;font-size:15px;font-weight:600">Portfolio<span style="color:#5A5F58">›</span></div>
+      <div style="display:flex;justify-content:space-between;padding:15px 16px;font-size:15px;font-weight:600">Research<span style="color:#5A5F58">›</span></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+      <div style="font-size:14px;font-weight:800;color:#5A5F58;display:flex;justify-content:space-between">Stage order<span style="font-weight:400;font-size:12px">…</span></div>
+      <div style="font-size:14px;font-weight:800;color:#5A5F58;display:flex;justify-content:space-between">Preferences <span style="font-weight:600;font-size:11px;color:#8A8579">11 rows</span></div>
+      <div style="font-size:14px;font-weight:800;color:#5A5F58;display:flex;justify-content:space-between">Payment channels<span style="font-weight:400;font-size:12px">…</span></div>
+      <div style="font-size:14px;font-weight:800;color:#5A5F58;display:flex;justify-content:space-between">Business info<span style="font-weight:400;font-size:12px">…</span></div>
+      <div style="font-size:14px;font-weight:800;color:#5A5F58;display:flex;justify-content:space-between">LINE booking<span style="font-weight:400;font-size:12px">…</span></div>
+      <div style="font-size:14px;font-weight:800;color:#5A5F58;display:flex;justify-content:space-between">Shop / storefront<span style="font-weight:400;font-size:12px">…</span></div>
+      <div style="font-size:14px;font-weight:800;color:#5A5F58;display:flex;justify-content:space-between">Team<span style="font-weight:400;font-size:12px">…</span></div>
+      <div style="font-size:14px;font-weight:800;color:#5A5F58;display:flex;justify-content:space-between">Tax defaults<span style="font-weight:400;font-size:12px">…</span></div>
+      <div style="font-size:14px;font-weight:800;color:#5A5F58;display:flex;justify-content:space-between">Data <span style="font-weight:600;font-size:11px;color:#8A8579">6 buttons</span></div>
+    </div>
+    <button style="width:100%;padding:14px;background:none;border:1.5px solid #B4543E;color:#B4543E;border-radius:11px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;margin-bottom:8px">Log out</button>
+    <div style="text-align:center;font-size:11px;color:#8A8579">≈ 12 sections · ~5 screens of scroll on a 390pt device</div>
+  </div>
+</div>
+</div>
+
+<!-- ══ 1a Tool grid hub ══ -->
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Tools hub — daily tools promoted to a tile grid, setup regrouped into 4 drill-ins</div>
+<div class="dv-card" style="width:390px">
+  <div style="padding:52px 20px 20px;border-bottom:0.5px solid #DDD9CF"><div style="font-size:20px;font-weight:800;letter-spacing:-.3px">More</div></div>
+  <div style="padding:16px">
+    <div style="background:#FDFCFA;border-radius:11px;border:0.5px solid #DDD9CF;margin-bottom:16px;display:flex;align-items:center;gap:12px;padding:13px 16px">
+      <div style="width:40px;height:40px;border-radius:50%;background:#22554B;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800">F</div>
+      <div style="flex:1"><div style="font-size:15px;font-weight:700">Fon</div><div style="font-size:12px;color:#5A5F58">Personal trainer · Guest</div></div>
+      <span style="color:#5A5F58">›</span>
+    </div>
+    <div style="font-size:14px;font-weight:800;margin:4px 0 10px">Tools</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px">
+      <div style="background:#FDFCFA;border:0.5px solid #DDD9CF;border-radius:11px;padding:14px;min-height:44px;cursor:pointer">
+        <div style="width:34px;height:34px;border-radius:10px;background:#E7EEEA;display:flex;align-items:center;justify-content:center;margin-bottom:8px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22554B" stroke-width="1.8"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg></div>
+        <div style="font-size:14px;font-weight:700">Follow-ups</div><div style="font-size:11px;color:#C08A3E;font-weight:700;margin-top:2px">3 due today</div>
+      </div>
+      <div style="background:#FDFCFA;border:0.5px solid #DDD9CF;border-radius:11px;padding:14px;cursor:pointer">
+        <div style="width:34px;height:34px;border-radius:10px;background:#E7EEEA;display:flex;align-items:center;justify-content:center;margin-bottom:8px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22554B" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+        <div style="font-size:14px;font-weight:700">Portfolio</div><div style="font-size:11px;color:#5A5F58;margin-top:2px">8 items</div>
+      </div>
+      <div style="background:#FDFCFA;border:0.5px solid #DDD9CF;border-radius:11px;padding:14px;cursor:pointer">
+        <div style="width:34px;height:34px;border-radius:10px;background:#E7EEEA;display:flex;align-items:center;justify-content:center;margin-bottom:8px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22554B" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div>
+        <div style="font-size:14px;font-weight:700">Research</div><div style="font-size:11px;color:#5A5F58;margin-top:2px">Content library</div>
+      </div>
+      <div style="background:#FDFCFA;border:0.5px solid #DDD9CF;border-radius:11px;padding:14px;cursor:pointer">
+        <div style="width:34px;height:34px;border-radius:10px;background:#E7EEEA;display:flex;align-items:center;justify-content:center;margin-bottom:8px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22554B" stroke-width="1.8"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg></div>
+        <div style="font-size:14px;font-weight:700">Insights</div><div style="font-size:11px;color:#5A5F58;margin-top:2px">On-device analytics</div>
+      </div>
+    </div>
+    <div style="font-size:14px;font-weight:800;margin:4px 0 10px">Set up your business</div>
+    <div style="background:#FDFCFA;border-radius:11px;border:0.5px solid #DDD9CF;overflow:hidden;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:15px 16px;border-bottom:0.5px solid #DDD9CF"><div><div style="font-size:15px;font-weight:600">Business &amp; documents</div><div style="font-size:11px;color:#5A5F58;margin-top:1px">Info · services · tax defaults · page size</div></div><span style="color:#5A5F58">›</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:15px 16px;border-bottom:0.5px solid #DDD9CF"><div><div style="font-size:15px;font-weight:600">Payments &amp; shop</div><div style="font-size:11px;color:#5A5F58;margin-top:1px">PromptPay · channels · storefront link</div></div><span style="display:inline-flex;gap:8px;align-items:center"><span style="padding:3px 8px;border-radius:999px;background:#FAF3E7;color:#8A5E22;font-size:10px;font-weight:800">Set up</span><span style="color:#5A5F58">›</span></span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:15px 16px;border-bottom:0.5px solid #DDD9CF"><div><div style="font-size:15px;font-weight:600">LINE &amp; team</div><div style="font-size:11px;color:#5A5F58;margin-top:1px">Booking channel · staff logins</div></div><span style="color:#5A5F58">›</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:15px 16px"><div><div style="font-size:15px;font-weight:600">Data &amp; backup</div><div style="font-size:11px;color:#5A5F58;margin-top:1px">CSV exports · JSON backup · restore</div></div><span style="color:#5A5F58">›</span></div>
+    </div>
+    <div style="font-size:14px;font-weight:800;margin:4px 0 10px">Preferences</div>
+    <div style="background:#FDFCFA;border-radius:11px;border:0.5px solid #DDD9CF;overflow:hidden;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;padding:15px 16px;border-bottom:0.5px solid #DDD9CF;font-size:15px;font-weight:600">Theme<span style="color:#5A5F58;font-weight:400">Light ›</span></div>
+      <div style="display:flex;justify-content:space-between;padding:15px 16px;font-size:15px;font-weight:600">Language<span style="color:#5A5F58;font-weight:400">English ›</span></div>
+    </div>
+    <div style="text-align:center;font-size:11px;color:#8A8579;padding-bottom:4px">3 sections · tools 2 taps → 1 · setup status glanceable</div>
+  </div>
+</div>
+</div>
+
+<!-- ══ 1b Two-tab split ══ -->
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Tab split — "Tools" and "Settings" become two short lists behind the existing tab pattern</div>
+<div class="dv-card" style="width:390px">
+  <div style="padding:52px 20px 20px;border-bottom:0.5px solid #DDD9CF"><div style="font-size:20px;font-weight:800;letter-spacing:-.3px">More</div></div>
+  <div style="padding:16px">
+    <div style="display:flex;background:#DDD9CF;border-radius:12px;padding:3px;margin-bottom:18px">
+      <div style="flex:1;padding:11px;background:#FDFCFA;border-radius:9px;font-size:14px;font-weight:700;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.1)">Tools</div>
+      <div style="flex:1;padding:11px;font-size:14px;font-weight:700;text-align:center;color:#5A5F58">Settings</div>
+    </div>
+    <div style="background:#FDFCFA;border-radius:11px;border:0.5px solid #DDD9CF;overflow:hidden;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:0.5px solid #DDD9CF">
+        <div style="width:38px;height:38px;border-radius:11px;background:#E7EEEA;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#22554B" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+        <div style="flex:1"><div style="font-size:15px;font-weight:700">Invoices</div><div style="font-size:12px;color:#5A5F58;margin-top:2px">2 overdue</div></div>
+        <span style="padding:3px 9px;border-radius:9px;background:rgba(180,84,62,.16);color:#B4543E;font-size:11px;font-weight:700">฿4,800</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:0.5px solid #DDD9CF">
+        <div style="width:38px;height:38px;border-radius:11px;background:#E7EEEA;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#22554B" stroke-width="1.8"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg></div>
+        <div style="flex:1"><div style="font-size:15px;font-weight:700">Follow-ups</div><div style="font-size:12px;color:#5A5F58;margin-top:2px">3 clients due a nudge</div></div>
+        <span style="background:#C08A3E;color:#2B1F0D;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">3</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:0.5px solid #DDD9CF">
+        <div style="width:38px;height:38px;border-radius:11px;background:#E7EEEA;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#22554B" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+        <div style="flex:1"><div style="font-size:15px;font-weight:700">Portfolio</div><div style="font-size:12px;color:#5A5F58;margin-top:2px">Share your best work</div></div>
+        <span style="color:#5A5F58">›</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:0.5px solid #DDD9CF">
+        <div style="width:38px;height:38px;border-radius:11px;background:#E7EEEA;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#22554B" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M9 13h6M9 17h4"/></svg></div>
+        <div style="flex:1"><div style="font-size:15px;font-weight:700">Documents &amp; tax</div><div style="font-size:12px;color:#5A5F58;margin-top:2px">Quotes · receipts · tax calculator</div></div>
+        <span style="color:#5A5F58">›</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 16px">
+        <div style="width:38px;height:38px;border-radius:11px;background:#E7EEEA;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#22554B" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div>
+        <div style="flex:1"><div style="font-size:15px;font-weight:700">Research</div><div style="font-size:12px;color:#5A5F58;margin-top:2px">Content library</div></div>
+        <span style="color:#5A5F58">›</span>
+      </div>
+    </div>
+    <div style="font-size:12px;color:#5A5F58;line-height:1.5;background:#F7F6F2;border:1px dashed #C8C3B7;border-radius:11px;padding:12px 14px;margin-bottom:12px">Settings tab holds account, preferences, payment channels, LINE, shop, team, tax defaults and data — grouped, collapsed by default, with the same status pills as <a href="#1a">1a</a>.</div>
+    <div style="text-align:center;font-size:11px;color:#8A8579;padding-bottom:4px">Tools carry live counts — badge on nav finally explains itself</div>
+  </div>
+</div>
+</div>
+
+<!-- ══ 1c Searchable index ══ -->
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Searchable index — flat list, chip jumper (existing Task-flow rail pattern), setup status pills</div>
+<div class="dv-card" style="width:390px">
+  <div style="padding:52px 20px 20px;border-bottom:0.5px solid #DDD9CF"><div style="font-size:20px;font-weight:800;letter-spacing:-.3px">More</div></div>
+  <div style="padding:16px">
+    <div style="display:flex;align-items:center;gap:8px;background:#F0EEE8;border:1px solid #DDD9CF;border-radius:9px;padding:11px 12px;margin-bottom:12px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8A968F" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <span style="font-size:14px;color:#8A968F">Search settings &amp; tools…</span>
+    </div>
+    <div style="display:flex;gap:8px;overflow:hidden;padding:2px 0 12px">
+      <span style="flex:none;padding:8px 14px;border-radius:999px;background:#22554B;color:#fff;font-size:13px;font-weight:700">All</span>
+      <span style="flex:none;padding:8px 14px;border-radius:999px;border:1px solid #DDD9CF;background:#FDFCFA;color:#3A423C;font-size:13px;font-weight:700">Tools</span>
+      <span style="flex:none;padding:8px 14px;border-radius:999px;border:1px solid #DDD9CF;background:#FDFCFA;color:#3A423C;font-size:13px;font-weight:700">Money</span>
+      <span style="flex:none;padding:8px 14px;border-radius:999px;border:1px solid #DDD9CF;background:#FDFCFA;color:#3A423C;font-size:13px;font-weight:700">Clients</span>
+      <span style="flex:none;padding:8px 14px;border-radius:999px;border:1px solid #DDD9CF;background:#FDFCFA;color:#3A423C;font-size:13px;font-weight:700">Data</span>
+    </div>
+    <div style="background:#FDFCFA;border-radius:11px;border:0.5px solid #DDD9CF;overflow:hidden;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:15px 16px;border-bottom:0.5px solid #DDD9CF"><span style="font-size:15px;font-weight:600">Follow-ups</span><span style="display:flex;gap:8px;align-items:center"><span style="background:#C08A3E;color:#2B1F0D;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">3</span><span style="color:#5A5F58">›</span></span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:15px 16px;border-bottom:0.5px solid #DDD9CF"><span style="font-size:15px;font-weight:600">Portfolio</span><span style="color:#5A5F58">›</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:15px 16px;border-bottom:0.5px solid #DDD9CF"><span style="font-size:15px;font-weight:600">Payment channels</span><span style="display:flex;gap:8px;align-items:center"><span style="padding:3px 8px;border-radius:999px;background:#FAF3E7;color:#8A5E22;font-size:10px;font-weight:800">Set up</span><span style="color:#5A5F58">›</span></span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:15px 16px;border-bottom:0.5px solid #DDD9CF"><span style="font-size:15px;font-weight:600">LINE booking</span><span style="display:flex;gap:8px;align-items:center"><span style="padding:3px 8px;border-radius:999px;background:rgba(62,124,79,.16);color:#3E7C4F;font-size:10px;font-weight:800">Connected</span><span style="color:#5A5F58">›</span></span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:15px 16px;border-bottom:0.5px solid #DDD9CF"><span style="font-size:15px;font-weight:600">Shop / storefront</span><span style="display:flex;gap:8px;align-items:center"><span style="padding:3px 8px;border-radius:999px;background:#FAF3E7;color:#8A5E22;font-size:10px;font-weight:800">Set up</span><span style="color:#5A5F58">›</span></span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:15px 16px;border-bottom:0.5px solid #DDD9CF"><span style="font-size:15px;font-weight:600">Team</span><span style="display:flex;gap:8px;align-items:center"><span style="font-size:12px;color:#5A5F58">2 members</span><span style="color:#5A5F58">›</span></span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:15px 16px"><span style="font-size:15px;font-weight:600">Data &amp; backup</span><span style="display:flex;gap:8px;align-items:center"><span style="font-size:12px;color:#5A5F58">Backed up 2d ago</span><span style="color:#5A5F58">›</span></span></div>
+    </div>
+    <div style="text-align:center;font-size:11px;color:#8A8579;padding-bottom:4px">One flat list · search + chips replace 12 collapsibles · status visible without opening anything</div>
+  </div>
+</div>
+</div>
+
+</div>
+<p class="dv-next">Try next: "build <a class="dv-oid" href="#1a">1a</a> as a full interactive screen" · "run the loop on candidate #2 (job modal)" · "mix <a class="dv-oid" href="#1a">1a</a>'s tool grid with <a class="dv-oid" href="#1c">1c</a>'s status pills"</p>
+</section>
+</x-dc>
+</body>
+</html>

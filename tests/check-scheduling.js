@@ -250,54 +250,61 @@ const errors = [];
     '8: advance while pending reopens the modal instead of advancing');
   await gateNone();
 
-  // ═══ 9. Every forward path gates ════════════════════════════════════════
+  // ═══ 9. Every forward path gates — EXCEPT paid/invoice-link, which are ═══
+  // no longer stage moves at all under TSK-014 (paid is a job-level flag;
+  // an invoice can attach to a booked job without moving it).
   // skip (quote stage is skippable)
   const jobC = await mkJob('Skip svc', 'quote');
   await page.evaluate(id => skipJobStage(id), jobC);
   await page.waitForSelector('#modal-appt', { timeout: 5000 });
   assert(await job(jobC, '!!j.pendingGateStage'), '9: skipJobStage gates');
   await gateNone();
-  // cash path
-  const jobD = await mkJob('Cash svc', 'pitch');
+  // cash path — lands on Booked, already marked paid, and gates on Booked
+  const jobD = await mkJob('Cash svc', 'inquiry');
   await page.evaluate(id => cashJobPath(id), jobD);
   await page.waitForSelector('#modal-appt', { timeout: 5000 });
-  assert(await job(jobD, `jobStage(j) === 'paid' && j.pendingGateStage === 'paid'`), '9: cashJobPath lands on paid and gates');
+  assert(await job(jobD, `jobStage(j) === 'booked' && j.paid === true && j.pendingGateStage === 'booked'`),
+    '9: cashJobPath lands on booked, marks paid, and gates');
   await gateNone();
-  // mark paid
-  const jobE = await mkJob('Paid svc', 'paid');
+  // mark paid — TSK-014: no longer a stage move, so it never gates
+  const jobE = await mkJob('Paid svc', 'booked');
   await page.evaluate(id => markJobPaid(id), jobE);
-  await page.waitForSelector('#modal-appt', { timeout: 5000 });
-  assert(await job(jobE, `jobStage(j) === 'delivery' && j.pendingGateStage === 'delivery'`), '9: markJobPaid gates');
-  await gateNone();
-  // quote doc save
+  await page.waitForTimeout(400);
+  assert(await job(jobE, `jobStage(j) === 'booked' && j.paid === true && j.pendingGateStage == null`)
+    && !(await page.evaluate(() => !!document.getElementById('modal-appt'))),
+    '9: markJobPaid never gates (paid is a job-level flag, not a stage)');
+  // quote doc save — still a real stage move (quote -> booked), still gates
   const jobF = await mkJob('Quote svc', 'quote');
   await page.evaluate(id => window.onEngagementQuoteCreated(999, id), jobF);
   await page.waitForSelector('#modal-appt', { timeout: 5000 });
   assert(await job(jobF, '!!j.pendingGateStage'), '9: onEngagementQuoteCreated gates');
   await gateNone();
-  // invoice save
-  const jobG = await mkJob('Invoice svc', 'invoice');
+  // invoice save — TSK-014: attaching an invoice to a booked job never moves
+  // the stage anymore, so it never gates either
+  const jobG = await mkJob('Invoice svc', 'booked');
   await page.evaluate(id => window.onEngagementInvoiceCreated(999, id), jobG);
-  await page.waitForSelector('#modal-appt', { timeout: 5000 });
-  assert(await job(jobG, '!!j.pendingGateStage'), '9: onEngagementInvoiceCreated gates');
-  await gateNone();
-  // package confirm-and-advance
+  await page.waitForTimeout(400);
+  assert(await job(jobG, `j.invoiceId === 999 && jobStage(j) === 'booked' && j.pendingGateStage == null`)
+    && !(await page.evaluate(() => !!document.getElementById('modal-appt'))),
+    '9: onEngagementInvoiceCreated links the invoice but never gates');
+  // package confirm-and-advance — now triggered by the booked->deliver
+  // advance itself (pipelineAction), independent of payment
   const pkgJob = await page.evaluate(async () => {
     const pkgId = await dbAdd('packages', { uid: currentUser.id, cuid: cuid(), clientId: window.__cid,
       totalSessions: 5, price: 1000, purchasedDate: todayISO(), expiresAt: null, notes: '', createdAt: nowISO() });
     await reload();
-    return window.__mkJob('Pkg svc', 'paid', { packageId: pkgId });
+    return window.__mkJob('Pkg svc', 'booked', { packageId: pkgId });
   });
-  await page.evaluate(id => { switchScreen('pipeline'); selectPipelineStage('paid'); }, pkgJob);
+  await page.evaluate(id => { switchScreen('pipeline'); selectPipelineStage('booked'); }, pkgJob);
   await page.waitForTimeout(300);
-  await page.evaluate(id => markJobPaid(id), pkgJob);
+  await page.evaluate(id => pipelineAction(id), pkgJob);
   await page.waitForTimeout(400);
   assert(await page.locator(`#pkg-confirm-qty-${pkgJob}`).count() === 1, '9: package path shows confirm card before advancing');
   await page.fill(`#pkg-confirm-qty-${pkgJob}`, '1');
   await page.click(`#pkg-confirm-save-${pkgJob}`);
   await page.waitForSelector('#modal-appt', { timeout: 5000 });
-  assert(await job(pkgJob, `jobStage(j) === 'delivery' && j.pendingGateStage === 'delivery'`),
-    '9: package confirm-and-advance gates on delivery');
+  assert(await job(pkgJob, `jobStage(j) === 'deliver' && j.pendingGateStage === 'deliver'`),
+    '9: package confirm-and-advance gates on deliver');
   await gateNone();
 
   // ═══ 10. Back / finish / terminal advance never gate ════════════════════
@@ -310,7 +317,7 @@ const errors = [];
     '10: moveJobStageBack clears the flag and opens no modal');
   await page.evaluate(async id => {
     const j = jobs.find(x => x.id === id);
-    j.pendingGateStage = 'delivery';
+    j.pendingGateStage = 'deliver';
     await dbPut('jobs', j);
   }, jobD);
   await page.evaluate(id => finishJobStage(id), jobD);
@@ -318,7 +325,7 @@ const errors = [];
   assert(await job(jobD, 'j.complete === true && j.pendingGateStage == null')
     && !(await page.evaluate(() => !!document.getElementById('modal-appt'))),
     '10: finishJobStage clears the flag and opens no modal');
-  const jobI = await mkJob('Terminal svc', 'extend');
+  const jobI = await mkJob('Terminal svc', 'deliver');
   await page.evaluate(id => advanceJobStage(id), jobI);
   await page.waitForTimeout(400);
   assert(await job(jobI, 'j.complete === true && j.pendingGateStage == null')

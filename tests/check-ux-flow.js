@@ -65,8 +65,8 @@ const errors = [];
   }, [id, expr]);
   const gateNone = async () => { await page.click('#ap-none'); await page.waitForTimeout(400); };
 
-  // ═══ 1. Gate defaults: non-pitch gate needs zero typing ═════════════════
-  const job1 = await mkJob('Photo shoot', 'pitch');
+  // ═══ 1. Gate defaults: non-inquiry gate needs zero typing ═══════════════
+  const job1 = await mkJob('Photo shoot', 'inquiry');
   await page.evaluate(() => switchScreen('pipeline'));
   await page.waitForTimeout(300);
   await page.evaluate(id => advanceJobStage(id), job1);
@@ -80,7 +80,7 @@ const errors = [];
   }));
   const expectedDate7 = await page.evaluate(() => addDaysISO(todayISO(), 7));
   assert(gate1.step === 'Send quote', '1: #ap-step prefilled with the arrived stage\'s EN action label, got ' + gate1.step);
-  assert(gate1.byActive && !gate1.exactActive, '1: non-pitch gate defaults to "by" (deadline), got ' + JSON.stringify(gate1));
+  assert(gate1.byActive && !gate1.exactActive, '1: non-inquiry gate defaults to "by" (deadline), got ' + JSON.stringify(gate1));
   assert(gate1.timeHidden, '1: time row hidden for the default "by" type');
   assert(gate1.date === expectedDate7, '1: date prefilled to today+7, got ' + gate1.date + ' expected ' + expectedDate7);
   await page.click('#ap-save');
@@ -89,9 +89,9 @@ const errors = [];
   assert(await job(job1, "(j.subTasks||[]).some(s => s.dateType === 'by' && s.text === 'Send quote')") === true,
     '1: the zero-typing save created a by-step named "Send quote"');
 
-  // ═══ 2. Pitch gate stays "exact" (a real calendar appointment) ══════════
-  const job2 = await mkJob('Pitch job', 'pitch');
-  await page.evaluate(id => openApptModal({ mode: 'gate', jobId: id, stage: 'pitch' }), job2);
+  // ═══ 2. Inquiry gate stays "exact" (a real calendar appointment) ════════
+  const job2 = await mkJob('Inquiry job', 'inquiry');
+  await page.evaluate(id => openApptModal({ mode: 'gate', jobId: id, stage: 'inquiry' }), job2);
   await page.waitForSelector('#modal-appt', { timeout: 5000 });
   const gate2 = await page.evaluate(() => ({
     exactActive: document.getElementById('ap-type-exact').classList.contains('seg-active'),
@@ -99,13 +99,13 @@ const errors = [];
     timeVisible: document.getElementById('ap-time-row').style.display !== 'none',
     step: document.getElementById('ap-step').value,
   }));
-  assert(gate2.exactActive && !gate2.byActive, '2: a pitch-stage gate defaults to "exact", got ' + JSON.stringify(gate2));
+  assert(gate2.exactActive && !gate2.byActive, '2: an inquiry-stage gate defaults to "exact", got ' + JSON.stringify(gate2));
   assert(gate2.timeVisible, '2: time row visible for the "exact" type');
-  assert(gate2.step === 'Log inquiry', '2: step prefilled with the pitch action label, got ' + gate2.step);
+  assert(gate2.step === 'Log inquiry', '2: step prefilled with the inquiry action label, got ' + gate2.step);
   await page.evaluate(() => closeApptModal());
 
   // ═══ 3. Non-gate "add" mode is unchanged ════════════════════════════════
-  const job3 = await mkJob('Add mode job', 'pitch');
+  const job3 = await mkJob('Add mode job', 'inquiry');
   await page.evaluate(id => openApptModal({ mode: 'add', jobId: id }), job3);
   await page.waitForSelector('#modal-appt', { timeout: 5000 });
   const add3 = await page.evaluate(() => ({
@@ -166,8 +166,8 @@ const errors = [];
   assert(await job(job4, 'j.lostReason') === 'price', '5: lostReason survives an unrelated detail-edit save');
 
   // ═══ 6. Revise quote WITHOUT re-advancing ════════════════════════════════
-  const job6 = await mkJob('Revise quote job', 'invoice', { quoteDocId: 111 });
-  await page.evaluate(() => { switchScreen('pipeline'); selectPipelineStage('invoice'); });
+  const job6 = await mkJob('Revise quote job', 'booked', { quoteDocId: 111 });
+  await page.evaluate(() => { switchScreen('pipeline'); selectPipelineStage('booked'); });
   await page.waitForTimeout(200);
   const reviseQuoteBtnCount = await page.locator('.kb-card', { hasText: 'Revise quote job' })
     .locator('button', { hasText: 'Revise quote' }).count();
@@ -177,13 +177,16 @@ const errors = [];
     return window.onEngagementQuoteCreated(222, id);
   }, job6);
   await page.waitForTimeout(400);
-  assert(await job(job6, "jobStage(j)") === 'invoice', '6: stage stays put after a quote revise');
+  assert(await job(job6, "jobStage(j)") === 'booked', '6: stage stays put after a quote revise');
   assert(await job(job6, "j.quoteDocId") === 222, '6: quoteDocId relinked to the new document');
   assert(!(await page.evaluate(() => !!document.getElementById('modal-appt'))), '6: no gate modal opens for a revise');
 
-  // ═══ 7. Revise invoice WITHOUT re-advancing ══════════════════════════════
-  const job7 = await mkJob('Revise invoice job', 'paid', { invoiceId: 55 });
-  await page.evaluate(() => { switchScreen('pipeline'); selectPipelineStage('paid'); });
+  // ═══ 7. Attaching/revising an invoice on a booked job never re-advances ═
+  // TSK-014: this is no longer a "revise-only" special case — a booked job
+  // can carry zero/one/many invoices and attaching any of them is purely a
+  // link, never a stage move (see onEngagementInvoiceCreated).
+  const job7 = await mkJob('Revise invoice job', 'booked', { invoiceId: 55 });
+  await page.evaluate(() => { switchScreen('pipeline'); selectPipelineStage('booked'); });
   await page.waitForTimeout(200);
   const reviseInvBtnCount = await page.locator('.kb-card', { hasText: 'Revise invoice job' })
     .locator('button', { hasText: 'Revise invoice' }).count();
@@ -193,7 +196,7 @@ const errors = [];
     return window.onEngagementInvoiceCreated(66, id);
   }, job7);
   await page.waitForTimeout(400);
-  assert(await job(job7, "jobStage(j)") === 'paid', '7: stage stays put after an invoice revise');
+  assert(await job(job7, "jobStage(j)") === 'booked', '7: stage stays put after an invoice revise');
   assert(await job(job7, "j.invoiceId") === 66, '7: invoiceId relinked to the new invoice');
   assert(!(await page.evaluate(() => !!document.getElementById('modal-appt'))), '7: no gate modal opens for an invoice revise');
 
@@ -203,8 +206,8 @@ const errors = [];
   await page.waitForTimeout(200);
   await page.evaluate(id => window.onEngagementQuoteCreated(777, id), job8);
   await page.waitForSelector('#modal-appt', { timeout: 5000 });
-  assert(await job(job8, "jobStage(j)") === 'invoice', '8: a normal (non-revise) quote save advances quote → invoice');
-  assert(await job(job8, "j.pendingGateStage") === 'invoice', '8: a normal quote save still sets the stage gate');
+  assert(await job(job8, "jobStage(j)") === 'booked', '8: a normal (non-revise) quote save advances quote → booked');
+  assert(await job(job8, "j.pendingGateStage") === 'booked', '8: a normal quote save still sets the stage gate');
   await gateNone();
 
   console.log(`\n${pass} passed, ${fail} failed`);

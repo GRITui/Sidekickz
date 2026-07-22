@@ -175,7 +175,7 @@ const errors = [];
     '11: the 25% bracket row shows taxable=500000, tax=125000, got ' + JSON.stringify(band25));
 
   // ═══ 12/13. Actual-expense toggle changes the deduction ════════════════
-  await mkJob('paid', { date: '2024-06-01', amount: 500000, expense: 45000, netAmount: 500000, invoiceId: null });
+  await mkJob('booked', { paid: true, date: '2024-06-01', amount: 500000, expense: 45000, netAmount: 500000, invoiceId: null });
   await openRollup();
   await selectAndWait('#txr-year', '2024');
   await selectAndWait('#txr-category', '40_2');

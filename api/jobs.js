@@ -12,6 +12,9 @@ const FIELDS = [
   'date', 'client_name', 'client_id', 'service_id', 'service_name', 'job_type',
   'amount', 'tip', 'expense', 'count', 'notes', 'net_amount',
   'stage_order', 'stage', 'complete', 'invoice_id', 'quote_doc_id', 'package_id',
+  // 2026-07-22: TSK-014 — 'paid' collapsed from a pipeline stage into a
+  // job-level flag (see app.js jobEarned()/dataClient.js jobsMirror).
+  'paid',
   'sub_tasks', 'milestones', 'time_entries', 'timer_started_at',
   // 2026-07-17: restore-fidelity fix — these were missing from the mirror,
   // so a lost job restored from cloud silently came back as outcome=null.

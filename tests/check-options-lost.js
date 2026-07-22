@@ -48,7 +48,7 @@ const { chromium } = require('playwright');
   }, [id, expr]);
 
   // ═══ 1. Options section renders in the job edit modal ══════════════════
-  const jobA = await mkJob('Condo search', 'pitch');
+  const jobA = await mkJob('Condo search', 'inquiry');
   await page.evaluate(id => openEditJob(id), jobA);
   await page.waitForTimeout(300);
   assert(await page.locator('#job-options-body').count() === 1, '1: options section present in edit modal');
@@ -154,7 +154,7 @@ const { chromium } = require('playwright');
   const pkgCheck = await page.evaluate(async () => {
     const pkgId = await dbAdd('packages', { uid: currentUser.id, cuid: cuid(), clientId: window.__cid,
       totalSessions: 5, price: 1000, purchasedDate: todayISO(), expiresAt: null, notes: '', createdAt: nowISO() });
-    const jid = await window.__mkJob('Pkg lost deal', 'pitch', { packageId: pkgId });
+    const jid = await window.__mkJob('Pkg lost deal', 'inquiry', { packageId: pkgId });
     const j = jobs.find(x => x.id === jid);
     j.complete = true; j.outcome = 'lost';
     await dbPut('jobs', j);
@@ -162,7 +162,7 @@ const { chromium } = require('playwright');
     const pkg = packages.find(p => p.id === pkgId);
     return { used: packageUsed(pkg), remaining: packageRemaining(pkg) };
   });
-  assert(pkgCheck.used === 0 && pkgCheck.remaining === 5, '9: a lost pitch-stage package job burns zero sessions, got ' + JSON.stringify(pkgCheck));
+  assert(pkgCheck.used === 0 && pkgCheck.remaining === 5, '9: a lost inquiry-stage package job burns zero sessions, got ' + JSON.stringify(pkgCheck));
 
   // ═══ 10. Lost excluded from timeline; reopen via back ═══════════════════
   const tlCheck = await page.evaluate(async (jid) => {
@@ -190,7 +190,7 @@ const { chromium } = require('playwright');
   assert(reTitle === thaiRe, '11: realestate persona swaps the section title, got: ' + reTitle);
 
   // ═══ 12. Legacy job (no options) renders without errors ═════════════════
-  const legacy = await mkJob('Legacy job', 'pitch');
+  const legacy = await mkJob('Legacy job', 'inquiry');
   await page.evaluate(id => openEditJob(id), legacy);
   await page.waitForTimeout(300);
   assert((await page.locator('#job-options-body .pkg-status').count()) === 1, '12: legacy job shows the options empty state, no crash');

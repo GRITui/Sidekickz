@@ -123,7 +123,7 @@ const errors = [];
   const consultId = await mkService();
 
   // ═══ 1. Add items via the real Items UI on the job edit modal, then save ═
-  const jobA = await mkJob('pitch', { client: 'Items Client A' });
+  const jobA = await mkJob('inquiry', { client: 'Items Client A' });
   await page.evaluate(id => openEditJob(id), jobA);
   await page.waitForTimeout(300);
   assert(await page.locator('#job-items-body').count() === 1, '1: items section present in edit modal');
@@ -217,14 +217,18 @@ const errors = [];
   await page.click('#dg-modal button[onclick="closeDgModal()"]');
   await page.waitForTimeout(200);
 
-  // ═══ 7. Invoice prefill from a bare job (skip quote): serviceId stamped ═
-  const jobC = await mkJob('invoice', {
+  // ═══ 7. Invoice prefill from a bare booked job: serviceId stamped ═══════
+  // TSK-014: 'invoice' isn't a stage anymore — a job carries invoices while
+  // sitting at 'booked', via the "Send invoice" button (openInvoiceForm
+  // called directly, not through pipelineAction() — see pipelineCard()'s
+  // sendInvoice button).
+  const jobC = await mkJob('booked', {
     client: 'Items Client C', serviceName: 'Personal Training', amount: 2000,
     items: [{ id: 'itm-c1', serviceId: proteinId, name: 'Protein Pack', qty: 2, unitPrice: 150 }],
   });
-  await page.evaluate(id => { switchScreen('pipeline'); selectPipelineStage('invoice'); }, jobC);
+  await page.evaluate(id => { switchScreen('pipeline'); selectPipelineStage('booked'); }, jobC);
   await page.waitForTimeout(300);
-  await page.evaluate(id => pipelineAction(id), jobC);
+  await page.evaluate(id => openInvoiceForm(id), jobC);
   await page.waitForSelector('#inv-form-modal.open', { timeout: 5000 });
   const invLinesHtml = await page.evaluate(() => document.getElementById('inv-lines').innerHTML);
   assert(invLinesHtml.includes('Protein Pack'), '7: the item name appears in the invoice form DOM');

@@ -165,7 +165,7 @@ const TXT_PATH = path.join(SCRATCH, 'slip-test.txt');
     const jobId = await dbPut('jobs', {
       uid, date: todayISO(), client: 'Confirm Client', clientId: null, serviceId: null,
       serviceName: 'Confirm job', amount: 900, tip: 0, expense: 0, count: 1, notes: '', netAmount: 900,
-      cuid: cuid(), stageOrder: getStageOrder().slice(), stage: 'paid', complete: false,
+      cuid: cuid(), stageOrder: getStageOrder().slice(), stage: 'booked', paid: false, complete: false,
       invoiceId: invId, quoteDocId: null, packageId: null, updatedAt: nowISO(),
     });
     await reload();
@@ -176,14 +176,14 @@ const TXT_PATH = path.join(SCRATCH, 'slip-test.txt');
   assert(confirmVisibleBefore, '6: "Confirm payment received" button shows on an unpaid invoice');
   await page.click('#inv-slip-confirm-paid');
   await page.waitForTimeout(500);
-  await page.evaluate(() => { document.getElementById('modal-appt')?.remove(); }); // stage-gate popup from the advance
   const after6 = await page.evaluate(async (ids) => {
     const inv = await dbGet('invoices', ids.invId);
     const j = jobs.find(x => x.id === ids.jobId);
-    return { invStatus: inv.status, jobStage: j ? jobStage(j) : null };
+    return { invStatus: inv.status, jobPaid: j ? !!j.paid : null, jobStage: j ? jobStage(j) : null };
   }, setup6);
   assert(after6.invStatus === 'paid', '6: invoice status flips to paid, got ' + after6.invStatus);
-  assert(after6.jobStage !== 'paid', '6: the linked job advanced past its paid stage (onInvoiceMarkedPaid fired), stayed at ' + after6.jobStage);
+  assert(after6.jobPaid === true, '6: the linked job\'s paid flag flipped via onInvoiceMarkedPaid, got ' + after6.jobPaid);
+  assert(after6.jobStage === 'booked', '6: TSK-014 — marking paid never moves the stage, stayed at ' + after6.jobStage);
   const statusSelectValue = await page.evaluate(() => document.getElementById('inv-d-status').value);
   assert(statusSelectValue === 'paid', '6: the status <select> in the open modal reflects paid');
   await page.click('#inv-d-close');
