@@ -134,7 +134,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-014</id>
   <source>OWNER_POPUP</source>
-  <status>READY_FOR_PM</status>
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit 8add6cf, PR #64 (open). Full regression 703/703 Playwright + 73/73 Node. See squad-handshake-engineer.md. -->
   <priority>HIGH</priority>
   <title>Stage-model migration: 6 stages -> 4 (Inquiry/Quote/Booked/Deliver)</title>
   <description>Owner confirmed a REAL migration, not a visual relabel: collapse the production STAGES ['pitch','quote','invoice','paid','delivery','extend'] to ['inquiry','quote','booked','deliver']. Invoice+Paid collapse into Booked (a job in Booked can still have zero/one/many linked invoices and a paid/unpaid state tracked as a job-level flag, not a stage); Delivery+Extend collapse into Deliver (package renewal becomes an explicit action — "Send renewal quote" — that spawns a new card in Quote, rather than a stage the job sits in). Must preserve: jobEarned()-driven revenue reporting (Home hero, goal card, Team billing, tax roll-up all read this), package delivery counting (jobDelivered()), invoice/payment linkage (onInvoiceMarkedPaid reverse hook), docgen quote/invoice generation, followups queue, booking links, dated sub-tasks/appointment gate. Existing installs' stored job.stage values ('pitch'/'invoice'/'paid'/'extend') need a one-time migration to the new 4-stage vocabulary on load, not a hard break. Blast radius (grep-confirmed): app.js, bookings.js, docgen.js, followups.js, invoices.js, tax.js, sql schema, api FIELDS, dataClient mirror, 12+ existing test suites, demo data for all 7 personas, i18n (EN+TH).</description>
