@@ -14,7 +14,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-002</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status>
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commits 50d12d8+d5ec60c, PR #65 (open, expanded scope). Playwright 741/741. See squad-handshake-engineer.md. -->
   <priority>HIGH</priority>
   <title>Candidate #1 — More/Settings screen: discoverability sink</title>
   <description>s-more hosts 12 collapsible sections mixing daily tools (Follow-ups, Portfolio, Research, Insights, Invoices, Docs) with one-time setup (LINE, Shop, Team, Tax defaults, Business info). Nav badge on "More" signals hidden actionable items. Three whole product modules are only reachable via More ▸ More tools — maximal discoverability failure. Long scroll, no search.</description>
@@ -64,7 +64,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-007</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status><!-- Owner-approved 2026-07-22, see TSK-015 -->
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commits 50d12d8+d5ec60c, PR #65 (open, expanded scope). Playwright 741/741. See squad-handshake-engineer.md. -->
   <priority>HIGH</priority>
   <title>UX-UI-Designer: produce 3 mockup directions for top candidate (TSK-002, More/Settings)</title>
   <description>Design 2-3 refinement directions for the More/Settings surface. Hard constraint: same look&feel and brand CI — reuse existing tokens, type, radii, list-card/settings-row patterns. No new colors.</description>
