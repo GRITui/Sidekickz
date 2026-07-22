@@ -44,7 +44,17 @@
       <input type="password" id="auth-confirm" autocomplete="new-password" placeholder="••••••••">
     </div>
     <button class="auth-btn" id="auth-submit" onclick="submitAuth()" data-i18n="login">Log in</button>
-    <button class="auth-btn line" onclick="loginWithLine()" data-i18n="login_line">Continue with LINE</button>
+    <!-- Deferred for the open-beta launch (2026-07-22): no LINE Login channel
+         has been created in the LINE Developers Console for this deployment
+         yet, so LINE_LOGIN_CHANNEL_ID/CALLBACK_URL/STATE_SECRET are unset in
+         production — clicking this today strands a real user on api/line-
+         login-start.js's bare 500 text response. Email/password registration
+         is a fully independent path into the same users table (see
+         api/auth-register.js) and is unaffected by this. Nothing else was
+         removed: loginWithLine()/api/line-login-*.js/lib/lineLogin.js stay
+         intact and fully tested — re-show this button once a real channel
+         is configured and LINE_LOGIN_* env vars are set on Vercel. -->
+    <button class="auth-btn line" onclick="loginWithLine()" data-i18n="login_line" style="display:none">Continue with LINE</button>
     <button class="auth-btn guest" onclick="loginGuest()" data-i18n="login_guest">Continue as guest</button>
     <div class="auth-hint"><span id="auth-hint-text"></span><br><br>Local-first · No cloud · Built with Claude</div>
   </div>
