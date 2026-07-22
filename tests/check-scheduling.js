@@ -57,7 +57,6 @@ const errors = [];
   await installHelpers();
   const mkJob = (name, stage, extra) =>
     page.evaluate(args => window.__mkJob(args[0], args[1], args[2]), [name, stage || null, extra || null]);
-  const gateNone = async () => { await page.click('#ap-none'); await page.waitForTimeout(400); };
   const job = (id, expr) => page.evaluate(args => {
     const j = jobs.find(x => x.id === args[0]);
     return eval(args[1]);
@@ -73,6 +72,11 @@ const errors = [];
   // ═══ 1. Undated sub-task via #job-subtask-new + Enter ═══════════════════
   await page.evaluate(id => openEditJob(id), jobA);
   await page.waitForTimeout(300);
+  // TSK-008: Plan & payments now lives behind Full details + a collapsed
+  // drill row — switch mode and pop the row open before interacting with it.
+  // It stays open across re-renders (renderSubTasks/renderMilestones only
+  // replace their own inner containers, never the <details> itself).
+  await page.evaluate(() => { setJobModalMode('full'); document.getElementById('job-plan-details').open = true; });
   await page.fill('#job-subtask-new', 'Undated task');
   await page.press('#job-subtask-new', 'Enter');
   await page.waitForTimeout(300);
@@ -159,13 +163,19 @@ const errors = [];
   const manualBk = await page.evaluate(async () => (await dbAll('bookings')).find(b => b.title === 'Manual booking'));
   assert(manualBk && manualBk.jobCuid === null, '17: form-created booking has jobCuid null, got ' + JSON.stringify(manualBk?.jobCuid));
 
-  // ═══ 4. Advance → gate modal, locked against overlay-click and Esc ══════
+  // ═══ 4. Advance → INLINE gate card (TSK-012, replaces #modal-appt) ══════
+  // The gate is now embedded in the pipeline card itself (see openGateCard()/
+  // gateCardHtml() in app.js) — there's no overlay to click through or Esc
+  // to press; the card simply stays on the page until Book&move/Skip is
+  // tapped. Coverage below: an accidental outside click / Esc genuinely does
+  // nothing (nothing is listening for either), which is the inline
+  // equivalent of the old modal's "locked door" invariant.
   const jobB = await mkJob('Gate svc');
   await page.evaluate(() => switchScreen('pipeline'));
   await page.waitForTimeout(300);
   const stageB0 = await job(jobB, 'jobStage(j)');
   await page.evaluate(id => advanceJobStage(id), jobB);
-  await page.waitForSelector('#modal-appt', { timeout: 5000 });
+  await page.waitForSelector('.gate-card', { timeout: 5000 });
   const gateState = await page.evaluate(id => ({
     pending: jobs.find(j => j.id === id).pendingGateStage,
     stage: jobStage(jobs.find(j => j.id === id)),
@@ -174,60 +184,75 @@ const errors = [];
   assert(gateState.pending === gateState.stage, '4: pendingGateStage === new stage while unresolved, got ' + JSON.stringify(gateState));
   await page.mouse.click(5, 5);
   await page.waitForTimeout(250);
-  assert(await page.isVisible('#modal-appt'), '4: overlay-click does NOT close the gate modal');
+  assert(await page.isVisible('.gate-card'), '4: an outside click does NOT dismiss the inline gate card');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(250);
-  assert(await page.isVisible('#modal-appt'), '4: Esc does NOT close the gate modal');
+  assert(await page.isVisible('.gate-card'), '4: Esc does NOT dismiss the inline gate card either');
 
-  // ═══ 5. Validation keeps the modal open ═════════════════════════════════
-  await page.fill('#ap-step', '');
-  await page.click('#ap-save');
-  await page.waitForTimeout(250);
-  assert(await page.isVisible('#modal-appt'), '5: empty step name keeps modal open (toast)');
-  await page.fill('#ap-step', 'Some step');
-  await page.fill('#ap-date', '');
-  await page.click('#ap-save');
-  await page.waitForTimeout(250);
-  assert(await page.isVisible('#modal-appt'), '5: empty date keeps modal open (toast)');
+  // ═══ 5. The gate always has a valid default — nothing to validate ═══════
+  // There's no free-text step-name field anymore and the date input always
+  // starts prefilled to today+7, so there's no invalid/empty state to guard
+  // against — Book&move/Skip are always immediately actionable.
+  const gate5Date = await page.evaluate(id => document.getElementById('gate-date-' + id).value, jobB);
+  const expectedDate7_B = await page.evaluate(() => addDaysISO(todayISO(), 7));
+  assert(gate5Date === expectedDate7_B, '5: gate date input defaults to today+7 with zero typing, got ' + gate5Date);
 
-  // ═══ 6. Gate → "by" deadline → sub-task, no booking ════════════════════
+  // ═══ 6. Gate "Book & move" → job.due set, NOT a sub-task/booking ════════
+  // Documented engineering decision (see app.js's STAGE-GATE INLINE CARD
+  // comment): the inline gate writes job.due directly and never touches
+  // subTasks/bookings — that mechanism stays reserved for job-detail's own
+  // "+ Step with date" flow (exercised in §1-3/§11 above, untouched by this
+  // rewrite).
   const bkCountBefore = await page.evaluate(() => dbAll('bookings').then(r => r.length));
+  await page.fill('#gate-date-' + jobB, dPlus6);
+  await page.click('.gate-btn-primary');
+  await page.waitForTimeout(500);
+  const dateRes = await page.evaluate(async id => {
+    const j = jobs.find(x => x.id === id);
+    return { due: j.due, pending: j.pendingGateStage, gateOpen: !!(window.__gateOpen && window.__gateOpen.jobId === id),
+      bkCount: (await dbAll('bookings')).length };
+  }, jobB);
+  assert(dateRes.due === dPlus6, '6: "Book & move" wrote job.due to the chosen date, got ' + dateRes.due);
+  assert(dateRes.bkCount === bkCountBefore, '6: NO booking row created by the inline gate');
+  assert(dateRes.pending == null && !dateRes.gateOpen, '6: gate resolved (flag cleared, gate card closed)');
+
+  // ═══ 6b. Restore a "by" dated sub-task on jobB via the (unchanged) modal
+  // add-mode — §13-15 below need a second dated-step job to exercise the
+  // timeline's bar/dot mix; the inline gate no longer creates one itself
+  // (see §6's comment), so this recreates that fixture explicitly through
+  // job-detail's own "+ Step with date" flow instead.
+  await page.evaluate(id => openApptModal({ mode: 'add', jobId: id }), jobB);
+  await page.waitForSelector('#modal-appt', { timeout: 5000 });
   await page.click('#ap-type-by');
-  const timeHidden = await page.evaluate(() => document.getElementById('ap-time-row').style.display === 'none');
-  assert(timeHidden, '6: time row hidden for "by" type');
   await page.fill('#ap-step', 'Send report');
   await page.fill('#ap-date', dPlus6);
   await page.click('#ap-save');
   await page.waitForTimeout(500);
-  const byRes = await page.evaluate(async id => {
+  const byStepRes = await page.evaluate(id => {
     const j = jobs.find(x => x.id === id);
     const st = (j.subTasks || []).find(s => s.text === 'Send report');
-    return { st, pending: j.pendingGateStage, modal: !!document.getElementById('modal-appt'),
-      bkCount: (await dbAll('bookings')).length };
+    return st ? { dateType: st.dateType, date: st.date, startTime: st.startTime, stage: st.stage } : null;
   }, jobB);
-  assert(byRes.st && byRes.st.dateType === 'by' && byRes.st.startTime === null && byRes.st.date === dPlus6,
-    '6: gate saved a by-step with null startTime');
-  assert(byRes.bkCount === bkCountBefore, '6: NO booking row created for a by-step');
-  assert(byRes.pending == null && !byRes.modal, '6: gate resolved (flag cleared, modal closed)');
-  assert(byRes.st && byRes.st.stage === gateState.stage, '6: gate-created step records its stage, got ' + JSON.stringify(byRes.st?.stage));
+  assert(byStepRes && byStepRes.dateType === 'by' && byStepRes.startTime === null && byStepRes.date === dPlus6,
+    '6b: "by" dated step created via the add-mode modal, got ' + JSON.stringify(byStepRes));
 
-  // ═══ 7. Gate → "No appointment needed" ══════════════════════════════════
+  // ═══ 7. Gate "Skip" — moves already happened; Skip just leaves it date-less
   const subCountB = await job(jobB, '(j.subTasks || []).length');
   await page.evaluate(id => advanceJobStage(id), jobB);
-  await page.waitForSelector('#modal-appt', { timeout: 5000 });
-  assert(await page.locator('#ap-none').count() === 1, '7: gate mode shows the "no appointment needed" button');
-  await gateNone();
+  await page.waitForSelector('.gate-card', { timeout: 5000 });
+  assert(await page.locator('.gate-btn-secondary').count() === 1, '7: the gate shows a "Skip" secondary button');
+  await page.click('.gate-btn-secondary');
+  await page.waitForTimeout(400);
   const afterNone = await page.evaluate(id => ({
-    modal: !!document.getElementById('modal-appt'),
+    gateOpen: !!(window.__gateOpen && window.__gateOpen.jobId === id),
     pending: jobs.find(j => j.id === id).pendingGateStage,
+    due: jobs.find(j => j.id === id).due,
     subCount: (jobs.find(j => j.id === id).subTasks || []).length,
   }), jobB);
-  assert(!afterNone.modal && afterNone.pending == null && afterNone.subCount === subCountB,
-    '7: none → modal closed, no sub-task added, flag cleared, got ' + JSON.stringify(afterNone));
+  assert(!afterNone.gateOpen && afterNone.pending && afterNone.due == null && afterNone.subCount === subCountB,
+    '7: skip → gate closed, no sub-task added, due stays null, pendingGateStage stays set, got ' + JSON.stringify(afterNone));
 
   // ═══ 8. Reload mid-gate → banner persists, advance blocked ══════════════
-  await page.evaluate(id => advanceJobStage(id), jobB);
-  await page.waitForSelector('#modal-appt', { timeout: 5000 });
   await page.reload();
   await page.waitForFunction(() => { try { return jobs.length > 0; } catch (e) { return false; } }, null, { timeout: 20000 });
   await installHelpers();   // reload wiped window.__mkJob/__cid
@@ -241,14 +266,15 @@ const errors = [];
   assert(await page.locator('.pl-pending').count() > 0, '8: amber "book next step" banner on the card after reload');
   await page.click('.pl-pending');
   await page.waitForTimeout(300);
-  assert(await page.isVisible('#modal-appt'), '8: banner reopens the gate modal');
-  await page.evaluate(() => closeApptModal());
+  assert(await page.isVisible('.gate-card'), '8: banner reopens the inline gate card');
+  await page.evaluate(() => closeGateCard());
   const stageBefore8 = await job(jobB, 'jobStage(j)');
   await page.evaluate(id => pipelineAction(id), jobB);
   await page.waitForTimeout(300);
-  assert(await job(jobB, 'jobStage(j)') === stageBefore8 && await page.isVisible('#modal-appt'),
-    '8: advance while pending reopens the modal instead of advancing');
-  await gateNone();
+  assert(await job(jobB, 'jobStage(j)') === stageBefore8 && await page.isVisible('.gate-card'),
+    '8: advance while pending reopens the gate instead of advancing again');
+  await page.click('.gate-btn-secondary');
+  await page.waitForTimeout(400);
 
   // ═══ 9. Every forward path gates — EXCEPT paid/invoice-link, which are ═══
   // no longer stage moves at all under TSK-014 (paid is a job-level flag;
@@ -256,36 +282,39 @@ const errors = [];
   // skip (quote stage is skippable)
   const jobC = await mkJob('Skip svc', 'quote');
   await page.evaluate(id => skipJobStage(id), jobC);
-  await page.waitForSelector('#modal-appt', { timeout: 5000 });
+  await page.waitForSelector('.gate-card', { timeout: 5000 });
   assert(await job(jobC, '!!j.pendingGateStage'), '9: skipJobStage gates');
-  await gateNone();
+  await page.click('.gate-btn-secondary');
+  await page.waitForTimeout(400);
   // cash path — lands on Booked, already marked paid, and gates on Booked
   const jobD = await mkJob('Cash svc', 'inquiry');
   await page.evaluate(id => cashJobPath(id), jobD);
-  await page.waitForSelector('#modal-appt', { timeout: 5000 });
+  await page.waitForSelector('.gate-card', { timeout: 5000 });
   assert(await job(jobD, `jobStage(j) === 'booked' && j.paid === true && j.pendingGateStage === 'booked'`),
     '9: cashJobPath lands on booked, marks paid, and gates');
-  await gateNone();
+  await page.click('.gate-btn-secondary');
+  await page.waitForTimeout(400);
   // mark paid — TSK-014: no longer a stage move, so it never gates
   const jobE = await mkJob('Paid svc', 'booked');
   await page.evaluate(id => markJobPaid(id), jobE);
   await page.waitForTimeout(400);
   assert(await job(jobE, `jobStage(j) === 'booked' && j.paid === true && j.pendingGateStage == null`)
-    && !(await page.evaluate(() => !!document.getElementById('modal-appt'))),
+    && !(await page.evaluate(() => !!document.querySelector('.gate-card'))),
     '9: markJobPaid never gates (paid is a job-level flag, not a stage)');
   // quote doc save — still a real stage move (quote -> booked), still gates
   const jobF = await mkJob('Quote svc', 'quote');
   await page.evaluate(id => window.onEngagementQuoteCreated(999, id), jobF);
-  await page.waitForSelector('#modal-appt', { timeout: 5000 });
+  await page.waitForSelector('.gate-card', { timeout: 5000 });
   assert(await job(jobF, '!!j.pendingGateStage'), '9: onEngagementQuoteCreated gates');
-  await gateNone();
+  await page.click('.gate-btn-secondary');
+  await page.waitForTimeout(400);
   // invoice save — TSK-014: attaching an invoice to a booked job never moves
   // the stage anymore, so it never gates either
   const jobG = await mkJob('Invoice svc', 'booked');
   await page.evaluate(id => window.onEngagementInvoiceCreated(999, id), jobG);
   await page.waitForTimeout(400);
   assert(await job(jobG, `j.invoiceId === 999 && jobStage(j) === 'booked' && j.pendingGateStage == null`)
-    && !(await page.evaluate(() => !!document.getElementById('modal-appt'))),
+    && !(await page.evaluate(() => !!document.querySelector('.gate-card'))),
     '9: onEngagementInvoiceCreated links the invoice but never gates');
   // package confirm-and-advance — now triggered by the booked->deliver
   // advance itself (pipelineAction), independent of payment
@@ -302,19 +331,20 @@ const errors = [];
   assert(await page.locator(`#pkg-confirm-qty-${pkgJob}`).count() === 1, '9: package path shows confirm card before advancing');
   await page.fill(`#pkg-confirm-qty-${pkgJob}`, '1');
   await page.click(`#pkg-confirm-save-${pkgJob}`);
-  await page.waitForSelector('#modal-appt', { timeout: 5000 });
+  await page.waitForSelector('.gate-card', { timeout: 5000 });
   assert(await job(pkgJob, `jobStage(j) === 'deliver' && j.pendingGateStage === 'deliver'`),
     '9: package confirm-and-advance gates on deliver');
-  await gateNone();
+  await page.click('.gate-btn-secondary');
+  await page.waitForTimeout(400);
 
   // ═══ 10. Back / finish / terminal advance never gate ════════════════════
   await page.evaluate(id => advanceJobStage(id), jobC);
-  await page.waitForSelector('#modal-appt', { timeout: 5000 });
-  await page.evaluate(() => closeApptModal());
+  await page.waitForSelector('.gate-card', { timeout: 5000 });
+  await page.evaluate(() => closeGateCard());
   await page.evaluate(id => moveJobStageBack(id), jobC);
   await page.waitForTimeout(400);
-  assert(await job(jobC, 'j.pendingGateStage == null') && !(await page.evaluate(() => !!document.getElementById('modal-appt'))),
-    '10: moveJobStageBack clears the flag and opens no modal');
+  assert(await job(jobC, 'j.pendingGateStage == null') && !(await page.evaluate(() => !!document.querySelector('.gate-card'))),
+    '10: moveJobStageBack clears the flag and opens no gate');
   await page.evaluate(async id => {
     const j = jobs.find(x => x.id === id);
     j.pendingGateStage = 'deliver';
@@ -323,13 +353,13 @@ const errors = [];
   await page.evaluate(id => finishJobStage(id), jobD);
   await page.waitForTimeout(400);
   assert(await job(jobD, 'j.complete === true && j.pendingGateStage == null')
-    && !(await page.evaluate(() => !!document.getElementById('modal-appt'))),
-    '10: finishJobStage clears the flag and opens no modal');
+    && !(await page.evaluate(() => !!document.querySelector('.gate-card'))),
+    '10: finishJobStage clears the flag and opens no gate');
   const jobI = await mkJob('Terminal svc', 'deliver');
   await page.evaluate(id => advanceJobStage(id), jobI);
   await page.waitForTimeout(400);
   assert(await job(jobI, 'j.complete === true && j.pendingGateStage == null')
-    && !(await page.evaluate(() => !!document.getElementById('modal-appt'))),
+    && !(await page.evaluate(() => !!document.querySelector('.gate-card'))),
     '10: terminal advance (last stage) completes without gating');
 
   // ═══ 11. Repeat (↻) a dated step ════════════════════════════════════════
@@ -470,34 +500,39 @@ const errors = [];
   await page.evaluate(() => closeJobModal());
 
   // ═══ 19. Thai default strings; EN after switching ═══════════════════════
+  // TSK-012: the gate itself moved off #modal-appt onto the inline gate card
+  // (openGateCard()/gateCardHtml()) — 'add'/'repeat'/'edit' modal modes are
+  // untouched and still exercised elsewhere in this suite (§2/§11/§18).
   const thai = await page.evaluate(id => {
-    openApptModal({ mode: 'gate', jobId: id, stage: 'quote' });
-    const g = x => document.getElementById(x)?.textContent.trim();
-    const out = { lang: curLang(), title: g('ap-title'), exact: g('ap-type-exact'), by: g('ap-type-by'),
-      save: g('ap-save'), none: g('ap-none') };
-    closeApptModal();
+    setPipelineView('board');   // §12-16 left the pipeline on the timeline view — the gate card only renders on the board
+    selectPipelineStage(jobStage(jobs.find(j => j.id === id)));   // the gate card only renders for the active stage group
+    openGateCard(id, 'booked');   // Quote → Booked gate copy
+    const g = () => document.querySelector('.gate-title')?.textContent.trim();
+    const gc = () => document.querySelector('.gate-context')?.textContent.trim();
+    const out = { lang: curLang(), title: g(), context: gc() };
+    closeGateCard();
     return out;
   }, jobA);
-  assert(thai.lang === 'th' && thai.title === 'นัดขั้นตอนถัดไป' && thai.exact === 'ระบุวันแน่นอน'
-    && thai.by === 'ภายในกำหนด' && thai.save === 'จองเลย' && thai.none === 'ไม่ต้องนัดหมาย',
-    '19: gate modal renders Thai strings by default, got ' + JSON.stringify(thai));
+  assert(thai.lang === 'th' && thai.title === 'ลูกค้ายอมรับแล้ว 🎉' && thai.context === 'เลือกวันนัดครั้งถัดไป',
+    '19: inline gate renders Thai strings by default, got ' + JSON.stringify(thai));
   const thaiToggle = await page.evaluate(() =>
     Array.from(document.querySelectorAll('.pl-view-seg button')).map(b => b.textContent.trim()));
   assert(thaiToggle[0] === 'บอร์ด' && thaiToggle[1] === 'ไทม์ไลน์', '19: view toggle Thai, got ' + JSON.stringify(thaiToggle));
   await page.evaluate(async () => { await onLangChange('en'); renderPipeline(); });
   await page.waitForTimeout(300);
   const en = await page.evaluate(id => {
-    openApptModal({ mode: 'gate', jobId: id, stage: 'quote' });
-    const g = x => document.getElementById(x)?.textContent.trim();
-    const out = { title: g('ap-title'), exact: g('ap-type-exact'), by: g('ap-type-by'), save: g('ap-save'), none: g('ap-none'),
+    selectPipelineStage(jobStage(jobs.find(j => j.id === id)));
+    openGateCard(id, 'booked');
+    const g = () => document.querySelector('.gate-title')?.textContent.trim();
+    const gc = () => document.querySelector('.gate-context')?.textContent.trim();
+    const out = { title: g(), context: gc(),
       toggle: Array.from(document.querySelectorAll('.pl-view-seg button')).map(b => b.textContent.trim()) };
-    closeApptModal();
+    closeGateCard();
     return out;
   }, jobA);
-  assert(en.title === 'Book the next step' && en.exact === 'Exact date' && en.by === 'Within a deadline'
-    && en.save === 'Book it' && en.none === 'No appointment needed'
+  assert(en.title === 'Client accepted 🎉' && en.context === 'Pick the session date.'
     && en.toggle[0] === 'Board' && en.toggle[1] === 'Timeline',
-    '19: switching to EN renders the §7 EN copy, got ' + JSON.stringify(en));
+    '19: switching to EN renders the EN gate copy, got ' + JSON.stringify(en));
   await page.evaluate(async () => { await onLangChange('th'); renderPipeline(); });
   await page.waitForTimeout(300);
 
@@ -529,9 +564,10 @@ const errors = [];
   assert(await job(legacyId, `j.subTasks[0].done === true`), '20: legacy sub-task toggles');
   await page.evaluate(() => closeJobModal());
   await page.evaluate(id => advanceJobStage(id), legacyId);
-  await page.waitForSelector('#modal-appt', { timeout: 5000 });
+  await page.waitForSelector('.gate-card', { timeout: 5000 });
   assert(await job(legacyId, '!!j.pendingGateStage'), '20: legacy job advances and gates without errors');
-  await gateNone();
+  await page.click('.gate-btn-secondary');
+  await page.waitForTimeout(400);
 
   // ═══ 18. Backend mirror payload includes job_cuid ═══════════════════════
   // Enable the real dataClient mirror with a fake token and capture the

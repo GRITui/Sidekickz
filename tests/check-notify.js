@@ -140,6 +140,11 @@ function waitForServer(url, timeoutMs) {
 
   // ═══ 1. Settings ▸ Shop ▸ Slip verification: defaults to "Off" ══════════
   await page.evaluate(() => switchScreen('more'));
+  // TSK-002/007: slip verification now lives on the "Payments & shop"
+  // drill-in (#s-more-pay) — the selectOption()/fill() calls below need it
+  // visible (the '#slipverify-provider'.inputValue() read on its own would
+  // still work hidden, but the actions after it would not).
+  await page.evaluate(() => switchScreen('more-pay'));
   await page.waitForTimeout(500);
   const providerBefore = await page.locator('#slipverify-provider').inputValue().catch(() => null);
   assert(providerBefore === '', '1: provider select defaults to "" (Off), got ' + providerBefore);
@@ -156,6 +161,11 @@ function waitForServer(url, timeoutMs) {
 
   // ═══ 3. Selecting a provider reveals key/branch fields; saving persists ═
   await page.evaluate(() => switchScreen('more'));
+  // TSK-002/007: slip verification now lives on the "Payments & shop"
+  // drill-in (#s-more-pay) — the selectOption()/fill() calls below need it
+  // visible (the '#slipverify-provider'.inputValue() read on its own would
+  // still work hidden, but the actions after it would not).
+  await page.evaluate(() => switchScreen('more-pay'));
   await page.waitForTimeout(300);
   await page.selectOption('#slipverify-provider', 'slipok');
   await page.waitForTimeout(200);
@@ -173,7 +183,9 @@ function waitForServer(url, timeoutMs) {
   assert(savedSettings.key === 'test-api-key-123', '3: API key persisted to settings.slipVerifyKey, got ' + savedSettings.key);
   assert(savedSettings.branch === 'branch-42', '3: branch persisted to settings.slipVerifyBranch, got ' + savedSettings.branch);
 
-  // ═══ 4. Home "Needs attention": order count + new-client-slip count ═════
+  // ═══ 4. Home "Today" card: order count + new-client-slip count rows ═════
+  // (TSK-009: the old standalone "Needs attention" attn-card merged into
+  // Home's single #today-body list-card — see renderHomeToday() in app.js.)
   // invA carries 3 client-uploaded slips, never yet opened — counts as ONE
   // invoice with new slips (distinct-invoice count, not distinct-slip count).
   const invAId = await mkInvoiceWithSlips({
@@ -186,9 +198,7 @@ function waitForServer(url, timeoutMs) {
   });
   await page.evaluate(() => switchScreen('home'));
   await page.waitForTimeout(500);
-  const attnDisplay1 = await page.evaluate(() => document.getElementById('attn-card').style.display);
-  assert(attnDisplay1 !== 'none', '4: "Needs attention" card is visible, got display=' + attnDisplay1);
-  const attnText1 = await page.evaluate(() => document.getElementById('attn-body').textContent);
+  const attnText1 = await page.evaluate(() => document.getElementById('today-body').textContent);
   assert(attnText1.includes('2 order request(s) waiting'), '4: order-request count row renders (stubbed 2), got: ' + attnText1);
   assert(attnText1.includes('1 invoice(s) with new client slips'), '4: new-client-slip count row renders (1 invoice — invA, invZero already seen), got: ' + attnText1);
 
@@ -239,11 +249,9 @@ function waitForServer(url, timeoutMs) {
   //         row is gone — order row is unaffected (still the stubbed 2) ════
   await page.evaluate(() => switchScreen('home'));
   await page.waitForTimeout(500);
-  const attnText2 = await page.evaluate(() => document.getElementById('attn-body').textContent);
+  const attnText2 = await page.evaluate(() => document.getElementById('today-body').textContent);
   assert(!attnText2.includes('invoice(s) with new client slips'), '9: new-client-slip row is gone after opening invA (slipsSeenAt stamped), got: ' + attnText2);
   assert(attnText2.includes('2 order request(s) waiting'), '9: order-request row is unaffected, still shows 2, got: ' + attnText2);
-  const attnDisplay2 = await page.evaluate(() => document.getElementById('attn-card').style.display);
-  assert(attnDisplay2 !== 'none', '9: "Needs attention" card stays visible for the still-pending order requests');
 
   // ═══ 10. Zero console/page errors across the whole flow ═════════════════
   assert(errors.length === 0, '10: no console errors across the whole flow, got: ' + errors.join('; '));

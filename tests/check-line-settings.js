@@ -88,8 +88,13 @@ const { chromium } = require('playwright');
   await page.exposeFunction('__fakeSlotDelete', (id) => { slots = slots.filter(s => s.id !== id); });
 
   // ── 1. Basic plan: locked note, no connect form ────────────────────
+  // TSK-002/007: LINE booking now lives on the "LINE & team" drill-in
+  // (#s-more-line), not directly on the More root — navigate there so the
+  // connect-form fill()/click() calls below hit a visible element.
   await setEntitlements(basicPlan);
   await page.evaluate(() => window.switchScreen && window.switchScreen('more'));
+  await page.waitForTimeout(200);
+  await page.evaluate(() => window.switchScreen && window.switchScreen('more-line'));
   await page.waitForTimeout(300);
   const connectFormOnBasic = await page.locator('#line-ch-id').count();
   assert(connectFormOnBasic === 0, 'connect form hidden on Basic plan');

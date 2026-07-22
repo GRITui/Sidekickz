@@ -89,6 +89,15 @@ summary.section-title::after{content:'';width:7px;height:7px;flex-shrink:0;borde
   transform:rotate(45deg);margin-left:8px;transition:transform .15s;}
 details.settings-section:not([open]) summary.section-title::after{transform:rotate(-45deg);}
 
+/* Job modal drill rows (TSK-008 Quick log / Full details) — same collapsible
+   details/summary mechanics as the Settings sections above, just closed by
+   default (Full details reads as 4 summary rows with counts; tapping one
+   opens the existing sub-view/list in place). */
+details.job-drill:not([open]) summary.section-title::after{transform:rotate(-45deg);}
+details.job-drill{margin:0 0 14px;}
+details.job-drill:last-of-type{margin-bottom:0;}
+.job-drill-count{color:var(--text3);font-weight:600;margin-left:2px;}
+
 /* Hero card — overlaps the header band via negative top margin */
 .hero{background:var(--card);margin:0 16px 16px;border-radius:var(--radius);padding:20px;
   color:var(--text);border:0.5px solid var(--border);box-shadow:0 1px 2px rgba(26,36,33,.05);
@@ -112,13 +121,6 @@ details.settings-section:not([open]) summary.section-title::after{transform:rota
 .goal-amt{font-size:13px;color:var(--text3);font-weight:600;}
 .goal-pct{font-size:16px;font-weight:800;color:var(--brand);letter-spacing:-.3px;}
 
-.home-alert-card{display:flex;align-items:center;gap:10px;margin:0 16px 16px;padding:13px 14px;
-  border-radius:var(--radius-sm);background:var(--marigold-tint);border:1px solid var(--marigold);cursor:pointer;}
-.home-alert-icon{font-size:19px;flex-shrink:0;}
-.home-alert-body{flex:1;min-width:0;}
-.home-alert-text{font-size:13px;font-weight:700;color:var(--marigold-ink);}
-.home-alert-btn{flex-shrink:0;background:var(--marigold-ink);color:#fff;border:none;border-radius:999px;
-  padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;white-space:nowrap;}
 .goal-track{height:10px;background:var(--border);border-radius:6px;overflow:hidden;}
 .goal-fill{height:100%;width:0;background:var(--brand-bright);border-radius:6px;transition:width .45s ease;}
 .goal-fill.reached{background:var(--paid);}
@@ -146,6 +148,13 @@ details.settings-section:not([open]) summary.section-title::after{transform:rota
 .list-amt{font-size:15px;font-weight:800;color:var(--text);}
 .list-amt.pos{color:var(--paid);}
 .list-amt-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+/* TSK-009: the Today card's right-aligned status-pill accessory (e.g. "Renew",
+   "Booked") — same color-mix tint formula as .stage-pill-active/-inquiry
+   below, new class because these pills sit inside .list-row (not the Clients
+   engagement-stage rows .stage-pill was built for). */
+.list-pill{display:inline-block;padding:3px 9px;border-radius:9px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0;}
+.list-pill-marigold{background:color-mix(in srgb,var(--marigold) 18%,transparent);color:var(--marigold);}
+.list-pill-paid{background:color-mix(in srgb,var(--paid) 16%,transparent);color:var(--paid);}
 .pkg-badge{display:inline-block;background:var(--brand-tint);color:var(--brand);font-size:10px;font-weight:800;
   padding:3px 7px;border-radius:999px;margin-right:8px;vertical-align:middle;white-space:nowrap;}
 .qc-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:none;
@@ -210,6 +219,13 @@ details.settings-section:not([open]) summary.section-title::after{transform:rota
 .pl-active-count{font-size:12px;font-weight:700;color:var(--text3);white-space:nowrap;padding-top:4px;}
 .pl-chip-rail{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin:0 -2px;scrollbar-width:none;}
 .pl-chip-rail::-webkit-scrollbar{display:none;}
+/* This same .pl-chip/.pl-chip-rail pair is reused verbatim by the Clients
+   tab's own filter-chip row (#client-filter-chips — a different feature,
+   see selectClientFilterStage() in app.js) — the base rule below must stay
+   exactly what it always was (a plain row pill) so that reuse is untouched.
+   TSK-011's own addition (each Task-flow chip carrying a 4px progress-
+   underline segment, folding in what used to be the separate .pl-minimap
+   strip) is scoped to #pipeline-body only, just below. */
 .pl-chip{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:999px;
   border:1px solid var(--border);background:var(--card);color:var(--text2);font-size:13px;font-weight:700;
   cursor:pointer;font-family:inherit;white-space:nowrap;}
@@ -217,11 +233,15 @@ details.settings-section:not([open]) summary.section-title::after{transform:rota
 .pl-chip-count{font-size:11px;font-weight:800;background:var(--border);color:var(--text3);border-radius:999px;
   min-width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px;}
 .pl-chip.active .pl-chip-count{background:rgba(255,255,255,.25);color:#fff;}
-.pl-minimap{display:flex;gap:4px;margin:0 2px 10px;}
-.pl-minimap-seg{flex:1;height:4px;border-radius:3px;background:var(--border);}
-.pl-minimap-seg.past{background:var(--brand-bright);}
-.pl-minimap-seg.active{background:var(--marigold);}
-.pl-stage-hint{font-size:12px;color:var(--text3);margin:0 2px 14px;line-height:1.4;}
+/* Task-flow-only: stack the label row above a 4px underline segment. */
+#pipeline-body .pl-chip{flex-direction:column;align-items:stretch;border-radius:12px;padding:8px 14px 6px;gap:5px;}
+.pl-chip-row{display:flex;align-items:center;gap:6px;}
+.pl-chip-underline{display:block;height:4px;border-radius:3px;background:var(--border);}
+.pl-chip-underline.past{background:var(--brand-bright);}
+.pl-chip-underline.active{background:var(--marigold);}
+.pl-stage-hint{font-size:12px;color:var(--text3);margin:0 2px 14px;line-height:1.4;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.pl-hint-dismiss{flex:0 0 auto;background:none;border:none;color:var(--brand-bright);font-weight:700;font-size:12px;
+  cursor:pointer;font-family:inherit;padding:0;}
 .pl-main-body{display:flex;flex-direction:column;gap:9px;}
 .kb-empty{font-size:12px;color:var(--text3);padding:16px 10px;border:1px dashed var(--border);border-radius:12px;text-align:center;}
 .kb-card{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:11px 12px;cursor:pointer;box-shadow:0 1px 2px rgba(16,24,40,.05);transition:box-shadow .15s,transform .12s;}
@@ -239,6 +259,51 @@ details.settings-section:not([open]) summary.section-title::after{transform:rota
 .pl-skip{flex:0 0 auto;padding:8px 10px;border:1px solid var(--border);background:var(--bg);border-radius:9px;color:var(--text3);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;}
 .pl-skip:hover{border-color:var(--brand);color:var(--brand);}
 .pl-skip:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
+/* Overflow row for everything the redesigned 3-button action row bumped out
+   (revise quote/invoice, send invoice, mark paid, cash job, skip, finished)
+   — same quiet .pl-skip pill, just its own wrapping row underneath. */
+.pl-secondary-row{margin-top:0;}
+
+/* TSK-012: task-flow card redesign — note line, attempt badge, deadline
+   chip, package progress, and the new 3-button Cancel/Redo/Advance row. */
+.pl-note-line{font-size:11.5px;font-style:italic;color:var(--text4);margin-top:3px;
+  overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+.pl-badges-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px;}
+.pl-attempt-badge{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:800;
+  background:var(--brand-tint);color:var(--brand);white-space:nowrap;}
+.pl-deadline-chip{border:none;padding:5px 10px;border-radius:999px;font-size:11.5px;font-weight:700;cursor:pointer;
+  font-family:inherit;white-space:nowrap;background:var(--marigold-tint);color:var(--marigold-ink);}
+.pl-deadline-chip.overdue{background:color-mix(in srgb,var(--overdue) 16%,transparent);color:var(--overdue);}
+.pl-deadline-chip:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
+.pl-pkg-progress{margin-top:9px;}
+.pl-pkg-label{font-size:11.5px;font-weight:700;color:var(--text3);margin-bottom:4px;}
+.pl-pkg-track{height:8px;border-radius:5px;background:var(--border);overflow:hidden;}
+.pl-pkg-fill{height:100%;border-radius:5px;background:var(--brand-bright);transition:width .3s ease;}
+.pl-cancel-btn{flex:0 0 auto;border:none;border-radius:9px;background:var(--overdue);color:#fff;
+  font-size:12.5px;font-weight:800;padding:8px 12px;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.pl-cancel-btn:focus-visible{outline:2px solid var(--overdue);outline-offset:2px;}
+.pl-redo-btn{flex:0 0 auto;border:1px solid var(--border);border-radius:9px;background:var(--bg);color:var(--text3);
+  font-size:12.5px;font-weight:800;padding:8px 12px;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.pl-redo-btn:hover{border-color:var(--brand);color:var(--brand);}
+.pl-redo-btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px;}
+
+/* Stage-gate inline card (TSK-011/012/013) — embedded IN the pipeline card,
+   replacing the action row while a gate is open. Modeled directly on the
+   .confirm-card pattern just below (same brand border / radius-sm shape). */
+.gate-card{margin-top:10px;padding:12px;border:1.5px solid var(--brand);border-radius:var(--radius-sm);background:var(--card);}
+.gate-title{font-size:13px;font-weight:800;color:var(--text);margin-bottom:3px;}
+.gate-context{font-size:12px;color:var(--text3);margin-bottom:10px;}
+.gate-date{width:100%;border:1.5px solid var(--brand);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);
+  padding:9px 10px;font-size:14px;font-weight:700;text-align:center;font-family:'Spline Sans Mono',monospace;box-sizing:border-box;}
+.gate-note{width:100%;margin-top:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);
+  padding:8px 10px;font-size:12.5px;font-family:inherit;resize:vertical;box-sizing:border-box;}
+.gate-btns{display:flex;gap:8px;margin-top:10px;}
+.gate-btn-secondary{flex:1;border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;color:var(--text3);
+  font-family:inherit;font-weight:700;font-size:12.5px;padding:9px;cursor:pointer;}
+.gate-btn-primary{flex:1;border:none;border-radius:var(--radius-sm);background:var(--brand);color:#fff;
+  font-family:inherit;font-weight:700;font-size:12.5px;padding:9px;cursor:pointer;}
+.gate-btn-danger{flex:1;border:none;border-radius:var(--radius-sm);background:var(--overdue);color:#fff;
+  font-family:inherit;font-weight:700;font-size:12.5px;padding:9px;cursor:pointer;}
 
 /* Package quantity-confirm card — replaces a card's foot row while a
    package-linked job is mid-confirmation on its way into Delivery. */
@@ -395,6 +460,38 @@ select option{background:var(--select-option-bg);color:var(--select-option-fg);}
   color:var(--text3);cursor:pointer;font-family:inherit;}
 .seg button.on{background:var(--card);color:var(--brand);box-shadow:0 1px 3px rgba(0,0,0,.12);}
 
+/* More/Settings rebuild (TSK-002/007) — 2x2 Tools grid, "Set up your
+   business" drill-in rows w/ status pills. Reuses .list-card/.settings-input
+   tokens elsewhere; these are the few genuinely new shapes (see design-handoff
+   README §5 + assessment §8). */
+.tools-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 18px;}
+.tool-tile{text-align:left;background:var(--card);border:0.5px solid var(--border);border-radius:var(--radius-sm);
+  padding:14px;cursor:pointer;font-family:inherit;display:block;color:inherit;}
+.tool-tile:active{background:var(--brand-tint);}
+.tool-tile[hidden]{display:none;}
+.tool-icon{width:34px;height:34px;border-radius:10px;background:var(--brand-tint);color:var(--brand);
+  display:flex;align-items:center;justify-content:center;margin-bottom:8px;position:relative;}
+.tool-badge{position:absolute;top:-5px;right:-5px;background:var(--marigold);color:#2B1F0D;font-size:9px;
+  font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  padding:0 4px;line-height:1;}
+.tool-badge[hidden]{display:none;}
+.tool-name{font-size:14px;font-weight:700;color:var(--text);}
+.tool-sub{font-size:11px;color:var(--text3);margin-top:2px;}
+.tool-sub.marigold{color:var(--marigold);font-weight:700;}
+
+.status-pill{padding:3px 8px;border-radius:999px;font-size:10px;font-weight:800;flex-shrink:0;}
+.status-pill.amber{background:var(--marigold-tint);color:var(--marigold-ink);}
+.status-pill.green{background:rgba(62,124,79,.16);color:var(--paid);}
+.status-pill.plain{background:none;color:var(--text3);font-weight:600;font-size:11px;padding:0;}
+
+.biz-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px 16px;
+  border-bottom:0.5px solid var(--border);cursor:pointer;}
+.biz-row:last-child{border-bottom:none;}
+.biz-row:active{background:var(--bg);}
+.biz-row-title{font-size:15px;font-weight:600;color:var(--text);}
+.biz-row-sub{font-size:11px;color:var(--text3);margin-top:1px;}
+.biz-row-right{display:inline-flex;gap:8px;align-items:center;color:var(--text3);}
+
 /* Booking month calendar */
 .cal-topnav{display:flex;align-items:center;gap:6px;margin-bottom:10px;}
 .cal-navbtn{flex:0 0 auto;width:36px;height:36px;border:none;background:var(--brand-tint);color:var(--brand);
@@ -470,6 +567,23 @@ select option{background:var(--select-option-bg);color:var(--select-option-fg);}
 .wk-hint{position:absolute;left:50%;transform:translateX(-50%);font-size:9px;color:var(--brand);line-height:1;}
 .wk-hint-up{top:1px;}
 .wk-hint-down{bottom:1px;}
+
+/* 3-day mobile grid (TSK-010, design handoff §4) — same .wk-* element/class
+   family as the 7-day grid above (wkHeadRowHtml/wkBodyRowHtml render both),
+   just with taller hour rows and equal-share day columns instead of fixed
+   76px ones. The .wk3 modifier is applied to .wk-scroll only below the
+   900px desktop breakpoint (bookings.js renderWeekView) — at >=900px the
+   7-day grid renders with none of these overrides, unchanged from before. */
+.wk-scroll.wk3 .wk-day-head{flex:1 1 0;}
+.wk-scroll.wk3 .wk-day-num{width:24px;height:24px;font-size:13px;}
+.wk-scroll.wk3 .wk-hour-lbl{height:72px;}
+.wk-scroll.wk3 .wk-daycol{flex:1 1 0;}
+.wk-scroll.wk3 .wk-hourcell{height:72px;}
+/* Blocks keep the SAME lane-based left/width percentage math as the 7-day
+   grid (wkBlockStyle(), unchanged) — required so an overlapping pair still
+   splits side-by-side in the single 3-day column, not just visually inset
+   from its edges (design's flat "left/right 4px" only covers the
+   non-overlapping case). */
 
 /* Focus mode — full-screen Pomodoro overlay (redesign handoff, design 9b) */
 .focus-overlay{position:fixed;inset:0;background:#121715;color:#EFEDE6;z-index:900;display:none;

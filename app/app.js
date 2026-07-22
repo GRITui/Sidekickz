@@ -10,7 +10,7 @@
  * "Freelanz" app). Rebranded to Sidekick and promoted to be the flagship app —
  * see RENAME/MIGRATION below for how existing local data carries over.
  */
-const APP_VERSION = '0.9.44';          // <-> sw.js SW_VERSION 'sidekick-v0.9.44'
+const APP_VERSION = '0.9.49';          // <-> sw.js SW_VERSION 'sidekick-v0.9.49'
 
 // ─── DB ───────────────────────────────────────────────────────────────
 // Per-uid keyed stores (guest uid = 'guest'). M1 actively uses users / jobs /
@@ -689,9 +689,18 @@ const I18N = {
     job_items_chip:'{n} item(s) · {amt}', job_items_qty_ph:'Qty',
     option_status_considering:'Considering', option_status_viewing:'Viewing booked', option_status_interested:'Interested',
     option_status_passed:'Passed', option_status_quoted:'Quoted', option_status_chosen:'Chosen ✓', option_status_dropped:'Dropped',
-    stage_inquiry_label:'Inquiry', stage_inquiry_action:'Log inquiry', stage_inquiry_done:'Inquired',
+    // TSK-012: relabeled per the design handoff's "Advance button labels" —
+    // Inquiry's forward move now reads "Send quote" (you're about to send
+    // one) and Quote's reads "Client accepted" (renamed from "Mark booked"
+    // per the owner's ambiguity question) — see loop/design-handoff/README.md
+    // §3. The doc-gen "send the actual quote document" trigger deliberately
+    // STAYS wired to the Quote stage (pipelineAction()), not moved to
+    // Inquiry — an intentional, documented compromise (see project-changelog
+    // entry for this task) to avoid destabilizing the proven quote/invoice
+    // flow for a label-only change.
+    stage_inquiry_label:'Inquiry', stage_inquiry_action:'Send quote', stage_inquiry_done:'Inquired',
     stage_inquiry_hint:'Inquiry — a prospective client reached out, not booked yet.',
-    stage_quote_label:'Quote', stage_quote_action:'Send quote', stage_quote_done:'Quote sent',
+    stage_quote_label:'Quote', stage_quote_action:'Client accepted', stage_quote_done:'Quote sent',
     stage_quote_hint:'Quote — waiting on a price quote to go out.',
     stage_booked_label:'Booked', stage_booked_action:'Start delivery', stage_booked_done:'Booked',
     stage_booked_hint:'Booked — client accepted; invoice and payment tracked here, delivery next.',
@@ -699,6 +708,45 @@ const I18N = {
     stage_deliver_hint:'Deliver — sessions in progress; mark complete when finished, or offer a renewal.',
     send_invoice_btn:'+ Invoice', mark_paid_btn:'Mark paid', renewal_job_note:'Renewal follow-up',
     pl_nothing_here:'Nothing here yet',
+    // ── TSK-011/012/013: task-flow card redesign ──
+    pl_cancel_btn:'Cancel', pl_redo_btn:'↻ Redo',
+    pl_attempt_badge:'↻ Attempt {n}',
+    pl_note_prefix:'✎ “{note}”',
+    pl_deadline_followup:'Follow up by {date} · postpone ↻',
+    pl_deadline_overdue:'Overdue — {date}',
+    pl_pending_banner:'⚠ No date booked for this stage — tap to book',
+    pl_package_sessions_label:'Package sessions {used} / {total}',
+    pl_log_session_btn:'Log session {n} of {m} →',
+    pl_log_final_session_btn:'Log final session ✓',
+    pl_hint_dismiss:'Got it',
+    gate_note_ph:'Optional note',
+    gate_book_move_btn:'Book & move', gate_skip_btn:'Skip',
+    gate_save_date_btn:'Save date', gate_rebook_btn:'Rebook',
+    gate_cancel_job_btn:'Cancel job', gate_keep_it_btn:'Keep it',
+    gate_book_date_btn:'Book date', gate_book_next_session_btn:'Book next session',
+    gate_send_renewal_btn:'Send renewal quote', gate_just_complete_btn:'Just complete',
+    gate_inquiry_quote_title:'Book the follow-up',
+    gate_inquiry_quote_context:'Set a deadline for the quote to go out.',
+    gate_quote_booked_title:'Client accepted 🎉',
+    gate_quote_booked_context:'Pick the session date.',
+    gate_booked_deliver_title:'Book the hand-off',
+    gate_booked_deliver_context:'When does delivery start?',
+    gate_redo_title:'Redo this step',
+    gate_redo_context:"Response didn't fit — pick a revised date.",
+    gate_postpone_title:'Postpone',
+    gate_postpone_context:'Client asked to move it.',
+    gate_cancel_title:'Cancel this job',
+    gate_cancel_context:'A note helps spot patterns later.',
+    gate_pending_title:'Book the next step',
+    gate_pending_context:'When is the next step for {job}?',
+    gate_pkg_session_title:'Session delivered ✓',
+    gate_pkg_session_context:'Book the next session now.',
+    gate_pkg_final_title:'Final session — package complete 🎉',
+    gate_pkg_final_context:'Renew without a gap?',
+    pl_postponed_toast:'Postponed to {date}',
+    pl_session_logged_toast:'Session logged — {used} / {total}',
+    pl_package_complete_toast:'Package complete — renewal card in Quote',
+    pl_package_complete_no_renewal_toast:'Package complete',
     // dashboard
     earned_this_month:'Earned this month', net_after_expenses:'net after expenses',
     stat_jobs:'Sessions', stat_avg:'Avg / session', stat_expenses:'Expenses',
@@ -706,6 +754,9 @@ const I18N = {
     my_task_goal:'My Task Goal', period_month:'Month', period_quarter:'Quarter', period_year:'Year',
     goal_pace_on:'On pace — ', goal_to_go_month:' to go this month', goal_to_go_quarter:' to go this quarter', goal_to_go_year:' to go this year',
     incoming_pipeline:'Up next', incoming_pipeline_empty:'Nothing scheduled.', incoming_pipeline_empty_sub:'New engagements will appear here as you log sessions.',
+    // TSK-009: merged "Today" card (home-alert-card + attn-card + incoming-pipeline)
+    today_title:'Today', today_empty:'All caught up', today_empty_sub:'Nothing needs attention right now — new items appear here as they come up.',
+    today_pill_renew:'Renew', today_pill_booked:'Booked', today_next_up:'Next up',
     coming_m2:'Invoices ship in M2',
     // job form
     add_job:'Add session', edit_job:'Edit session', save_job:'Save session', delete_job:'Delete session',
@@ -713,6 +764,9 @@ const I18N = {
     field_client:'Member', field_amount:'Fee', field_tip:'Tip', field_expense:'Expense', field_count:'Sessions', field_notes:'Notes',
     field_notes_ph:'Anything to remember…',
     net_take:'Net take',
+    // TSK-008: Quick log / Full details segmented control + drill-row counts
+    job_seg_quick:'Quick log', job_seg_full:'Full details',
+    drill_steps_unit:'step(s)', drill_milestones_unit:'milestone(s)', drill_running_suffix:'running',
     // validation
     err_enter_date:'Please pick a date', err_amount:'Amount must be 0 or more', err_neg:'Values cannot be negative', err_too_big:'That value is too large',
     // settings
@@ -720,6 +774,21 @@ const I18N = {
     edit_name_title:'Edit your name', save_name:'Save name',
     preferences:'Preferences', currency:'Currency', theme:'Theme', language:'Language',
     theme_auto:'Auto', theme_light:'Light', theme_dark:'Dark',
+    // TSK-002/007 More/Settings rebuild: Tools grid, "Set up your business"
+    // drill-in group + status pills, and the 4 drill-in sub-page headers.
+    tools_grid_title:'Tools',
+    followups_tool_sub:'Stay on top of it', followups_due_today:'{n} due today',
+    portfolio_tool_sub:'Photo & video library', research_tool_sub:'Content library', insights_tool_sub:'On-device analytics',
+    biz_setup_group_title:'Set up your business',
+    biz_docs_title:'Business & documents', biz_docs_sub:'Info · services · tax defaults · page size',
+    payments_shop_title:'Payments & shop', payments_shop_sub:'PromptPay · channels · storefront link',
+    line_team_title:'LINE & team', line_team_sub:'Booking channel · staff logins',
+    data_backup_title:'Data & backup', data_backup_sub:'CSV exports · JSON backup · restore',
+    status_set_up:'Set up', status_connected:'Connected', status_today:'Today',
+    status_days_ago:'{n}d ago', status_never_backed_up:'Never backed up',
+    data_backup_info_banner:'Last backup: {date} · everything stays on this device unless you export it.',
+    business_setup_title:'Business setup', manage_services_row:'Manage services & products',
+    slipverify_section_title:'Slip verification', export_section_title:'Export', restore_section_title:'Restore',
     business_info_title:'Business info (optional)', business_info_sub:'Fill these in to have them show up automatically on your quotes, invoices, and receipts — none of them are required.',
     business_name:'Business name', business_taxid:'Tax ID', business_address:'Address',
     tax_defaults:'Tax defaults', wht:'Withholding tax %', vat:'VAT %',
@@ -800,9 +869,10 @@ const I18N = {
     wd_mon:'Mon', wd_tue:'Tue', wd_wed:'Wed', wd_thu:'Thu', wd_fri:'Fri', wd_sat:'Sat', wd_sun:'Sun',
     wd_full_mon:'Monday', wd_full_tue:'Tuesday', wd_full_wed:'Wednesday', wd_full_thu:'Thursday',
     wd_full_fri:'Friday', wd_full_sat:'Saturday', wd_full_sun:'Sunday',
-    cal_mode_week:'Week', cal_mode_month:'Month',
+    cal_mode_week:'Week', cal_mode_month:'Month', cal_mode_3day:'3-day',
     cal_prev_week_aria:'Previous week', cal_next_week_aria:'Next week',
     cal_prev_month_aria:'Previous month', cal_next_month_aria:'Next month',
+    cal_prev_3day_aria:'Previous 3 days', cal_next_3day_aria:'Next 3 days',
     session_singular:'session', session_plural:'sessions',
     booking_word:'Booking', no_client_option:'No client',
     cal_gap_free_word:'Free', cal_gap_add_word:'+ add', cal_add_at_time_aria:'Add booking at {time}',
@@ -1149,9 +1219,9 @@ const I18N = {
     job_items_chip:'{n} รายการ · {amt}', job_items_qty_ph:'จำนวน',
     option_status_considering:'กำลังพิจารณา', option_status_viewing:'นัดดูแล้ว', option_status_interested:'สนใจ',
     option_status_passed:'ไม่เอา', option_status_quoted:'เสนอราคาแล้ว', option_status_chosen:'เลือกแล้ว ✓', option_status_dropped:'ยกเลิก',
-    stage_inquiry_label:'สอบถาม', stage_inquiry_action:'บันทึกการสอบถาม', stage_inquiry_done:'สอบถามแล้ว',
+    stage_inquiry_label:'สอบถาม', stage_inquiry_action:'ส่งใบเสนอราคา', stage_inquiry_done:'สอบถามแล้ว',
     stage_inquiry_hint:'สอบถาม — ลูกค้าที่มีแนวโน้มติดต่อมา ยังไม่ได้จองงาน',
-    stage_quote_label:'เสนอราคา', stage_quote_action:'ส่งใบเสนอราคา', stage_quote_done:'ส่งใบเสนอราคาแล้ว',
+    stage_quote_label:'เสนอราคา', stage_quote_action:'ลูกค้ายอมรับแล้ว', stage_quote_done:'ส่งใบเสนอราคาแล้ว',
     stage_quote_hint:'เสนอราคา — รอส่งใบเสนอราคาให้ลูกค้า',
     stage_booked_label:'จองแล้ว', stage_booked_action:'เริ่มส่งมอบ', stage_booked_done:'จองแล้ว',
     stage_booked_hint:'จองแล้ว — ลูกค้ายอมรับแล้ว ติดตามใบแจ้งหนี้และการชำระเงินที่นี่',
@@ -1159,6 +1229,45 @@ const I18N = {
     stage_deliver_hint:'ส่งมอบ — กำลังดำเนินการ ทำเครื่องหมายเสร็จสิ้นเมื่อจบงาน หรือเสนอการต่ออายุ',
     send_invoice_btn:'+ ใบแจ้งหนี้', mark_paid_btn:'บันทึกว่าชำระแล้ว', renewal_job_note:'ติดตามผลการต่ออายุ',
     pl_nothing_here:'ยังไม่มีงานในขั้นตอนนี้',
+    // ── TSK-011/012/013: task-flow card redesign ──
+    pl_cancel_btn:'ยกเลิก', pl_redo_btn:'↻ ทำใหม่',
+    pl_attempt_badge:'↻ ครั้งที่ {n}',
+    pl_note_prefix:'✎ “{note}”',
+    pl_deadline_followup:'ติดตามภายใน {date} · เลื่อน ↻',
+    pl_deadline_overdue:'เลยกำหนด — {date}',
+    pl_pending_banner:'⚠ ยังไม่ได้นัดวันสำหรับขั้นตอนนี้ — แตะเพื่อนัด',
+    pl_package_sessions_label:'ครั้งที่ใช้แพ็กเกจ {used} / {total}',
+    pl_log_session_btn:'บันทึกครั้งที่ {n} จาก {m} →',
+    pl_log_final_session_btn:'บันทึกครั้งสุดท้าย ✓',
+    pl_hint_dismiss:'เข้าใจแล้ว',
+    gate_note_ph:'บันทึกเพิ่มเติม (ไม่บังคับ)',
+    gate_book_move_btn:'นัดและย้าย', gate_skip_btn:'ข้าม',
+    gate_save_date_btn:'บันทึกวันที่', gate_rebook_btn:'นัดใหม่',
+    gate_cancel_job_btn:'ยกเลิกงาน', gate_keep_it_btn:'ไม่ยกเลิก',
+    gate_book_date_btn:'นัดวันที่', gate_book_next_session_btn:'นัดครั้งถัดไป',
+    gate_send_renewal_btn:'ส่งใบเสนอราคาต่ออายุ', gate_just_complete_btn:'จบงานเลย',
+    gate_inquiry_quote_title:'นัดติดตามผล',
+    gate_inquiry_quote_context:'กำหนดวันหมดอายุของใบเสนอราคาที่จะส่ง',
+    gate_quote_booked_title:'ลูกค้ายอมรับแล้ว 🎉',
+    gate_quote_booked_context:'เลือกวันนัดครั้งถัดไป',
+    gate_booked_deliver_title:'นัดวันเริ่มส่งมอบ',
+    gate_booked_deliver_context:'เริ่มส่งมอบวันไหน?',
+    gate_redo_title:'ทำขั้นตอนนี้ใหม่',
+    gate_redo_context:'ลูกค้ายังไม่ตอบรับ — เลือกวันที่ใหม่',
+    gate_postpone_title:'เลื่อนนัด',
+    gate_postpone_context:'ลูกค้าขอเลื่อน',
+    gate_cancel_title:'ยกเลิกงานนี้',
+    gate_cancel_context:'บันทึกเหตุผลช่วยดูแนวโน้มในภายหลัง',
+    gate_pending_title:'นัดขั้นตอนถัดไป',
+    gate_pending_context:'ขั้นตอนถัดไปของ {job} คือเมื่อไหร่?',
+    gate_pkg_session_title:'ส่งมอบครั้งนี้แล้ว ✓',
+    gate_pkg_session_context:'นัดครั้งถัดไปตอนนี้เลย',
+    gate_pkg_final_title:'ครั้งสุดท้าย — แพ็กเกจครบแล้ว 🎉',
+    gate_pkg_final_context:'ต่ออายุแบบไม่มีช่วงว่างไหม?',
+    pl_postponed_toast:'เลื่อนไปเป็น {date} แล้ว',
+    pl_session_logged_toast:'บันทึกครั้งนี้แล้ว — {used} / {total}',
+    pl_package_complete_toast:'แพ็กเกจครบแล้ว — สร้างใบเสนอราคาต่ออายุในขั้นเสนอราคาแล้ว',
+    pl_package_complete_no_renewal_toast:'แพ็กเกจครบแล้ว',
     // dashboard
     earned_this_month:'รายได้เดือนนี้', net_after_expenses:'สุทธิหลังหักค่าใช้จ่าย',
     stat_jobs:'เซสชัน', stat_avg:'เฉลี่ย/เซสชัน', stat_expenses:'ค่าใช้จ่าย',
@@ -1166,6 +1275,9 @@ const I18N = {
     my_task_goal:'เป้าหมายงานของฉัน', period_month:'เดือน', period_quarter:'ไตรมาส', period_year:'ปี',
     goal_pace_on:'ตามเป้า — เหลืออีก ', goal_to_go_month:' ในเดือนนี้', goal_to_go_quarter:' ในไตรมาสนี้', goal_to_go_year:' ในปีนี้',
     incoming_pipeline:'ถัดไป', incoming_pipeline_empty:'ยังไม่มีนัดหมาย', incoming_pipeline_empty_sub:'งานใหม่จะปรากฏที่นี่เมื่อคุณบันทึกเซสชัน',
+    // TSK-009: การ์ด "วันนี้" ที่รวม home-alert-card + attn-card + incoming-pipeline
+    today_title:'วันนี้', today_empty:'จัดการครบแล้ว', today_empty_sub:'ตอนนี้ยังไม่มีเรื่องด่วน — รายการใหม่จะปรากฏที่นี่เมื่อมีอัปเดต',
+    today_pill_renew:'ต่ออายุ', today_pill_booked:'จองแล้ว', today_next_up:'ถัดไป',
     coming_m2:'ใบแจ้งหนี้จะเปิดใช้งานใน M2',
     // job form
     add_job:'เพิ่มเซสชัน', edit_job:'แก้ไขเซสชัน', save_job:'บันทึกเซสชัน', delete_job:'ลบเซสชัน',
@@ -1173,6 +1285,9 @@ const I18N = {
     field_client:'สมาชิก', field_amount:'ค่าธรรมเนียม', field_tip:'ทิป', field_expense:'ค่าใช้จ่าย', field_count:'จำนวนเซสชัน', field_notes:'บันทึกช่วยจำ',
     field_notes_ph:'สิ่งที่ต้องจำ…',
     net_take:'รายรับสุทธิ',
+    // TSK-008: ตัวสลับ Quick log / Full details + จำนวนรายการในแถวย่อ
+    job_seg_quick:'บันทึกด่วน', job_seg_full:'รายละเอียดเต็ม',
+    drill_steps_unit:'ขั้นตอน', drill_milestones_unit:'งวดการชำระ', drill_running_suffix:'กำลังจับเวลา',
     // validation
     err_enter_date:'กรุณาเลือกวันที่', err_amount:'จำนวนเงินต้องมากกว่าหรือเท่ากับ 0', err_neg:'ค่าต้องไม่ติดลบ', err_too_big:'ค่านี้สูงเกินไป',
     // settings
@@ -1180,6 +1295,19 @@ const I18N = {
     edit_name_title:'แก้ไขชื่อของคุณ', save_name:'บันทึกชื่อ',
     preferences:'การตั้งค่าทั่วไป', currency:'สกุลเงิน', theme:'ธีม', language:'ภาษา',
     theme_auto:'อัตโนมัติ', theme_light:'สว่าง', theme_dark:'มืด',
+    tools_grid_title:'เครื่องมือ',
+    followups_tool_sub:'ติดตามให้ทัน', followups_due_today:'ครบกำหนดวันนี้ {n} รายการ',
+    portfolio_tool_sub:'คลังภาพและวิดีโอ', research_tool_sub:'คลังความรู้', insights_tool_sub:'ข้อมูลเชิงลึกในเครื่อง',
+    biz_setup_group_title:'ตั้งค่าธุรกิจของคุณ',
+    biz_docs_title:'ธุรกิจ & เอกสาร', biz_docs_sub:'ข้อมูล · บริการ · ค่าเริ่มต้นภาษี · ขนาดหน้ากระดาษ',
+    payments_shop_title:'การชำระเงิน & ร้านค้า', payments_shop_sub:'พร้อมเพย์ · ช่องทางชำระเงิน · ลิงก์ร้านค้า',
+    line_team_title:'LINE & ทีม', line_team_sub:'ช่องทางการจอง · บัญชีพนักงาน',
+    data_backup_title:'ข้อมูล & สำรองข้อมูล', data_backup_sub:'ส่งออก CSV · สำรองข้อมูล JSON · กู้คืน',
+    status_set_up:'ตั้งค่า', status_connected:'เชื่อมต่อแล้ว', status_today:'วันนี้',
+    status_days_ago:'{n} วันที่แล้ว', status_never_backed_up:'ยังไม่เคยสำรองข้อมูล',
+    data_backup_info_banner:'สำรองข้อมูลล่าสุด: {date} · ข้อมูลอยู่ในเครื่องนี้จนกว่าคุณจะส่งออก',
+    business_setup_title:'ตั้งค่าธุรกิจ', manage_services_row:'จัดการบริการ & สินค้า',
+    slipverify_section_title:'ตรวจสอบสลิป', export_section_title:'ส่งออกข้อมูล', restore_section_title:'กู้คืนข้อมูล',
     business_info_title:'ข้อมูลธุรกิจ (ไม่บังคับ)', business_info_sub:'กรอกข้อมูลนี้เพื่อให้แสดงอัตโนมัติในใบเสนอราคา ใบแจ้งหนี้ และใบเสร็จ — ไม่บังคับกรอก',
     business_name:'ชื่อธุรกิจ', business_taxid:'เลขประจำตัวผู้เสียภาษี', business_address:'ที่อยู่',
     tax_defaults:'ค่าเริ่มต้นภาษี', wht:'ภาษีหัก ณ ที่จ่าย %', vat:'ภาษีมูลค่าเพิ่ม %',
@@ -1249,9 +1377,10 @@ const I18N = {
     wd_mon:'จ.', wd_tue:'อ.', wd_wed:'พ.', wd_thu:'พฤ.', wd_fri:'ศ.', wd_sat:'ส.', wd_sun:'อา.',
     wd_full_mon:'วันจันทร์', wd_full_tue:'วันอังคาร', wd_full_wed:'วันพุธ', wd_full_thu:'วันพฤหัสบดี',
     wd_full_fri:'วันศุกร์', wd_full_sat:'วันเสาร์', wd_full_sun:'วันอาทิตย์',
-    cal_mode_week:'สัปดาห์', cal_mode_month:'เดือน',
+    cal_mode_week:'สัปดาห์', cal_mode_month:'เดือน', cal_mode_3day:'3 วัน',
     cal_prev_week_aria:'สัปดาห์ก่อนหน้า', cal_next_week_aria:'สัปดาห์ถัดไป',
     cal_prev_month_aria:'เดือนก่อนหน้า', cal_next_month_aria:'เดือนถัดไป',
+    cal_prev_3day_aria:'ก่อนหน้า 3 วัน', cal_next_3day_aria:'ถัดไป 3 วัน',
     session_singular:'เซสชัน', session_plural:'เซสชัน',
     booking_word:'การจอง', no_client_option:'ไม่มีลูกค้า',
     cal_gap_free_word:'ว่าง', cal_gap_add_word:'+ เพิ่ม', cal_add_at_time_aria:'เพิ่มการจองเวลา {time}',
@@ -1592,6 +1721,20 @@ function applyTheme() {
 async function onThemeChange(v) {
   localStorage.setItem(THEME_KEY, (v === 'dark' || v === 'auto') ? v : 'light');
   applyTheme();
+  renderThemeSeg();
+}
+// TSK-002/007: Theme moved from a native <select id="set-theme"> to a
+// 3-button segmented control (reusing the already-declared, previously-
+// unwired .seg/.seg button.on CSS — see design-handoff README §5 + the
+// research assessment's §3). This just toggles which button carries `.on`;
+// onThemeChange() above (unchanged signature, still takes 'light'|'dark'|
+// 'auto') does the actual persist + apply.
+function renderThemeSeg() {
+  const cur = localStorage.getItem(THEME_KEY) || 'light';
+  ['light', 'dark', 'auto'].forEach(v => {
+    const b = document.getElementById('seg-theme-' + v);
+    if (b) b.classList.toggle('on', v === cur);
+  });
 }
 
 // ─── BOOT ─────────────────────────────────────────────────────────────
@@ -1742,7 +1885,7 @@ async function enterApp() {
   if (settings.wht == null) settings.wht = 3;
   if (settings.vat == null) settings.vat = 7;
   const set = (id, v) => { const el = document.getElementById(id); if (el != null && v != null) el.value = v; };
-  set('set-theme', localStorage.getItem(THEME_KEY) || 'light');
+  renderThemeSeg();
   set('set-lang', settings.lang || 'th');
   set('set-currency', settings.currency || 'THB');
   set('set-page-size', settings.docPageSize || 'A4');
@@ -2092,9 +2235,16 @@ async function unlockInsights() {
   applyInsightsVisibility();
   toast(t('insights_unlocked'));
 }
+// TSK-002/007: Insights moved from a "More tools" settings-row to a Tools-
+// grid tile (#tool-tile-insights). The design mockup shows it as a
+// permanently-visible tile with no gating, but per the research assessment
+// (§1.2) this stays hidden-until-unlocked — dropping the tap-version-7x
+// easter egg silently would expose a dev/power-user-only screen to everyone,
+// a bigger behavior change than this rebuild is meant to make. Decision
+// logged in project-changelog-handshake-gym.md.
 function applyInsightsVisibility() {
-  const row = document.getElementById('insights-row');
-  if (row) row.style.display = settings.insightsUnlocked ? 'flex' : 'none';
+  const tile = document.getElementById('tool-tile-insights');
+  if (tile) tile.hidden = !settings.insightsUnlocked;
 }
 const SCREEN_LABELS = {
   home:'Home', pipeline:'Task flow', customers:'Clients', book:'Calendar', more:'Settings',
@@ -2247,6 +2397,72 @@ function updateMoreNavBadge() {
   const badge = document.getElementById('more-nav-badge');
   if (!badge) return;
   badge.style.display = backupReminderDue() ? 'flex' : 'none';
+}
+
+// ─── TSK-002/007 More/Settings rebuild: root status pills + Tools-grid badge
+// ─────────────────────────────────────────────────────────────────────────
+// "Data & backup" row's accessory: a relative timestamp (design shows "2d
+// ago"), reusing daysSinceISO()/settings.lastBackupAt — the exact same field
+// backupReminderDue() already reads, not a second tracked value. Also
+// updates the info banner at the top of the #s-more-data drill-in itself.
+function renderDataBackupStatus() {
+  const pill = document.getElementById('pill-data-backup');
+  if (pill) {
+    pill.textContent = !settings.lastBackupAt ? t('status_never_backed_up')
+      : (daysSinceISO(settings.lastBackupAt) <= 0 ? t('status_today')
+        : t('status_days_ago').replace('{n}', daysSinceISO(settings.lastBackupAt)));
+  }
+  const banner = document.getElementById('data-backup-banner');
+  if (banner) {
+    const last = settings.lastBackupAt ? fmtDate(settings.lastBackupAt.slice(0, 10)) : t('backup_never');
+    banner.textContent = t('data_backup_info_banner').replace('{date}', last);
+  }
+}
+// "Payments & shop" row's accessory pill — amber "Set up" / green "Connected"
+// reflecting whether any payment channel is actually configured (reuses
+// paymentChannels(), the same array renderPaymentChannels() itself reads;
+// this is never a separately-tracked flag).
+function updatePaymentsPill() {
+  const el = document.getElementById('pill-payments');
+  if (!el) return;
+  const has = paymentChannels().length > 0;
+  el.className = 'status-pill ' + (has ? 'green' : 'amber');
+  el.textContent = has ? t('status_connected') : t('status_set_up');
+}
+// "LINE & team" row's accessory pill — driven by the same LINE-channel
+// connected/disconnected boolean renderLineChannelSection() already fetches
+// from SidekickBackend.lineChannelStatus() (see that function's call sites
+// below); never a second network round trip.
+function updateLineTeamPill(connected) {
+  const el = document.getElementById('pill-line-team');
+  if (!el) return;
+  el.className = 'status-pill ' + (connected ? 'green' : 'amber');
+  el.textContent = connected ? t('status_connected') : t('status_set_up');
+}
+// Follow-ups Tools-grid tile: marigold count badge + "N due today" sub-line.
+// followups.js's queue has no distinct "due today" date field (see that
+// module's header) — the whole active queue (overdue invoices, stale drafts,
+// stale customers, used-up packages) IS the "needs attention now" set, so
+// its length is the real, non-fabricated count. followupsDueCount() (defined
+// in followups.js, reuses buildQueue() — never recomputed here) is the
+// single source; this just paints it onto the tile.
+async function renderFollowupsTile() {
+  const badge = document.getElementById('tool-badge-followups');
+  const sub = document.getElementById('tool-sub-followups');
+  if (!badge || !sub) return;
+  let n = 0;
+  if (typeof window.followupsDueCount === 'function') {
+    try { n = await window.followupsDueCount(); } catch (e) { n = 0; }
+  }
+  if (n > 0) {
+    badge.hidden = false; badge.textContent = String(n);
+    sub.textContent = t('followups_due_today').replace('{n}', n);
+    sub.classList.add('marigold');
+  } else {
+    badge.hidden = true;
+    sub.textContent = t('followups_tool_sub');
+    sub.classList.remove('marigold');
+  }
 }
 
 // ─── Cloud backup (beta) — Phase 1 of the local-first -> backend migration
@@ -2774,16 +2990,19 @@ async function renderLineChannelSection() {
         <span style="font-size:12px;color:var(--text3)">${htmlEsc(t('line_booking_locked'))}</span>
       </div>`;
     if (slotsEl) slotsEl.innerHTML = '';
+    updateLineTeamPill(false);
     return;
   }
   if (isGuest || typeof SidekickBackend === 'undefined' || !SidekickBackend.isEnabled()) {
     el.innerHTML = `<p style="font-size:12px;color:var(--text3);margin:0 16px 14px">${htmlEsc(t('line_booking_needs_account_hint'))}</p>`;
     if (slotsEl) slotsEl.innerHTML = '';
+    updateLineTeamPill(false);
     return;
   }
   const r = await SidekickBackend.lineChannelStatus();
-  if (!r.ok) { el.innerHTML = ''; if (slotsEl) slotsEl.innerHTML = ''; return; }
+  if (!r.ok) { el.innerHTML = ''; if (slotsEl) slotsEl.innerHTML = ''; updateLineTeamPill(false); return; }
   const s = r.data;
+  updateLineTeamPill(!!s.connected);
   if (!s.connected) {
     el.innerHTML = `
       <div class="field" style="padding:0 16px">
@@ -3593,16 +3812,12 @@ async function renderHome() {
   setTxt('stat-exp-val', money(exp));
 
   renderGoal();
-  renderHomeAlert();
-  renderHomeAttention();
   updateMoreNavBadge();
-  renderIncomingPipeline();
+  renderHomeToday();
 }
-// M4 Pass P2 — "Needs attention" card: pending public shop order requests
-// (Settings ▸ Shop) + invoices carrying a client-uploaded slip the
-// freelancer hasn't opened yet. Both signals are backend-only concepts
-// (order_requests and slip `source`/`at` tracking both only exist once
-// cloud backup is on) — same gated pattern as renderShopSection().
+// ─── HOME "TODAY" CARD (TSK-009 — merges the old home-alert-card,
+// attn-card "Needs attention" and incoming-pipeline "Up next" into one
+// prioritized list-card) ────────────────────────────────────────────────
 //
 // orderRequestsList() is a real network fetch, and renderHome() can run on
 // every screen switch/save — caching it here for ATTN_ORDERS_CACHE_MS keeps
@@ -3632,49 +3847,62 @@ async function attnNewSlipInvoiceCount() {
     inv.slips.some(s => s && s.source === 'client' && String(s.at || '') > String(inv.slipsSeenAt || ''))
   ).length;
 }
-async function renderHomeAttention() {
-  const card = document.getElementById('attn-card');
-  if (!card) return;
-  const backendReady = !isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled();
-  if (!backendReady) { card.style.display = 'none'; return; }
-  const [ordersN, slipsN] = await Promise.all([attnOrdersCount(), attnNewSlipInvoiceCount()]);
-  if (!ordersN && !slipsN) { card.style.display = 'none'; return; }
-  const rows = [];
-  if (ordersN) rows.push(`<div class="list-row" onclick="switchScreen('more')">
-      <div class="list-main"><div class="list-title">${htmlEsc(t('attn_orders').replace('{n}', ordersN))}</div></div>
-    </div>`);
-  if (slipsN) rows.push(`<div class="list-row" onclick="switchScreen('invoices')">
-      <div class="list-main"><div class="list-title">${htmlEsc(t('attn_slips').replace('{n}', slipsN))}</div></div>
-    </div>`);
-  const body = document.getElementById('attn-body');
-  if (body) body.innerHTML = rows.join('');
-  card.style.display = 'block';
+// Today's next not-yet-started booking (TSK-009: new capability — the design
+// mockup's "16:00 — Session with Mek / Next up · Booked" row has no equivalent
+// pre-merge source; a `booked`-stage pipeline job is a different concept (no
+// time-of-day, no "next" selection) so this reads the real bookings store
+// instead of re-purposing pipeline data. Same store computeNotificationConditions()
+// already reads for the "upcoming booking" OS notification, so Home and the
+// notification never disagree about what "today's next booking" means.
+async function nextBookingToday() {
+  const uid = isGuest ? 'guest' : currentUser.id;
+  const todayStr = todayISO();
+  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+  const rows = (await dbAll('bookings'))
+    .filter(b => b.uid === uid && b.status === 'scheduled' && b.date === todayStr && hhmmToMin(b.startTime) >= nowMin)
+    .sort((a, b) => hhmmToMin(a.startTime) - hhmmToMin(b.startTime));
+  return rows[0] || null;
 }
-// Amber alert card — surfaces the single highest-priority "needs attention"
-// item (same computeClientsNeedingAttention() source as the Clients screen's
-// own list) right on Home, with one action button, instead of making the
-// user go find it. Tapping the card body (not the button) jumps to Clients
-// to see the rest.
-async function renderHomeAlert() {
-  const card = document.getElementById('home-alert-card');
-  if (!card) return;
-  const items = await computeClientsNeedingAttention();
-  if (!items.length) { card.style.display = 'none'; return; }
-  card.style.display = 'flex';
-  const top = items[0];
-  const extra = items.length - 1;
-  document.getElementById('home-alert-text').textContent = `${top.client.name} — ${top.reason}` + (extra > 0 ? ` (+${extra} more)` : '');
-  const btn = document.getElementById('home-alert-btn');
-  btn.textContent = top.actionLabel;
-  btn.onclick = (e) => { e.stopPropagation(); top.action(); };
+// Icon-tile SVGs for the Today card's row types — 24x24 viewBox, stroke-width
+// 1.8, stroke=currentColor, matching the design handoff's icon convention
+// (loop/design-handoff/README.md §1) and STAGE_META's existing icon style.
+const TODAY_ICON_INVOICE = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>';
+const TODAY_ICON_SLIP = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/>';
+const TODAY_ICON_RENEW = '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>';
+const TODAY_ICON_ORDERS = '<path d="M20.5 7.3 12 12l-8.5-4.7M12 12v9M3.5 7.3v9.4a1 1 0 0 0 .5.87l7.5 4.15a1 1 0 0 0 1 0l7.5-4.15a1 1 0 0 0 .5-.87V7.3a1 1 0 0 0-.5-.87l-7.5-4.15a1 1 0 0 0-1 0l-7.5 4.15a1 1 0 0 0-.5.87Z"/>';
+const TODAY_ICON_CLOCK = '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>';
+function todayIconHtml(bg, stroke, inner) {
+  return `<div class="list-icon" style="background:${bg};color:${stroke}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${inner}</svg></div>`;
 }
-// Incoming pipeline: replaces the old Action Queue nudge list with a direct
-// preview of active engagements, so Home shows what's actually moving through
-// the pipeline instead of a separate notification-style summary. Overdue
-// invoices / imminent bookings / stale engagements still drive OS-level
-// notifications (checkAndFireNotifications(), unaffected by this) — this is
-// just Home's own in-app view.
-const INCOMING_PIPELINE_LIMIT = 6;
+function todayRowHtml(iconHtml, onclick, title, sub, rightHtml) {
+  return `<div class="list-row" onclick="${onclick}">
+      ${iconHtml}
+      <div class="list-main">
+        <div class="list-title">${title}</div>
+        <div class="list-sub">${sub}</div>
+      </div>
+      <div class="list-right">${rightHtml}</div>
+    </div>`;
+}
+// Attention rows (overdue invoice / package expiring / package almost done) —
+// tapping the row runs the item's own action directly (remind / offer
+// renewal), matching the single-tap-per-row pattern every other Today row
+// (and the design mockup) uses, rather than the old home-alert-card's split
+// of "tap card body to jump to Clients, tap the button to act".
+function attentionRowHtml(item, idx) {
+  const title = htmlEsc(item.client.name);
+  const sub = htmlEsc(item.todaySub || item.reason);
+  if (item.kind === 'overdue') {
+    return todayRowHtml(
+      todayIconHtml('var(--brand-tint)', 'var(--brand)', TODAY_ICON_INVOICE),
+      `window.__todayAttentionActions[${idx}]()`, title, sub,
+      `<span class="list-amt tnum" style="color:var(--overdue)">${htmlEsc(money(item.amount))}</span>`);
+  }
+  return todayRowHtml(
+    todayIconHtml('var(--marigold-tint)', 'var(--marigold-ink)', TODAY_ICON_RENEW),
+    `window.__todayAttentionActions[${idx}]()`, title, sub,
+    `<span class="list-pill list-pill-marigold">${htmlEsc(t('today_pill_renew'))}</span>`);
+}
 function incomingPipelineRowHtml(j) {
   const stage = jobStage(j);
   const meta = STAGE_META[stage] || {};
@@ -3682,42 +3910,110 @@ function incomingPipelineRowHtml(j) {
   const subParts = [htmlEsc((meta.label && t(meta.label)) || stage || '')];
   if (pkg) subParts.push(`${packageUsed(pkg)} ${t('goal_of')} ${htmlEsc(pkg.totalSessions)}`);
   else if (j.serviceName) subParts.push(htmlEsc(j.serviceName));
-  return `<div class="list-row" onclick="openPipelineAt('${stage}')">
-      <div class="list-icon" style="background:${meta.dot}22;color:${meta.dot}">${meta.icon || ''}</div>
-      <div class="list-main">
-        <div class="list-title">${htmlEsc(j.client || 'Client')}</div>
-        <div class="list-sub">${subParts.join(' · ')}</div>
-      </div>
-      <div class="list-right"><div class="list-amt tnum">${htmlEsc(money(j.amount))}</div></div>
-    </div>`;
+  return todayRowHtml(
+    `<div class="list-icon" style="background:${meta.dot}22;color:${meta.dot}">${meta.icon || ''}</div>`,
+    `openPipelineAt('${stage}')`, htmlEsc(j.client || 'Client'), subParts.join(' · '),
+    `<div class="list-amt tnum">${htmlEsc(money(j.amount))}</div>`);
 }
-function renderIncomingPipeline() {
-  const el = document.getElementById('incoming-pipeline-body');
+// Row-type inventory (TSK-009 merge — every row type the pre-merge surfaces
+// could produce is still representable here; see loop/backlog-inbox.md
+// TSK-009 and the merge research map for the full audit):
+//   1. Overdue invoice reminder       — was home-alert-card
+//   2. Package expiring soon          — was home-alert-card
+//   3. Package almost done            — was home-alert-card
+//   4. Shop order requests waiting    — was attn-card (backend-only)
+//   5. Invoices with new client slips — was attn-card (backend-only)
+//   6. Next booking today             — NEW capability (see nextBookingToday())
+//   7. Active pipeline job preview    — was incoming-pipeline "Up next"
+//
+// Priority order (most urgent/actionable first): overdue invoices ->
+// package-expiring -> package-almost-done -> backend order requests ->
+// backend new-slip invoices -> today's next booking -> general pipeline
+// preview. The pipeline preview goes LAST because — per the merge research —
+// it's the one row type that ISN'T itself an urgency signal (every active
+// job shows up there, urgent or not); everything above it is a real
+// "needs your attention" or "happening soon" item.
+//
+// Row-count caps: attention rows (overdue/expiring/almost combined) are
+// capped at TODAY_ATTENTION_LIMIT with a "+N more" jump to Clients — the old
+// home-alert-card only ever showed its single highest-priority item (+"(+N
+// more)" text); the merged card has room for a few more before folding, so
+// the cap is raised from 1 to 4. attn-card's two backend rows are unchanged
+// (0-2, gated on backend+guest state). The next-booking row is naturally
+// 0-1. The pipeline preview keeps its pre-existing INCOMING_PIPELINE_LIMIT
+// (6) + "+N more in Pipeline" link, unchanged from before the merge.
+const TODAY_ATTENTION_LIMIT = 4;
+const INCOMING_PIPELINE_LIMIT = 6;
+async function renderHomeToday() {
+  const el = document.getElementById('today-body');
   if (!el) return;
   const uid = isGuest ? 'guest' : currentUser.id;
+  const backendReady = !isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled();
+
+  const [attentionAll, ordersN, slipsN, booking] = await Promise.all([
+    computeClientsNeedingAttention(),
+    backendReady ? attnOrdersCount() : Promise.resolve(0),
+    backendReady ? attnNewSlipInvoiceCount() : Promise.resolve(0),
+    nextBookingToday(),
+  ]);
+
+  const kindRank = { overdue: 0, expiring: 1, almost: 2 };
+  const attention = attentionAll.slice().sort((a, b) => {
+    const kr = kindRank[a.kind] - kindRank[b.kind];
+    return kr !== 0 ? kr : (a.sortKey - b.sortKey);
+  });
+  const attentionShown = attention.slice(0, TODAY_ATTENTION_LIMIT);
+  window.__todayAttentionActions = attentionShown.map(item => item.action);
+
   const order = getStageOrder();
   // Earliest stage first (newest leads read as most "incoming"), then oldest
   // updatedAt within the same stage (surfaces stalled engagements first —
   // keeps the one thing the old stale-engagement nudge was good for).
-  const active = jobs.filter(j => j.uid === uid && !jobComplete(j)).sort((a, b) => {
+  const activePipeline = jobs.filter(j => j.uid === uid && !jobComplete(j)).sort((a, b) => {
     const ai = order.indexOf(jobStage(a)), bi = order.indexOf(jobStage(b));
     if (ai !== bi) return ai - bi;
     return (a.updatedAt || '').localeCompare(b.updatedAt || '');
   });
-  const shown = active.slice(0, INCOMING_PIPELINE_LIMIT);
-  if (!shown.length) {
+  const pipelineShown = activePipeline.slice(0, INCOMING_PIPELINE_LIMIT);
+
+  const rows = [];
+  attentionShown.forEach((item, idx) => rows.push(attentionRowHtml(item, idx)));
+  if (ordersN) rows.push(todayRowHtml(
+    todayIconHtml('var(--brand-tint)', 'var(--brand)', TODAY_ICON_ORDERS),
+    "switchScreen('more')", htmlEsc(t('attn_orders').replace('{n}', ordersN)), '', ''));
+  if (slipsN) rows.push(todayRowHtml(
+    todayIconHtml('var(--brand-tint)', 'var(--brand)', TODAY_ICON_SLIP),
+    "switchScreen('invoices')", htmlEsc(t('attn_slips').replace('{n}', slipsN)), '', ''));
+  if (booking) {
+    const cust = customers.find(c => c.id === booking.customerId);
+    const title = `${htmlEsc(booking.startTime || '')} — ${htmlEsc(booking.title || (cust && cust.name) || t('field_client'))}`;
+    const sub = [t('today_next_up'), booking.location].filter(Boolean).map(htmlEsc).join(' · ');
+    rows.push(todayRowHtml(
+      todayIconHtml('var(--brand-tint)', 'var(--brand)', TODAY_ICON_CLOCK),
+      "switchScreen('book')", title, sub,
+      `<span class="list-pill list-pill-paid">${htmlEsc(t('today_pill_booked'))}</span>`));
+  }
+  pipelineShown.forEach(j => rows.push(incomingPipelineRowHtml(j)));
+
+  if (!rows.length) {
     el.innerHTML = `<div class="empty"><div class="empty-icon">✅</div>
-        <p data-i18n="incoming_pipeline_empty">${t('incoming_pipeline_empty')}</p>
-        <span data-i18n="incoming_pipeline_empty_sub">${t('incoming_pipeline_empty_sub')}</span></div>`;
+        <p data-i18n="today_empty">${t('today_empty')}</p>
+        <span data-i18n="today_empty_sub">${t('today_empty_sub')}</span></div>`;
     return;
   }
-  let html = '<div class="list-card">' + shown.map(incomingPipelineRowHtml).join('') + '</div>';
-  if (active.length > shown.length) {
-    html += `<div style="text-align:center;padding:12px;color:var(--brand);font-weight:700;font-size:13px;cursor:pointer" onclick="switchScreen('pipeline')">+${active.length - shown.length} more in Pipeline →</div>`;
+
+  let html = '<div class="list-card">' + rows.join('') + '</div>';
+  const extraAttention = attention.length - attentionShown.length;
+  if (extraAttention > 0) {
+    html += `<div style="text-align:center;padding:12px;color:var(--marigold-ink);font-weight:700;font-size:13px;cursor:pointer" onclick="switchScreen('customers')">+${extraAttention} more need attention →</div>`;
+  }
+  const extraPipeline = activePipeline.length - pipelineShown.length;
+  if (extraPipeline > 0) {
+    html += `<div style="text-align:center;padding:12px;color:var(--brand);font-weight:700;font-size:13px;cursor:pointer" onclick="switchScreen('pipeline')">+${extraPipeline} more in Pipeline →</div>`;
   }
   el.innerHTML = html;
 }
-window.renderIncomingPipeline = renderIncomingPipeline;
+window.renderHomeToday = renderHomeToday;
 // My Task Goal — replaces the old single daily-goal card with a Month /
 // Quarter / Year switch, each period tracking its own target and net-income
 // progress. settings.goalTargets = {month, quarter, year} (migrated once
@@ -3825,17 +4121,21 @@ function refreshJobPackageRow(clientId, existingPackageId) {
     if (!pkg) pkg = activePackageFor(cid);
   }
   if (!pkg) {
+    row.dataset.wantShow = 'false';   // TSK-008: business-logic want-shown flag; applyJobModalMode() ANDs this with the Quick/Full mode gate
     row.style.display = 'none';
     hidden.value = '';
     checkbox.checked = false;
+    applyJobModalMode();
     return;
   }
+  row.dataset.wantShow = 'true';
   row.style.display = 'flex';
   hidden.value = pkg.id;
   label.textContent = `${t('apply_to_package')} (${packageRemaining(pkg)} ${t('of_label')} ${pkg.totalSessions} ${t('left_label')})`;
   checkbox.checked = existingPackageId != null ? existingPackageId === pkg.id : true;
   const countLabel = document.getElementById('j-count-label');
   if (countLabel) countLabel.textContent = packageUnitLabel();
+  applyJobModalMode();   // re-apply the Quick/Full gate on top of the row's own visibility logic
   refreshPackageFastPathButton(cid);
 }
 // "Ship remaining service" fast path — for a client who already has an
@@ -3960,6 +4260,46 @@ function onJobServiceChange(v) {
   const s = services.find(x => x.id === parseInt(v));
   if (s) { document.getElementById('j-amount').value = s.rate; calcNet(); }
 }
+// TSK-008: Quick log / Full details segmented control (design-handoff
+// README §2). This is a presentation-only toggle — every field/section
+// stays in the DOM regardless of mode and keeps whatever value it was
+// populated with, so saveJob() and the sub-feature renderers (renderJob
+// Options/Items/SubTasks/Milestones/Timer) are completely unaffected; only
+// applyJobModalMode()'s display toggles change. That's also what keeps the
+// existing Playwright suites working: they can still reach every element
+// by id, they just need to open the relevant drill row (or switch to Full
+// details) first — see tests/check-*.js and check-job-modal-v2.js.
+let jobModalMode = 'quick';
+function setJobModalMode(mode) {
+  jobModalMode = (mode === 'full') ? 'full' : 'quick';
+  applyJobModalMode();
+}
+window.setJobModalMode = setJobModalMode;
+function applyJobModalMode() {
+  const full = jobModalMode === 'full';
+  const quickSeg = document.getElementById('seg-job-quick');
+  const fullSeg = document.getElementById('seg-job-full');
+  if (quickSeg) quickSeg.classList.toggle('on', !full);
+  if (fullSeg) fullSeg.classList.toggle('on', full);
+  // Full-details-only fields: Service, Expense/Sessions, Notes.
+  ['j-service-field', 'j-full-row', 'j-notes-field'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = full ? '' : 'none';
+  });
+  // j-package-row has its own show/hide business logic (refreshJobPackageRow,
+  // gated on whether the selected client actually has a linked/active
+  // package) — this only ANDs the Quick/Full mode on top of that, it never
+  // shows the row when the business logic itself says there's no package.
+  const pkgRow = document.getElementById('j-package-row');
+  if (pkgRow) pkgRow.style.display = (full && pkgRow.dataset.wantShow === 'true') ? 'flex' : 'none';
+  // The 4 drill-row sections only ever exist once a job is saved (edit
+  // mode) — add-mode has nothing to show yet (sub-tasks/milestones/items/
+  // options/time all need a saved job id). openAddJob/openEditJob stamp
+  // dataset.editMode so add-mode stays hidden even if Full details is tapped.
+  const tracking = document.getElementById('job-tracking-section');
+  if (tracking && tracking.dataset.editMode === 'true') tracking.style.display = full ? 'block' : 'none';
+}
+window.applyJobModalMode = applyJobModalMode;
 function openAddJob(dateISO) {
   document.getElementById('modal-title').textContent = t('add_job');
   document.getElementById('j-edit-id').value = '';
@@ -3967,10 +4307,13 @@ function openAddJob(dateISO) {
   ['j-amount','j-tip','j-expense','j-count','j-notes'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   populateJobSelects('', '');
   resetPackageFastPath();
-  refreshJobPackageRow(null, null);
-  document.getElementById('j-delete').style.display = 'none';
   // Sub-tasks/milestones/time tracking all need a saved job id to attach to.
-  document.getElementById('job-tracking-section').style.display = 'none';
+  const tracking = document.getElementById('job-tracking-section');
+  if (tracking) tracking.dataset.editMode = 'false';
+  jobModalMode = 'quick';   // a brand-new job always opens Quick log
+  refreshJobPackageRow(null, null);   // also applies the mode (calls applyJobModalMode())
+  applyJobModalMode();
+  document.getElementById('j-delete').style.display = 'none';
   clearFieldErrors();
   calcNet();
   openJobModal();
@@ -3986,11 +4329,23 @@ function openEditJob(id) {
   set('j-amount', j.amount); set('j-tip', j.tip);
   set('j-expense', j.expense); set('j-count', j.count); set('j-notes', j.notes);
   populateJobSelects(j.clientId != null ? j.clientId : '', j.serviceId != null ? j.serviceId : '');
+  // TSK-008 design decision (research map §5): an edit must never silently
+  // hide data the job already has behind Quick log — so a job carrying
+  // anything in a "full" field (expense, notes, sessions, or any sub-
+  // feature: options/items/plan-and-payments/time) opens straight into
+  // Full details. Only a genuinely empty job defaults to Quick log.
+  const hasFullData = (Number(j.expense) > 0) || !!(j.notes && String(j.notes).trim()) ||
+    (Number(j.count) > 0) || ((j.subTasks || []).length > 0) || ((j.milestones || []).length > 0) ||
+    ((j.items || []).length > 0) || ((j.options || []).length > 0) ||
+    ((j.timeEntries || []).length > 0) || !!j.timerStartedAt;
+  jobModalMode = hasFullData ? 'full' : 'quick';
+  const tracking = document.getElementById('job-tracking-section');
+  if (tracking) tracking.dataset.editMode = 'true';
   refreshJobPackageRow(j.clientId, j.packageId != null ? j.packageId : null);
   document.getElementById('j-delete').style.display = 'block';
   window.__milestoneFormOpen = false;
-  document.getElementById('job-tracking-section').style.display = 'block';
   renderJobTracking(id);
+  applyJobModalMode();
   clearFieldErrors();
   calcNet();
   openJobModal();
@@ -4070,6 +4425,15 @@ async function saveJob() {
     obj.invoiceId = prev.invoiceId != null ? prev.invoiceId : null;
     obj.quoteDocId = prev.quoteDocId != null ? prev.quoteDocId : null;
     obj.pendingGateStage = prev.pendingGateStage ?? null;   // a detail re-save must never silently drop an unresolved stage gate
+    // TSK-011/012/013: same "must be explicitly preserved or dbPut silently
+    // wipes it" bug class the comment below already flags — due/note/attempt
+    // are new job fields (task-flow deadline chip, incident note, redo
+    // counter) that live entirely outside this form and must survive an
+    // ordinary detail edit exactly like subTasks/milestones/outcome do.
+    obj.due = prev.due ?? null;
+    obj.note = prev.note ?? null;
+    obj.attempt = Number(prev.attempt) > 0 ? Number(prev.attempt) : 1;
+    obj.paid = prev.paid || false;
     // Tracking state lives on the record, never on this form — and dbPut()
     // REPLACES the stored object, so anything not carried forward here is
     // silently destroyed by an ordinary detail edit (including the pipeline
@@ -4096,6 +4460,7 @@ async function saveJob() {
     obj.complete = false;
     obj.invoiceId = null;
     obj.quoteDocId = null;
+    obj.due = null; obj.note = null; obj.attempt = 1;
   }
   const applyPkgEl = document.getElementById('j-apply-package');
   const pkgIdEl = document.getElementById('j-package-id');
@@ -4178,35 +4543,48 @@ function renderPipeline() {
   // Horizontal chip rail (was a left-hand vertical rail — see the redesign
   // handoff's "replaces vertical pipeline") — one stage's cards render at a
   // time, same as before, just picked from a scrollable row of pill chips.
-  const chips = order.map(stage => {
+  // TSK-011: the separate .pl-minimap strip is retired — each chip now
+  // carries its OWN 4px progress-underline segment (green = stages before
+  // the selected one, marigold = selected, border-gray = after), folding the
+  // old minimap's past/active coloring directly into the chip it belongs to.
+  const chips = order.map((stage, i) => {
     const meta = STAGE_META[stage] || {};
     const isActive = stage === activeStage;
+    const underlineCls = i === activeIdx ? 'active' : i < activeIdx ? 'past' : '';
     return `<button type="button" class="pl-chip${isActive ? ' active' : ''}" onclick="selectPipelineStage('${stage}')" aria-current="${isActive ? 'true' : 'false'}">
-      <span>${htmlEsc((meta.label && t(meta.label)) || stage)}</span>
-      <span class="pl-chip-count">${(groups[stage] || []).length}</span>
+      <span class="pl-chip-row"><span>${htmlEsc((meta.label && t(meta.label)) || stage)}</span>
+      <span class="pl-chip-count">${(groups[stage] || []).length}</span></span>
+      <span class="pl-chip-underline ${underlineCls}"></span>
     </button>`;
   }).join('');
-
-  // Mini-map: a thin marigold-marked strip showing where the selected stage
-  // sits in the whole chain, independent of the chip rail (which can scroll
-  // out of sync on a narrow screen) — always the full, fixed-order chain.
-  const minimap = order.map((stage, i) =>
-    `<span class="pl-minimap-seg${i === activeIdx ? ' active' : i < activeIdx ? ' past' : ''}"></span>`
-  ).join('');
 
   const list = activeItems.length
     ? activeItems.map(j => pipelineCard(j, activeStage)).join('')
     : `<div class="kb-empty">${htmlEsc(t('pl_nothing_here'))}</div>`;
 
+  // TSK-011: the always-on hint sentence drops to first-run only (a settings
+  // flag, so it never nags again after the first dismissal/first view).
+  const showHint = !settings.plHintSeen;
+  const hint = showHint
+    ? `<p class="pl-stage-hint">${htmlEsc((activeMeta.hint && t(activeMeta.hint)) || (activeMeta.label && t(activeMeta.label)) || activeStage)}
+        <button type="button" class="pl-hint-dismiss" onclick="dismissPipelineHint()">${htmlEsc(t('pl_hint_dismiss'))}</button></p>`
+    : '';
+
   el.innerHTML = `
     ${plViewToggleHtml()}
     <div class="pl-chip-rail" role="tablist" aria-label="Task flow stages">${chips}</div>
-    <div class="pl-minimap">${minimap}</div>
-    <p class="pl-stage-hint">${htmlEsc((activeMeta.hint && t(activeMeta.hint)) || (activeMeta.label && t(activeMeta.label)) || activeStage)}</p>
+    ${hint}
     <div class="pl-main-body">${list}</div>
   `;
   if (window.__kbMoved != null) setTimeout(() => { window.__kbMoved = null; }, 500);
 }
+// First-run-only hint sentence (TSK-011): dismissing persists so it never
+// shows again on this account, but re-appears fresh for a brand-new install.
+function dismissPipelineHint() {
+  saveSetting('plHintSeen', true).catch(() => {});
+  renderPipeline();
+}
+window.dismissPipelineHint = dismissPipelineHint;
 window.renderPipeline = renderPipeline;
 
 // ─── PIPELINE TIMELINE (read-only Gantt view) ───────────────────────────
@@ -4357,6 +4735,53 @@ function renderPipelineTimeline() {
 }
 window.renderPipelineTimeline = renderPipelineTimeline;
 
+// TSK-011/012 card badges: an italic quoted note (Redo/Postpone/Cancel's
+// free-text reason), and a small "Attempt N" pill once Redo has run at
+// least once — see the STATE MANAGEMENT additions (job.note/job.attempt).
+function noteLineHtml(j) {
+  if (!j.note) return '';
+  return `<div class="pl-note-line">${htmlEsc(t('pl_note_prefix').replace('{note}', j.note))}</div>`;
+}
+function attemptBadgeHtml(j) {
+  const n = Number(j.attempt) || 1;
+  if (n <= 1) return '';
+  return `<span class="pl-attempt-badge">${htmlEsc(t('pl_attempt_badge').replace('{n}', n))}</span>`;
+}
+// Deadline chip: amber "Follow up by …", flips to a red-tinted "Overdue —
+// …" once job.due is in the past. Tapping it opens the Postpone gate.
+function deadlineChipHtml(j) {
+  if (!j.due) return '';
+  const overdue = j.due < todayISO();
+  const label = overdue
+    ? t('pl_deadline_overdue').replace('{date}', fmtDate(j.due))
+    : t('pl_deadline_followup').replace('{date}', fmtDate(j.due));
+  return `<button type="button" class="pl-deadline-chip${overdue ? ' overdue' : ''}" onclick="event.stopPropagation();openGateCard(${j.id},'postpone')">${htmlEsc(label)}</button>`;
+}
+// Package progress bar (package-linked cards only) — used = packageUsed(pkg)
+// (summed job.count across every delivered job on this package, see the
+// PACKAGES section), never a separately stored counter, so it can't drift.
+function packageProgressHtml(j) {
+  if (j.packageId == null) return '';
+  const pkg = packages.find(p => p.id === j.packageId);
+  if (!pkg) return '';
+  const used = Math.min(packageUsed(pkg), pkg.totalSessions || 0);
+  const total = Number(pkg.totalSessions) || 0;
+  const pct = total > 0 ? Math.max(0, Math.min(100, (used / total) * 100)) : 0;
+  return `<div class="pl-pkg-progress">
+    <div class="pl-pkg-label">${htmlEsc(t('pl_package_sessions_label').replace('{used}', used).replace('{total}', total))}</div>
+    <div class="pl-pkg-track"><div class="pl-pkg-fill" style="width:${pct}%"></div></div>
+  </div>`;
+}
+// Deliver-stage package cards: "Log session N of M →" / "Log final session
+// ✓" replaces the generic per-stage advance label — see logPackageSession().
+function packageSessionAdvanceLabel(pkg) {
+  const usedNow = packageUsed(pkg);
+  const nextN = Math.min(usedNow + 1, pkg.totalSessions || 0);
+  const isFinal = nextN >= (Number(pkg.totalSessions) || 0);
+  return isFinal ? t('pl_log_final_session_btn')
+    : t('pl_log_session_btn').replace('{n}', nextN).replace('{m}', pkg.totalSessions);
+}
+
 function pipelineCard(j, stage) {
   const meta = STAGE_META[stage] || {};
   const complete = jobComplete(j);
@@ -4369,71 +4794,79 @@ function pipelineCard(j, stage) {
   const lost = j.outcome === 'lost';
   const lostReasonSuffix = (lost && LOST_REASONS.includes(j.lostReason)) ? ' · ' + t('lost_reason_' + j.lostReason) : '';
   const doneLabel = lost ? t('lost_badge') + lostReasonSuffix : j.outcome === 'finished' ? t('mark_finished') : (t(meta.done) || 'Done');
+  const pkgHere = (!complete && stage === 'deliver' && j.packageId != null) ? packages.find(p => p.id === j.packageId) : null;
+  const primaryLabel = pkgHere ? packageSessionAdvanceLabel(pkgHere) : ((t(meta.action) || 'Advance') + ' →');
   const foot = complete
     ? `<span class="pl-done${lost ? ' pl-lost' : ''}">${lost ? '✗' : '✓'} ${htmlEsc(doneLabel)}</span>`
-    : `<button type="button" class="pl-action" onclick="event.stopPropagation();pipelineAction(${j.id})">${htmlEsc(t(meta.action) || 'Advance')} →</button>`;
+    : `<button type="button" class="pl-action" onclick="event.stopPropagation();pipelineAction(${j.id})">${htmlEsc(primaryLabel)}</button>`;
+  // TSK-012: the action row is now exactly 3 buttons — Cancel (solid red) ·
+  // Redo (outline) · primary advance (flex:1) — replacing the old up-to-9-
+  // button row. Cancel opens the free-text-note gate that supersedes the old
+  // markJobLost() reason-picker modal at the card level (that function/modal
+  // stays defined and still used directly by a couple of existing tests —
+  // see check-options-lost.js/check-ux-flow.js — it's just no longer wired
+  // to a card button). Redo opens the redo gate (increments job.attempt).
+  const cancelBtn = !complete
+    ? `<button type="button" class="pl-cancel-btn" onclick="event.stopPropagation();openGateCard(${j.id},'cancel')">${htmlEsc(t('pl_cancel_btn'))}</button>`
+    : '';
+  const redoBtn = !complete
+    ? `<button type="button" class="pl-redo-btn" onclick="event.stopPropagation();openGateCard(${j.id},'redo')">${htmlEsc(t('pl_redo_btn'))}</button>`
+    : '';
+  const actionRow = !complete ? `<div class="kb-card-foot">${cancelBtn}${redoBtn}${foot}</div>` : `<div class="kb-card-foot">${foot}</div>`;
+  // Secondary (overflow) row — every affordance the old up-to-9-button row
+  // carried that isn't one of the new 3 primary buttons stays reachable here
+  // (quiet outline pills) so nothing built for TSK-014 goes dead: paperwork
+  // revise, Booked's invoice/paid pair, the quote-stage Skip, the cash-job
+  // shortcut, and Deliver's no-renewal "Finished" alt-completion.
   const skip = (!complete && meta.skippable)
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();skipJobStage(${j.id})">${htmlEsc(t('skip_stage'))}</button>`
     : '';
   const finish = (!complete && stage === 'deliver')
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();finishJobStage(${j.id})">${htmlEsc(t('mark_finished'))}</button>`
     : '';
-  // Cash-job path: paid on the spot, no client-facing quote/invoice needed —
-  // only offered at Inquiry (deciding this up front, before either document
-  // exists, is the natural moment) rather than on every pre-Booked stage,
-  // which would crowd this row with a 5th button. Jumps straight to Booked
-  // AND flips the job's paid flag (TSK-014: paid is a job-level flag now,
-  // not a stage) — cash in hand IS the payment.
   const cashJob = (!complete && stage === 'inquiry')
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();cashJobPath(${j.id})">${htmlEsc(t('cash_job'))}</button>`
     : '';
-  const reschedule = !complete
-    ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();openEditJob(${j.id})">${htmlEsc(t('reschedule'))}</button>`
-    : '';
-  // Redo paperwork WITHOUT re-advancing — for when a client pushes back on
-  // the numbers after ← moved the card back to quote/invoice. Coexists with
-  // the stage action button: "Send quote" (new version, advances) vs.
-  // "Revise quote" (update the existing link, stage stays put).
   const reviseQuote = (!complete && j.quoteDocId != null)
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();reviseQuoteForJob(${j.id})">${htmlEsc(t('revise_quote_btn'))}</button>`
     : '';
   const reviseInvoice = (!complete && j.invoiceId != null)
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();reviseInvoiceForJob(${j.id})">${htmlEsc(t('revise_invoice_btn'))}</button>`
     : '';
-  // TSK-014: a Booked job can carry zero/one/many invoices, and neither
-  // creating nor paying one moves the stage anymore (see onEngagementInvoiceCreated/
-  // markJobPaid) — so a Booked card offers its own explicit "Send invoice"
-  // (first-time attach; reviseInvoice above covers every later edit) and
-  // "Mark paid" (independent of any invoice — cash/bank transfer works too).
   const sendInvoice = (!complete && stage === 'booked' && j.invoiceId == null)
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();typeof openInvoiceForm==='function'&&openInvoiceForm(${j.id})">${htmlEsc(t('send_invoice_btn'))}</button>`
     : '';
   const markPaidBtn = (!complete && stage === 'booked' && !j.paid)
     ? `<button type="button" class="pl-skip" onclick="event.stopPropagation();markJobPaid(${j.id})">${htmlEsc(t('mark_paid_btn'))}</button>`
     : '';
-  // The deal-died exit — available at every live stage, because clients walk
-  // away at Pitch and Quote far more often than at the end. Keeps the record
-  // (outcome 'lost', reopenable via ←) instead of forcing delete-or-clutter.
-  const lostBtn = !complete
-    ? `<button type="button" class="pl-skip pl-lost-btn" onclick="event.stopPropagation();markJobLost(${j.id})">${htmlEsc(t('mark_lost_btn'))}</button>`
+  const secondaryRow = (skip || finish || cashJob || reviseQuote || reviseInvoice || sendInvoice || markPaidBtn)
+    ? `<div class="kb-card-foot pl-secondary-row">${skip}${finish}${cashJob}${reviseQuote}${reviseInvoice}${sendInvoice}${markPaidBtn}</div>`
     : '';
   const back = canBack
     ? `<button type="button" class="kb-back" aria-label="Move back a stage" title="Move back" onclick="event.stopPropagation();moveJobStageBack(${j.id})">←</button>`
     : '';
-  // Mid-confirm: swap the whole foot row for the quantity-confirm card so
-  // there's no ambiguity about what state the card is in — Cancel is the
-  // only way back to the normal actions.
+  // Mid-confirm: swap the whole foot row for the quantity-confirm card (the
+  // one-time "how many units did this delivery use" ask on Booked→Deliver)
+  // or, once that's resolved and a stage-gate is open, the new inline gate
+  // card — Cancel/Skip/Book&move are the only ways back to normal state.
   const confirming = window.__packageConfirmJobId === j.id;
-  const footRow = confirming
-    ? packageConfirmCardHtml(j)
-    : `<div class="kb-card-foot">${back}${skip}${finish}${cashJob}${foot}${reschedule}${reviseQuote}${reviseInvoice}${sendInvoice}${markPaidBtn}${lostBtn}</div>`;
-  // Recovery path for a gate left unresolved across a reload (the flag is
-  // persisted with the stage move) — the amber banner reopens the same modal.
-  const pendingGate = (!complete && j.pendingGateStage)
-    ? `<button type="button" class="pl-pending" onclick="event.stopPropagation();openApptModal({mode:'gate',jobId:${j.id},stage:'${j.pendingGateStage}'})">${htmlEsc(t('appt_pending_badge'))} →</button>`
+  const gating = !confirming && window.__gateOpen && window.__gateOpen.jobId === j.id;
+  const footRow = confirming ? packageConfirmCardHtml(j)
+    : gating ? gateCardHtml(j)
+    : `${actionRow}${secondaryRow}`;
+  // Pending banner: no due date booked yet for the current stage — full-
+  // width amber button at the TOP of the card, tapping it opens the gate.
+  // Suppressed while the gate for THIS job is already open (no point asking
+  // twice at once), and suppressed entirely when the account has turned off
+  // stage gating (settings.stageGateOff — a high-volume persona's opt-out,
+  // see gateAfterForwardMove()) since due dates are never expected there.
+  const pendingBanner = (!complete && !j.due && !gating && !settings.stageGateOff)
+    ? `<button type="button" class="pl-pending" onclick="event.stopPropagation();openGateCard(${j.id})">${htmlEsc(t('pl_pending_banner'))}</button>`
     : '';
+  const badgesRow = (!complete && (attemptBadgeHtml(j) || deadlineChipHtml(j)))
+    ? `<div class="pl-badges-row">${attemptBadgeHtml(j)}${deadlineChipHtml(j)}</div>` : '';
   return `<div class="kb-card${enter}" onclick="openEditJob(${j.id})">
-    ${pendingGate}
+    ${pendingBanner}
     <div class="kb-card-top">
       <div class="kb-card-main">
         <div class="kb-card-title">${htmlEsc(who)}</div>
@@ -4444,12 +4877,272 @@ function pipelineCard(j, stage) {
         ${(j.items || []).length ? `<div class="kb-card-sub">🛒 ${htmlEsc(t('job_items_chip')
           .replace('{n}', (j.items || []).length)
           .replace('{amt}', money((j.items || []).reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.unitPrice) || 0), 0))))}</div>` : ''}
+        ${noteLineHtml(j)}
       </div>
+      ${back}
       <button type="button" class="pl-edit" aria-label="Edit engagement" onclick="event.stopPropagation();openEditJob(${j.id})">✎</button>
     </div>
+    ${badgesRow}
+    ${!complete ? packageProgressHtml(j) : ''}
     ${footRow}
   </div>`;
 }
+
+// ─── STAGE-GATE INLINE CARD (TSK-011/012/013) ───────────────────────────
+// Replaces the old openApptModal({mode:'gate',...}) full-screen sheet for
+// every CARD-LEVEL stage transition with a card embedded directly in the
+// pipeline card — modeled on the existing packageConfirmCardHtml() pattern
+// (brand-bordered, radius-sm, Cancel/Skip + primary), per the design
+// handoff's "inline confirm card" spec. The modal itself is UNCHANGED and
+// stays exactly as it was for its other three modes (add/repeat/edit —
+// job-detail's own "+ Step with date" / ↻ / ✎ dated sub-tasks), which this
+// task does not touch.
+//
+// Documented engineering decision: the OLD gate's persistence shape (a
+// dated sub-task + a linked calendar booking, via createBookingForStep) is
+// NOT reused for this inline gate. The design's State Management section
+// asks for a single scalar `due` (ISO|null) per job, not a calendar event —
+// its own gate table only ever says "pick a date", never "book an
+// appointment" — so every resolver below writes job.due directly and never
+// touches subTasks/bookings. job-detail's "+ Step with date" flow (the
+// modal's `add` mode) remains the one real path to an actual calendar
+// booking, completely unaffected by this change. j.pendingGateStage is KEPT
+// as the existing bookkeeping flag (still written by the unchanged
+// gateAfterForwardMove()) for "does this card still need a date" — it's
+// cleared exactly when a real date gets saved, so it stays in lockstep with
+// `due` being non-null, same invariant the pending banner reads off `!due`.
+window.__gateOpen = null;   // { jobId, kind } while an inline gate is open
+function gateCopyPrefixForStage(stage) {
+  return stage === 'quote' ? 'gate_inquiry_quote' : stage === 'booked' ? 'gate_quote_booked'
+    : stage === 'deliver' ? 'gate_booked_deliver' : 'gate_pending';
+}
+// kind is optional — omitted, it's derived from the job's own pendingGateStage
+// (the "reopen from the pending banner" path), falling back to the generic
+// 'pending' copy for anything that doesn't map to one of the 3 basic moves.
+function openGateCard(jobId, kind) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  let k = kind;
+  if (!k) k = ['quote', 'booked', 'deliver'].includes(j.pendingGateStage) ? j.pendingGateStage : 'pending';
+  window.__packageConfirmJobId = null;   // the two inline cards never overlap
+  window.__gateOpen = { jobId, kind: k };
+  renderPipeline();
+}
+window.openGateCard = openGateCard;
+function closeGateCard() { window.__gateOpen = null; renderPipeline(); }
+window.closeGateCard = closeGateCard;
+
+function gateCardHtml(j) {
+  const g = window.__gateOpen;
+  if (!g || g.jobId !== j.id) return '';
+  const kind = g.kind;
+  const defDate = addDaysISO(todayISO(), 7);
+  const dateInput = `<input type="date" id="gate-date-${j.id}" class="gate-date tnum" value="${attrEsc(defDate)}" onclick="event.stopPropagation()">`;
+  const noteInput = (ph) => `<textarea class="gate-note" id="gate-note-${j.id}" placeholder="${attrEsc(ph)}" rows="2" onclick="event.stopPropagation()"></textarea>`;
+  if (kind === 'cancel') {
+    return `<div class="gate-card" onclick="event.stopPropagation()">
+      <div class="gate-title">${htmlEsc(t('gate_cancel_title'))}</div>
+      <div class="gate-context">${htmlEsc(t('gate_cancel_context'))}</div>
+      ${noteInput(t('gate_note_ph'))}
+      <div class="gate-btns">
+        <button type="button" class="gate-btn-secondary" onclick="event.stopPropagation();closeGateCard()">${htmlEsc(t('gate_keep_it_btn'))}</button>
+        <button type="button" class="gate-btn-danger" onclick="event.stopPropagation();resolveGateCancel(${j.id})">${htmlEsc(t('gate_cancel_job_btn'))}</button>
+      </div>
+    </div>`;
+  }
+  if (kind === 'pkg_final') {
+    return `<div class="gate-card" onclick="event.stopPropagation()">
+      <div class="gate-title">${htmlEsc(t('gate_pkg_final_title'))}</div>
+      <div class="gate-context">${htmlEsc(t('gate_pkg_final_context'))}</div>
+      ${dateInput}
+      <div class="gate-btns">
+        <button type="button" class="gate-btn-secondary" onclick="event.stopPropagation();resolveGatePkgFinal(${j.id},false)">${htmlEsc(t('gate_just_complete_btn'))}</button>
+        <button type="button" class="gate-btn-primary" onclick="event.stopPropagation();resolveGatePkgFinal(${j.id},true)">${htmlEsc(t('gate_send_renewal_btn'))}</button>
+      </div>
+    </div>`;
+  }
+  if (kind === 'redo' || kind === 'postpone') {
+    const titleKey = kind === 'redo' ? 'gate_redo_title' : 'gate_postpone_title';
+    const contextKey = kind === 'redo' ? 'gate_redo_context' : 'gate_postpone_context';
+    const primaryKey = kind === 'redo' ? 'gate_save_date_btn' : 'gate_rebook_btn';
+    const fn = kind === 'redo' ? 'resolveGateRedo' : 'resolveGatePostpone';
+    return `<div class="gate-card" onclick="event.stopPropagation()">
+      <div class="gate-title">${htmlEsc(t(titleKey))}</div>
+      <div class="gate-context">${htmlEsc(t(contextKey))}</div>
+      ${dateInput}
+      ${noteInput(t('gate_note_ph'))}
+      <div class="gate-btns">
+        <button type="button" class="gate-btn-secondary" onclick="event.stopPropagation();${fn}(${j.id},false)">${htmlEsc(t('gate_skip_btn'))}</button>
+        <button type="button" class="gate-btn-primary" onclick="event.stopPropagation();${fn}(${j.id},true)">${htmlEsc(t(primaryKey))}</button>
+      </div>
+    </div>`;
+  }
+  // Basic transitions ('quote'/'booked'/'deliver'), 'pending', 'pkg_session'.
+  const prefix = kind === 'pkg_session' ? 'gate_pkg_session' : gateCopyPrefixForStage(kind);
+  const contextTxt = kind === 'pending' ? t('gate_pending_context').replace('{job}', j.client || t('field_client')) : t(prefix + '_context');
+  const primaryKey = kind === 'pkg_session' ? 'gate_book_next_session_btn' : (kind === 'pending' ? 'gate_book_date_btn' : 'gate_book_move_btn');
+  const fn = kind === 'pkg_session' ? 'resolveGatePkgSession' : 'resolveGateAdvance';
+  return `<div class="gate-card" onclick="event.stopPropagation()">
+    <div class="gate-title">${htmlEsc(t(prefix + '_title'))}</div>
+    <div class="gate-context">${htmlEsc(contextTxt)}</div>
+    ${dateInput}
+    <div class="gate-btns">
+      <button type="button" class="gate-btn-secondary" onclick="event.stopPropagation();${fn}(${j.id},false)">${htmlEsc(t('gate_skip_btn'))}</button>
+      <button type="button" class="gate-btn-primary" onclick="event.stopPropagation();${fn}(${j.id},true)">${htmlEsc(t(primaryKey))}</button>
+    </div>
+  </div>`;
+}
+
+async function resolveGateAdvance(jobId, withDate) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const dateEl = document.getElementById('gate-date-' + jobId);
+  const date = withDate ? ((dateEl && dateEl.value) || addDaysISO(todayISO(), 7)) : null;
+  j.due = date;
+  if (date) j.pendingGateStage = null;
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  mirrorJob(j);
+  window.__gateOpen = null;
+  await reload();
+  renderPipeline();
+  if (date) toast(t('appt_booked_toast'));
+}
+window.resolveGateAdvance = resolveGateAdvance;
+
+async function resolveGateRedo(jobId, withDate) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const dateEl = document.getElementById('gate-date-' + jobId);
+  const noteEl = document.getElementById('gate-note-' + jobId);
+  const note = ((noteEl && noteEl.value) || '').trim();
+  j.attempt = (Number(j.attempt) > 0 ? Number(j.attempt) : 1) + 1;
+  j.note = note || null;
+  j.due = withDate ? ((dateEl && dateEl.value) || addDaysISO(todayISO(), 7)) : null;
+  if (j.due) j.pendingGateStage = null;
+  j.updatedAt = nowISO();
+  logEvent('pipeline_redo:' + jobStage(j));
+  await dbPut('jobs', j);
+  mirrorJob(j);
+  window.__gateOpen = null;
+  await reload();
+  renderPipeline();
+}
+window.resolveGateRedo = resolveGateRedo;
+
+async function resolveGatePostpone(jobId, withDate) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const dateEl = document.getElementById('gate-date-' + jobId);
+  const noteEl = document.getElementById('gate-note-' + jobId);
+  const note = ((noteEl && noteEl.value) || '').trim();
+  const date = withDate ? ((dateEl && dateEl.value) || addDaysISO(todayISO(), 7)) : null;
+  j.note = note || j.note || null;
+  j.due = date;
+  if (date) j.pendingGateStage = null;
+  j.updatedAt = nowISO();
+  logEvent('pipeline_postpone:' + jobStage(j));
+  await dbPut('jobs', j);
+  mirrorJob(j);
+  window.__gateOpen = null;
+  await reload();
+  renderPipeline();
+  if (date) toast(t('pl_postponed_toast').replace('{date}', fmtDate(date)));
+}
+window.resolveGatePostpone = resolveGatePostpone;
+
+async function resolveGateCancel(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || jobComplete(j)) return;
+  const noteEl = document.getElementById('gate-note-' + jobId);
+  const note = ((noteEl && noteEl.value) || '').trim();
+  j.complete = true;
+  j.outcome = 'lost';
+  j.note = note || null;
+  j.pendingGateStage = null;
+  j.updatedAt = nowISO();
+  logEvent('pipeline_stage:lost:cancel_gate');
+  _pipelineActiveStage = j.stage;
+  window.__kbMoved = jobId;
+  window.__gateOpen = null;
+  await dbPut('jobs', j);
+  mirrorJob(j);
+  await reload();
+  renderPipeline();
+}
+window.resolveGateCancel = resolveGateCancel;
+
+async function resolveGatePkgSession(jobId, withDate) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const dateEl = document.getElementById('gate-date-' + jobId);
+  j.due = withDate ? ((dateEl && dateEl.value) || addDaysISO(todayISO(), 7)) : null;
+  if (j.due) j.pendingGateStage = null;
+  j.updatedAt = nowISO();
+  await dbPut('jobs', j);
+  mirrorJob(j);
+  window.__gateOpen = null;
+  await reload();
+  renderPipeline();
+}
+window.resolveGatePkgSession = resolveGatePkgSession;
+
+// Package-final gate: "Send renewal quote" (reuses TSK-014's
+// spawnRenewalQuoteJob, now taking the chosen date as the new card's due)
+// vs. "Just complete" — either way THIS card completes (outcome 'extended',
+// same terminal state a normal last-stage advance reaches).
+async function resolveGatePkgFinal(jobId, withRenewal) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const clientId = j.clientId;
+  const dateEl = document.getElementById('gate-date-' + jobId);
+  const date = (dateEl && dateEl.value) || addDaysISO(todayISO(), 7);
+  j.complete = true;
+  j.outcome = 'extended';
+  j.pendingGateStage = null;
+  j.due = null;
+  j.updatedAt = nowISO();
+  logEvent('pipeline_stage:done:pkg_final' + (withRenewal ? ':renewal' : ''));
+  window.__gateOpen = null;
+  await dbPut('jobs', j);
+  mirrorJob(j);
+  if (withRenewal && clientId != null) {
+    await spawnRenewalQuoteJob(clientId, date).catch(() => {});
+  }
+  await reload();
+  renderPipeline();
+  toast(withRenewal ? t('pl_package_complete_toast') : t('pl_package_complete_no_renewal_toast'));
+}
+window.resolveGatePkgFinal = resolveGatePkgFinal;
+
+// Deliver-stage package cards: repeated "Log session" taps stay parked at
+// Deliver (no stage move) and grow THIS job's own package usage by 1 each
+// time — packageUsed() already sums job.count across every delivered job
+// sharing a package (see the PACKAGES section), so growing this one job's
+// count in place is exactly equivalent to "one more session logged" with no
+// change to that derivation. Clamped so the running total across every job
+// on the package can never exceed pkg.totalSessions.
+async function logPackageSession(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j || j.packageId == null) return;
+  const pkg = packages.find(p => p.id === j.packageId);
+  if (!pkg) return;
+  const ownCount = Number(j.count) > 0 ? Number(j.count) : 1;
+  const otherUsed = packageUsed(pkg) - ownCount;
+  const cap = Math.max(0, (Number(pkg.totalSessions) || 0) - otherUsed);
+  j.count = Math.min(cap, ownCount + 1);
+  j.updatedAt = nowISO();
+  logEvent('pipeline_pkg_session_logged');
+  await dbPut('jobs', j);
+  mirrorJob(j);
+  await reload();
+  const pkg2 = packages.find(p => p.id === j.packageId) || pkg;
+  const usedNow = packageUsed(pkg2);
+  const isFinal = usedNow >= (Number(pkg2.totalSessions) || 0);
+  window.__gateOpen = { jobId, kind: isFinal ? 'pkg_final' : 'pkg_session' };
+  renderPipeline();
+}
+window.logPackageSession = logPackageSession;
 
 // The single next-action per stage: complete the current stage and advance
 // (following settings.stageOrder, NOT a hardcoded order).
@@ -4462,8 +5155,11 @@ function pipelineAction(jobId) {
   window.__invoiceReviseJobId = null;
   // An unresolved stage gate blocks every further forward action — reopen the
   // prompt instead of advancing (the card can never move twice past one gate).
-  if (j.pendingGateStage) { openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage }); return; }
+  if (j.pendingGateStage) { openGateCard(j.id); return; }
   const stage = jobStage(j);
+  // Deliver-stage package cards: the primary button logs one session in
+  // place rather than advancing the stage — see logPackageSession().
+  if (stage === 'deliver' && j.packageId != null) { logPackageSession(jobId); return; }
   if (stage === 'quote') {
     // docgen.js fires window.onEngagementQuoteCreated(docId, jobId) on save,
     // which links quoteDocId and advances quote -> booked. If cancelled,
@@ -4554,6 +5250,7 @@ async function advanceJobStage(jobId) {
   if (idx < 0) { j.stage = order[0]; j.complete = false; }
   else if (idx >= order.length - 1) { j.stage = order[idx]; j.complete = true; j.outcome = 'extended'; }   // "Mark extended" — reachable again via a real renewal, see spawnRenewalQuoteJob()
   else { j.stage = order[idx + 1]; j.complete = false; }
+  j.due = null;   // the new stage starts with no deadline — the gate below asks for one
   gateAfterForwardMove(j);   // persisted in the same put as the move — see the stage-gate section
   j.updatedAt = nowISO();
   logEvent('pipeline_stage:' + (j.complete ? (j.outcome || 'done') : j.stage));
@@ -4563,7 +5260,7 @@ async function advanceJobStage(jobId) {
   mirrorJob(j);
   await reload();
   renderPipeline();
-  if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
+  if (j.pendingGateStage) openGateCard(j.id);
 }
 
 // Skip the current stage's linked action (no quote document required) and
@@ -4596,6 +5293,7 @@ async function cashJobPath(jobId) {
   j.stage = order[bookedIdx];
   j.paid = true;
   j.complete = false;
+  j.due = null;
   gateAfterForwardMove(j);
   j.updatedAt = nowISO();
   _pipelineActiveStage = j.stage;
@@ -4604,7 +5302,7 @@ async function cashJobPath(jobId) {
   mirrorJob(j);
   await reload();
   renderPipeline();
-  if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
+  if (j.pendingGateStage) openGateCard(j.id);
 }
 window.cashJobPath = cashJobPath;
 
@@ -4618,6 +5316,7 @@ async function finishJobStage(jobId) {
   j.complete = true;
   j.outcome = 'finished';
   j.pendingGateStage = null;   // terminal — nothing left to book
+  j.due = null;
   j.updatedAt = nowISO();
   logEvent('pipeline_stage:finished');
   _pipelineActiveStage = j.stage;
@@ -4688,6 +5387,7 @@ async function confirmMarkJobLost(jobId) {
   j.outcome = 'lost';
   j.lostReason = reason;
   j.pendingGateStage = null;   // a dead deal has nothing left to book
+  j.due = null;
   j.updatedAt = nowISO();
   logEvent('pipeline_stage:lost' + (reason ? ':' + reason : ''));
   _pipelineActiveStage = j.stage;
@@ -4710,9 +5410,11 @@ async function moveJobStageBack(jobId) {
   j.complete = false;
   j.outcome = null;   // stepping back out of a completed engagement clears its extended/finished outcome
   j.pendingGateStage = null;   // going backward never gates — an unresolved gate is void once the move is undone
+  j.due = null;   // the due date belonged to the stage just left — stale once undone
   j.updatedAt = nowISO();
   _pipelineActiveStage = j.stage;   // rail follows the card back
   window.__kbMoved = jobId;
+  if (window.__gateOpen && window.__gateOpen.jobId === jobId) window.__gateOpen = null;
   await dbPut('jobs', j);
   mirrorJob(j);
   await reload();
@@ -4884,6 +5586,7 @@ window.onEngagementQuoteCreated = async function (docId, jobId) {
   const idx = order.indexOf(jobStage(j));
   if (idx >= 0 && idx < order.length - 1) { j.stage = order[idx + 1]; j.complete = false; }
   else if (idx >= order.length - 1) { j.complete = true; }
+  j.due = null;
   gateAfterForwardMove(j);
   j.updatedAt = nowISO();
   logEvent('pipeline_stage:' + (j.complete ? 'done' : j.stage));
@@ -4892,7 +5595,7 @@ window.onEngagementQuoteCreated = async function (docId, jobId) {
   mirrorJob(j);
   await reload();
   renderPipeline();
-  if (j.pendingGateStage) openApptModal({ mode: 'gate', jobId: j.id, stage: j.pendingGateStage });
+  if (j.pendingGateStage) openGateCard(j.id);
 };
 
 // ─── STAGE-GATE + APPOINTMENT MODAL (dated steps) ──────────────────────
@@ -4953,6 +5656,14 @@ window.__apType = 'exact';  // 'exact' (calendar booking) | 'by' (deadline only)
 // send (stale-flag safety).
 window.__quoteReviseJobId = null;
 window.__invoiceReviseJobId = null;
+// TSK-012: this modal used to also serve a 4th mode, 'gate' (the stage-gate
+// prompt after every forward pipeline move) — that mode is RETIRED. It's
+// replaced by the inline gate card embedded directly in the pipeline card
+// (see the STAGE-GATE INLINE CARD section, openGateCard()/gateCardHtml()),
+// per the design handoff's "inline confirm card" spec. This modal keeps
+// serving its other three modes exactly as before: 'add' (+ Step with date,
+// from job-detail), 'repeat' (↻ clone a dated step), 'edit' (✎ reschedule a
+// dated step in place) — none of that behavior changed.
 function openApptModal(ctx) {
   const j = jobs.find(x => x.id === ctx.jobId);
   if (!j) return;
@@ -4960,13 +5671,8 @@ function openApptModal(ctx) {
   window.__apCtx = ctx;
   const src = ctx.sourceSubTaskId ? (j.subTasks || []).find(s => s.id === ctx.sourceSubTaskId) : null;
   if (ctx.mode === 'edit' && !src) return;   // step deleted underneath the ✎ tap
-  const title = ctx.mode === 'gate' ? t('appt_gate_title')
-    : ctx.mode === 'repeat' ? t('appt_repeat_title')
+  const title = ctx.mode === 'repeat' ? t('appt_repeat_title')
     : ctx.mode === 'edit' ? t('appt_edit_title') : t('appt_add_dated');
-  const stageMeta = ctx.stage ? (STAGE_META[ctx.stage] || {}) : {};
-  const context = ctx.mode === 'gate'
-    ? t('appt_gate_context').replace('{job}', j.client || '').replace('{stage}', (stageMeta.label && t(stageMeta.label)) || ctx.stage || '')
-    : '';
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay open';
   overlay.id = 'modal-appt';
@@ -4975,29 +5681,20 @@ function openApptModal(ctx) {
       <div class="modal-handle"></div>
       <div class="modal-title" id="ap-title">${htmlEsc(title)}</div>
       <div class="form-body" style="padding:0 20px 4px">
-        ${context ? `<p class="ap-context" id="ap-context">${htmlEsc(context)}</p>` : ''}
-        <div class="field"><input type="text" id="ap-step" placeholder="${attrEsc(t('appt_step_ph'))}" value="${attrEsc(src ? src.text : (ctx.mode === 'gate' ? ((stageMeta.action && t(stageMeta.action)) || '') : (ctx.prefillText || '')))}"></div>
+        <div class="field"><input type="text" id="ap-step" placeholder="${attrEsc(t('appt_step_ph'))}" value="${attrEsc(src ? src.text : (ctx.prefillText || ''))}"></div>
         <div class="ap-seg">
           <button type="button" id="ap-type-exact" class="seg-active" onclick="setApptType('exact')">${htmlEsc(t('appt_type_exact'))}</button>
           <button type="button" id="ap-type-by" onclick="setApptType('by')">${htmlEsc(t('appt_type_by'))}</button>
         </div>
-        <div class="field" id="ap-date-row"><label id="ap-date-label">${htmlEsc(t('appt_date_label'))}</label><input type="date" id="ap-date" value="${attrEsc(ctx.mode === 'edit' && src ? (src.date || '') : (ctx.mode === 'gate' ? addDaysISO(todayISO(), 7) : ''))}"></div>
+        <div class="field" id="ap-date-row"><label id="ap-date-label">${htmlEsc(t('appt_date_label'))}</label><input type="date" id="ap-date" value="${attrEsc(ctx.mode === 'edit' && src ? (src.date || '') : '')}"></div>
         <div class="field" id="ap-time-row"><label>${htmlEsc(t('appt_time_label'))}</label><input type="time" id="ap-time" value="${attrEsc(ctx.mode === 'edit' && src && src.startTime ? src.startTime : '09:00')}"></div>
       </div>
       <button type="button" class="btn-submit" id="ap-save" onclick="saveApptModal()">${htmlEsc(t('appt_save'))}</button>
-      ${ctx.mode === 'gate' ? `<button type="button" class="btn-danger" id="ap-none" style="border-color:var(--border-mid);color:var(--text3)" onclick="resolveApptNone()">${htmlEsc(t('appt_none'))}</button>
-      <div class="ap-hint" id="ap-none-hint">${htmlEsc(t('appt_none_hint'))}</div>` : ''}
     </div>`;
   document.body.appendChild(overlay);
-  overlay.addEventListener('click', e => {
-    if (e.target === overlay && window.__apCtx && window.__apCtx.mode !== 'gate') closeApptModal();
-  });
-  // Repeat mode inherits the source step's type; everything else starts on
-  // 'exact' EXCEPT a gate at a non-inquiry stage — "send quote", "start
-  // delivery", "follow up" are deadline-shaped, not calendar bookings, so
-  // default them to 'by'. Only Inquiry (a first-meeting) is a real
-  // appointment.
-  setApptType(ctx.mode === 'gate' ? (ctx.stage === 'inquiry' ? 'exact' : 'by') : (src && src.dateType === 'by' ? 'by' : 'exact'));
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeApptModal(); });
+  // Repeat mode inherits the source step's type; everything else starts 'exact'.
+  setApptType(src && src.dateType === 'by' ? 'by' : 'exact');
 }
 window.openApptModal = openApptModal;
 
@@ -5069,7 +5766,6 @@ async function saveApptModal() {
   j.subTasks = j.subTasks || [];
   j.subTasks.push(st);
   if (st.dateType === 'exact') await createBookingForStep(j, st);
-  if (ctx.mode === 'gate') j.pendingGateStage = null;
   // Booked from an option's 📅 button (bookViewingForOption) — flip that
   // option to 'viewing' in this same write, but only from 'considering' so
   // a re-booking never clobbers a verdict already recorded on it.
@@ -5081,29 +5777,10 @@ async function saveApptModal() {
   await dbPut('jobs', j);
   mirrorJob(j);
   closeApptModal();
-  if (ctx.mode === 'gate') renderPipeline(); else renderJobTracking(ctx.jobId);
-  toast(t(ctx.mode === 'gate' ? 'appt_booked_toast' : 'appt_step_added_toast'));
+  renderJobTracking(ctx.jobId);
+  toast(t('appt_step_added_toast'));
 }
 window.saveApptModal = saveApptModal;
-
-// Gate mode's explicit opt-out — the deliberate "nothing to book" answer, as
-// opposed to dismissing the question (which the gate doesn't allow). Logged
-// so Insights can tell skipped gates apart from booked ones.
-async function resolveApptNone() {
-  const ctx = window.__apCtx;
-  if (!ctx || ctx.mode !== 'gate') { closeApptModal(); return; }
-  const j = jobs.find(x => x.id === ctx.jobId);
-  if (j) {
-    j.pendingGateStage = null;
-    j.updatedAt = nowISO();
-    await dbPut('jobs', j);
-    mirrorJob(j);
-    logEvent('gate_skip:' + (ctx.stage || ''));
-  }
-  closeApptModal();
-  renderPipeline();
-}
-window.resolveApptNone = resolveApptNone;
 
 function closeApptModal() {
   document.getElementById('modal-appt')?.remove();
@@ -5225,7 +5902,18 @@ async function computeClientsNeedingAttention() {
       const days = daysSinceISO(inv.dueDate);
       items.push({
         client: c,
+        // `kind` + `todaySub`/`amount`/`sortKey` (TSK-009) are additive — the
+        // Clients screen's needsAttentionRowHtml() only ever reads
+        // client/reason/actionLabel/action, unchanged. `todaySub`/`amount`
+        // exist so Home's merged "Today" card can put the invoice amount in
+        // its own right-aligned red mono column instead of folding it into
+        // the sub-line text (which `reason` still does, for the Clients
+        // screen's plain-text row).
+        kind: 'overdue',
         reason: `Invoice ${days} day${days === 1 ? '' : 's'} overdue · ${money(inv.clientPays)}`,
+        todaySub: `${days} day${days === 1 ? '' : 's'} overdue`,
+        amount: (Number(inv.clientPays) || 0),
+        sortKey: -days, // most-overdue first
         actionLabel: t('remind_action'),
         action: () => remindAboutInvoice(inv.id),
       });
@@ -5242,14 +5930,20 @@ async function computeClientsNeedingAttention() {
         if (remaining > 0 && daysToExpiry != null && daysToExpiry >= 0 && daysToExpiry <= PACKAGE_EXPIRY_WARNING_DAYS) {
           items.push({
             client: c,
+            kind: 'expiring',
             reason: `Package expires in ${daysToExpiry} day${daysToExpiry === 1 ? '' : 's'} · ${remaining} ${packageUnitLabel()} left`,
+            todaySub: `Package expires in ${daysToExpiry} day${daysToExpiry === 1 ? '' : 's'} · ${remaining} ${packageUnitLabel()} left`,
+            sortKey: daysToExpiry, // soonest-expiring first
             actionLabel: t('offer_renewal_action'),
             action: () => offerRenewalForClient(c.id),
           });
         } else if (remaining > 0 && remaining <= PACKAGE_ALMOST_DONE_THRESHOLD) {
           items.push({
             client: c,
+            kind: 'almost',
             reason: `Package almost done · ${remaining} ${packageUnitLabel()} left`,
+            todaySub: `Package almost done · ${remaining} ${packageUnitLabel()} left`,
+            sortKey: remaining, // fewest-remaining first
             actionLabel: t('offer_renewal_action'),
             action: () => offerRenewalForClient(c.id),
           });
@@ -5275,7 +5969,13 @@ window.offerRenewalForClient = offerRenewalForClient;
 // NEW job/card at the 'quote' stage instead. Best-effort: a client with no
 // prior job to clone the service/amount from (e.g. no engagement yet) just
 // gets the package-purchase form above; there's nothing to quote yet.
-async function spawnRenewalQuoteJob(clientId) {
+// TSK-013: now takes an optional dueDate — the Package-final gate's "Send
+// renewal quote" passes the date the owner picked for the renewal follow-up,
+// carried onto the new card's job.due (so it shows up immediately with a
+// deadline chip instead of a pending banner). offerRenewalForClient's own
+// call site (client-profile action, unrelated to the pipeline gate) omits
+// it and keeps behaving exactly as before (due stays null there).
+async function spawnRenewalQuoteJob(clientId, dueDate) {
   const c = customers.find(x => x.id === clientId);
   if (!c) return;
   const source = jobs.find(j => j.clientId === clientId && j.packageId != null) || jobs.find(j => j.clientId === clientId);
@@ -5291,6 +5991,7 @@ async function spawnRenewalQuoteJob(clientId) {
     invoiceId: null, quoteDocId: null, packageId: null,
     subTasks: [], milestones: [], timeEntries: [], timerStartedAt: null,
     outcome: null, lostReason: null, options: [], items: [], paid: false,
+    due: dueDate || null, note: null, attempt: 1,
     createdAt: nowISO(), updatedAt: nowISO(),
   };
   const key = await dbAdd('jobs', job);
@@ -5977,6 +6678,30 @@ function renderJobTracking(jobId) {
   renderJobTimer(jobId);
 }
 
+// TSK-008: keeps each drill row's "· N" count in sync with the underlying
+// job record. Called from the tail of each of the 5 render*() functions
+// above (not just renderJobTracking) so every mutation path — whether it
+// re-renders just its own section (addJobOption etc.) or the whole tracking
+// block (addSubTask/timer start-stop etc.) — updates the count too.
+// #job-options-title itself is left untouched (persona-dependent text,
+// compared for exact equality by tests/check-options-lost.js); the count
+// lives in the separate sibling span next to it.
+function updateJobDrillSummaries(jobId) {
+  const j = jobs.find(x => x.id === jobId);
+  if (!j) return;
+  const setCount = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text ? ` · ${text}` : ''; };
+  setCount('job-options-count', (j.options || []).length || '');
+  setCount('job-items-count', (j.items || []).length || '');
+  const subs = (j.subTasks || []).length, miles = (j.milestones || []).length;
+  const planParts = [];
+  if (subs) planParts.push(`${subs} ${t('drill_steps_unit')}`);
+  if (miles) planParts.push(`${miles} ${t('drill_milestones_unit')}`);
+  setCount('job-plan-count', planParts.join(' · '));
+  const totalMin = (j.timeEntries || []).reduce((s, e) => s + (Number(e.minutes) || 0), 0);
+  const running = !!j.timerStartedAt;
+  setCount('job-time-count', (totalMin > 0 || running) ? `${fmtHM(totalMin)}${running ? ' ' + t('drill_running_suffix') : ''}` : '');
+}
+
 // ── Sub-tasks ──
 function renderSubTasks(jobId) {
   const wrap = document.getElementById('job-subtasks-body');
@@ -5984,7 +6709,7 @@ function renderSubTasks(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j) return;
   const subs = j.subTasks || [];
-  if (!subs.length) { wrap.innerHTML = `<div class="pkg-status"><span>${htmlEsc(t('no_subtasks'))}</span></div>`; return; }
+  if (!subs.length) { wrap.innerHTML = `<div class="pkg-status"><span>${htmlEsc(t('no_subtasks'))}</span></div>`; updateJobDrillSummaries(jobId); return; }
   const done = subs.filter(s => s.done).length;
   wrap.innerHTML = `
     <div class="pkg-status-row" style="margin-bottom:8px"><span>${done} of ${subs.length} done</span></div>
@@ -5998,6 +6723,7 @@ function renderSubTasks(jobId) {
         <button type="button" class="qc-btn" aria-label="Delete sub-task" onclick="event.stopPropagation();deleteSubTask(${jobId},'${s.id}')">✕</button>
       </div>`).join('')}</div>
   `;
+  updateJobDrillSummaries(jobId);
 }
 // Date chip under a dated sub-task's title. Falsy dateType = undated legacy
 // row → empty string, so those rows render byte-identically to before dated
@@ -6124,6 +6850,7 @@ function renderJobOptions(jobId) {
              style="flex:1;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
       <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addJobOption(${jobId})">${htmlEsc(t('option_add_btn'))}</button>
     </div>`;
+  updateJobDrillSummaries(jobId);
 }
 async function addJobOption(jobId) {
   jobId = parseInt(jobId, 10);
@@ -6226,6 +6953,7 @@ function renderJobItems(jobId) {
              style="width:64px;padding:11px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--card);color:var(--text);font-family:inherit;font-size:14px">
       <button type="button" class="qc-btn" style="width:auto;padding:0 14px" onclick="addJobItem(${jobId})">${htmlEsc(t('job_items_add'))}</button>
     </div>`;
+  updateJobDrillSummaries(jobId);
 }
 async function addJobItem(jobId) {
   jobId = parseInt(jobId, 10);
@@ -6306,6 +7034,7 @@ function renderMilestones(jobId) {
     `;
   }
   wrap.innerHTML = html;
+  updateJobDrillSummaries(jobId);
 }
 function addMilestone(jobId) {
   window.__milestoneFormOpen = true;
@@ -6419,6 +7148,7 @@ function renderJobTimer(jobId) {
     liveRow();
     _jobTimerTickHandle = setInterval(liveRow, 1000);
   }
+  updateJobDrillSummaries(jobId);
 }
 async function startJobTimer(jobId) {
   const j = jobs.find(x => x.id === jobId);
@@ -6986,6 +7716,7 @@ let editingPaymentChannelId = null;
 function paymentChannels() { return Array.isArray(settings.paymentChannels) ? settings.paymentChannels : []; }
 
 function renderPaymentChannels() {
+  updatePaymentsPill();
   const wrap = document.getElementById('payment-channels-list');
   if (!wrap) return;
   const chans = paymentChannels();
@@ -7456,6 +8187,16 @@ function switchScreen(name) {
   if (name === 'customers') renderCustomers();
   if (name === 'services') renderServices();
   if (name === 'pipeline' && typeof renderPipeline === 'function') renderPipeline();
+  // TSK-002/007 More/Settings rebuild: the root screen ('more') now only
+  // hosts the account card + Tools grid + "Set up your business" drill-in
+  // rows (with live status pills) + Preferences + About — everything that
+  // used to be a <details> block on this same screen moved into one of the
+  // 4 drill-in sub-screens below. Root still needs every one of these
+  // render calls (payment channels / LINE / team / shop / slip-verify / etc.)
+  // because their status feeds the root's status pills and Tools-grid badge
+  // even though their markup now lives on the sub-screen — see
+  // updatePaymentsPill()/updateLineTeamPill()/renderDataBackupStatus()
+  // called from inside those functions.
   if (name === 'more' && typeof renderWorkflowControls === 'function') renderWorkflowControls();
   if (name === 'more') applyInsightsVisibility();
   if (name === 'more') renderBackupReminder();
@@ -7467,6 +8208,21 @@ function switchScreen(name) {
   if (name === 'more') renderTeamSection();
   if (name === 'more') renderShopSection();
   if (name === 'more') renderSlipVerifySection();
+  if (name === 'more') renderPaymentChannels();
+  if (name === 'more') renderFollowupsTile();
+  if (name === 'more') renderDataBackupStatus();
+  if (name === 'more') renderThemeSeg();
+  // Drill-in sub-screens: re-render their own sections fresh on every visit
+  // (not just via root) so direct/back-forward navigation never shows stale
+  // data — all of these are idempotent and cheap.
+  if (name === 'more-biz' && typeof renderWorkflowControls === 'function') renderWorkflowControls();
+  if (name === 'more-biz') renderSellerLogoSection();
+  if (name === 'more-pay') renderPaymentChannels();
+  if (name === 'more-pay') renderShopSection();
+  if (name === 'more-pay') renderSlipVerifySection();
+  if (name === 'more-line') renderLineChannelSection();
+  if (name === 'more-line') renderTeamSection();
+  if (name === 'more-data') renderDataBackupStatus();
   if (name === 'insights') renderInsights();
   // M2 modules (tax.js / invoices.js / docgen.js). Guarded so a not-yet-loaded
   // module can't crash navigation.

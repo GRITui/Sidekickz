@@ -129,6 +129,9 @@ const errors = [];
   assert(await page.locator('#job-items-body').count() === 1, '1: items section present in edit modal');
   assert((await page.locator('#job-items-body .pkg-status').textContent()).length > 0, '1: empty state shown with no items');
 
+  // TSK-008: Items now lives behind Full details + a collapsed drill row —
+  // switch mode and pop the row open before interacting with #job-item-svc.
+  await page.evaluate(() => { setJobModalMode('full'); document.getElementById('job-items-details').open = true; });
   await page.selectOption('#job-item-svc', String(proteinId));
   await page.fill('#job-item-qty', '2');
   await page.click('#job-items-body button[onclick*="addJobItem"]');
@@ -182,6 +185,10 @@ const errors = [];
   // ═══ 4. Detail re-edit: remove one item, save → items length 1 ══════════
   await page.evaluate(id => openEditJob(id), jobA);
   await page.waitForTimeout(300);
+  // jobA already has items, so openEditJob() should default straight into
+  // Full details (TSK-008 decision) — still pop the drill row open explicitly
+  // so this test isn't relying on that default to reach #job-items-body.
+  await page.evaluate(() => { setJobModalMode('full'); document.getElementById('job-items-details').open = true; });
   await page.locator('#job-items-body .list-row').nth(0).locator('button[aria-label="Remove item"]').click();
   await page.waitForTimeout(200);
   await page.evaluate(() => saveJob());

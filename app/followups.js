@@ -309,4 +309,25 @@
   }
   window.renderFollowups = renderFollowups;
 
+  // TSK-002/007 (More/Settings rebuild): the Tools-grid Follow-ups tile needs
+  // a "due today" count without a screen visit having built `queue` yet.
+  // Reuses buildQueue() — the exact same active-candidate computation
+  // renderFollowups() itself uses — rather than tracking a second, separate
+  // "due today" figure; see this file's header for why there's no distinct
+  // due-date concept to filter on (the whole active queue IS "needs
+  // attention now"). Updates the module-level `queue`/`dismissedQueue` too,
+  // so a follow-up screen render right after just reuses this result.
+  async function followupsDueCount() {
+    try {
+      const built = await buildQueue();
+      queue = built.active;
+      dismissedQueue = built.dismissed;
+      return queue.length;
+    } catch (e) {
+      console.error('followupsDueCount', e);
+      return 0;
+    }
+  }
+  window.followupsDueCount = followupsDueCount;
+
 })();

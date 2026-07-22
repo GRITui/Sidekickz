@@ -28,8 +28,10 @@ const { chromium } = require('playwright');
   const selectVal = await page.inputValue('#set-business-type');
   assert(selectVal === 'custom', 'chosen "Other" should set businessType=custom, got: ' + selectVal);
 
-  // Toggle theme to dark via Settings, confirm it actually applies
-  await page.selectOption('#set-theme', 'dark');
+  // Toggle theme to dark via Settings, confirm it actually applies.
+  // TSK-002/007: Theme is now a 3-button segmented control (#seg-theme-*),
+  // not a native <select id="set-theme"> — click the Dark button instead.
+  await page.click('#seg-theme-dark');
   await page.waitForTimeout(200);
   const themeAfterToggle = await page.evaluate(() => document.documentElement.dataset.theme);
   assert(themeAfterToggle === 'dark', 'switching theme select to dark should apply dark, got: ' + themeAfterToggle);

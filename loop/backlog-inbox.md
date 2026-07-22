@@ -14,7 +14,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-002</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status>
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commits 50d12d8+d5ec60c, PR #65 (open, expanded scope). Playwright 741/741. See squad-handshake-engineer.md. -->
   <priority>HIGH</priority>
   <title>Candidate #1 — More/Settings screen: discoverability sink</title>
   <description>s-more hosts 12 collapsible sections mixing daily tools (Follow-ups, Portfolio, Research, Insights, Invoices, Docs) with one-time setup (LINE, Shop, Team, Tax defaults, Business info). Nav badge on "More" signals hidden actionable items. Three whole product modules are only reachable via More ▸ More tools — maximal discoverability failure. Long scroll, no search.</description>
@@ -64,7 +64,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-007</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status><!-- Owner-approved 2026-07-22, see TSK-015 -->
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commits 50d12d8+d5ec60c, PR #65 (open, expanded scope). Playwright 741/741. See squad-handshake-engineer.md. -->
   <priority>HIGH</priority>
   <title>UX-UI-Designer: produce 3 mockup directions for top candidate (TSK-002, More/Settings)</title>
   <description>Design 2-3 refinement directions for the More/Settings surface. Hard constraint: same look&feel and brand CI — reuse existing tokens, type, radii, list-card/settings-row patterns. No new colors.</description>
@@ -74,7 +74,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-008</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status><!-- built interactive in More 1a.dc.html; QA PASS epoch 7; Owner-approved 2026-07-22, see TSK-015 -->
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit 0a33910, PR #65 (open, expanded scope). Playwright 816/816. See squad-handshake-engineer.md. -->
   <priority>HIGH</priority>
   <title>Job modal refinement direction (candidate #2)</title>
   <description>Split the 2.5-screen sheet into a Quick log / Full details segmented sheet: quick path = date, client, fee, net, save; advanced sections (plan & payments, items, time tracking) collapse to drill rows with counts. Cancel de-escalated from danger styling to plain text. Direction 2a delivered.</description>
@@ -84,7 +84,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-009</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status><!-- built interactive in More 1a.dc.html Home tab; QA PASS epoch 7; Owner-approved 2026-07-22, see TSK-015 -->
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit 7bcedbf, PR #65 (open, expanded scope). Playwright 780/780. See squad-handshake-engineer.md. -->
   <priority>MEDIUM</priority>
   <title>Home urgency-surface merge (candidate #3)</title>
   <description>Merge home-alert-card + attn-card + incoming pipeline into one "Today" stack using the existing list-row grammar and chip colors; hero and goal card untouched. Direction 2b delivered.</description>
@@ -94,7 +94,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-010</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status><!-- built interactive: Calendar tab in More 1a.dc.html (3-day pager, 72px rows, 62px blocks); epoch 8; Owner-approved 2026-07-22, see TSK-015 -->
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit fc61191, PR #65 (open). Playwright 840/840. Batch complete. See squad-handshake-engineer.md. -->
   <priority>MEDIUM</priority>
   <title>Calendar week view ergonomics (candidate #4)</title>
   <description>Default mobile zoom to 3-day columns (~118px), hour rows 72px, blocks min 44px with 12px+ type; 7-day stays for >=900px. Day pager reuses cal-navbtn tokens. Direction 2c delivered.</description>
@@ -104,7 +104,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-011</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status><!-- built interactive: Task flow tab in More 1a.dc.html (chip underlines replace minimap, cards move stages); epoch 8; Owner-approved 2026-07-22, see TSK-015 -->
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit 6e9acba, PR #65 (open). Playwright 737/737. See squad-handshake-engineer.md. -->
   <priority>LOW</priority>
   <title>Task flow rail light-touch (candidate #5)</title>
   <description>Keep the recent kb-* redesign. Light touch only: fold the marigold minimap into the chips as a progress underline, drop the always-on hint sentence to first-run only. Direction 2d delivered.</description>
@@ -114,7 +114,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-012</id>
   <source>OWNER_POPUP</source>
-  <status>READY_FOR_PM</status><!-- Owner-approved 2026-07-22, see TSK-015 -->
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit 6e9acba, PR #65 (open). One item held for owner decision: gate no longer creates a real calendar booking, see squad-handshake-engineer.md Cross-Squad Requests. -->
   <priority>HIGH</priority>
   <title>Task flow: 4 client paths + incident notes + stage-gate booking</title>
   <description>Cards gained Cancel (red, tweakable to quiet "Lost"), Redo (attempt counter), Postpone (tap deadline chip), and Advance. Advancing opens an inline stage-gate to book the next deadline (Skip allowed); skipped stages show an amber "No date booked" banner that reopens the gate. Cancel/Redo/Postpone capture an optional quick note, shown on the card as italic quote.</description>
@@ -124,7 +124,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-013</id>
   <source>OWNER_POPUP</source>
-  <status>READY_FOR_PM</status><!-- Owner-approved 2026-07-22, see TSK-015 -->
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit 6e9acba, PR #65 (open). -->
   <priority>HIGH</priority>
   <title>Task flow: multi-session package delivery + renewal loop</title>
   <description>Deliver-stage cards with pkg{used,total} show a session progress bar and "Log session N of M" action; each log opens a gate to book the NEXT session (skip = amber banner). Final session's gate offers "Send renewal quote" which completes the card and spawns a renewal card in Quote with the follow-up date, closing the renewal loop before a gap.</description>
@@ -134,7 +134,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-014</id>
   <source>OWNER_POPUP</source>
-  <status>READY_FOR_PM</status>
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit 8add6cf, PR #64 (open). Full regression 703/703 Playwright + 73/73 Node. See squad-handshake-engineer.md. -->
   <priority>HIGH</priority>
   <title>Stage-model migration: 6 stages -> 4 (Inquiry/Quote/Booked/Deliver)</title>
   <description>Owner confirmed a REAL migration, not a visual relabel: collapse the production STAGES ['pitch','quote','invoice','paid','delivery','extend'] to ['inquiry','quote','booked','deliver']. Invoice+Paid collapse into Booked (a job in Booked can still have zero/one/many linked invoices and a paid/unpaid state tracked as a job-level flag, not a stage); Delivery+Extend collapse into Deliver (package renewal becomes an explicit action — "Send renewal quote" — that spawns a new card in Quote, rather than a stage the job sits in). Must preserve: jobEarned()-driven revenue reporting (Home hero, goal card, Team billing, tax roll-up all read this), package delivery counting (jobDelivered()), invoice/payment linkage (onInvoiceMarkedPaid reverse hook), docgen quote/invoice generation, followups queue, booking links, dated sub-tasks/appointment gate. Existing installs' stored job.stage values ('pitch'/'invoice'/'paid'/'extend') need a one-time migration to the new 4-stage vocabulary on load, not a hard break. Blast radius (grep-confirmed): app.js, bookings.js, docgen.js, followups.js, invoices.js, tax.js, sql schema, api FIELDS, dataClient mirror, 12+ existing test suites, demo data for all 7 personas, i18n (EN+TH).</description>
