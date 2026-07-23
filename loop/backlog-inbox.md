@@ -4,7 +4,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-001</id>
   <source>OWNER_POPUP</source>
-  <status>READY_FOR_PM</status>
+  <status>READY_FOR_PM</status><!-- SUPERSEDED 2026-07-22 by Researcher-Squad: assessment complete, output is TSK-002..006 below. No standalone build action. -->
   <priority>HIGH</priority>
   <title>Assess all functional designs; rank refinement candidates</title>
   <description>Assess Sidekick's functional screens for user friction / UX debt, mobile ergonomics (44px+ targets, one-hand reach), and feature discoverability. All personas weighted equally. Keep brand CI (Schibsted Grotesk / Spline Sans Mono, --brand #22554B, --marigold #C08A3E, warm paper surfaces, radius 16/11, bottom-sheet modals).</description>
@@ -24,7 +24,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-003</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status>
+  <status>READY_FOR_PM</status><!-- SUPERSEDED 2026-07-22 by Researcher-Squad: refined + shipped as TSK-008 (PR #65, commit 0a33910). No separate build action. -->
   <priority>HIGH</priority>
   <title>Candidate #2 — Job modal: overloaded bottom sheet</title>
   <description>modal-job stacks date, client, fast-path, service, package, 4 numeric fields, notes, net box, options compared, items, plan & payments (sub-tasks + milestones + dated steps), time tracking, then 3 stacked buttons (Save / Delete / Cancel as btn-danger styling). ~2.5 screens of scroll inside a 92vh sheet.</description>
@@ -34,7 +34,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-004</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status>
+  <status>READY_FOR_PM</status><!-- SUPERSEDED 2026-07-22 by Researcher-Squad: refined + shipped as TSK-009 (PR #65, commit 7bcedbf). No separate build action. -->
   <priority>MEDIUM</priority>
   <title>Candidate #3 — Home: alert/attention duplication</title>
   <description>Home shows hero, quick actions, goal card, home-alert-card, attn-card ("Needs attention"), and "Up next" — three separate urgency surfaces with different visual grammars competing on one screen.</description>
@@ -44,7 +44,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-005</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status>
+  <status>READY_FOR_PM</status><!-- SUPERSEDED 2026-07-22 by Researcher-Squad: refined + shipped as TSK-010 (PR #65, commit fc61191). No separate build action. -->
   <priority>MEDIUM</priority>
   <title>Candidate #4 — Week view calendar: dense touch grid</title>
   <description>wk-daycol 76px columns, 60px hour cells, 9-11px type; blocks below 44px height are common. Off-range ▲▼ hints tiny.</description>
@@ -54,7 +54,7 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
 <task_item>
   <id>TSK-006</id>
   <source>RESEARCHER_SQUAD</source>
-  <status>READY_FOR_PM</status>
+  <status>READY_FOR_PM</status><!-- SUPERSEDED 2026-07-22 by Researcher-Squad: refined + shipped as TSK-011 (PR #65, commit 6e9acba). No separate build action. -->
   <priority>LOW</priority>
   <title>Candidate #5 — Task flow chip rail + minimap</title>
   <description>Stage chips + marigold minimap + hint text is a novel 3-layer navigation for 6 stages; new users must learn it. Cards themselves are solid.</description>
@@ -149,4 +149,24 @@ Append-only ledger. Owner idea logged by Owner-Assistant-Agent 2026-07-22; triag
   <title>Owner decision: adopt the full design_handoff_sidekick_refinements bundle</title>
   <description>Owner (Krit) reviewed the bundle (README.md, More 1a.dc.html interactive prototype, Assessment Report.dc.html, this ledger) and approved all five refined surfaces (TSK-002/007 More-Settings, TSK-008 Job modal, TSK-009 Home Today, TSK-010/011 Calendar + Task-flow light-touch, TSK-012/013 Task-flow client-paths + package renewal) for implementation into the production Sidekickz codebase (app/ vanilla JS + styles.css, no framework). Explicitly chose the harder of two options on the one open architectural question raised during triage: migrate the pipeline to the prototype's real 4-stage model (TSK-014) rather than keep 6 stages with a relabeled chip rail. Build order: TSK-014 (stage migration, foundational) -> TSK-012/013/011 (Task flow) -> TSK-002/007 (More/Settings) -> TSK-009 (Home) -> TSK-008 (Job modal) -> TSK-010 (Calendar). Each surface ships as its own tested, reviewed pass (assess -> build -> verify -> full regression), matching this repo's own established changelog convention, not one giant commit.</description>
   <researcher_notes>Design assets copied into loop/design-handoff/ for implementer reference. Prototype markup uses literal pixel/hex values throughout (README confirms these trace to real styles.css tokens) -- map back to var(--*) when implementing, do not hardcode.</researcher_notes>
+</task_item>
+
+<task_item>
+  <id>TSK-016</id>
+  <source>OWNER_POPUP</source>
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit 64ef125, PR #66 (open, expanded scope). Playwright check-gate-booking.js 15/15, check-task-flow-v2.js 33/33. See squad-handshake-engineer.md. -->
+  <priority>MEDIUM</priority>
+  <title>Wire a real Calendar booking back into the inline stage-gate (Option B)</title>
+  <description>Resolves the open decision carried in squad-handshake-engineer.md since PR #65: the TSK-012 inline stage-gate currently writes only `job.due` (a scalar reminder) and creates no `bookings` row, even though its copy ("Book the follow-up" / "Book & move" / toast "Appointment booked") implies a slot was booked. Owner reviewed the side-by-side mockup and chose Option B -- restore the old behavior by calling the existing, already-tested `createBookingForStep(j, st)` (app/app.js:5623) from the gate's basic-move resolvers so a real Calendar entry appears, matching what the old full-screen gate did for Inquiry-stage exact dates. Scope: `resolveGateAdvance()` (app/app.js:4996) and its two siblings for the 3 basic transitions (Inquiry->Quote, Quote->Booked, Booked->Deliver) each create/link a booking when a date is saved (skip path unaffected, still writes no date and no booking). Redo/Postpone need the linked booking moved or recreated, not just `job.due` rewritten -- flagged as the one non-trivial part of this change. Out of scope: gate copy already matches this behavior, so no i18n string changes needed (Option A would have required rewording; Option B does not).</description>
+  <researcher_notes>Comparison mockup rendered from real app/styles.css tokens + app/app.js gate copy, shown to owner 2026-07-22 (see conversation record). Owner chose Option B over rewording the gate copy for Option A. Engineering cost estimated small by Engineer-Squad -- reuses existing, tested booking-creation code path, not new infrastructure, except the Redo/Postpone re-link case.</researcher_notes>
+</task_item>
+
+<task_item>
+  <id>TSK-017</id>
+  <source>OWNER_POPUP</source>
+  <status>READY_FOR_PM</status><!-- SHIPPED by Engineer-Squad 2026-07-22: commit 64ef125, PR #66 (open). Playwright check-lost-reason-chips.js 15/15, check-options-lost.js 28/28. Batch complete. See squad-handshake-engineer.md. -->
+  <priority>LOW</priority>
+  <title>Add optional lost-reason chips to the Cancel gate (Option B of the Lost/Redo assessment)</title>
+  <description>Follow-up to the orphaned-`markJobLost()` note (squad-handshake-engineer.md Cross-Squad Requests): rather than restoring the old standalone fixed-reason modal (Option A, rejected -- would recreate the two-mechanism duplication problem), layer the same 4 canned reasons (`LOST_REASONS` = cancelled/no_response/price/competitor) as optional, single-select toggle chips directly above the existing free-text note field in the `cancel` branch of `gateCardHtml()` (app/app.js:4942). `resolveGateCancel()` (app/app.js:5054) reads the selected chip into `j.lostReason` alongside the note it already writes -- one mechanism, both a structured facet and the freeform narrative. No new modal, no new screen, no schema change (the `lost_reason` column already exists end-to-end in IndexedDB/server mirror/SQL, just has zero consumers today). A follow-on "Lost reasons" breakdown in the existing dev-only Insights screen becomes possible once the field is populated, but is NOT required to ship the chips themselves -- separate, optional next step.</description>
+  <researcher_notes>Owner reviewed a before/after mockup (chips + note vs. note-only) rendered from real app/styles.css tokens + app/app.js gate structure, plus an illustrative (explicitly mock-data) Insights breakdown preview, 2026-07-22 (see conversation record). Explicitly LOW priority / not urgent -- the underlying data has had zero downstream consumers since TSK-012 shipped, so nothing regresses by leaving this unbuilt for now.</researcher_notes>
 </task_item>

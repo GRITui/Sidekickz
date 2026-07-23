@@ -747,6 +747,11 @@ const I18N = {
     pl_session_logged_toast:'Session logged — {used} / {total}',
     pl_package_complete_toast:'Package complete — renewal card in Quote',
     pl_package_complete_no_renewal_toast:'Package complete',
+    // TSK-016: booking titles for the real Calendar entry the inline gate now
+    // creates/moves alongside job.due (createBookingForStep appends " — {client}").
+    gate_booking_title_quote:'Quote follow-up', gate_booking_title_booked:'Session',
+    gate_booking_title_deliver:'Delivery hand-off', gate_booking_title_pending:'Next step',
+    gate_booking_title_redo:'Follow-up', gate_booking_title_postpone:'Follow-up',
     // dashboard
     earned_this_month:'Earned this month', net_after_expenses:'net after expenses',
     stat_jobs:'Sessions', stat_avg:'Avg / session', stat_expenses:'Expenses',
@@ -1268,6 +1273,9 @@ const I18N = {
     pl_session_logged_toast:'บันทึกครั้งนี้แล้ว — {used} / {total}',
     pl_package_complete_toast:'แพ็กเกจครบแล้ว — สร้างใบเสนอราคาต่ออายุในขั้นเสนอราคาแล้ว',
     pl_package_complete_no_renewal_toast:'แพ็กเกจครบแล้ว',
+    gate_booking_title_quote:'ติดตามใบเสนอราคา', gate_booking_title_booked:'นัดหมาย',
+    gate_booking_title_deliver:'เริ่มส่งมอบ', gate_booking_title_pending:'ขั้นตอนถัดไป',
+    gate_booking_title_redo:'ติดตามผล', gate_booking_title_postpone:'ติดตามผล',
     // dashboard
     earned_this_month:'รายได้เดือนนี้', net_after_expenses:'สุทธิหลังหักค่าใช้จ่าย',
     stat_jobs:'เซสชัน', stat_avg:'เฉลี่ย/เซสชัน', stat_expenses:'ค่าใช้จ่าย',
@@ -4434,6 +4442,9 @@ async function saveJob() {
     obj.note = prev.note ?? null;
     obj.attempt = Number(prev.attempt) > 0 ? Number(prev.attempt) : 1;
     obj.paid = prev.paid || false;
+    // TSK-016: the inline gate's linked Calendar booking cuid, same
+    // preserve-on-edit requirement as due/note/attempt above.
+    obj.dueBookingCuid = prev.dueBookingCuid ?? null;
     // Tracking state lives on the record, never on this form — and dbPut()
     // REPLACES the stored object, so anything not carried forward here is
     // silently destroyed by an ordinary detail edit (including the pipeline
@@ -4460,7 +4471,7 @@ async function saveJob() {
     obj.complete = false;
     obj.invoiceId = null;
     obj.quoteDocId = null;
-    obj.due = null; obj.note = null; obj.attempt = 1;
+    obj.due = null; obj.note = null; obj.attempt = 1; obj.dueBookingCuid = null;
   }
   const applyPkgEl = document.getElementById('j-apply-package');
   const pkgIdEl = document.getElementById('j-package-id');
@@ -4940,9 +4951,18 @@ function gateCardHtml(j) {
   const dateInput = `<input type="date" id="gate-date-${j.id}" class="gate-date tnum" value="${attrEsc(defDate)}" onclick="event.stopPropagation()">`;
   const noteInput = (ph) => `<textarea class="gate-note" id="gate-note-${j.id}" placeholder="${attrEsc(ph)}" rows="2" onclick="event.stopPropagation()"></textarea>`;
   if (kind === 'cancel') {
+    // TSK-017: optional single-select reason chips, additive to the free-text
+    // note below — not a replacement (see LOST_REASONS/markJobLost, whose
+    // fixed-reason modal this layers onto the live Cancel gate instead of
+    // reviving as a separate standalone flow).
+    const reasonChips = LOST_REASONS.map(r =>
+      `<button type="button" class="gate-reason-chip" data-reason="${r}" onclick="event.stopPropagation();toggleGateReason(this)">${htmlEsc(t('lost_reason_' + r))}</button>`
+    ).join('');
     return `<div class="gate-card" onclick="event.stopPropagation()">
       <div class="gate-title">${htmlEsc(t('gate_cancel_title'))}</div>
       <div class="gate-context">${htmlEsc(t('gate_cancel_context'))}</div>
+      <div class="gate-reason-label">${htmlEsc(t('lost_reason_label'))}</div>
+      <div class="gate-reason-row" id="gate-reasons-${j.id}">${reasonChips}</div>
       ${noteInput(t('gate_note_ph'))}
       <div class="gate-btns">
         <button type="button" class="gate-btn-secondary" onclick="event.stopPropagation();closeGateCard()">${htmlEsc(t('gate_keep_it_btn'))}</button>
@@ -4998,8 +5018,10 @@ async function resolveGateAdvance(jobId, withDate) {
   if (!j) return;
   const dateEl = document.getElementById('gate-date-' + jobId);
   const date = withDate ? ((dateEl && dateEl.value) || addDaysISO(todayISO(), 7)) : null;
+  const kind = (window.__gateOpen && window.__gateOpen.jobId === jobId) ? window.__gateOpen.kind : 'pending';
   j.due = date;
   if (date) j.pendingGateStage = null;
+  await syncGateBookingForDue(j, date, kind);   // TSK-016: real Calendar entry alongside the reminder
   j.updatedAt = nowISO();
   await dbPut('jobs', j);
   mirrorJob(j);
@@ -5018,8 +5040,10 @@ async function resolveGateRedo(jobId, withDate) {
   const note = ((noteEl && noteEl.value) || '').trim();
   j.attempt = (Number(j.attempt) > 0 ? Number(j.attempt) : 1) + 1;
   j.note = note || null;
-  j.due = withDate ? ((dateEl && dateEl.value) || addDaysISO(todayISO(), 7)) : null;
-  if (j.due) j.pendingGateStage = null;
+  const date = withDate ? ((dateEl && dateEl.value) || addDaysISO(todayISO(), 7)) : null;
+  j.due = date;
+  if (date) j.pendingGateStage = null;
+  await syncGateBookingForDue(j, date, 'redo');   // TSK-016: move the existing linked booking, or create one
   j.updatedAt = nowISO();
   logEvent('pipeline_redo:' + jobStage(j));
   await dbPut('jobs', j);
@@ -5040,6 +5064,7 @@ async function resolveGatePostpone(jobId, withDate) {
   j.note = note || j.note || null;
   j.due = date;
   if (date) j.pendingGateStage = null;
+  await syncGateBookingForDue(j, date, 'postpone');   // TSK-016: move the existing linked booking, or create one
   j.updatedAt = nowISO();
   logEvent('pipeline_postpone:' + jobStage(j));
   await dbPut('jobs', j);
@@ -5051,15 +5076,33 @@ async function resolveGatePostpone(jobId, withDate) {
 }
 window.resolveGatePostpone = resolveGatePostpone;
 
+// Single-select, same pattern as the old markJobLost() modal's
+// toggleLostReason: tapping the already-selected chip clears it — the
+// reason stays optional (TSK-017).
+function toggleGateReason(btn) {
+  const row = btn.closest('.gate-reason-row');
+  if (!row) return;
+  const wasSelected = btn.classList.contains('selected');
+  row.querySelectorAll('.gate-reason-chip').forEach(b => b.classList.remove('selected'));
+  if (!wasSelected) btn.classList.add('selected');
+}
+window.toggleGateReason = toggleGateReason;
+
 async function resolveGateCancel(jobId) {
   const j = jobs.find(x => x.id === jobId);
   if (!j || jobComplete(j)) return;
   const noteEl = document.getElementById('gate-note-' + jobId);
   const note = ((noteEl && noteEl.value) || '').trim();
+  const reasonRow = document.getElementById('gate-reasons-' + jobId);
+  const selReason = reasonRow ? reasonRow.querySelector('.gate-reason-chip.selected') : null;
   j.complete = true;
   j.outcome = 'lost';
   j.note = note || null;
+  j.lostReason = selReason ? selReason.dataset.reason : null;
   j.pendingGateStage = null;
+  // TSK-016: a cancelled job doesn't need its calendar hold anymore — drop
+  // the linked booking rather than leaving a phantom appointment behind.
+  if (j.dueBookingCuid) { await deleteBookingByCuid(j.dueBookingCuid); j.dueBookingCuid = null; }
   j.updatedAt = nowISO();
   logEvent('pipeline_stage:lost:cancel_gate');
   _pipelineActiveStage = j.stage;
@@ -5632,6 +5675,36 @@ async function createBookingForStep(j, st) {
   st.bookingCuid = row.cuid;
 }
 
+// TSK-016: keep the inline stage-gate's OPTIONAL linked Calendar booking
+// (job.dueBookingCuid) in lockstep with job.due — the scalar reminder field
+// TSK-012 introduced. Mirrors createBookingForStep's persistence shape but
+// at the job level (no subTask involved, since the inline gate never had
+// one): create on first save, MOVE the same booking in place on a later
+// reschedule (Redo/Postpone) rather than leaving a stale duplicate behind,
+// delete when a date is cleared. Doesn't touch the title on a move — a
+// postponed appointment stays the same appointment, just on a new date.
+async function syncGateBookingForDue(j, date, titleKind) {
+  if (!date) {
+    if (j.dueBookingCuid) { await deleteBookingByCuid(j.dueBookingCuid); j.dueBookingCuid = null; }
+    return;
+  }
+  if (j.dueBookingCuid) {
+    const row = (await dbAll('bookings')).find(b => b.cuid === j.dueBookingCuid);
+    if (row) {
+      row.date = date; row.updatedAt = nowISO();
+      await dbPut('bookings', row);
+      if (!isGuest && typeof SidekickBackend !== 'undefined' && SidekickBackend.isEnabled())
+        SidekickBackend.mirrorBookingSave(row).catch(() => {});
+      return;
+    }
+    // Linked booking vanished elsewhere (e.g. deleted from Calendar directly)
+    // — fall through and recreate rather than leaving due with a dead link.
+  }
+  const st = { text: t('gate_booking_title_' + (titleKind || 'pending')), date, startTime: '09:00' };
+  await createBookingForStep(j, st);
+  j.dueBookingCuid = st.bookingCuid;
+}
+
 // One dynamic overlay (same pattern as maybeShowCloudBackupModal — built on
 // demand, no index.html markup) serves all four flows:
 //   gate   — after a forward stage move; the ONLY exits are Save and
@@ -5991,7 +6064,7 @@ async function spawnRenewalQuoteJob(clientId, dueDate) {
     invoiceId: null, quoteDocId: null, packageId: null,
     subTasks: [], milestones: [], timeEntries: [], timerStartedAt: null,
     outcome: null, lostReason: null, options: [], items: [], paid: false,
-    due: dueDate || null, note: null, attempt: 1,
+    due: dueDate || null, note: null, attempt: 1, dueBookingCuid: null,
     createdAt: nowISO(), updatedAt: nowISO(),
   };
   const key = await dbAdd('jobs', job);

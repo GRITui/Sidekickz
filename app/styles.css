@@ -297,6 +297,17 @@ details.job-drill:last-of-type{margin-bottom:0;}
   padding:9px 10px;font-size:14px;font-weight:700;text-align:center;font-family:'Spline Sans Mono',monospace;box-sizing:border-box;}
 .gate-note{width:100%;margin-top:8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);color:var(--text);
   padding:8px 10px;font-size:12.5px;font-family:inherit;resize:vertical;box-sizing:border-box;}
+/* TSK-017: optional single-select reason chips, Cancel gate only — layered
+   above the note field, not a replacement for it (see gateCardHtml 'cancel'). */
+.gate-reason-label{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--text4);margin:0 0 7px;}
+.gate-reason-row{display:flex;flex-wrap:wrap;gap:6px;}
+.gate-reason-chip{border:1px solid var(--border);background:var(--bg);color:var(--text3);
+  font-family:inherit;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:999px;
+  white-space:nowrap;cursor:pointer;}
+.gate-reason-chip.selected{border-color:var(--overdue);background:color-mix(in srgb,var(--overdue) 14%,transparent);
+  color:var(--overdue);}
+.gate-reason-chip:focus-visible{outline:2px solid var(--overdue);outline-offset:2px;}
 .gate-btns{display:flex;gap:8px;margin-top:10px;}
 .gate-btn-secondary{flex:1;border:1px solid var(--border);border-radius:var(--radius-sm);background:transparent;color:var(--text3);
   font-family:inherit;font-weight:700;font-size:12.5px;padding:9px;cursor:pointer;}
