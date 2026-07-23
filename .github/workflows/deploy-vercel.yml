@@ -12,6 +12,14 @@ name: Deploy to Vercel
 # pull_request is scoped to `opened` only: the preview builds once when a PR
 # is first opened, not on every subsequent push to the branch. Production
 # still deploys on every push to main (i.e. every merge).
+#
+# Staging gate (2026-07-23): `deploy-production` now `needs: test` — a full
+# tests/run-all.sh run against the exact commit being deployed, not just
+# whatever ran locally before merge. Deliberately scoped to production only;
+# `deploy-preview` stays ungated so PR previews build immediately. Combined
+# with the `production` environment's required-reviewer protection rule
+# (set in repo Settings > Environments, not expressible in this file) for a
+# second, human checkpoint after the automated one passes.
 
 on:
   push:
@@ -25,7 +33,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test:
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # tests/check-*.js resolve their own Chromium via
+      # PLAYWRIGHT_CHROMIUM_PATH || Playwright's default lookup — leaving
+      # the env var unset here lets them find the one this step installs.
+      - name: Install Playwright's Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Full regression battery
+        run: bash tests/run-all.sh
+
   deploy-production:
+    needs: test
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:

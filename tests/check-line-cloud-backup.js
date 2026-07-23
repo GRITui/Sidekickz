@@ -1,7 +1,7 @@
 const { chromium } = require('playwright');
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', headless: true });
+  const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined, headless: true });
   let pass = 0, fail = 0;
   const assert = (cond, msg) => { if (cond) pass++; else { fail++; console.log('FAIL:', msg); } };
   const errors = [];
