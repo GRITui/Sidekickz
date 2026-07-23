@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 
 const BASE = 'http://localhost:8953';
-const EXE = '/opt/pw-browsers/chromium';
+const EXE = process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined;
 
 let pass = 0, fail = 0;
 const assert = (cond, msg) => { if (cond) { pass++; } else { fail++; console.log('FAIL:', msg); } };

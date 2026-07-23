@@ -19,7 +19,7 @@ const path = require('path');
 
 const BASE = 'http://localhost:8963';
 const APP_BASE = 'http://localhost:8953'; // in-app share test reuses check-payments.js's port
-const EXE = '/opt/pw-browsers/chromium';
+const EXE = process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined;
 
 let pass = 0, fail = 0;
 const assert = (cond, msg) => { if (cond) { pass++; } else { fail++; console.log('FAIL:', msg); } };
