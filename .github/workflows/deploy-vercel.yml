@@ -28,6 +28,14 @@ on:
     types: [opened]
   workflow_dispatch:
 
+# Least-privilege default for the whole workflow (CodeQL flagged the
+# absence of this on PR #67) — every job only needs to read the repo to
+# check it out; `deploy-preview` below adds pull-requests: write on top,
+# job-level permissions REPLACE rather than merge with this default, so it
+# repeats contents: read explicitly rather than relying on this block.
+permissions:
+  contents: read
+
 concurrency:
   group: vercel-${{ github.ref }}
   cancel-in-progress: true
@@ -87,6 +95,7 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: write
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
